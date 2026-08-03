@@ -199,8 +199,8 @@ if ($view === 'settings') {
                     </div>
                     <div class="col-12 col-lg-6">
                         <label class="form-label fw-semibold" for="email_test_redirect_to">Redirect to</label>
-                        <input class="form-control" id="email_test_redirect_to" name="email_test_redirect_to" value="<?php echo h((string)($emailSettings['email_test_redirect_to'] ?? 'neildaanderson@gmail.com')); ?>" placeholder="neildaanderson@gmail.com">
-                        <div class="help-row">Default: <code>neildaanderson@gmail.com</code></div>
+                        <input class="form-control" id="email_test_redirect_to" name="email_test_redirect_to" value="<?php echo h((string)($emailSettings['email_test_redirect_to'] ?? 'clients@truska.com')); ?>" placeholder="clients@truska.com">
+                        <div class="help-row">Default: <code>clients@truska.com</code></div>
                     </div>
                 </div>
             </div>
@@ -323,7 +323,7 @@ if ($view === 'settings') {
                 <div class="row g-3 align-items-end mt-1">
                     <div class="col-12 col-lg-6">
                         <label class="form-label fw-semibold" for="test_to">Send test to</label>
-                        <input class="form-control" id="test_to" name="test_to" value="<?php echo h((string)($_POST['test_to'] ?? 'neildaanderson@gmail.com')); ?>" placeholder="you@example.com">
+                        <input class="form-control" id="test_to" name="test_to" value="<?php echo h((string)($_POST['test_to'] ?? 'clients@truska.com')); ?>" placeholder="you@example.com">
                         <div class="help-row">If SES is in sandbox mode, the recipient must be verified in SES.</div>
                     </div>
                     <div class="col-12 col-lg-6 d-flex justify-content-lg-end">
