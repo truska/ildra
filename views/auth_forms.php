@@ -134,5 +134,4 @@
             </form>
         </div>
     <?php endif; ?>
-    <div class="text-muted small text-center mt-3">Git pull test line - ILDRA login page.</div>
 </div>
