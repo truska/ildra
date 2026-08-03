@@ -148,6 +148,15 @@ function legacyEmailCsvSettings(): array
     return $cache;
 }
 
+function legacyEmailCsvPath(): ?string
+{
+    foreach ([__DIR__ . '/../private/preferences.csv', __DIR__ . '/private/preferences.csv'] as $path) {
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    return null;
+}
 function importLegacyEmailSettingsFromCsv(PDO $pdo): void
 {
     static $done = false;
@@ -276,6 +285,52 @@ function getEmailSettings(?PDO $pdo): array
     }
 
     return $settings;
+}
+
+function emailDebugSnapshot(array $settings, array $meta = []): array
+{
+    $csv = legacyEmailCsvSettings();
+    $csvPath = legacyEmailCsvPath();
+    $constUser = defined('ILDRA_EMAIL_SMTP_USERNAME') ? trim((string) constant('ILDRA_EMAIL_SMTP_USERNAME')) : '';
+    $constPass = defined('ILDRA_EMAIL_SMTP_PASSWORD') ? (string) constant('ILDRA_EMAIL_SMTP_PASSWORD') : '';
+    $csvUser = trim((string) ($csv['email_smtp_username'] ?? ($settings['email_from_email'] ?? '')));
+    $csvPass = (string) ($csv['email_smtp_password'] ?? '');
+
+    return [
+        'resolved' => [
+            'email_enabled' => (string) ($settings['email_enabled'] ?? '0'),
+            'email_provider' => (string) ($settings['email_provider'] ?? ''),
+            'email_from_name' => (string) ($settings['email_from_name'] ?? ''),
+            'email_from_email' => (string) ($settings['email_from_email'] ?? ''),
+            'email_reply_to' => (string) ($settings['email_reply_to'] ?? ''),
+            'email_return_path' => (string) ($settings['email_return_path'] ?? ''),
+            'email_cc_default' => (string) ($settings['email_cc_default'] ?? ''),
+            'email_bcc_default' => (string) ($settings['email_bcc_default'] ?? ''),
+            'email_smtp_host' => (string) ($settings['email_smtp_host'] ?? ''),
+            'email_smtp_port' => (string) ($settings['email_smtp_port'] ?? ''),
+            'email_smtp_secure' => (string) ($settings['email_smtp_secure'] ?? ''),
+            'email_smtp_username' => (string) ($settings['email_smtp_username'] ?? ''),
+            'email_smtp_password_present' => ((string) ($settings['email_smtp_password'] ?? '')) !== '',
+            'email_test_redirect_enabled' => (string) ($settings['email_test_redirect_enabled'] ?? '0'),
+            'email_test_redirect_to' => (string) ($settings['email_test_redirect_to'] ?? ''),
+        ],
+        'sources' => [
+            'config_username_present' => $constUser !== '',
+            'config_password_present' => $constPass !== '',
+            'csv_path' => $csvPath,
+            'csv_username_present' => $csvUser !== '',
+            'csv_password_present' => $csvPass !== '',
+            'csv_host_present' => trim((string) ($csv['email_smtp_host'] ?? '')) !== '',
+            'resolved_username_source' => $constUser !== '' ? 'config.php' : ($csvUser !== '' ? 'preferences.csv/email_from_email' : 'missing'),
+            'resolved_password_source' => $constPass !== '' ? 'config.php' : ($csvPass !== '' ? 'preferences.csv' : 'missing'),
+            'resolved_host_source' => trim((string) ($settings['email_smtp_host'] ?? '')) !== ''
+                ? (trim((string) ($csv['email_smtp_host'] ?? '')) !== '' ? 'site_settings_or_preferences.csv' : 'site_settings')
+                : 'missing',
+        ],
+        'message' => [
+            'kind' => (string) ($meta['kind'] ?? $meta['type'] ?? ''),
+        ],
+    ];
 }
 
 function saveEmailSettings(?PDO $pdo, array $data, array &$alerts): bool
@@ -635,6 +690,8 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
             . "Original recipient: {$originalTo}\n\n"
             . $textBody;
     }
+
+    $meta['delivery_debug'] = emailDebugSnapshot($settings, $meta);
 
     $logRow = [
         'status' => 'failed',

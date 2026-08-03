@@ -47,6 +47,14 @@ $subject = (string)($email['subject'] ?? '');
 $err = (string)($email['error_message'] ?? '');
 $htmlBody = (string)($email['body_html'] ?? '');
 $textBody = (string)($email['body_text'] ?? '');
+$metaJson = (string)($email['meta_json'] ?? '');
+$metaData = null;
+if ($metaJson !== '') {
+    $decoded = json_decode($metaJson, true);
+    if (is_array($decoded)) {
+        $metaData = $decoded;
+    }
+}
 
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -128,5 +136,12 @@ $textBody = (string)($email['body_text'] ?? '');
         </div>
     </div>
 </div>
+
+<?php if ($metaData !== null): ?>
+    <div class="card-soft p-4 mt-4">
+        <div class="fw-bold mb-2">Debug metadata</div>
+        <pre class="mb-0" style="white-space:pre-wrap;word-break:break-word;"><?php echo h(json_encode($metaData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); ?></pre>
+    </div>
+<?php endif; ?>
 
 <?php admin_layout_end(); ?>
