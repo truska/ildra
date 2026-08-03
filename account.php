@@ -1707,5 +1707,6 @@ $isLoggedIn = !empty($currentUser);
         }
         <?php endif; ?>
     </script>
+    <?php render_password_reveal_assets(); ?>
 </body>
 </html>

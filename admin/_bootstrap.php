@@ -377,6 +377,7 @@ function admin_layout_end(): void
             });
         })();
     </script>
+    <?php render_password_reveal_assets(); ?>
 </body>
 </html>
     <?php

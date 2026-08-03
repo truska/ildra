@@ -54,6 +54,103 @@ function render_tinymce_bootstrap(): void
     <?php
 }
 
+
+function render_password_reveal_assets(): void
+{
+    static $rendered = false;
+    if ($rendered) {
+        return;
+    }
+    $rendered = true;
+    ?>
+    <style>
+        .password-reveal-wrap {
+            position: relative;
+        }
+        .password-reveal-wrap > input[type="password"],
+        .password-reveal-wrap > input[data-password-reveal="1"] {
+            padding-right: 3rem;
+        }
+        .password-reveal-btn {
+            position: absolute;
+            top: 50%;
+            right: 0.55rem;
+            width: 2rem;
+            height: 2rem;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            color: #476146;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .password-reveal-btn:hover,
+        .password-reveal-btn:focus-visible,
+        .password-reveal-btn.is-revealing {
+            background: rgba(20, 97, 24, 0.1);
+            color: #146118;
+            outline: none;
+        }
+        .password-reveal-btn svg {
+            width: 1.1rem;
+            height: 1.1rem;
+            display: block;
+        }
+        .password-reveal-wrap > input.form-control-sm + .password-reveal-btn {
+            width: 1.75rem;
+            height: 1.75rem;
+            right: 0.45rem;
+        }
+    </style>
+    <script>
+        (function() {
+            const icon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+            const enhance = (input) => {
+                if (!input || input.dataset.passwordReveal === '1' || input.disabled || input.readOnly) return;
+                input.dataset.passwordReveal = '1';
+                const wrap = document.createElement('span');
+                wrap.className = 'password-reveal-wrap d-block';
+                input.parentNode.insertBefore(wrap, input);
+                wrap.appendChild(input);
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'password-reveal-btn';
+                btn.innerHTML = icon;
+                btn.setAttribute('aria-label', 'Show password');
+                btn.setAttribute('title', 'Show password');
+                wrap.appendChild(btn);
+
+                const show = () => {
+                    input.type = 'text';
+                    btn.classList.add('is-revealing');
+                    btn.setAttribute('aria-label', 'Hide password');
+                    btn.setAttribute('title', 'Hide password');
+                };
+                const hide = () => {
+                    input.type = 'password';
+                    btn.classList.remove('is-revealing');
+                    btn.setAttribute('aria-label', 'Show password');
+                    btn.setAttribute('title', 'Show password');
+                };
+                btn.addEventListener('mouseenter', show);
+                btn.addEventListener('mouseleave', hide);
+                btn.addEventListener('focus', show);
+                btn.addEventListener('blur', hide);
+                btn.addEventListener('touchstart', (event) => { event.preventDefault(); show(); }, {passive: false});
+                btn.addEventListener('touchend', hide);
+                btn.addEventListener('touchcancel', hide);
+            };
+            document.querySelectorAll('input[type="password"]').forEach(enhance);
+        })();
+    </script>
+    <?php
+}
+
 function slugify(string $value): string
 {
     $value = strtolower(trim($value));
