@@ -8,7 +8,7 @@ $basePath = $basePath === '' ? '' : $basePath;
 $siteBase = $basePath ?: '';
 $activeTab = ($_POST['action'] ?? '') === 'register' ? 'register' : 'login';
 $authView = (string)($_GET['auth'] ?? '');
-$allowedAuthViews = ['forgot', 'magic'];
+$allowedAuthViews = ['forgot', 'magic', 'choose', 'password', 'app'];
 if (!in_array($authView, $allowedAuthViews, true)) {
     $authView = 'default';
 }
@@ -25,6 +25,8 @@ if (isset($_GET['logout'])) {
 }
 
 $siteSettings = getSiteSettings($pdo);
+$loginEmail = currentLoginEmail();
+$loginMethods = $loginEmail !== '' ? loginMethodState($pdo, $loginEmail, $siteSettings) : null;
 
 // Magic-link sign-in (passwordless)
 if (!$currentUser && $pdo && isset($_GET['magic'])) {
@@ -44,6 +46,8 @@ if (!$pages) {
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
 $userId = (int)($currentUser['id'] ?? 0);
+$authAppStatus = $isLoggedIn ? currentUserAuthAppStatus($pdo, $userId) : ['enabled' => false, 'confirmed_at' => null];
+$authAppSetup = $isLoggedIn ? pendingAuthAppSetup($currentUser ?: [], $siteSettings) : null;
 $accountView = (string)($_GET['view'] ?? '');
 $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
 $basket = $_SESSION['basket'] ?? [];
@@ -127,8 +131,30 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             header('Location: ' . $basePath . '/account');
             exit;
         }
+    } elseif ($action === 'login_lookup') {
+        $loginMethods = handleLoginLookup($pdo, $siteSettings, $alerts);
+        $loginEmail = currentLoginEmail();
+        if ($loginMethods && !$alerts) {
+            $authView = 'choose';
+        }
     } elseif ($action === 'login') {
+        $authView = 'password';
+        $loginEmail = currentLoginEmail();
+        rememberLoginEmail($loginEmail);
+        $loginMethods = $loginEmail !== '' ? loginMethodState($pdo, $loginEmail, $siteSettings) : null;
         $user = handleLogin($pdo, $siteSettings, $alerts, $successMessage);
+        if ($user) {
+            $currentUser = $user;
+            $_SESSION['flash_success'] = $successMessage;
+            header('Location: ' . $basePath . '/account');
+            exit;
+        }
+    } elseif ($action === 'auth_app_login') {
+        $authView = 'app';
+        $loginEmail = currentLoginEmail();
+        rememberLoginEmail($loginEmail);
+        $loginMethods = $loginEmail !== '' ? loginMethodState($pdo, $loginEmail, $siteSettings) : null;
+        $user = handleAuthAppLogin($pdo, $siteSettings, $alerts, $successMessage);
         if ($user) {
             $currentUser = $user;
             $_SESSION['flash_success'] = $successMessage;
@@ -137,6 +163,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
     } elseif ($action === 'magic_link') {
         $authView = 'magic';
+        $loginEmail = currentLoginEmail();
+        if ($loginEmail !== '') {
+            $_POST['email'] = $loginEmail;
+            rememberLoginEmail($loginEmail);
+        }
         handleMagicLinkRequest($pdo, $siteSettings, $alerts, $successMessage);
         if (!$alerts && $successMessage) {
             $_SESSION['flash_success'] = $successMessage;
@@ -162,7 +193,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
     } elseif ($isLoggedIn) {
         $userId = (int)($currentUser['id'] ?? 0);
-        if ($action === 'save_person') {
+        if ($action === 'auth_app_begin_setup') {
+            $authAppSetup = beginAuthAppSetup($currentUser ?: [], $siteSettings);
+            $accountView = 'security';
+        } elseif ($action === 'auth_app_confirm_setup') {
+            $accountView = 'security';
+            if (confirmAuthAppSetup($pdo, $userId, $alerts)) {
+                $_SESSION['flash_success'] = 'Authenticator app login enabled.';
+                header('Location: ' . $basePath . '/account?view=security');
+                exit;
+            }
+            $authAppSetup = pendingAuthAppSetup($currentUser ?: [], $siteSettings);
+        } elseif ($action === 'auth_app_disable') {
+            $accountView = 'security';
+            if (disableAuthApp($pdo, $userId, $alerts)) {
+                $_SESSION['flash_success'] = 'Authenticator app login disabled.';
+                header('Location: ' . $basePath . '/account?view=security');
+                exit;
+            }
+        } elseif ($action === 'save_person') {
             $personId = (int)($_POST['person_id'] ?? 0);
             $savedId = savePersonForUser($pdo, $userId, $_POST, $alerts, $personId > 0 ? $personId : null);
             if ($savedId && !$alerts) {
@@ -535,6 +584,8 @@ $isLoggedIn = !empty($currentUser);
                         echo 'Your horses';
                     } elseif ($accountView === 'shares') {
                         echo 'Shares';
+                    } elseif ($accountView === 'security') {
+                        echo 'Security';
                     } else {
                         echo 'Your account';
                     }
@@ -571,6 +622,7 @@ $isLoggedIn = !empty($currentUser);
 	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=people">People</a>
 	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
 	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
+	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=security">Security</a>
 	                                    <?php if ($canViewAdmin): ?>
 	                                        <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a>
 	                                    <?php endif; ?>
@@ -655,7 +707,61 @@ $isLoggedIn = !empty($currentUser);
                                 </div>
                                 <?php endif; ?>
 
-                            <?php if ($accountView === 'people'): ?>
+                            <?php if ($accountView === 'security'): ?>
+                                <div class="card-soft p-4 mt-4">
+                                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+                                        <div>
+                                            <div class="text-uppercase small text-muted">Security</div>
+                                            <h4 class="fw-bold mb-1">Authenticator app</h4>
+                                            <div class="text-muted small">Use a 6-digit code from an authentication app as a sign-in option.</div>
+                                        </div>
+                                        <span class="badge-role"><?php echo !empty($authAppStatus['enabled']) ? 'Enabled' : 'Not set up'; ?></span>
+                                    </div>
+                                    <?php if (empty($siteSettings['auth_app_login_enabled']) || (string)$siteSettings['auth_app_login_enabled'] === '0'): ?>
+                                        <div class="alert alert-warning mb-3">Authenticator app login is currently disabled at site level. Users can set it up, but it will not appear as a login option until the site setting is enabled.</div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($authAppStatus['enabled'])): ?>
+                                        <p class="text-muted small mb-3">Confirmed <?php echo h(format_display_date($authAppStatus['confirmed_at'] ?? null, 'recently')); ?>.</p>
+                                        <form method="POST" onsubmit="return confirm('Disable authenticator app login for this account?');">
+                                            <input type="hidden" name="action" value="auth_app_disable">
+                                            <button class="btn btn-outline-danger">Disable authenticator app</button>
+                                        </form>
+                                    <?php else: ?>
+                                        <?php if (!$authAppSetup): ?>
+                                            <form method="POST">
+                                                <input type="hidden" name="action" value="auth_app_begin_setup">
+                                                <button class="btn btn-success">Set up authenticator app</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <div class="row g-4 align-items-start">
+                                                <div class="col-md-auto">
+                                                    <?php if (!empty($authAppSetup['qr_data_uri'])): ?>
+                                                        <img src="<?php echo h($authAppSetup['qr_data_uri']); ?>" alt="Authenticator app QR code" width="220" height="220" class="border rounded bg-white p-2">
+                                                    <?php else: ?>
+                                                        <div class="border rounded bg-white p-3 text-muted small" style="max-width: 220px;">QR generation is unavailable on this server. Enter the setup key manually.</div>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="col-md">
+                                                    <label class="form-label fw-semibold">Setup key</label>
+                                                    <div class="form-control bg-white fw-bold" style="height: auto; word-break: break-word;"><?php echo h($authAppSetup['formatted_secret'] ?? ''); ?></div>
+                                                    <div class="text-muted small mt-2">Scan the QR code or enter this key in your authenticator app, then type the current 6-digit code below.</div>
+                                                    <form method="POST" class="row g-3 mt-1">
+                                                        <input type="hidden" name="action" value="auth_app_confirm_setup">
+                                                        <div class="col-sm-7 col-lg-5">
+                                                            <label class="form-label">Code</label>
+                                                            <input type="text" name="code" class="form-control" placeholder="123456" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" required>
+                                                        </div>
+                                                        <div class="col-12">
+                                                            <button class="btn btn-success">Verify and enable</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </div>
+
+                            <?php elseif ($accountView === 'people'): ?>
                                 <?php
                                 $userId = (int)($currentUser['id'] ?? 0);
                                 $peopleAll = fetchMembersForUser($pdo, $userId, true);

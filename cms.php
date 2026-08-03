@@ -90,6 +90,7 @@ function defaultSiteSettings(): array
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days
         'admin_manual_filename' => '',
+        'auth_app_login_enabled' => '0',
     ];
 }
 
@@ -168,6 +169,7 @@ function getSiteSettings(?PDO $pdo): array
         }
         $settings['basket_timeout_seconds'] = max(300, (int)($settings['basket_timeout_seconds'] ?? 900));
         $settings['remember_me_ttl_seconds'] = (int)($settings['remember_me_ttl_seconds'] ?? (30 * 86400));
+        $settings['auth_app_login_enabled'] = !empty($settings['auth_app_login_enabled']) && (string)$settings['auth_app_login_enabled'] !== '0' ? '1' : '0';
         return $settings;
     } catch (PDOException $e) {
         return defaultSiteSettings();
@@ -197,6 +199,7 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
         $rememberTtl = max(3600, min(31536000, $rememberTtl));
     }
     $settings['remember_me_ttl_seconds'] = $rememberTtl;
+    $settings['auth_app_login_enabled'] = !empty($settings['auth_app_login_enabled']) && (string)$settings['auth_app_login_enabled'] !== '0' ? '1' : '0';
 
     try {
         ensureSiteSettingsTable($pdo);

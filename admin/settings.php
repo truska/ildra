@@ -12,11 +12,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rememberDays = max(0, (int)($_POST['remember_me_days'] ?? 30));
     $rememberTtlSeconds = $rememberDays === 0 ? 0 : ($rememberDays * 86400);
     $manualFilename = trim((string)($_POST['admin_manual_filename'] ?? ''));
+    $authAppLoginEnabled = !empty($_POST['auth_app_login_enabled']) ? '1' : '0';
 
     $payload = [
         'basket_timeout_seconds' => $totalSeconds,
         'remember_me_ttl_seconds' => $rememberTtlSeconds,
         'admin_manual_filename' => $manualFilename,
+        'auth_app_login_enabled' => $authAppLoginEnabled,
     ];
     if (saveSiteSettings($pdo, $payload, $alerts)) {
         $_SESSION['flash_success'] = 'Global settings saved.';
@@ -25,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $siteSettings['basket_timeout_seconds'] = $totalSeconds;
     $siteSettings['remember_me_ttl_seconds'] = $rememberTtlSeconds;
+    $siteSettings['auth_app_login_enabled'] = $authAppLoginEnabled;
 }
 
 $timeoutSeconds = (int)($siteSettings['basket_timeout_seconds'] ?? 900);
@@ -33,6 +36,7 @@ $timeoutRemainder = $timeoutSeconds % 60;
 $rememberMeSeconds = (int)($siteSettings['remember_me_ttl_seconds'] ?? (30 * 86400));
 $rememberMeDays = $rememberMeSeconds > 0 ? (int)floor($rememberMeSeconds / 86400) : 0;
 $manualFilename = trim((string)($siteSettings['admin_manual_filename'] ?? ''));
+$authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 
 admin_layout_start('Settings', 'settings');
 ?>
@@ -60,6 +64,13 @@ admin_layout_start('Settings', 'settings');
                             <input type="number" min="0" class="form-control" style="max-width: 110px;" name="remember_me_days" value="<?php echo h($rememberMeDays); ?>">
                             <span class="text-muted">days</span>
                             <span class="text-muted small">Set to 0 to disable “Keep me signed in”.</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold mb-2">Authenticator app login</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="authAppLoginEnabled" name="auth_app_login_enabled" value="1" <?php echo $authAppLoginEnabled ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="authAppLoginEnabled">Offer authenticator app codes as a login option when users have set them up.</label>
                         </div>
                     </div>
                     <div class="col-12">

@@ -1,4 +1,8 @@
 <div class="glass-card rounded-4 p-4 shadow-lift">
+    <?php
+    $loginEmailValue = currentLoginEmail();
+    $loginMethods = $loginMethods ?? ($loginEmailValue !== '' ? loginMethodState($pdo ?? null, $loginEmailValue, $siteSettings ?? []) : null);
+    ?>
     <?php if (($authView ?? 'default') === 'forgot'): ?>
         <div class="mb-3">
             <div class="text-uppercase small text-secondary">Password Help</div>
@@ -9,7 +13,7 @@
             <input type="hidden" name="action" value="password_reset_request">
             <div class="mb-3">
                 <label class="form-label">Email</label>
-                <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'password_reset_request') ? ($_POST['email'] ?? '') : ''); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'password_reset_request') ? ($_POST['email'] ?? '') : $loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
             </div>
             <div class="d-grid gap-2">
                 <button class="btn btn-success btn-lg">Email reset link</button>
@@ -18,7 +22,7 @@
         </form>
     <?php elseif (($authView ?? 'default') === 'magic'): ?>
         <div class="mb-3">
-            <div class="text-uppercase small text-secondary">Passwordless Sign In</div>
+            <div class="text-uppercase small text-secondary">Email Sign In</div>
             <h4 class="fw-semibold mb-1">Email me a sign-in link</h4>
             <div class="text-muted small">We’ll send a one-time link that signs you in without a password.</div>
         </div>
@@ -26,11 +30,80 @@
             <input type="hidden" name="action" value="magic_link">
             <div class="mb-3">
                 <label class="form-label">Email</label>
-                <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'magic_link') ? ($_POST['email'] ?? '') : ''); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'magic_link') ? ($_POST['email'] ?? '') : $loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
             </div>
             <div class="d-grid gap-2">
                 <button class="btn btn-success btn-lg">Send sign-in link</button>
                 <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account">Back to login</a>
+            </div>
+        </form>
+    <?php elseif (($authView ?? 'default') === 'choose' && $loginMethods): ?>
+        <div class="mb-3">
+            <div class="text-uppercase small text-secondary">Choose sign in</div>
+            <h4 class="fw-semibold mb-1"><?php echo h($loginEmailValue); ?></h4>
+            <div class="text-muted small">Use any available sign-in method for this account.</div>
+        </div>
+        <div class="d-grid gap-2">
+            <?php if (!empty($loginMethods['password'])): ?>
+                <a class="btn btn-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=password">Password</a>
+            <?php endif; ?>
+            <?php if (!empty($loginMethods['auth_app'])): ?>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=app">Authenticator app</a>
+            <?php endif; ?>
+            <?php if (!empty($loginMethods['email_link'])): ?>
+                <form method="POST" class="d-grid" novalidate>
+                    <input type="hidden" name="action" value="magic_link">
+                    <input type="hidden" name="email" value="<?php echo h($loginEmailValue); ?>">
+                    <button class="btn btn-outline-success btn-lg">Email sign-in link</button>
+                </form>
+            <?php endif; ?>
+            <a class="btn btn-outline-secondary btn-lg" href="<?php echo h($basePath); ?>/account">Use another email</a>
+        </div>
+    <?php elseif (($authView ?? 'default') === 'password'): ?>
+        <div class="mb-3">
+            <div class="text-uppercase small text-secondary">Password</div>
+            <h4 class="fw-semibold mb-1">Enter your password</h4>
+            <div class="text-muted small"><?php echo h($loginEmailValue); ?></div>
+        </div>
+        <form method="POST" novalidate>
+            <input type="hidden" name="action" value="login">
+            <input type="hidden" name="email" value="<?php echo h($loginEmailValue); ?>">
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" class="form-control placeholder-muted" placeholder="Password" autocomplete="current-password" required>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" value="1" id="rememberMePassword" name="remember_me">
+                <label class="form-check-label" for="rememberMePassword">Keep me signed in on this device</label>
+            </div>
+            <div class="d-grid gap-2">
+                <button class="btn btn-success btn-lg">Login</button>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=choose">Back to options</a>
+            </div>
+        </form>
+        <div class="mt-3 pt-3 border-top auth-link-row">
+            <a class="btn btn-outline-success btn-sm auth-link-btn" href="<?php echo h($basePath); ?>/account?auth=forgot">Forgot password</a>
+        </div>
+    <?php elseif (($authView ?? 'default') === 'app'): ?>
+        <div class="mb-3">
+            <div class="text-uppercase small text-secondary">Authenticator app</div>
+            <h4 class="fw-semibold mb-1">Enter your 6-digit code</h4>
+            <div class="text-muted small"><?php echo h($loginEmailValue); ?></div>
+        </div>
+        <form method="POST" novalidate>
+            <input type="hidden" name="action" value="auth_app_login">
+            <input type="hidden" name="email" value="<?php echo h($loginEmailValue); ?>">
+            <div class="mb-3">
+                <label class="form-label">Code</label>
+                <input type="text" name="code" class="form-control placeholder-muted" placeholder="123456" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" required>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" value="1" id="rememberMeApp" name="remember_me">
+                <label class="form-check-label" for="rememberMeApp">Keep me signed in on this device</label>
+            </div>
+            <div class="d-grid gap-2">
+                <button class="btn btn-success btn-lg">Verify code</button>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=choose">Back to options</a>
             </div>
         </form>
     <?php elseif (($authView ?? 'default') === 'reset'): ?>
@@ -79,23 +152,13 @@
         </div>
         <div id="login" class="tab-pane <?php echo $activeTab === 'login' ? '' : 'd-none'; ?>">
             <form method="POST" novalidate>
-                <input type="hidden" name="action" value="login">
+                <input type="hidden" name="action" value="login_lookup">
                 <div class="mb-3">
                     <label class="form-label">Email</label>
-                    <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'login') ? ($_POST['email'] ?? '') : ''); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Password</label>
-                    <input type="password" name="password" class="form-control placeholder-muted" placeholder="Password" autocomplete="current-password" required>
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" value="1" id="rememberMe" name="remember_me">
-                    <label class="form-check-label" for="rememberMe">
-                        Keep me signed in on this device
-                    </label>
+                    <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h($loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
                 </div>
                 <div class="d-grid">
-                    <button class="btn btn-success btn-lg">Login</button>
+                    <button class="btn btn-success btn-lg">Continue</button>
                 </div>
             </form>
             <div class="mt-3 pt-3 border-top auth-link-row">

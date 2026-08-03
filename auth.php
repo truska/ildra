@@ -648,6 +648,337 @@ function consumeMagicLoginToken(PDO $pdo, string $token, array &$alerts): ?array
     }
 }
 
+
+function ensureAuthAppColumns(PDO $pdo): void
+{
+    $columns = [];
+    try {
+        $stmt = $pdo->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'");
+        $stmt->execute();
+        foreach ($stmt->fetchAll() as $row) {
+            $columns[(string)$row['COLUMN_NAME']] = true;
+        }
+    } catch (PDOException $e) {
+        return;
+    }
+    if (empty($columns['auth_app_secret'])) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN auth_app_secret VARCHAR(64) NULL AFTER password_hash");
+    }
+    if (empty($columns['auth_app_enabled'])) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN auth_app_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER auth_app_secret");
+    }
+    if (empty($columns['auth_app_confirmed_at'])) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN auth_app_confirmed_at DATETIME NULL AFTER auth_app_enabled");
+    }
+}
+
+function auth_app_base32_encode(string $bytes): string
+{
+    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $bits = '';
+    $out = '';
+    for ($i = 0, $len = strlen($bytes); $i < $len; $i++) {
+        $bits .= str_pad(decbin(ord($bytes[$i])), 8, '0', STR_PAD_LEFT);
+    }
+    for ($i = 0, $len = strlen($bits); $i < $len; $i += 5) {
+        $chunk = substr($bits, $i, 5);
+        if (strlen($chunk) < 5) {
+            $chunk = str_pad($chunk, 5, '0', STR_PAD_RIGHT);
+        }
+        $out .= $alphabet[bindec($chunk)];
+    }
+    return $out;
+}
+
+function auth_app_base32_decode(string $secret): string
+{
+    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $secret = strtoupper((string)preg_replace('/[^A-Z2-7]/i', '', $secret));
+    $bits = '';
+    for ($i = 0, $len = strlen($secret); $i < $len; $i++) {
+        $pos = strpos($alphabet, $secret[$i]);
+        if ($pos === false) {
+            continue;
+        }
+        $bits .= str_pad(decbin($pos), 5, '0', STR_PAD_LEFT);
+    }
+    $out = '';
+    for ($i = 0, $len = strlen($bits) - 7; $i < $len; $i += 8) {
+        $out .= chr(bindec(substr($bits, $i, 8)));
+    }
+    return $out;
+}
+
+function auth_app_generate_secret(): string
+{
+    return auth_app_base32_encode(random_bytes(20));
+}
+
+function auth_app_format_secret(string $secret): string
+{
+    return trim(chunk_split(strtoupper($secret), 4, ' '));
+}
+
+function auth_app_totp_code(string $secret, ?int $time = null): string
+{
+    $time = $time ?? time();
+    $counter = intdiv($time, 30);
+    $key = auth_app_base32_decode($secret);
+    if ($key === '') {
+        return '';
+    }
+    $binCounter = pack('N*', 0) . pack('N*', $counter);
+    $hash = hash_hmac('sha1', $binCounter, $key, true);
+    $offset = ord(substr($hash, -1)) & 0x0F;
+    $value = unpack('N', substr($hash, $offset, 4))[1] & 0x7FFFFFFF;
+    return str_pad((string)($value % 1000000), 6, '0', STR_PAD_LEFT);
+}
+
+function auth_app_verify_code(string $secret, string $code): bool
+{
+    $code = (string)preg_replace('/\D+/', '', $code);
+    if (strlen($code) !== 6) {
+        return false;
+    }
+    $now = time();
+    for ($step = -1; $step <= 1; $step++) {
+        if (hash_equals(auth_app_totp_code($secret, $now + ($step * 30)), $code)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function auth_app_otpauth_uri(array $user, string $secret, array $siteSettings): string
+{
+    $issuer = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
+    $issuer = $issuer !== '' ? $issuer : 'ILDRA';
+    $email = (string)($user['email'] ?? 'account');
+    return 'otpauth://totp/' . rawurlencode($issuer . ':' . $email)
+        . '?secret=' . rawurlencode($secret)
+        . '&issuer=' . rawurlencode($issuer)
+        . '&algorithm=SHA1&digits=6&period=30';
+}
+
+function auth_app_qr_data_uri(string $otpauthUri): string
+{
+    if (!function_exists('shell_exec')) {
+        return '';
+    }
+    $png = @shell_exec('qrencode -o - -t PNG ' . escapeshellarg($otpauthUri));
+    if (!is_string($png) || $png === '') {
+        return '';
+    }
+    return 'data:image/png;base64,' . base64_encode($png);
+}
+
+function fetchLoginUserByEmail(?PDO $pdo, string $email): ?array
+{
+    if (!$pdo || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return null;
+    }
+    try {
+        ensureAuthAppColumns($pdo);
+        $stmt = $pdo->prepare("SELECT id, email, password_hash, auth_app_secret, auth_app_enabled FROM users WHERE email = :email LIMIT 1");
+        $stmt->execute([':email' => $email]);
+        return $stmt->fetch() ?: null;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+function loginMethodState(?PDO $pdo, string $email, array $siteSettings): array
+{
+    $user = fetchLoginUserByEmail($pdo, $email);
+    $authAppSiteEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
+    return [
+        'email' => $email,
+        'user_exists' => (bool)$user,
+        'password' => $user && (string)($user['password_hash'] ?? '') !== '',
+        'auth_app' => $authAppSiteEnabled && $user && !empty($user['auth_app_enabled']) && (string)($user['auth_app_secret'] ?? '') !== '',
+        'email_link' => (bool)$user,
+    ];
+}
+
+function rememberLoginEmail(string $email): void
+{
+    $_SESSION['login_email'] = trim($email);
+}
+
+function currentLoginEmail(): string
+{
+    return trim((string)($_POST['email'] ?? $_GET['email'] ?? $_SESSION['login_email'] ?? ''));
+}
+
+function finishUserLogin(PDO $pdo, array $user, array $siteSettings, bool $rememberMe, ?string &$successMessage): array
+{
+    session_regenerate_id(true);
+    $_SESSION['user'] = [
+        'id' => (int)$user['id'],
+        'email' => $user['email'],
+        'role' => $user['role'],
+        'level' => (int)$user['level'],
+        'first_name' => $user['first_name'] ?? '',
+        'last_name' => $user['last_name'] ?? '',
+    ];
+    unset($_SESSION['login_email']);
+    $updateStmt = $pdo->prepare("UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = :id");
+    $updateStmt->execute([':id' => $_SESSION['user']['id']]);
+    if ($rememberMe) {
+        $ttlSeconds = (int)($siteSettings['remember_me_ttl_seconds'] ?? (30 * 86400));
+        issueRememberMeToken($pdo, (int)$_SESSION['user']['id'], $ttlSeconds);
+    } else {
+        clear_remember_me_cookie();
+    }
+    $successMessage = 'Welcome back!';
+    return $_SESSION['user'];
+}
+
+function handleLoginLookup(?PDO $pdo, array $siteSettings, array &$alerts): ?array
+{
+    $email = trim((string)($_POST['email'] ?? ''));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Please provide a valid email address.'];
+        return null;
+    }
+    rememberLoginEmail($email);
+    $methods = loginMethodState($pdo, $email, $siteSettings);
+    if (!$methods['user_exists']) {
+        $alerts[] = ['type' => 'danger', 'message' => 'No account was found for that email address.'];
+        return null;
+    }
+    return $methods;
+}
+
+function handleAuthAppLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$successMessage): ?array
+{
+    if (!$pdo) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return null;
+    }
+    if (empty($siteSettings['auth_app_login_enabled']) || (string)$siteSettings['auth_app_login_enabled'] === '0') {
+        $alerts[] = ['type' => 'danger', 'message' => 'Authenticator app login is not enabled for this site.'];
+        return null;
+    }
+    $email = currentLoginEmail();
+    $code = (string)($_POST['code'] ?? '');
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Please start again with your email address.'];
+        return null;
+    }
+    try {
+        ensureAuthAppColumns($pdo);
+        $stmt = $pdo->prepare("
+            SELECT u.id, u.email, u.password_hash, u.auth_app_secret, u.auth_app_enabled, r.name AS role, r.level AS level, u.first_name, u.last_name
+            FROM users u
+            JOIN roles r ON r.id = u.role_id
+            WHERE u.email = :email
+            LIMIT 1
+        ");
+        $stmt->execute([':email' => $email]);
+        $user = $stmt->fetch();
+        if (!$user || empty($user['auth_app_enabled']) || (string)($user['auth_app_secret'] ?? '') === '') {
+            $alerts[] = ['type' => 'danger', 'message' => 'Authenticator app login is not available for this account.'];
+            return null;
+        }
+        if (!auth_app_verify_code((string)$user['auth_app_secret'], $code)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'That authenticator code is not valid.'];
+            return null;
+        }
+        return finishUserLogin($pdo, $user, $siteSettings, !empty($_POST['remember_me']), $successMessage);
+    } catch (PDOException $e) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not sign you in right now.'];
+        return null;
+    }
+}
+
+function currentUserAuthAppStatus(?PDO $pdo, int $userId): array
+{
+    if (!$pdo || $userId <= 0) {
+        return ['enabled' => false, 'confirmed_at' => null];
+    }
+    try {
+        ensureAuthAppColumns($pdo);
+        $stmt = $pdo->prepare("SELECT auth_app_enabled, auth_app_confirmed_at FROM users WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $userId]);
+        $row = $stmt->fetch() ?: [];
+        return [
+            'enabled' => !empty($row['auth_app_enabled']),
+            'confirmed_at' => $row['auth_app_confirmed_at'] ?? null,
+        ];
+    } catch (PDOException $e) {
+        return ['enabled' => false, 'confirmed_at' => null];
+    }
+}
+
+function beginAuthAppSetup(array $currentUser, array $siteSettings): array
+{
+    $secret = auth_app_generate_secret();
+    $_SESSION['pending_auth_app_secret'] = $secret;
+    return pendingAuthAppSetup($currentUser, $siteSettings) ?: [];
+}
+
+function pendingAuthAppSetup(array $currentUser, array $siteSettings): ?array
+{
+    $secret = (string)($_SESSION['pending_auth_app_secret'] ?? '');
+    if ($secret === '') {
+        return null;
+    }
+    $uri = auth_app_otpauth_uri($currentUser, $secret, $siteSettings);
+    return [
+        'secret' => $secret,
+        'formatted_secret' => auth_app_format_secret($secret),
+        'otpauth_uri' => $uri,
+        'qr_data_uri' => auth_app_qr_data_uri($uri),
+    ];
+}
+
+function confirmAuthAppSetup(?PDO $pdo, int $userId, array &$alerts): bool
+{
+    if (!$pdo || $userId <= 0) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return false;
+    }
+    $secret = (string)($_SESSION['pending_auth_app_secret'] ?? '');
+    $code = (string)($_POST['code'] ?? '');
+    if ($secret === '') {
+        $alerts[] = ['type' => 'danger', 'message' => 'Start authenticator setup again.'];
+        return false;
+    }
+    if (!auth_app_verify_code($secret, $code)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'That authenticator code is not valid.'];
+        return false;
+    }
+    try {
+        ensureAuthAppColumns($pdo);
+        $stmt = $pdo->prepare("UPDATE users SET auth_app_secret = :secret, auth_app_enabled = 1, auth_app_confirmed_at = NOW(), updated_at = NOW() WHERE id = :id LIMIT 1");
+        $stmt->execute([':secret' => $secret, ':id' => $userId]);
+        unset($_SESSION['pending_auth_app_secret']);
+        return true;
+    } catch (PDOException $e) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not enable authenticator app login.'];
+        return false;
+    }
+}
+
+function disableAuthApp(?PDO $pdo, int $userId, array &$alerts): bool
+{
+    if (!$pdo || $userId <= 0) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return false;
+    }
+    try {
+        ensureAuthAppColumns($pdo);
+        $stmt = $pdo->prepare("UPDATE users SET auth_app_secret = NULL, auth_app_enabled = 0, auth_app_confirmed_at = NULL, updated_at = NOW() WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $userId]);
+        unset($_SESSION['pending_auth_app_secret']);
+        return true;
+    } catch (PDOException $e) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not disable authenticator app login.'];
+        return false;
+    }
+}
+
 function fetchRoleByName(PDO $pdo, string $role): ?array
 {
     $stmt = $pdo->prepare("SELECT id, name, level FROM roles WHERE name = :role LIMIT 1");
@@ -796,7 +1127,7 @@ function handleLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$s
         return null;
     }
 
-    $email = trim($_POST['email'] ?? '');
+    $email = currentLoginEmail();
     $password = $_POST['password'] ?? '';
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
@@ -814,28 +1145,8 @@ function handleLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$s
     $stmt->execute([':email' => $email]);
     $user = $stmt->fetch();
 
-    if ($user && password_verify($password, $user['password_hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['user'] = [
-            'id' => (int)$user['id'],
-            'email' => $user['email'],
-            'role' => $user['role'],
-            'level' => (int)$user['level'],
-            'first_name' => $user['first_name'] ?? '',
-            'last_name' => $user['last_name'] ?? '',
-        ];
-        if ($pdo) {
-            $updateStmt = $pdo->prepare("UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = :id");
-            $updateStmt->execute([':id' => $_SESSION['user']['id']]);
-        }
-        if (!empty($_POST['remember_me'])) {
-            $ttlSeconds = (int)($siteSettings['remember_me_ttl_seconds'] ?? (30 * 86400));
-            issueRememberMeToken($pdo, (int)$_SESSION['user']['id'], $ttlSeconds);
-        } else {
-            clear_remember_me_cookie();
-        }
-        $successMessage = 'Welcome back!';
-        return $_SESSION['user'];
+    if ($user && (string)($user['password_hash'] ?? '') !== '' && password_verify($password, $user['password_hash'])) {
+        return finishUserLogin($pdo, $user, $siteSettings, !empty($_POST['remember_me']), $successMessage);
     }
 
     $alerts[] = ['type' => 'danger', 'message' => 'Invalid credentials.'];
