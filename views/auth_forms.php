@@ -40,24 +40,40 @@
     <?php elseif (($authView ?? 'default') === 'choose' && $loginMethods): ?>
         <div class="mb-3">
             <div class="text-uppercase small text-secondary">Choose sign in</div>
-            <h4 class="fw-semibold mb-1"><?php echo h($loginEmailValue); ?></h4>
-            <div class="text-muted small">Use any available sign-in method for this account.</div>
+            <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h4 class="fw-semibold mb-1"><?php echo h($loginEmailValue); ?></h4>
+                    <div class="text-muted small">Use any available sign-in method for this account.</div>
+                </div>
+                <a class="btn btn-outline-secondary btn-sm auth-link-btn" href="<?php echo h($basePath); ?>/account">Back</a>
+            </div>
         </div>
-        <div class="d-grid gap-2">
-            <?php if (!empty($loginMethods['password'])): ?>
-                <a class="btn btn-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=password">Password</a>
-            <?php endif; ?>
-            <?php if (!empty($loginMethods['auth_app'])): ?>
-                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=app">Authenticator app</a>
-            <?php endif; ?>
-            <?php if (!empty($loginMethods['email_link'])): ?>
-                <form method="POST" class="d-grid" novalidate>
-                    <input type="hidden" name="action" value="magic_link">
-                    <input type="hidden" name="email" value="<?php echo h($loginEmailValue); ?>">
-                    <button class="btn btn-outline-success btn-lg">Email sign-in link</button>
-                </form>
-            <?php endif; ?>
-            <a class="btn btn-outline-secondary btn-lg" href="<?php echo h($basePath); ?>/account">Use another email</a>
+        <div class="row g-2">
+            <div class="col-12 col-md-4 d-grid">
+                <?php if (!empty($loginMethods['password'])): ?>
+                    <a class="btn btn-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=password">Password</a>
+                <?php else: ?>
+                    <button class="btn btn-outline-secondary btn-lg" type="button" disabled>Password</button>
+                <?php endif; ?>
+            </div>
+            <div class="col-12 col-md-4 d-grid">
+                <?php if (!empty($loginMethods['auth_app'])): ?>
+                    <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=app">Auth App</a>
+                <?php else: ?>
+                    <button class="btn btn-outline-secondary btn-lg" type="button" disabled>Auth App</button>
+                <?php endif; ?>
+            </div>
+            <div class="col-12 col-md-4 d-grid">
+                <?php if (!empty($loginMethods['email_link'])): ?>
+                    <form method="POST" class="d-grid" novalidate>
+                        <input type="hidden" name="action" value="magic_link">
+                        <input type="hidden" name="email" value="<?php echo h($loginEmailValue); ?>">
+                        <button class="btn btn-outline-success btn-lg">Email Sign In</button>
+                    </form>
+                <?php else: ?>
+                    <button class="btn btn-outline-secondary btn-lg" type="button" disabled>Email Sign In</button>
+                <?php endif; ?>
+            </div>
         </div>
     <?php elseif (($authView ?? 'default') === 'password'): ?>
         <div class="mb-3">
@@ -158,13 +174,9 @@
                     <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h($loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
                 </div>
                 <div class="d-grid">
-                    <button class="btn btn-success btn-lg">Continue</button>
+                    <button class="btn btn-success btn-lg">Verify Email Address</button>
                 </div>
             </form>
-            <div class="mt-3 pt-3 border-top auth-link-row">
-                <a class="btn btn-outline-success btn-sm auth-link-btn" href="<?php echo h($basePath); ?>/account?auth=forgot">Forgot password</a>
-                <a class="btn btn-outline-success btn-sm auth-link-btn" href="<?php echo h($basePath); ?>/account?auth=magic">Email sign-in link</a>
-            </div>
         </div>
         <div id="register" class="tab-pane <?php echo $activeTab === 'register' ? '' : 'd-none'; ?>">
             <form method="POST" novalidate>
