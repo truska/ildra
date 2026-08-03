@@ -58,7 +58,7 @@
             </div>
             <div class="col-12 col-md-4 d-grid">
                 <?php if (!empty($loginMethods['auth_app'])): ?>
-                    <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=app">Auth App</a>
+                    <a class="btn btn-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=app">Auth App</a>
                 <?php else: ?>
                     <button class="btn btn-outline-secondary btn-lg" type="button" disabled>Auth App</button>
                 <?php endif; ?>
@@ -68,7 +68,7 @@
                     <form method="POST" class="d-grid" novalidate>
                         <input type="hidden" name="action" value="magic_link">
                         <input type="hidden" name="email" value="<?php echo h($loginEmailValue); ?>">
-                        <button class="btn btn-outline-success btn-lg">Email Sign In</button>
+                        <button class="btn btn-success btn-lg">Email Sign In</button>
                     </form>
                 <?php else: ?>
                     <button class="btn btn-outline-secondary btn-lg" type="button" disabled>Email Sign In</button>
