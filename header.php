@@ -1,0 +1,257 @@
+<?php
+$navItemEventsUrl = $navItemEventsUrl ?? ($basePath . '/events');
+$basketCount = $basketCount ?? count($_SESSION['basket'] ?? []);
+$siteSettings = $siteSettings ?? ($siteSettingsBootstrap ?? defaultSiteSettings());
+$headerLogoUrl = trim((string)($siteSettings['sponsor_image_url'] ?? ''));
+$hasHeaderLogo = $headerLogoUrl !== '';
+$brandClass = $hasHeaderLogo ? 'brand-logo-only' : '';
+$logoAlt = trim((string)($siteSettings['hero_title'] ?? 'ILDRA'));
+if (!function_exists('page_url')) {
+    function page_url(array $page): string
+    {
+        $slug = $page['slug'] ?? '';
+        global $basePath;
+        return $basePath . '/pages/' . rawurlencode($slug);
+    }
+}
+
+function nav_menu_id(string $key): string
+{
+    $clean = strtolower(preg_replace('/[^a-zA-Z0-9_-]/', '-', $key));
+    return 'nav-menu-' . trim($clean, '-');
+}
+?>
+<?php
+$isActingAs = !empty($_SESSION['act_as_original_user']) && is_array($_SESSION['act_as_original_user']);
+$actorUser = $isActingAs ? ($_SESSION['act_as_original_user'] ?? null) : null;
+$targetUser = $isActingAs ? ($_SESSION['user'] ?? null) : null;
+$actorEmail = is_array($actorUser) ? (string)($actorUser['email'] ?? '') : '';
+$targetEmail = is_array($targetUser) ? (string)($targetUser['email'] ?? '') : '';
+$targetName = is_array($targetUser) ? trim((string)($targetUser['first_name'] ?? '') . ' ' . (string)($targetUser['last_name'] ?? '')) : '';
+$targetLabel = $targetName !== '' ? $targetName : ($targetEmail !== '' ? $targetEmail : 'user');
+$exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($basePath ?? '') . '/admin/users.php');
+?>
+<?php if ($isActingAs): ?>
+    <style>
+        body { padding-bottom: 44px; }
+        .ildra-impersonation-bar {
+            background: #b00020;
+            color: #fff;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            padding: 0.45rem 0.75rem;
+            z-index: 3000;
+        }
+        .ildra-impersonation-bar .impersonation-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .ildra-impersonation-top {
+            position: sticky;
+            top: 0;
+        }
+        .ildra-impersonation-bottom {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+        .ildra-impersonation-bar .impersonation-meta {
+            display: inline-flex;
+            gap: 0.35rem;
+            align-items: baseline;
+            flex-wrap: wrap;
+        }
+        .ildra-impersonation-bar .impersonation-pill {
+            display: inline-block;
+            background: rgba(255,255,255,0.16);
+            border: 1px solid rgba(255,255,255,0.22);
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .ildra-impersonation-bar a.btn {
+            white-space: nowrap;
+        }
+    </style>
+    <div class="ildra-impersonation-bar ildra-impersonation-top" role="status" aria-live="polite">
+        <div class="impersonation-inner">
+            <div class="impersonation-meta">
+                <span class="impersonation-pill">Impersonation</span>
+                <span>Logged in as <?php echo h($actorEmail ?: 'admin'); ?> acting as <?php echo h($targetLabel); ?><?php echo $targetEmail ? ' (' . h($targetEmail) . ')' : ''; ?>.</span>
+            </div>
+            <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($exitActAsUrl); ?>">Exit</a>
+        </div>
+    </div>
+    <div class="ildra-impersonation-bar ildra-impersonation-bottom" role="status" aria-live="polite">
+        <div class="impersonation-inner">
+            <div class="impersonation-meta">
+                <span class="impersonation-pill">Impersonation</span>
+                <span>Logged in as <?php echo h($actorEmail ?: 'admin'); ?> acting as <?php echo h($targetLabel); ?><?php echo $targetEmail ? ' (' . h($targetEmail) . ')' : ''; ?>.</span>
+            </div>
+            <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($exitActAsUrl); ?>">Exit</a>
+        </div>
+    </div>
+<?php endif; ?>
+<nav class="navbar navbar-expand-lg navbar-dark bg-success bg-gradient py-3">
+    <div class="container nav-shell">
+        <a class="navbar-brand brand-block fw-bold <?php echo h($brandClass); ?>" href="<?php echo h($basePath); ?>/">
+            <div class="logo-badge fs-2">
+                <?php if ($hasHeaderLogo): ?>
+                    <img src="<?php echo h($headerLogoUrl); ?>" alt="<?php echo h($logoAlt); ?>">
+                <?php else: ?>
+                    IR
+                <?php endif; ?>
+            </div>
+            <div class="brand-text">
+                <small>Irish Long Distance</small>
+                <strong>Endurance Riding</strong>
+            </div>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse justify-content-between" id="mainNav">
+            <ul class="navbar-nav nav-primary mb-3 mb-lg-0 align-items-lg-center w-100">
+                <?php foreach ($navTree as $groupKey => $group): ?>
+                    <?php if (!$group['pages']) { continue; } ?>
+                    <?php
+                        $firstPage = $group['pages'][0];
+                        $primaryUrl = $groupKey === 'events'
+                            ? ($navItemEventsUrl)
+                            : page_url($firstPage);
+                        $hasDropdown = (count($group['pages']) > 1) || $groupKey === 'events';
+                        $menuId = nav_menu_id((string)$groupKey);
+                        $overviewLabel = trim((string)($group['label'] ?? 'Overview')) . ' overview';
+                    ?>
+                    <?php if (!$hasDropdown): ?>
+                        <li class="nav-item">
+                            <a class="nav-link text-uppercase" href="<?php echo h($primaryUrl); ?>"><?php echo h($group['label']); ?></a>
+                        </li>
+                    <?php else: ?>
+                        <li class="nav-item nav-item-with-children">
+                            <button class="nav-parent text-uppercase" type="button" data-target="<?php echo h($menuId); ?>" aria-expanded="false">
+                                <span><?php echo h($group['label']); ?></span>
+                                <span class="chevron" aria-hidden="true"></span>
+                            </button>
+                            <ul class="nav-submenu list-unstyled mb-0" id="<?php echo h($menuId); ?>" hidden>
+                                <li><a class="dropdown-item fw-semibold" href="<?php echo h($primaryUrl); ?>"><?php echo h($overviewLabel); ?></a></li>
+                                <?php if ($groupKey === 'events'): ?>
+                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/memberships">Memberships</a></li>
+                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/logbooks">Horse logbooks</a></li>
+                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/basket">Basket</a></li>
+                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">Bookings</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                <?php endif; ?>
+                                <?php foreach ($group['pages'] as $page): ?>
+                                    <li><a class="dropdown-item" href="<?php echo h(page_url($page)); ?>"><?php echo h($page['title']); ?></a></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </li>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </ul>
+            <div class="nav-actions">
+
+                <?php if ($isLoggedIn): ?>
+
+                    <div class="account-wrapper">
+                        <div class="dropdown">
+                            <button class="utility-btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                Bookings &amp; Membership
+                            </button>
+
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">My bookings</a></li>
+                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account#my-memberships">My memberships</a></li>
+                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/basket">Basket</a></li>
+                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account">Account</a></li>
+                                <?php if (!empty($canViewAdmin)): ?>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a></li>
+                                <?php endif; ?>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account?logout=1">Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <a class="basket-link" href="<?php echo h($basePath); ?>/basket" aria-label="Basket">
+                        <span class="cart-icon"></span>
+                        <span class="basket-count<?php echo $basketCount > 0 ? '' : ' is-empty'; ?>"><?php echo (int)$basketCount; ?></span>
+                    </a>
+
+                <?php else: ?>
+
+                    <a class="utility-btn" href="<?php echo h($basePath); ?>/account">
+                        Login / Register
+                    </a>
+
+                <?php endif; ?>
+
+            </div>
+        </div>
+    </div>
+</nav>
+<script>
+    (function () {
+        const navParents = Array.from(document.querySelectorAll('.nav-parent'));
+
+        const closeAll = (exceptId = null) => {
+            navParents.forEach(btn => {
+                const targetId = btn.getAttribute('data-target');
+                if (exceptId && targetId === exceptId) return;
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-open');
+                const menu = document.getElementById(targetId);
+                if (menu) {
+                    menu.hidden = true;
+                    menu.classList.remove('show');
+                }
+            });
+        };
+
+        navParents.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.getAttribute('data-target');
+                const menu = document.getElementById(targetId);
+                if (!menu) return;
+                const expanded = btn.getAttribute('aria-expanded') === 'true';
+                closeAll(targetId);
+                const nextState = !expanded;
+                btn.setAttribute('aria-expanded', String(nextState));
+                btn.classList.toggle('is-open', nextState);
+                menu.hidden = !nextState;
+                menu.classList.toggle('show', nextState);
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth < 992) return; // allow open state on mobile until tapped again
+            if (e.target.closest('.nav-item-with-children')) return;
+            if (e.target.closest('.navbar')) {
+                closeAll();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            // Reset hidden state on resize to avoid mismatched layouts
+            if (window.innerWidth < 992) {
+                navParents.forEach(btn => {
+                    const menu = document.getElementById(btn.getAttribute('data-target'));
+                    if (menu && btn.getAttribute('aria-expanded') === 'true') {
+                        menu.hidden = false;
+                        menu.classList.add('show');
+                    }
+                });
+            } else {
+                closeAll();
+            }
+        });
+    })();
+</script>

@@ -1,0 +1,264 @@
+<?php
+declare(strict_types=1);
+
+require __DIR__ . '/bootstrap.php';
+
+$basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
+$basePath = $basePath === '' ? '' : $basePath;
+$siteBase = $basePath ?: '';
+
+$basket = $_SESSION['basket'] ?? [];
+$siteSettings = getSiteSettings($pdo);
+$pages = fetchPages($pdo, true);
+if (!$pages) {
+    $pages = defaultPages();
+}
+$navTree = buildNavTree($pages);
+$isLoggedIn = !empty($currentUser);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$basketCount = count($basket);
+$horses = $isLoggedIn ? array_values(array_filter(
+    fetchHorsesForUser($pdo, (int)($currentUser['id'] ?? 0)),
+    static fn(array $horse): bool => empty($horse['is_linked'])
+)) : [];
+$logbookTypes = fetchHorseLogbookTypes($pdo, true);
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_logbook') {
+    if (!$isLoggedIn) {
+        $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please login to buy a logbook.']];
+        header('Location: ' . $basePath . '/account');
+        exit;
+    }
+
+    $typeId = (int)($_POST['logbook_type_id'] ?? 0);
+    $logbookType = fetchHorseLogbookTypeById($pdo, $typeId);
+    if (!$logbookType || strtolower((string)($logbookType['status'] ?? '')) !== 'published') {
+        $alerts[] = ['type' => 'danger', 'message' => 'Logbook type not available.'];
+    } else {
+        $horseId = (int)($_POST['horse_id'] ?? 0);
+        $horseName = '';
+        foreach ($horses as $h) {
+            if ((int)($h['id'] ?? 0) === $horseId) {
+                $horseName = (string)($h['name'] ?? '');
+                break;
+            }
+        }
+        if ($horseId <= 0 || $horseName === '') {
+            $alerts[] = ['type' => 'danger', 'message' => 'Select a horse for this logbook.'];
+        }
+
+        $logbookYear = (int)($logbookType['valid_year'] ?? (int)date('Y'));
+        // prevent duplicates in basket
+        foreach ($basket as $item) {
+            if (($item['booking_type'] ?? '') === 'horse_logbook'
+                && (int)($item['horse_id'] ?? 0) === $horseId
+                && (int)($item['logbook_year'] ?? 0) === $logbookYear) {
+                $alerts[] = ['type' => 'warning', 'message' => 'That horse already has this year\'s logbook in the basket.'];
+                break;
+            }
+        }
+        // prevent duplicates in DB
+        if (!$alerts && horse_has_logbook_for_year($pdo, $horseId, $logbookYear)) {
+            $alerts[] = ['type' => 'warning', 'message' => 'That horse already has a logbook for this year.'];
+        }
+
+        if (!$alerts) {
+            $entry = [
+                'id' => uniqid('log', true),
+                'booking_type' => 'horse_logbook',
+                'logbook_type_id' => $logbookType['id'],
+                'logbook_year' => $logbookYear,
+                'horse_id' => $horseId,
+                'horse_name' => $horseName,
+                'membership_name' => $logbookType['name'],
+                'event_title' => 'Horse logbook: ' . ($horseName !== '' ? $horseName : 'Horse'),
+                'class_label' => 'Horse logbook ' . $logbookYear,
+                'rider_name' => $horseName,
+                'horse_name' => $horseName,
+                'price' => $logbookType['cost'] ?? '0',
+            ];
+            $basket[] = $entry;
+            $_SESSION['basket'] = $basket;
+            $_SESSION['basket_last_added'] = time();
+            saveBasketForSession($pdo, session_id(), $basket, $currentUser['id'] ?? null, $_SESSION['basket_last_added']);
+            $_SESSION['flash_success'] = 'Logbook added to basket.';
+            header('Location: ' . $basePath . '/basket');
+            exit;
+        }
+    }
+}
+
+$navItemEventsUrl = $basePath . '/events';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horse logbooks | <?php echo h($siteSettings['hero_title']); ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <style>
+        :root {
+            --green: #146118;
+            --green-alt: #1f7c24;
+            --cream: #f7f8f1;
+            --text-main: #0c2a12;
+            --muted: #476146;
+        }
+        body {
+            background: var(--cream);
+            color: var(--text-main);
+            font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.7;
+        }
+        .page-hero {
+            background: linear-gradient(120deg, rgba(20, 97, 24, 0.9), rgba(20, 97, 24, 0.75)), url('<?php echo h($siteSettings['background_image_url']); ?>') center/cover no-repeat;
+            color: #fff;
+            padding: 2.5rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .page-hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 25% 20%, rgba(255,255,255,0.12), transparent 32%);
+            z-index: 0;
+        }
+        .page-hero .container { position: relative; z-index: 2; }
+        .card-soft {
+            border-radius: 18px;
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.08);
+            background: #fff;
+        }
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+        .section-title::before {
+            content: '';
+            width: 40px;
+            height: 4px;
+            border-radius: 999px;
+            background: var(--green);
+            display: inline-block;
+        }
+        .chip {
+            background: rgba(20, 97, 24, 0.08);
+            border: 1px solid rgba(20, 97, 24, 0.2);
+            color: var(--green);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+        .cta-row {
+            border-radius: 14px;
+            background: rgba(20, 97, 24, 0.06);
+            padding: 1rem;
+        }
+        .btn-enter {
+            min-width: 180px;
+            box-shadow: 0 10px 30px rgba(20, 97, 24, 0.22);
+        }
+    </style>
+    <?php include __DIR__ . '/views/header_styles.php'; ?>
+</head>
+<body>
+    <?php include __DIR__ . '/views/header.php'; ?>
+
+    <header class="page-hero">
+        <div class="container">
+            <p class="mb-1 text-uppercase small fw-bold text-white-50">Logbooks</p>
+            <h1 class="fw-bold mb-1">Horse logbooks</h1>
+            <div class="text-white-50">Register or renew a logbook for your horses.</div>
+        </div>
+    </header>
+
+    <main class="py-5">
+        <div class="container">
+            <?php include __DIR__ . '/views/alerts.php'; ?>
+            <div class="card-soft p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="section-title mb-0">Available logbooks</div>
+                </div>
+                <?php if (!$logbookTypes): ?>
+                    <div class="text-muted small">No logbooks available right now.</div>
+                <?php else: ?>
+                    <div class="row g-3">
+                        <?php foreach ($logbookTypes as $type): ?>
+                            <div class="col-12">
+                                <div class="card-soft h-100 p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <div class="fw-bold"><?php echo h($type['name']); ?></div>
+                                            <div class="text-muted small">Valid year: <?php echo h((string)($type['valid_year'] ?? date('Y'))); ?></div>
+                                        </div>
+                                        <div class="chip"><?php echo h(format_price($type['cost'] ?? 0)); ?></div>
+                                    </div>
+                                    <?php
+                                    $description = trim((string)($type['description'] ?? ''));
+                                    if ($description !== ''):
+                                    ?>
+                                        <div class="text-muted small mb-2"><?php echo h($description); ?></div>
+                                    <?php endif; ?>
+                                    <?php if ($isLoggedIn): ?>
+                                        <form method="POST" class="row g-2 align-items-end mb-2">
+                                            <input type="hidden" name="action" value="add_logbook">
+                                            <input type="hidden" name="logbook_type_id" value="<?php echo (int)$type['id']; ?>">
+                                            <div class="col-12 col-md-6">
+                                                <label class="form-label small mb-1">Horse</label>
+                                                <select class="form-select form-select-sm" name="horse_id" required>
+                                                    <option value="" selected disabled>Select a horse…</option>
+                                                    <?php foreach ($horses as $horse): ?>
+                                                        <option value="<?php echo (int)($horse['id'] ?? 0); ?>">
+                                                            <?php echo h($horse['name'] ?? 'Horse'); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <div class="text-muted small mt-1">One logbook per horse per year.</div>
+                                            </div>
+                                            <div class="col-12 col-md-auto d-grid">
+                                                <button class="btn btn-success btn-enter">Add logbook</button>
+                                            </div>
+                                        </form>
+                                    <?php else: ?>
+                                        <div class="cta-row d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mt-2">
+                                            <div class="text-muted small">Sign in to buy or renew logbooks.</div>
+                                            <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100">
+                                                <a class="btn btn-success btn-enter w-100" href="<?php echo h($basePath); ?>/account">Login / Register</a>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer py-4" style="background: var(--green); color: #fff;">
+        <div class="container d-flex flex-column flex-lg-row justify-content-between align-items-center gap-2">
+            <div><?php echo h($siteSettings['hero_title']); ?> · <?php echo date('Y'); ?></div>
+            <div class="small d-flex align-items-center gap-3">
+                <?php if ($canViewAdmin): ?>
+                    <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($basePath); ?>/admin/index.php">View admin area</a>
+                <?php elseif (!$isLoggedIn): ?>
+                    <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($basePath); ?>/account">Login / Register</a>
+                <?php endif; ?>
+            </div>
+        </div>
+    </footer>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</body>
+</html>

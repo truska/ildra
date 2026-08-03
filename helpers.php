@@ -1,0 +1,290 @@
+<?php
+declare(strict_types=1);
+
+function h($value): string
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
+
+function render_wysiwyg(string $value): string
+{
+    // Allow a small set of safe tags for admin-authored rich text.
+    $allowed = '<p><br><br/><strong><b><em><i><u><ul><ol><li><a><span>';
+    return strip_tags($value, $allowed);
+}
+
+function tinymce_api_key(): string
+{
+    return '7dorpwqq3ijql244rl0nfkayvqy5uxys69khek91x2lqqazw';
+}
+
+function tinymce_base_config(): array
+{
+    return [
+        'menubar' => 'file edit view format',
+        'branding' => false,
+        'plugins' => 'advlist autolink lists link image charmap anchor searchreplace visualblocks code fullscreen insertdatetime media table preview help wordcount',
+        'toolbar' => 'undo redo | link | bold italic underline strikethrough | fontfamily fontsize blocks | alignleft aligncenter alignright alignjustify | outdent indent | numlist bullist | forecolor backcolor | pagebreak | charmap | fullscreen preview code | insertfile image media link anchor',
+        'height' => 300,
+        'default_link_target' => '_blank',
+        'convert_urls' => false,
+        'statusbar' => false,
+        'toolbar_mode' => 'sliding',
+    ];
+}
+
+function render_tinymce_bootstrap(): void
+{
+    static $rendered = false;
+    if ($rendered) {
+        return;
+    }
+    $rendered = true;
+
+    $baseConfigJson = json_encode(tinymce_base_config(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    ?>
+    <script src="https://cdn.tiny.cloud/1/<?php echo h(tinymce_api_key()); ?>/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script>
+        window.ildraTinyMceBaseConfig = <?php echo $baseConfigJson ?: '{}'; ?>;
+        window.ildraTinyMceConfig = function(overrides) {
+            const base = Object.assign({}, window.ildraTinyMceBaseConfig || {});
+            return Object.assign(base, overrides || {});
+        };
+    </script>
+    <?php
+}
+
+function slugify(string $value): string
+{
+    $value = strtolower(trim($value));
+    // Replace non letter/digit with hyphens
+    $value = preg_replace('~[^a-z0-9]+~', '-', $value) ?? '';
+    $value = trim($value, '-');
+    return $value !== '' ? $value : 'event';
+}
+
+function price_to_number($price): float
+{
+    if (is_numeric($price)) {
+        return (float)$price;
+    }
+    if (!is_string($price)) {
+        return 0.0;
+    }
+    if (preg_match('/(-?\\d+(?:\\.\\d{1,2})?)/', $price, $m)) {
+        return (float)$m[1];
+    }
+    return 0.0;
+}
+
+function format_price($price): string
+{
+    $numeric = price_to_number($price);
+    // If we have a number, format with currency; otherwise default to zero with currency.
+    if ($numeric !== 0.0 || (is_string($price) && preg_match('/\\d/', $price))) {
+        return '£' . number_format($numeric, 2);
+    }
+    return '£0.00';
+}
+
+function class_names_from_pricing_rows(array $rows): array
+{
+    $names = [];
+    $seen = [];
+    foreach ($rows as $row) {
+        if (!empty($row['is_member_price']) || empty($row['enabled'])) {
+            continue;
+        }
+        $label = trim((string)($row['class_name'] ?? $row['class_code'] ?? ''));
+        if ($label === '') {
+            continue;
+        }
+        $key = strtolower($label);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $names[] = $label;
+    }
+    return $names;
+}
+
+function class_names_from_classes_offered($classesRaw): array
+{
+    $classesDecoded = json_decode((string)$classesRaw, true);
+    if (is_array($classesDecoded) && $classesDecoded) {
+        $names = [];
+        $seen = [];
+        foreach ($classesDecoded as $cls) {
+            $label = trim((string)($cls['label'] ?? ($cls['code'] ?? '')));
+            if ($label === '') {
+                continue;
+            }
+            $key = strtolower($label);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $names[] = $label;
+        }
+        return $names;
+    }
+    if (!empty($classesRaw)) {
+        return [(string)$classesRaw];
+    }
+    return [];
+}
+
+function roleToLevel(string $role): int
+{
+    return match ($role) {
+        'superadmin' => 6,
+        'admin' => 5,
+        'organiser' => 3,
+        'user' => 1,
+        default => 0,
+    };
+}
+
+function entry_components_summary(array $metadata): string
+{
+    $components = $metadata['components'] ?? [];
+    if (!$components || !is_array($components)) {
+        return '';
+    }
+    $parts = [];
+    foreach ($components as $comp) {
+        $label = $comp['label'] ?? ($comp['name'] ?? 'Extra');
+        $type = $comp['type'] ?? 'product';
+        $price = $comp['price'] ?? 0;
+        $value = trim((string)($comp['value'] ?? ''));
+        $inputKind = (string)($comp['input_kind'] ?? 'checkbox');
+        $quantity = max(0, (int)($comp['quantity'] ?? ($inputKind === 'quantity' ? $value : 0)));
+        $suffix = '';
+        if ($inputKind === 'quantity') {
+            if ($quantity > 0) {
+                $lineTotal = price_to_number($comp['line_total'] ?? ($quantity * price_to_number($price)));
+                $suffix = ' x' . $quantity . ' (+' . format_price($lineTotal) . ')';
+            }
+        } elseif ($type === 'product' && price_to_number($price) !== 0.0) {
+            $suffix = ' (+' . format_price($price) . ')';
+        } elseif ($value !== '') {
+            $suffix = ': ' . $value;
+        }
+        $parts[] = $label . $suffix;
+    }
+    return implode(', ', $parts);
+}
+
+function format_display_date($value, string $fallback = '—'): string
+{
+    if ($value instanceof DateTimeInterface) {
+        return $value->format('d M Y');
+    }
+    if ($value === null) {
+        return $fallback;
+    }
+    if (is_int($value) || (is_string($value) && ctype_digit($value))) {
+        $ts = (int)$value;
+        if ($ts <= 0) {
+            return $fallback;
+        }
+        return date('d M Y', $ts);
+    }
+    $raw = trim((string)$value);
+    if ($raw === '') {
+        return $fallback;
+    }
+    // Be more strict for common DB formats first (avoids locale/strtotime edge cases).
+    // UX: date display must be consistent across the app.
+    $dt = DateTimeImmutable::createFromFormat('Y-m-d', $raw);
+    if ($dt instanceof DateTimeImmutable) {
+        return $dt->format('d M Y');
+    }
+    $ts = strtotime($raw);
+    if ($ts === false) {
+        return $fallback;
+    }
+    return date('d M Y', $ts);
+}
+
+function format_display_datetime($value, string $fallback = '—'): string
+{
+    if ($value instanceof DateTimeInterface) {
+        return $value->format('d M Y H:i:s');
+    }
+    if ($value === null) {
+        return $fallback;
+    }
+    if (is_int($value) || (is_string($value) && ctype_digit($value))) {
+        $ts = (int)$value;
+        if ($ts <= 0) {
+            return $fallback;
+        }
+        return date('d M Y H:i:s', $ts);
+    }
+    $raw = trim((string)$value);
+    if ($raw === '') {
+        return $fallback;
+    }
+    // Common DB datetime format.
+    $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $raw);
+    if ($dt instanceof DateTimeImmutable) {
+        return $dt->format('d M Y H:i:s');
+    }
+    $ts = strtotime($raw);
+    if ($ts === false) {
+        return $fallback;
+    }
+    return date('d M Y H:i:s', $ts);
+}
+
+function table_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE :col");
+        $stmt->execute([':col' => $column]);
+        return (bool)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+function table_index_exists(PDO $pdo, string $table, string $index): bool
+{
+    try {
+        $stmt = $pdo->prepare("SHOW INDEX FROM `$table` WHERE Key_name = :idx");
+        $stmt->execute([':idx' => $index]);
+        return (bool)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+function table_index_on_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    try {
+        $stmt = $pdo->prepare("SHOW INDEX FROM `$table` WHERE Column_name = :col");
+        $stmt->execute([':col' => $column]);
+        return (bool)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+function table_index_count(PDO $pdo, string $table): int
+{
+    try {
+        $rows = $pdo->query("SHOW INDEX FROM `$table`")->fetchAll() ?: [];
+        $names = [];
+        foreach ($rows as $row) {
+            $name = (string)($row['Key_name'] ?? '');
+            if ($name !== '') {
+                $names[$name] = true;
+            }
+        }
+        return count($names);
+    } catch (PDOException $e) {
+        return 0;
+    }
+}

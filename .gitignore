@@ -1,0 +1,31 @@
+# Environment and secrets
+config.php
+config.local.php
+.env
+.env.*
+!.env.example
+
+# Generated or local data
+stats/
+error_log
+*.log
+logs/
+sessions/
+cache/
+tmp/
+uploads/
+private/
+
+# Dependencies and builds
+vendor/
+node_modules/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.code-workspace
+.gitconfig
+
+# OS cruft
+.DS_Store
+Thumbs.db
