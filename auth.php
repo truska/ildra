@@ -1202,12 +1202,13 @@ function handleMagicLinkRequest(?PDO $pdo, array $siteSettings, array &$alerts, 
             . '<div style="margin-top:10px;color:#476146;line-height:1.6;">Use the secure button below to sign in without a password.</div>'
             . '<div style="margin-top:8px;color:#476146;line-height:1.6;">This sign-in link expires in 15 minutes and can only be used once.</div>'
             . '<div style="margin-top:18px;">' . email_cta_button_html($url, 'Sign in') . '</div>'
+            . '<div style="margin-top:12px;color:#476146;font-size:13px;line-height:1.6;">If the button does not open, use this link: <a href="' . h($url) . '" style="color:#146118;font-weight:700;">open sign-in link</a></div>'
             . '<div style="margin-top:18px;color:#476146;font-size:13px;line-height:1.6;">If you didn’t request this email, you can ignore it.</div>'
         );
         $text = wrap_user_email_text(
             $siteSettings,
             $emailSettings,
-            "Sign in to {$brandName}\n\nUse this secure link to sign in without a password. It expires in 15 minutes and can only be used once:\n<{$url}>\n\nIf you didn’t request this email, you can ignore it."
+            "Sign in to {$brandName}\n\nUse the sign-in button in the HTML email. If your email app only shows plain text, copy this exact link into your browser address bar with no spaces:\n{$url}\n\nIf you didn’t request this email, you can ignore it."
         );
 
         send_logged_email($pdo, $email, $subject, $html, $text, ['kind' => 'magic_login']);
