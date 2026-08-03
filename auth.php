@@ -1189,6 +1189,7 @@ function handleMagicLinkRequest(?PDO $pdo, array $siteSettings, array &$alerts, 
         $scheme = auth_cookie_secure() ? 'https' : 'http';
         $host = (string)($_SERVER['HTTP_HOST'] ?? '');
         $url = $scheme . '://' . $host . ($basePath ?: '') . '/account?magic=' . rawurlencode($token);
+        $url = preg_replace('/^(https?)\s+:\/\//i', '$1://', $url) ?: $url;
         $siteSettings = getSiteSettings($pdo);
         $emailSettings = getEmailSettings($pdo);
         $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
@@ -1206,7 +1207,7 @@ function handleMagicLinkRequest(?PDO $pdo, array $siteSettings, array &$alerts, 
         $text = wrap_user_email_text(
             $siteSettings,
             $emailSettings,
-            "Sign in to {$brandName}\n\nUse this secure link to sign in without a password. It expires in 15 minutes and can only be used once:\n{$url}\n\nIf you didn’t request this email, you can ignore it."
+            "Sign in to {$brandName}\n\nUse this secure link to sign in without a password. It expires in 15 minutes and can only be used once:\n<{$url}>\n\nIf you didn’t request this email, you can ignore it."
         );
 
         send_logged_email($pdo, $email, $subject, $html, $text, ['kind' => 'magic_login']);
