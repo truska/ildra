@@ -1200,10 +1200,10 @@ function handleMagicLinkRequest(?PDO $pdo, array $siteSettings, array &$alerts, 
             $emailSettings,
             '<div style="font-size:16px;font-weight:800;color:#0c2a12;">Sign in to ' . h($brandName) . '</div>'
             . '<div style="margin-top:10px;color:#476146;line-height:1.6;">Use the secure link below to sign in without a password.</div>'
-            . '<div style="margin-top:8px;color:#476146;line-height:1.6;">This sign-in link expires in 15 minutes and can only be used once.</div>'
+            . '<div style="margin-top:8px;color:#476146;line-height:1.6;">This sign-in link expires in 15 minutes.</div>'
             . '<div style="margin-top:18px;color:#476146;font-size:14px;line-height:1.6;">Use this link to sign in:</div>'
             . '<div style="margin-top:6px;font-size:16px;line-height:1.5;"><a href="' . h($url) . '" style="color:#146118;font-weight:800;text-decoration:underline;">Open sign-in link</a></div>'
-            . '<div style="margin-top:18px;color:#476146;font-size:13px;line-height:1.6;">If you didn’t request this email, you can ignore it.</div>'
+            . '<div style="margin-top:18px;color:#476146;line-height:1.6;">If you didn’t request this email, you can ignore it.</div>'
         );
         $text = wrap_user_email_text(
             $siteSettings,
