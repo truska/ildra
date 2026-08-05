@@ -136,7 +136,55 @@
     font-weight: 900;
 }
 
-/* Header — FIXED VERSION */
+/* Shared image-ready site header */
+.site-header {
+    --site-header-image: url('/filestore/images/banners/lg/marshallstown-railway-1-2017.jpg');
+    position: relative;
+    z-index: 20;
+    isolation: isolate;
+}
+.site-header-banner {
+    min-height: 210px;
+    background-color: transparent;
+    background-image: var(--site-header-image);
+    background-blend-mode: normal;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    position: relative;
+    z-index: 2;
+    overflow: visible;
+}
+.site-header .navbar { position: relative; z-index: 1; }
+.site-header-home .site-header-banner { min-height: 320px; }
+.header-banner-inner {
+    min-height: inherit;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 28px;
+    padding-bottom: 28px;
+}
+.brand-block,
+.nav-actions-panel {
+    background: rgba(12, 42, 18, 0.58);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: 0 12px 34px rgba(12,42,18,0.18);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+.brand-block {
+    border-radius: 18px;
+    padding: 12px;
+}
+.nav-actions-panel {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    position: relative;
+    z-index: 20;
+}
 .nav-shell { gap: 1rem; }
 .navbar {
     padding-top: 0.5rem;
@@ -185,7 +233,7 @@
     font-weight: 700;
 }
 .brand-text strong { display: block; font-size: 1.05rem; }
-.nav-primary { gap: 0.35rem; }
+.nav-primary { gap: 0.35rem; justify-content: flex-start; }
 .nav-item-with-children { position: relative; }
 .nav-parent {
     display: inline-flex;
@@ -275,6 +323,7 @@
     flex-direction: column;
     justify-content: center;
 }
+.account-wrapper .dropdown-menu { z-index: 30; }
 
 .utility-greeting {
     font-size: 12px;
@@ -312,37 +361,25 @@
     margin-left: 6px;
 }
 
-.cart-icon {
-    width: 20px;
-    height: 16px;
-    border: 2px solid currentColor;
-    border-radius: 3px 3px 8px 8px;
-    display: inline-block;
-    position: relative;
-    transform: translateY(2px);
+.header-icon-btn {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+    font-size: 1rem;
 }
-.cart-icon::before,
-.cart-icon::after {
-    content: '';
-    position: absolute;
-    bottom: -6px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    border: 2px solid currentColor;
+.header-icon-btn.dropdown-toggle::after { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+    .account-wrapper .dropdown:hover > .dropdown-menu,
+    .account-wrapper .dropdown:focus-within > .dropdown-menu {
+        display: block;
+        margin-top: 0;
+    }
 }
-.cart-icon::before { left: 2px; }
-.cart-icon::after { right: 2px; }
 
 .basket-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
     color: #fff;
-    text-decoration: none;
     position: relative;
-    margin-left: 10px;
-    min-width: 38px;
 }
 .basket-link:hover { color: #fff; }
 .basket-count {
@@ -358,10 +395,40 @@
     display: inline-block;
     min-height: 18px;
     transition: opacity 0.15s ease;
+    position: absolute;
+    top: -7px;
+    right: -7px;
 }
 .basket-count.is-empty {
     visibility: hidden;
     opacity: 0;
+}
+.basket-hover-value {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 1100;
+    width: max-content;
+    max-width: 220px;
+    padding: 0.5rem 0.7rem;
+    border-radius: 6px;
+    background: #fff;
+    color: #0f2d17;
+    box-shadow: 0 10px 24px rgba(15, 47, 31, 0.2);
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.2;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+.basket-link:hover .basket-hover-value,
+.basket-link:focus-visible .basket-hover-value {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
 }
 
 /* Hide page hero on non-home pages; opt-in via body.show-page-hero */
@@ -372,7 +439,9 @@ body.show-page-hero .page-hero {
     display: block;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 1199.98px) {
+    .navbar { min-height: 54px; }
+    .navbar-toggler { margin: 7px 0; }
     .nav-primary { width: 100%; }
     .nav-item-with-children { width: 100%; }
     .nav-parent {
@@ -392,6 +461,27 @@ body.show-page-hero .page-hero {
     .nav-submenu .dropdown-item {
         color: #0f2d17;
         font-weight: 600;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .site-header-banner { min-height: 165px; }
+    .site-header-home .site-header-banner { min-height: 220px; }
+    .header-banner-inner {
+        gap: 0.5rem;
+        padding-top: 16px;
+        padding-bottom: 16px;
+    }
+    .brand-block { min-width: 0; padding: 8px; }
+    .brand-text { display: none; }
+    .logo-badge { width: 88px; height: 88px; border-width: 3px; }
+    .nav-actions-panel { margin-top: 6px; padding: 7px; }
+    .nav-actions { gap: 7px; }
+    .nav-actions-panel .utility-btn:not(.header-icon-btn) {
+        min-width: 0;
+        padding-left: 10px;
+        padding-right: 10px;
+        font-size: 0.78rem;
     }
 }
 </style>

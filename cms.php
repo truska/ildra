@@ -11,7 +11,7 @@ const NAV_GROUPS = [
     'events' => 'Events',
     'news' => 'News',
     'faqs' => 'FAQs',
-    'contact' => 'Contact Us',
+    'contact' => 'Contact',
 ];
 
 function defaultMembershipTypes(): array

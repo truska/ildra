@@ -94,9 +94,6 @@ $bookingTotals = [
 $payments = [];
 $paidForEntry = 0.0;
 $balanceDue = 0.0;
-$stripeFeeTotal = 0.0;
-$stripeFeeForEntry = 0.0;
-$bookingItemCount = 0;
 $event = null;
 $entryComponents = [];
 $entryForm = [];
@@ -123,22 +120,13 @@ if ($item && $pdo) {
             $bookingTotals['all'] = (float)($row['total_all'] ?? 0);
             $bookingTotals['active'] = (float)($row['total_active'] ?? 0);
             $bookingTotals['withdrawn'] = (float)($row['total_withdrawn'] ?? 0);
-
-            $countStmt = $pdo->prepare("
-                SELECT COUNT(*)
-                FROM booking_items bi
-                LEFT JOIN bookings b ON bi.booking_id = b.new_id
-                WHERE b.booking_ref = :ref
-            ");
-            $countStmt->execute([':ref' => $ref]);
-            $bookingItemCount = (int)($countStmt->fetchColumn() ?: 0);
         } catch (PDOException $e) {
             // ignore
         }
         if (ensure_finance_tables($pdo)) {
             try {
                 $stmt = $pdo->prepare("
-                    SELECT type, amount, created_at, metadata
+                    SELECT type, amount, created_at
                     FROM finance_transactions
                     WHERE reference = :ref
                       AND type IN ('payment_simulated', 'payment_stripe', 'checkout', 'entry_refund')
@@ -152,11 +140,6 @@ if ($item && $pdo) {
                 foreach ($stmt->fetchAll() ?: [] as $row) {
                     $type = (string)($row['type'] ?? '');
                     $amount = (float)($row['amount'] ?? 0);
-                    $metaRow = [];
-                    $decodedMeta = json_decode((string)($row['metadata'] ?? ''), true);
-                    if (is_array($decodedMeta)) {
-                        $metaRow = $decodedMeta;
-                    }
                     if ($type === 'entry_refund') {
                         $bookingTotals['refund'] += $amount;
                         $payments[] = [
@@ -177,7 +160,6 @@ if ($item && $pdo) {
                     }
                     if ($type === 'payment_stripe') {
                         $paymentStripe += $amount;
-                        $stripeFeeTotal += max(0.0, (float)($metaRow['stripe_fee'] ?? 0));
                         $payments[] = [
                             'date' => $row['created_at'] ?? null,
                             'method' => 'Stripe',
@@ -215,10 +197,6 @@ if ($item && $pdo) {
         $balanceDue = max(0.0, $entryPrice - $paidForEntry);
     }
 
-    if ($stripeFeeTotal > 0) {
-        $allocationBase = $bookingTotals['all'] > 0 ? $bookingTotals['all'] : $entryPrice;
-        $stripeFeeForEntry = $allocationBase > 0 ? round($stripeFeeTotal * ($entryPrice / $allocationBase), 2) : 0.0;
-    }
 }
 
 if ($item && $pdo) {
@@ -448,14 +426,6 @@ if ($item && $pdo) {
                                         <td class="fw-semibold">Total fees</td>
                                         <td class="text-end fw-semibold"><?php echo h($price); ?></td>
                                     </tr>
-                                    <?php if ($stripeFeeForEntry > 0): ?>
-                                        <tr>
-                                            <td class="text-muted small">
-                                                Stripe fee<?php echo $bookingItemCount > 1 ? ' (this entry’s share)' : ''; ?>
-                                            </td>
-                                            <td class="text-end text-muted small"><?php echo h(format_price($stripeFeeForEntry)); ?></td>
-                                        </tr>
-                                    <?php endif; ?>
                                 </tfoot>
                             </table>
                         </div>

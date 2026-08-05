@@ -37,16 +37,9 @@ foreach ($allOrders as $order) {
 }
 
 $eventCloseMap = [];
-$bookingFinanceSummary = [];
 if ($pdo) {
     $eventIds = [];
     foreach ($orders as $order) {
-        $ref = trim((string)($order['booking_ref'] ?? ''));
-        if ($ref !== '') {
-            $bookingFinanceSummary[$ref] = [
-                'stripe_fee' => 0.0,
-            ];
-        }
         foreach (($order['items'] ?? []) as $item) {
             $eventId = (int)($item['event_id'] ?? 0);
             if ($eventId > 0) {
@@ -67,29 +60,6 @@ if ($pdo) {
         }
     }
 
-    if ($bookingFinanceSummary && ensure_finance_tables($pdo)) {
-        $refs = array_keys($bookingFinanceSummary);
-        $placeholders = implode(',', array_fill(0, count($refs), '?'));
-        $stmt = $pdo->prepare("
-            SELECT reference, metadata
-            FROM finance_transactions
-            WHERE reference IN ($placeholders)
-              AND type = 'payment_stripe'
-            ORDER BY created_at ASC, id ASC
-        ");
-        $stmt->execute($refs);
-        foreach (($stmt->fetchAll() ?: []) as $row) {
-            $ref = trim((string)($row['reference'] ?? ''));
-            if ($ref === '' || !isset($bookingFinanceSummary[$ref])) {
-                continue;
-            }
-            $meta = json_decode((string)($row['metadata'] ?? ''), true);
-            if (!is_array($meta)) {
-                $meta = [];
-            }
-            $bookingFinanceSummary[$ref]['stripe_fee'] += max(0.0, (float)($meta['stripe_fee'] ?? 0));
-        }
-    }
 }
 ?>
 <!DOCTYPE html>
@@ -231,8 +201,6 @@ if ($pdo) {
                         <?php
                         $items = $order['items'] ?? [];
                         $total = isset($order['total']) ? '£' . number_format((float)$order['total'], 2) : '—';
-                        $bookingRef = trim((string)($order['booking_ref'] ?? ''));
-                        $stripeFee = (float)($bookingFinanceSummary[$bookingRef]['stripe_fee'] ?? 0.0);
                         $detailsId = 'booking-items-' . h($order['id'] ?? $order['booking_ref'] ?? uniqid('bk'));
                         $nowTs = time();
                         ?>
@@ -246,9 +214,6 @@ if ($pdo) {
                                     <div>
                                         <div class="meta-label">Total</div>
                                         <div class="fw-semibold"><?php echo h($total); ?></div>
-                                        <?php if ($stripeFee > 0): ?>
-                                            <div class="text-muted small">Stripe fee: <?php echo h(format_price($stripeFee)); ?></div>
-                                        <?php endif; ?>
                                     </div>
                                     <div>
                                         <div class="meta-label">Items</div>

@@ -318,7 +318,8 @@ function getEmailSettings(?PDO $pdo): array
         $settings['email_provider'] = 'smtp';
         $settings['email_from_name'] = trim((string)($privateOutbound['from_name'] ?? $settings['email_from_name'] ?? ''));
         $settings['email_from_email'] = trim((string)($privateOutbound['from_email'] ?? $privateOutbound['username'] ?? $settings['email_from_email'] ?? ''));
-        $settings['email_reply_to'] = trim((string)($privateOutbound['reply_to'] ?? $settings['email_from_email'] ?? ''));
+        // Reply-to is a public, site-managed contact address. Keep it separate
+        // from private SMTP transport credentials and the no-reply From address.
         $settings['email_return_path'] = '';
         $settings['email_cc_default'] = (string)($privateOutbound['cc_default'] ?? '');
         $settings['email_bcc_default'] = (string)($privateOutbound['bcc_default'] ?? '');
@@ -990,7 +991,7 @@ function email_signature_html(array $siteSettings, array $emailSettings): string
 {
     $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
     $logoUrl = email_brand_logo_url($siteSettings);
-    $contactEmail = trim((string)($emailSettings['email_from_email'] ?? ''));
+    $contactEmail = trim((string)($emailSettings['email_reply_to'] ?? ''));
 
     $contactHtml = $contactEmail !== ''
         ? '<div style="margin-top:6px;color:#476146;font-size:13px;">' . h($contactEmail) . '</div>'
@@ -1011,7 +1012,7 @@ function email_signature_html(array $siteSettings, array $emailSettings): string
 function email_signature_text(array $siteSettings, array $emailSettings): string
 {
     $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
-    $contactEmail = trim((string)($emailSettings['email_from_email'] ?? ''));
+    $contactEmail = trim((string)($emailSettings['email_reply_to'] ?? ''));
 
     $lines = [$brandName];
     if ($contactEmail !== '') {

@@ -235,7 +235,7 @@ function event_url(array $event): string
 </head>
 <body>
     <header class="hero">
-        <?php include __DIR__ . '/views/header.php'; ?>
+        <?php $headerIsHome = true; include __DIR__ . '/views/header.php'; ?>
         <div class="container hero-content">
             <div class="hero-grid align-items-center">
                 <div>

@@ -1,11 +1,17 @@
 <?php
 $navItemEventsUrl = $navItemEventsUrl ?? ($basePath . '/events');
-$basketCount = $basketCount ?? count($_SESSION['basket'] ?? []);
+$headerBasket = $_SESSION['basket'] ?? [];
+$basketCount = $basketCount ?? count($headerBasket);
+$headerBasketTotal = 0.0;
+foreach ($headerBasket as $headerBasketItem) {
+    $headerBasketTotal += price_to_number($headerBasketItem['price'] ?? 0);
+}
 $siteSettings = $siteSettings ?? ($siteSettingsBootstrap ?? defaultSiteSettings());
 $headerLogoUrl = trim((string)($siteSettings['sponsor_image_url'] ?? ''));
 $hasHeaderLogo = $headerLogoUrl !== '';
 $brandClass = $hasHeaderLogo ? 'brand-logo-only' : '';
 $logoAlt = trim((string)($siteSettings['hero_title'] ?? 'ILDRA'));
+$headerIsHome = isset($headerIsHome) ? (bool)$headerIsHome : false;
 if (!function_exists('page_url')) {
     function page_url(array $page): string
     {
@@ -31,6 +37,7 @@ $targetName = is_array($targetUser) ? trim((string)($targetUser['first_name'] ??
 $targetLabel = $targetName !== '' ? $targetName : ($targetEmail !== '' ? $targetEmail : 'user');
 $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($basePath ?? '') . '/admin/users.php');
 ?>
+<?php include __DIR__ . '/views/development_banner.php'; ?>
 <?php if ($isActingAs): ?>
     <style>
         body { padding-bottom: 44px; }
@@ -99,8 +106,9 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
         </div>
     </div>
 <?php endif; ?>
-<nav class="navbar navbar-expand-lg navbar-dark bg-success bg-gradient py-3">
-    <div class="container nav-shell">
+<header class="site-header<?php echo $headerIsHome ? ' site-header-home' : ' site-header-inner'; ?>">
+    <div class="site-header-banner">
+        <div class="container header-banner-inner">
         <a class="navbar-brand brand-block fw-bold <?php echo h($brandClass); ?>" href="<?php echo h($basePath); ?>/">
             <div class="logo-badge fs-2">
                 <?php if ($hasHeaderLogo): ?>
@@ -114,11 +122,16 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                 <strong>Endurance Riding</strong>
             </div>
         </a>
+            <?php include __DIR__ . '/views/header_actions.php'; ?>
+        </div>
+    </div>
+    <nav class="navbar navbar-expand-xl navbar-dark bg-success bg-gradient py-0">
+        <div class="container nav-shell">
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <div class="collapse navbar-collapse justify-content-between" id="mainNav">
-            <ul class="navbar-nav nav-primary mb-3 mb-lg-0 align-items-lg-center w-100">
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav nav-primary align-items-xl-center w-100">
                 <?php foreach ($navTree as $groupKey => $group): ?>
                     <?php if (!$group['pages']) { continue; } ?>
                     <?php
@@ -157,47 +170,10 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                     <?php endif; ?>
                 <?php endforeach; ?>
             </ul>
-            <div class="nav-actions">
-
-                <?php if ($isLoggedIn): ?>
-
-                    <div class="account-wrapper">
-                        <div class="dropdown">
-                            <button class="utility-btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                Bookings &amp; Membership
-                            </button>
-
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">My bookings</a></li>
-                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account#my-memberships">My memberships</a></li>
-                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/basket">Basket</a></li>
-                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account">Account</a></li>
-                                <?php if (!empty($canViewAdmin)): ?>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a></li>
-                                <?php endif; ?>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account?logout=1">Logout</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <a class="basket-link" href="<?php echo h($basePath); ?>/basket" aria-label="Basket">
-                        <span class="cart-icon"></span>
-                        <span class="basket-count<?php echo $basketCount > 0 ? '' : ' is-empty'; ?>"><?php echo (int)$basketCount; ?></span>
-                    </a>
-
-                <?php else: ?>
-
-                    <a class="utility-btn" href="<?php echo h($basePath); ?>/account">
-                        Login / Register
-                    </a>
-
-                <?php endif; ?>
-
-            </div>
         </div>
-    </div>
-</nav>
+        </div>
+    </nav>
+</header>
 <script>
     (function () {
         const navParents = Array.from(document.querySelectorAll('.nav-parent'));

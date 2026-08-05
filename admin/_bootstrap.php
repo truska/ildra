@@ -321,6 +321,7 @@ function admin_layout_start(string $title, string $activeKey): void
 	    </style>
 	</head>
 	<body>
+        <?php include __DIR__ . '/../views/development_banner.php'; ?>
         <div class="admin-mobilebar">
             <button class="admin-menu-toggle" type="button" aria-label="Open admin menu" data-admin-menu-toggle>
                 <i class="fa-solid fa-bars"></i>

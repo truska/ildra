@@ -236,6 +236,7 @@ if ($view === 'settings') {
                     <div class="col-12 col-lg-4">
                         <label class="form-label fw-semibold" for="email_from_email">From email</label>
                         <input class="form-control" id="email_from_email" name="email_from_email" value="<?php echo h((string)($emailSettings['email_from_email'] ?? '')); ?>" placeholder="no-reply@example.com">
+                        <div class="help-row">Delivery identity used in the From header. This may be a no-reply SMTP address and is not shown in the email signature.</div>
                     </div>
                     <div class="col-12">
                         <div class="help-row">Example subject: <code>[TEST]</code> Booking confirmation …</div>
@@ -249,8 +250,9 @@ if ($view === 'settings') {
 
                 <div class="row g-3 mt-1 align-items-end">
                     <div class="col-12 col-lg-6">
-                        <label class="form-label fw-semibold" for="email_reply_to">Reply-to (optional)</label>
+                        <label class="form-label fw-semibold" for="email_reply_to">Reply-to / public contact email</label>
                         <input class="form-control" id="email_reply_to" name="email_reply_to" value="<?php echo h((string)($emailSettings['email_reply_to'] ?? '')); ?>" placeholder="support@example.com">
+                        <div class="help-row">Stored in <code>site_settings.email_reply_to</code>, used in the Reply-To header, and displayed in customer email signatures.</div>
                     </div>
 
                     <div class="col-12 col-lg-6">

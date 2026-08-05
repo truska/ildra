@@ -22,6 +22,7 @@ $horses = $isLoggedIn ? array_values(array_filter(
     static fn(array $horse): bool => empty($horse['is_linked'])
 )) : [];
 $logbookTypes = fetchHorseLogbookTypes($pdo, true);
+$preselectedHorseId = max(0, (int)($_GET['horse_id'] ?? 0));
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_logbook') {
     if (!$isLoggedIn) {
@@ -182,7 +183,7 @@ $navItemEventsUrl = $basePath . '/events';
     <main class="py-5">
         <div class="container">
             <?php include __DIR__ . '/views/alerts.php'; ?>
-            <div class="card-soft p-4">
+            <div class="card-soft p-4" id="available-logbooks">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="section-title mb-0">Available logbooks</div>
                 </div>
@@ -213,9 +214,9 @@ $navItemEventsUrl = $basePath . '/events';
                                             <div class="col-12 col-md-6">
                                                 <label class="form-label small mb-1">Horse</label>
                                                 <select class="form-select form-select-sm" name="horse_id" required>
-                                                    <option value="" selected disabled>Select a horse…</option>
+                                                    <option value="" <?php echo $preselectedHorseId <= 0 ? 'selected' : ''; ?> disabled>Select a horse…</option>
                                                     <?php foreach ($horses as $horse): ?>
-                                                        <option value="<?php echo (int)($horse['id'] ?? 0); ?>">
+                                                        <option value="<?php echo (int)($horse['id'] ?? 0); ?>" <?php echo $preselectedHorseId === (int)($horse['id'] ?? 0) ? 'selected' : ''; ?>>
                                                             <?php echo h($horse['name'] ?? 'Horse'); ?>
                                                         </option>
                                                     <?php endforeach; ?>
