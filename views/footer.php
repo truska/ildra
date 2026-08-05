@@ -108,7 +108,7 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
             <div class="col-12 col-lg-6">
                 <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
                     <div class="site-footer-title mb-0">Events</div>
-                    <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
+                    <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
                 </div>
                 <ul class="site-footer-events">
                     <?php foreach ($footerEvents as $footerEvent): ?>
@@ -133,9 +133,9 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
             <div><?php echo h((string)($footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></div>
             <div class="d-flex align-items-center gap-2">
                 <?php if ($footerCanViewAdmin): ?>
-                    <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php">View admin area</a>
+                    <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php">View admin area</a>
                 <?php elseif (!$footerIsLoggedIn): ?>
-                    <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/account">Login / Register</a>
+                    <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/account">Login / Register</a>
                 <?php endif; ?>
             </div>
         </div>

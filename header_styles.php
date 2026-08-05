@@ -8,10 +8,10 @@
     --site-btn-secondary-bg-hover: var(--green-alt, #1f7c24);
     --site-btn-secondary-text: #fff;
     --site-btn-secondary-border: rgba(255, 255, 255, 0.18);
-    --site-btn-tertiary-bg: #f2f5ee;
-    --site-btn-tertiary-bg-hover: #e3ebdd;
-    --site-btn-tertiary-text: var(--green, #0f5d2d);
-    --site-btn-tertiary-border: rgba(20, 97, 24, 0.24);
+    --site-btn-tertiary-bg: var(--green, #0f5d2d);
+    --site-btn-tertiary-bg-hover: var(--green-alt, #1f7c24);
+    --site-btn-tertiary-text: #fff;
+    --site-btn-tertiary-border: rgba(255, 255, 255, 0.24);
     --site-btn-hover-shadow: 0 10px 24px rgba(15, 93, 45, 0.18);
 }
 
@@ -116,7 +116,7 @@
 .btn-outline-success:hover:not(:disabled):not(.disabled),
 .btn-outline-success:focus-visible:not(:disabled):not(.disabled) {
     background: var(--site-btn-tertiary-bg-hover);
-    border-color: rgba(20, 97, 24, 0.38);
+    border-color: rgba(255, 255, 255, 0.38);
     color: var(--site-btn-tertiary-text);
 }
 
