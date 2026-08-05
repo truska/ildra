@@ -217,7 +217,7 @@ if ($view === 'settings') {
                     </div>
                 </div>
 
-                <div class="help-row">Uses authenticated SMTP when available from <code>preferences.csv</code> or config, and falls back to <code>PHP mail()</code> only if SMTP is not configured. Every send is logged and checkout never blocks on failures.</div>
+                <div class="help-row">Uses authenticated SMTP from private server config when available, ignoring stale database SMTP secrets. Every send is logged and checkout never blocks on failures.</div>
                 <?php if ($enableBlockedWarning): ?>
                     <div class="alert alert-warning py-2 px-3 mt-2 mb-0">
                         Email is still off because required settings are incomplete.<?php echo h($enableBlockedDetail); ?>
@@ -311,7 +311,7 @@ if ($view === 'settings') {
                         <input class="form-control" id="email_smtp_password" type="password" value="" placeholder="<?php echo $smtpCredsConfigured ? '(resolved from config or preferences.csv)' : '(not configured)'; ?>" autocomplete="current-password" disabled>
                     </div>
                     <div class="col-12">
-                        <div class="help-row">SMTP host, port and security can come from site settings or <code>../private/preferences.csv</code>. Credentials are resolved from config or the legacy CSV and are not stored back into the database.</div>
+                        <div class="help-row">SMTP host, port, security and credentials resolve from private server config when present. Database-stored SMTP secrets are ignored and are not written back.</div>
                     </div>
                 </div>
             </div>
@@ -373,18 +373,61 @@ $pageSize = 25;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $pageSize;
 
-$sortKey = (string)($_GET['sort'] ?? 'sent_at');
+$sortKey = (string)($_GET['sort'] ?? 'id');
 $sortDir = strtolower((string)($_GET['dir'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
 
 $sortMap = [
+    'id' => 'el.id',
     'sent_at' => 'COALESCE(el.sent_at, el.created_at)',
     'to' => 'el.to_email',
     'subject' => 'el.subject',
     'status' => 'el.status',
 ];
-$sortSql = $sortMap[$sortKey] ?? $sortMap['sent_at'];
+$sortSql = $sortMap[$sortKey] ?? $sortMap['id'];
 
-$total = (int)$pdo->query("SELECT COUNT(*) FROM email_log")->fetchColumn();
+$filters = [
+    'id' => trim((string)($_GET['filter_id'] ?? '')),
+    'to' => trim((string)($_GET['filter_to'] ?? '')),
+    'subject' => trim((string)($_GET['filter_subject'] ?? '')),
+    'status' => trim((string)($_GET['filter_status'] ?? '')),
+    'sent' => trim((string)($_GET['filter_sent'] ?? '')),
+];
+$hasFilters = implode('', $filters) !== '';
+
+$emailOptions = $pdo->query("SELECT DISTINCT to_email FROM email_log WHERE to_email <> '' ORDER BY to_email ASC")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+$statusOptions = $pdo->query("SELECT DISTINCT status FROM email_log WHERE status <> '' ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+$where = [];
+$params = [];
+if ($filters['id'] !== '') {
+    $where[] = 'CAST(el.id AS CHAR) LIKE :filter_id';
+    $params[':filter_id'] = '%' . $filters['id'] . '%';
+}
+if ($filters['to'] !== '') {
+    $where[] = 'el.to_email = :filter_to';
+    $params[':filter_to'] = $filters['to'];
+}
+if ($filters['subject'] !== '') {
+    $where[] = 'el.subject LIKE :filter_subject';
+    $params[':filter_subject'] = '%' . $filters['subject'] . '%';
+}
+if ($filters['status'] !== '') {
+    $where[] = 'el.status = :filter_status';
+    $params[':filter_status'] = $filters['status'];
+}
+if ($filters['sent'] !== '') {
+    $where[] = "COALESCE(DATE_FORMAT(el.sent_at, '%Y-%m-%d %H:%i:%s'), DATE_FORMAT(el.created_at, '%Y-%m-%d %H:%i:%s')) LIKE :filter_sent";
+    $params[':filter_sent'] = '%' . $filters['sent'] . '%';
+}
+$whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+$totalAll = (int)$pdo->query("SELECT COUNT(*) FROM email_log")->fetchColumn();
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM email_log el {$whereSql}");
+foreach ($params as $k => $v) {
+    $countStmt->bindValue($k, $v);
+}
+$countStmt->execute();
+$total = (int)$countStmt->fetchColumn();
 $pages = max(1, (int)ceil($total / $pageSize));
 $page = min($page, $pages);
 $offset = ($page - 1) * $pageSize;
@@ -392,9 +435,13 @@ $offset = ($page - 1) * $pageSize;
 $stmt = $pdo->prepare("
     SELECT el.id, el.status, el.to_email, el.subject, el.body_text, el.body_html, el.error_message, el.sent_at, el.created_at
     FROM email_log el
+    {$whereSql}
     ORDER BY {$sortSql} {$sortDir}
     LIMIT :limit OFFSET :offset
 ");
+foreach ($params as $k => $v) {
+    $stmt->bindValue($k, $v);
+}
 $stmt->bindValue(':limit', $pageSize, PDO::PARAM_INT);
 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
@@ -404,7 +451,7 @@ $rows = $stmt->fetchAll() ?: [];
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
     <div>
         <div class="text-muted">Email log</div>
-        <div class="small text-muted">Showing <?php echo (int)$total; ?></div>
+        <div class="small text-muted">Showing <?php echo (int)$total; ?><?php echo $hasFilters ? ' of ' . (int)$totalAll : ''; ?></div>
     </div>
     <div class="d-flex gap-2">
         <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php?view=settings">Email settings</a>
@@ -413,19 +460,70 @@ $rows = $stmt->fetchAll() ?: [];
 
 <div class="card-soft p-4">
     <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-            <tr>
-                <th><?php echo admin_sort_link('to', 'To', $sortKey, $sortDir); ?></th>
-                <th><?php echo admin_sort_link('subject', 'Subject', $sortKey, $sortDir); ?></th>
-                <th style="width: 130px;"><?php echo admin_sort_link('status', 'Status', $sortKey, $sortDir); ?></th>
-                <th style="width: 170px;"><?php echo admin_sort_link('sent_at', 'Sent', $sortKey, $sortDir); ?></th>
-                <th style="width: 110px;"></th>
-            </tr>
-            </thead>
+        <form method="get" class="m-0">
+            <input type="hidden" name="sort" value="<?php echo h($sortKey); ?>">
+            <input type="hidden" name="dir" value="<?php echo h($sortDir); ?>">
+            <table class="table table-sm align-middle mb-0 admin-data-table">
+                <thead>
+                <tr>
+                    <th style="width: 72px;"><?php echo admin_sort_link('id', '#', $sortKey, $sortDir); ?></th>
+                    <th><?php echo admin_sort_link('to', 'To', $sortKey, $sortDir); ?></th>
+                    <th><?php echo admin_sort_link('subject', 'Subject', $sortKey, $sortDir); ?></th>
+                    <th style="width: 130px;"><?php echo admin_sort_link('status', 'Status', $sortKey, $sortDir); ?></th>
+                    <th style="width: 170px;"><?php echo admin_sort_link('sent_at', 'Sent', $sortKey, $sortDir); ?></th>
+                    <th style="width: 110px;"></th>
+                </tr>
+                <tr class="admin-table-filter-row">
+                    <th>
+                        <div class="admin-table-filter">
+                            <input class="form-control" type="search" name="filter_id" value="<?php echo h($filters['id']); ?>" placeholder="ID">
+                        </div>
+                    </th>
+                    <th>
+                        <div class="admin-table-filter">
+                            <select class="form-select" name="filter_to">
+                                <option value="">All emails</option>
+                                <?php foreach ($emailOptions as $emailOption): ?>
+                                    <?php $emailOption = (string)$emailOption; ?>
+                                    <option value="<?php echo h($emailOption); ?>" <?php echo $filters['to'] === $emailOption ? 'selected' : ''; ?>><?php echo h($emailOption); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="admin-table-filter">
+                            <input class="form-control" type="search" name="filter_subject" value="<?php echo h($filters['subject']); ?>" placeholder="Subject">
+                        </div>
+                    </th>
+                    <th>
+                        <div class="admin-table-filter">
+                            <select class="form-select" name="filter_status">
+                                <option value="">All</option>
+                                <?php foreach ($statusOptions as $statusOption): ?>
+                                    <?php $statusOption = (string)$statusOption; ?>
+                                    <option value="<?php echo h($statusOption); ?>" <?php echo $filters['status'] === $statusOption ? 'selected' : ''; ?>><?php echo h($statusOption); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="admin-table-filter">
+                            <input class="form-control" type="search" name="filter_sent" value="<?php echo h($filters['sent']); ?>" placeholder="YYYY-MM-DD">
+                        </div>
+                    </th>
+                    <th>
+                        <div class="admin-table-filter-actions">
+                            <button class="btn btn-sm btn-success" type="submit">Filter</button>
+                            <?php if ($hasFilters): ?>
+                                <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php?sort=<?php echo h($sortKey); ?>&dir=<?php echo h($sortDir); ?>">Clear</a>
+                            <?php endif; ?>
+                        </div>
+                    </th>
+                </tr>
+                </thead>
             <tbody>
             <?php if (!$rows): ?>
-                <tr><td colspan="5" class="text-muted">No emails yet.</td></tr>
+                <tr><td colspan="6" class="text-muted">No emails yet.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $r): ?>
                     <?php
@@ -443,11 +541,14 @@ $rows = $stmt->fetchAll() ?: [];
                     $badgeClass = 'bg-secondary-subtle text-secondary';
                     if ($status === 'sent') {
                         $badgeClass = 'bg-success-subtle text-success';
+                    } elseif ($status === 'bounced') {
+                        $badgeClass = 'bg-warning-subtle text-warning';
                     } elseif ($status === 'failed') {
                         $badgeClass = 'bg-danger-subtle text-danger';
                     }
                     ?>
                     <tr>
+                        <td class="text-muted fw-semibold">#<?php echo (int)$id; ?></td>
                         <td>
                             <div class="fw-semibold"><?php echo h($to); ?></div>
                         </td>
@@ -466,7 +567,8 @@ $rows = $stmt->fetchAll() ?: [];
                 <?php endforeach; ?>
             <?php endif; ?>
             </tbody>
-        </table>
+            </table>
+        </form>
     </div>
 
     <?php if ($pages > 1): ?>

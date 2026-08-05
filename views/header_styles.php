@@ -1,48 +1,134 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
 :root {
-    --site-btn-accent: var(--accent, #146118);
-    --site-btn-accent-strong: var(--green-alt, #1f7c24);
-    --site-btn-quiet-bg: #f2f5ee;
-    --site-btn-quiet-border: rgba(20, 97, 24, 0.2);
-    --site-btn-quiet-text: var(--site-btn-accent);
-    --site-btn-hover-shadow: 0 10px 24px rgba(20, 97, 24, 0.16);
+    --site-btn-main-bg: var(--yellow, #dce705);
+    --site-btn-main-bg-hover: #c7d300;
+    --site-btn-main-text: var(--green, #0f5d2d);
+    --site-btn-main-border: rgba(255, 255, 255, 0.08);
+    --site-btn-secondary-bg: var(--accent, #146118);
+    --site-btn-secondary-bg-hover: var(--green-alt, #1f7c24);
+    --site-btn-secondary-text: #fff;
+    --site-btn-secondary-border: rgba(255, 255, 255, 0.18);
+    --site-btn-tertiary-bg: #f2f5ee;
+    --site-btn-tertiary-bg-hover: #e3ebdd;
+    --site-btn-tertiary-text: var(--green, #0f5d2d);
+    --site-btn-tertiary-border: rgba(20, 97, 24, 0.24);
+    --site-btn-hover-shadow: 0 10px 24px rgba(15, 93, 45, 0.18);
 }
 
-.btn {
+.btn,
+.button1,
+.button2,
+.button3,
+.btn-main,
+.btn-secondary-site,
+.btn-tertiary-site {
+    border-radius: 6px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-decoration: none;
     transition: background-color 0.22s ease, border-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
 }
 
+.button1,
+.button2,
+.button3,
+.btn-main,
+.btn-secondary-site,
+.btn-tertiary-site {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    padding: 0.72rem 1.15rem;
+    border: 1px solid transparent;
+    text-align: center;
+}
+
 .btn:hover:not(:disabled):not(.disabled),
-.btn:focus-visible:not(:disabled):not(.disabled) {
+.btn:focus-visible:not(:disabled):not(.disabled),
+.button1:hover,
+.button1:focus-visible,
+.button2:hover,
+.button2:focus-visible,
+.button3:hover,
+.button3:focus-visible,
+.btn-main:hover,
+.btn-main:focus-visible,
+.btn-secondary-site:hover,
+.btn-secondary-site:focus-visible,
+.btn-tertiary-site:hover,
+.btn-tertiary-site:focus-visible {
     transform: translateY(-1px);
     box-shadow: var(--site-btn-hover-shadow);
 }
 
-.btn-success {
-    background: var(--site-btn-accent);
-    border-color: var(--site-btn-accent);
-    color: #fff;
+.button1,
+.btn-main,
+.cta-btn {
+    background: var(--site-btn-main-bg);
+    border-color: var(--site-btn-main-border);
+    color: var(--site-btn-main-text);
 }
 
+.button1:hover,
+.button1:focus-visible,
+.btn-main:hover,
+.btn-main:focus-visible,
+.cta-btn:hover,
+.cta-btn:focus-visible {
+    background: var(--site-btn-main-bg-hover);
+    border-color: var(--site-btn-main-bg-hover);
+    color: var(--site-btn-main-text);
+}
+
+.button2,
+.btn-secondary-site,
+.btn-success {
+    background: var(--site-btn-secondary-bg);
+    border-color: var(--site-btn-secondary-bg);
+    color: var(--site-btn-secondary-text);
+}
+
+.button2:hover,
+.button2:focus-visible,
+.btn-secondary-site:hover,
+.btn-secondary-site:focus-visible,
 .btn-success:hover:not(:disabled):not(.disabled),
 .btn-success:focus-visible:not(:disabled):not(.disabled) {
-    background: var(--site-btn-accent-strong);
-    border-color: var(--site-btn-accent-strong);
-    color: #fff;
+    background: var(--site-btn-secondary-bg-hover);
+    border-color: var(--site-btn-secondary-bg-hover);
+    color: var(--site-btn-secondary-text);
 }
 
+.button3,
+.btn-tertiary-site,
 .btn-outline-success {
-    background: var(--site-btn-quiet-bg);
-    border-color: var(--site-btn-quiet-border);
-    color: var(--site-btn-quiet-text);
+    background: var(--site-btn-tertiary-bg);
+    border-color: var(--site-btn-tertiary-border);
+    color: var(--site-btn-tertiary-text);
 }
 
+.button3:hover,
+.button3:focus-visible,
+.btn-tertiary-site:hover,
+.btn-tertiary-site:focus-visible,
 .btn-outline-success:hover:not(:disabled):not(.disabled),
 .btn-outline-success:focus-visible:not(:disabled):not(.disabled) {
-    background: rgba(20, 97, 24, 0.12);
+    background: var(--site-btn-tertiary-bg-hover);
     border-color: rgba(20, 97, 24, 0.38);
-    color: var(--site-btn-accent-strong);
+    color: var(--site-btn-tertiary-text);
+}
+
+.btn-lg.button1,
+.btn-lg.button2,
+.btn-lg.button3,
+.btn-lg.btn-main,
+.btn-lg.btn-secondary-site,
+.btn-lg.btn-tertiary-site {
+    min-height: 50px;
+    padding: 0.86rem 1.45rem;
 }
 
 .person-type-select {

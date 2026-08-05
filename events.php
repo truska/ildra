@@ -399,18 +399,7 @@ $navItemEventsUrl = $basePath . '/events';
         </div>
     </main>
 
-    <footer class="footer py-4" style="background: var(--green); color: #fff;">
-        <div class="container d-flex flex-column flex-lg-row justify-content-between align-items-center gap-2">
-            <div><?php echo h($siteSettings['hero_title']); ?> · <?php echo date('Y'); ?></div>
-            <div class="small d-flex align-items-center gap-3">
-                <?php if ($canViewAdmin): ?>
-                    <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($basePath); ?>/admin/index.php">View admin area</a>
-                <?php elseif (!$isLoggedIn): ?>
-                    <a class="btn btn-light btn-sm fw-bold" href="<?php echo h($basePath); ?>/account">Login / Register</a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </footer>
+    <?php include __DIR__ . '/views/footer.php'; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

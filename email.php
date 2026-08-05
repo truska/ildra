@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Email subsystem (native PHP mail, with legacy SMTP retained as an option).
+ * Email subsystem (authenticated SMTP preferred, PHP mail retained only as a fallback).
  *
  * Goals:
  * - Centralised sending + logging (HTML + plain-text)
@@ -12,6 +12,90 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/cms.php';
+
+function email_private_config(): array
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $cache = [];
+    foreach ([__DIR__ . '/../private/email.php', __DIR__ . '/private/email.php'] as $path) {
+        if (!file_exists($path)) {
+            continue;
+        }
+        $cfg = require $path;
+        if (is_array($cfg)) {
+            $cache = $cfg;
+        }
+        break;
+    }
+    return $cache;
+}
+
+function email_current_environment(array $privateConfig): string
+{
+    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+    if (PHP_SAPI === 'cli') {
+        $host = strtolower((string)($privateConfig['cli_host'] ?? $host));
+    }
+    $host = preg_replace('/:\d+$/', '', $host) ?: '';
+    $liveHosts = array_map('strtolower', (array)($privateConfig['live_hosts'] ?? []));
+    if ($host !== '' && in_array($host, $liveHosts, true)) {
+        return 'live';
+    }
+    return (string)($privateConfig['default_environment'] ?? 'dev');
+}
+
+function email_environment_config(): array
+{
+    $private = email_private_config();
+    if (!$private) {
+        return [];
+    }
+    $env = email_current_environment($private);
+    $envs = is_array($private['environments'] ?? null) ? $private['environments'] : [];
+    $base = $private;
+    unset($base['environments']);
+    $selected = is_array($envs[$env] ?? null) ? $envs[$env] : [];
+    $selected['environment'] = $env;
+    return array_replace_recursive($base, $selected);
+}
+
+function email_site_code(array $settings = []): string
+{
+    $code = strtolower(trim((string)($settings['site_code'] ?? '')));
+    if ($code === '') {
+        $code = strtolower(trim((string)(email_environment_config()['site_code'] ?? 'ildra')));
+    }
+    $code = preg_replace('/[^a-z0-9]+/', '', $code) ?: 'site';
+    return substr($code, 0, 24);
+}
+
+function email_generate_bounce_token(string $siteCode): string
+{
+    return $siteCode . '-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(8));
+}
+
+function email_message_id(string $siteCode, string $domain): string
+{
+    $domain = strtolower(trim($domain));
+    if ($domain === '' || !str_contains($domain, '.')) {
+        $domain = 'witecanvas.com';
+    }
+    return sprintf('<%s.%s.%s@%s>', $siteCode, gmdate('YmdHis'), bin2hex(random_bytes(8)), $domain);
+}
+
+function email_bounce_sender(string $siteCode, string $token, array $settings): string
+{
+    $domain = strtolower(trim((string)($settings['bounce_domain'] ?? 'witecanvas.com')));
+    return 'bounces+' . $siteCode . '-' . $token . '@' . $domain;
+}
+
+function email_safe_debug_error(?Throwable $e): string
+{
+    return $e ? $e->getMessage() : '';
+}
 
 function ensureEmailTables(PDO $pdo): void
 {
@@ -71,6 +155,7 @@ function defaultEmailSettings(): array
         'email_smtp_secure' => 'tls', // tls|ssl|none
         'email_smtp_username' => '',
         'email_smtp_password' => '',
+        'email_site_code' => 'ildra',
     ];
 }
 
@@ -226,6 +311,27 @@ function getEmailSettings(?PDO $pdo): array
         }
     }
 
+    $privateEmail = email_environment_config();
+    $privateOutbound = is_array($privateEmail['outbound'] ?? null) ? $privateEmail['outbound'] : [];
+    if ($privateOutbound) {
+        $settings['email_enabled'] = '1';
+        $settings['email_provider'] = 'smtp';
+        $settings['email_from_name'] = trim((string)($privateOutbound['from_name'] ?? $settings['email_from_name'] ?? ''));
+        $settings['email_from_email'] = trim((string)($privateOutbound['from_email'] ?? $privateOutbound['username'] ?? $settings['email_from_email'] ?? ''));
+        $settings['email_reply_to'] = trim((string)($privateOutbound['reply_to'] ?? $settings['email_from_email'] ?? ''));
+        $settings['email_return_path'] = '';
+        $settings['email_cc_default'] = (string)($privateOutbound['cc_default'] ?? '');
+        $settings['email_bcc_default'] = (string)($privateOutbound['bcc_default'] ?? '');
+        $settings['email_smtp_host'] = trim((string)($privateOutbound['host'] ?? ''));
+        $settings['email_smtp_port'] = (string)((int)($privateOutbound['port'] ?? 587));
+        $settings['email_smtp_secure'] = strtolower(trim((string)($privateOutbound['secure'] ?? 'tls')));
+        $settings['email_smtp_username'] = trim((string)($privateOutbound['username'] ?? $settings['email_from_email'] ?? ''));
+        $settings['email_smtp_password'] = (string)($privateOutbound['password'] ?? '');
+        $settings['email_site_code'] = email_site_code($privateEmail);
+        $settings['bounce_domain'] = trim((string)($privateEmail['bounce_domain'] ?? 'witecanvas.com'));
+        $settings['email_config_environment'] = (string)($privateEmail['environment'] ?? 'dev');
+    }
+
     $settings['email_enabled'] = ((string)($settings['email_enabled'] ?? '0')) === '1' ? '1' : '0';
     $settings['email_smtp_port'] = (string)((int)($settings['email_smtp_port'] ?? 587));
 
@@ -253,16 +359,18 @@ function getEmailSettings(?PDO $pdo): array
         $settings['email_reply_to'] = $settings['email_from_email'];
     }
 
-    // SMTP credentials are resolved from config constants first, then legacy CSV values.
-    // They are never persisted back into the database.
-    $constUser = defined('ILDRA_EMAIL_SMTP_USERNAME') ? trim((string)constant('ILDRA_EMAIL_SMTP_USERNAME')) : '';
-    $constPass = defined('ILDRA_EMAIL_SMTP_PASSWORD') ? (string)constant('ILDRA_EMAIL_SMTP_PASSWORD') : '';
-    $csvUser = trim((string)($csv['email_smtp_username'] ?? ($settings['email_from_email'] ?? '')));
-    $csvPass = (string)($csv['email_smtp_password'] ?? '');
-    $settings['email_smtp_username'] = $constUser !== '' ? $constUser : $csvUser;
-    $settings['email_smtp_password'] = $constPass !== '' ? $constPass : $csvPass;
+    // SMTP credentials are resolved from private config first, then legacy constants/CSV.
+    // They are never persisted back into the database, and DB-stored stale secrets are ignored.
+    if (!$privateOutbound) {
+        $constUser = defined('ILDRA_EMAIL_SMTP_USERNAME') ? trim((string)constant('ILDRA_EMAIL_SMTP_USERNAME')) : '';
+        $constPass = defined('ILDRA_EMAIL_SMTP_PASSWORD') ? (string)constant('ILDRA_EMAIL_SMTP_PASSWORD') : '';
+        $csvUser = trim((string)($csv['email_smtp_username'] ?? ($settings['email_from_email'] ?? '')));
+        $csvPass = (string)($csv['email_smtp_password'] ?? '');
+        $settings['email_smtp_username'] = $constUser !== '' ? $constUser : $csvUser;
+        $settings['email_smtp_password'] = $constPass !== '' ? $constPass : $csvPass;
+    }
 
-    if ($csv) {
+    if ($csv && !$privateOutbound) {
         $hasCsvSmtp = trim((string)($settings['email_smtp_host'] ?? '')) !== ''
             && trim((string)($settings['email_smtp_username'] ?? '')) !== ''
             && (string)($settings['email_smtp_password'] ?? '') !== '';
@@ -304,6 +412,8 @@ function emailDebugSnapshot(array $settings, array $meta = []): array
             'email_from_email' => (string) ($settings['email_from_email'] ?? ''),
             'email_reply_to' => (string) ($settings['email_reply_to'] ?? ''),
             'email_return_path' => (string) ($settings['email_return_path'] ?? ''),
+            'email_site_code' => (string) ($settings['email_site_code'] ?? ''),
+            'email_config_environment' => (string) ($settings['email_config_environment'] ?? ''),
             'email_cc_default' => (string) ($settings['email_cc_default'] ?? ''),
             'email_bcc_default' => (string) ($settings['email_bcc_default'] ?? ''),
             'email_smtp_host' => (string) ($settings['email_smtp_host'] ?? ''),
@@ -315,6 +425,7 @@ function emailDebugSnapshot(array $settings, array $meta = []): array
             'email_test_redirect_to' => (string) ($settings['email_test_redirect_to'] ?? ''),
         ],
         'sources' => [
+            'private_config_present' => (bool) email_environment_config(),
             'config_username_present' => $constUser !== '',
             'config_password_present' => $constPass !== '',
             'csv_path' => $csvPath,
@@ -411,6 +522,7 @@ function saveEmailSettings(?PDO $pdo, array $data, array &$alerts): bool
         // Never persist SMTP secrets in the DB.
         'email_smtp_username' => '',
         'email_smtp_password' => '',
+        'email_site_code' => 'ildra',
     ];
 
     $stmt = $pdo->prepare("REPLACE INTO site_settings (setting_key, setting_value, updated_at) VALUES (:k, :v, NOW())");
@@ -444,6 +556,74 @@ function logEmail(PDO $pdo, array $row): int
     return (int)$pdo->lastInsertId();
 }
 
+function updateEmailLog(PDO $pdo, int $id, array $row): void
+{
+    if ($id <= 0) {
+        return;
+    }
+    ensureEmailTables($pdo);
+    $sets = [];
+    $params = [':id' => $id];
+    foreach (['status', 'provider', 'to_email', 'cc', 'bcc', 'subject', 'body_html', 'body_text', 'error_message', 'meta_json', 'sent_at'] as $col) {
+        if (!array_key_exists($col, $row)) {
+            continue;
+        }
+        $sets[] = $col . ' = :' . $col;
+        $params[':' . $col] = $row[$col];
+    }
+    if (!$sets) {
+        return;
+    }
+    $stmt = $pdo->prepare('UPDATE email_log SET ' . implode(', ', $sets) . ' WHERE id = :id');
+    $stmt->execute($params);
+}
+
+function markEmailLogBounced(PDO $pdo, int $id, array $bounceMeta, string $reason): void
+{
+    if ($id <= 0) {
+        return;
+    }
+    ensureEmailTables($pdo);
+    $stmt = $pdo->prepare('SELECT meta_json FROM email_log WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $id]);
+    $existing = $stmt->fetchColumn();
+    $meta = [];
+    if (is_string($existing) && $existing !== '') {
+        $decoded = json_decode($existing, true);
+        if (is_array($decoded)) {
+            $meta = $decoded;
+        }
+    }
+    $meta['bounce'] = $bounceMeta;
+    updateEmailLog($pdo, $id, [
+        'status' => 'bounced',
+        'error_message' => $reason,
+        'meta_json' => json_encode($meta, JSON_UNESCAPED_SLASHES),
+    ]);
+}
+
+function findEmailLogByBounceToken(PDO $pdo, string $siteCode, string $token): ?array
+{
+    ensureEmailTables($pdo);
+    $like = '%' . $token . '%';
+    $stmt = $pdo->prepare("SELECT * FROM email_log WHERE meta_json LIKE :token ORDER BY id DESC LIMIT 1");
+    $stmt->execute([':token' => $like]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return null;
+    }
+    $meta = json_decode((string)($row['meta_json'] ?? ''), true);
+    if (!is_array($meta)) {
+        return null;
+    }
+    $metaSite = strtolower((string)($meta['site_code'] ?? ''));
+    $metaToken = (string)($meta['bounce_token'] ?? '');
+    if ($metaToken !== $token || ($siteCode !== '' && $metaSite !== strtolower($siteCode))) {
+        return null;
+    }
+    return $row;
+}
+
 function parseEmailList(string $raw): array
 {
     $raw = trim($raw);
@@ -462,7 +642,7 @@ function parseEmailList(string $raw): array
     return array_values(array_unique($out));
 }
 
-function buildMimeMessage(string $subject, string $fromName, string $fromEmail, string $toEmail, array $ccEmails, array $replyToEmails, string $htmlBody, string $textBody, string $returnPath = ''): array
+function buildMimeMessage(string $subject, string $fromName, string $fromEmail, string $toEmail, array $ccEmails, array $replyToEmails, string $htmlBody, string $textBody, string $returnPath = '', array $extraHeaders = []): array
 {
     $boundary = 'b_' . bin2hex(random_bytes(12));
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
@@ -483,6 +663,14 @@ function buildMimeMessage(string $subject, string $fromName, string $fromEmail, 
     // Return-Path is typically set by the SMTP envelope sender; keep header for debugging only.
     if ($returnPath !== '') {
         $headers[] = "Return-Path: {$returnPath}";
+    }
+    foreach ($extraHeaders as $name => $value) {
+        $name = trim((string)$name);
+        $value = trim((string)$value);
+        if ($name === '' || $value === '' || preg_match('/[\r\n:]/', $name) || preg_match('/[\r\n]/', $value)) {
+            continue;
+        }
+        $headers[] = $name . ': ' . $value;
     }
     $headers[] = 'MIME-Version: 1.0';
     $headers[] = "Content-Type: multipart/alternative; boundary=\"{$boundary}\"";
@@ -550,7 +738,7 @@ function smtp_send_command($fp, string $cmd, array $okCodes, string $context): s
     return $resp;
 }
 
-function smtp_send_mail(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody): void
+function smtp_send_mail(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = []): void
 {
     $host = (string)($settings['email_smtp_host'] ?? '');
     $port = (int)($settings['email_smtp_port'] ?? 587);
@@ -586,9 +774,7 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
         smtp_send_command($fp, base64_encode($password), [235], 'AUTH PASS');
     }
 
-    // Envelope sender: prefer return-path if configured, otherwise from email.
-    $returnPath = trim((string)($settings['email_return_path'] ?? ''));
-    $envelopeFrom = $returnPath !== '' ? $returnPath : $fromEmail;
+    $returnPath = $envelopeFrom;
 
     smtp_send_command($fp, "MAIL FROM:<{$envelopeFrom}>", [250], 'MAIL FROM');
 
@@ -602,7 +788,7 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
 
     $replyTo = trim((string)($settings['email_reply_to'] ?? ''));
     $replyToEmails = $replyTo !== '' ? parseEmailList($replyTo) : [];
-    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath);
+    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath, $extraHeaders);
 
     $data = $mime['headers'] . "\r\n" .
         "Subject: " . $mime['subject'] . "\r\n" .
@@ -619,15 +805,14 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
     fclose($fp);
 }
 
-function php_mail_send(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody): void
+function php_mail_send(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = []): void
 {
     $replyTo = trim((string)($settings['email_reply_to'] ?? ''));
-    $returnPath = trim((string)($settings['email_return_path'] ?? ''));
+    $returnPath = $envelopeFrom;
     $replyToEmails = $replyTo !== '' ? parseEmailList($replyTo) : [];
-    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath);
+    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath, $extraHeaders);
 
     $params = '';
-    $envelopeFrom = $returnPath !== '' ? $returnPath : $fromEmail;
     if ($envelopeFrom !== '' && filter_var($envelopeFrom, FILTER_VALIDATE_EMAIL)) {
         $params = '-f ' . $envelopeFrom;
     }
@@ -691,10 +876,23 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
             . $textBody;
     }
 
+    $siteCode = email_site_code(['site_code' => (string)($settings['email_site_code'] ?? '')]);
+    $bounceToken = substr(email_generate_bounce_token($siteCode), strlen($siteCode) + 1);
+    $envelopeFrom = email_bounce_sender($siteCode, $bounceToken, $settings);
+    $messageId = email_message_id($siteCode, (string)($settings['bounce_domain'] ?? 'witecanvas.com'));
+
+    $meta['provider'] = $provider;
+    $meta['smtp_host'] = (string)($settings['email_smtp_host'] ?? '');
+    $meta['smtp_port'] = (string)($settings['email_smtp_port'] ?? '');
+    $meta['smtp_secure'] = (string)($settings['email_smtp_secure'] ?? '');
+    $meta['message_id'] = $messageId;
+    $meta['site_code'] = $siteCode;
+    $meta['bounce_token'] = $bounceToken;
+    $meta['envelope_sender'] = $envelopeFrom;
     $meta['delivery_debug'] = emailDebugSnapshot($settings, $meta);
 
     $logRow = [
-        'status' => 'failed',
+        'status' => 'queued',
         'provider' => $provider,
         'to_email' => $toEmail,
         'cc' => $ccEmails ? implode(', ', $ccEmails) : null,
@@ -707,9 +905,15 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
         'sent_at' => null,
     ];
 
+    $logId = logEmail($pdo, $logRow);
+    $meta['log_id'] = $logId;
+    $logRow['meta_json'] = json_encode($meta, JSON_UNESCAPED_SLASHES);
+    updateEmailLog($pdo, $logId, ['meta_json' => $logRow['meta_json']]);
+
     if (!$enabled) {
+        $logRow['status'] = 'failed';
         $logRow['error_message'] = 'Email disabled.';
-        logEmail($pdo, $logRow);
+        updateEmailLog($pdo, $logId, $logRow);
         return false;
     }
 
@@ -721,19 +925,29 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
             throw new RuntimeException('From email is not configured.');
         }
 
+        $extraHeaders = [
+            'Message-ID' => $messageId,
+            'X-CMS-Bounce-Token' => $bounceToken,
+            'X-CMS-Site' => $siteCode,
+            'X-CMS-Log-ID' => (string)$logId,
+        ];
+
         if ($provider === 'smtp') {
-            smtp_send_mail($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody);
+            smtp_send_mail($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders);
         } else {
-            php_mail_send($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody);
+            php_mail_send($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders);
         }
 
         $logRow['status'] = 'sent';
         $logRow['sent_at'] = date('Y-m-d H:i:s');
-        logEmail($pdo, $logRow);
+        updateEmailLog($pdo, $logId, $logRow);
         return true;
     } catch (Throwable $e) {
+        $meta['smtp_error'] = email_safe_debug_error($e);
+        $logRow['status'] = 'failed';
         $logRow['error_message'] = $e->getMessage();
-        logEmail($pdo, $logRow);
+        $logRow['meta_json'] = json_encode($meta, JSON_UNESCAPED_SLASHES);
+        updateEmailLog($pdo, $logId, $logRow);
         return false;
     }
 }

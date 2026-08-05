@@ -61,7 +61,7 @@ function admin_active(string $key, string $current): string
 
 function admin_layout_start(string $title, string $activeKey): void
 {
-    global $adminNav, $currentUser, $currentRole, $siteBase, $_basketDebug, $alerts, $successMessage;
+    global $adminNav, $currentUser, $currentRole, $siteBase, $adminManualHref, $_basketDebug, $alerts, $successMessage;
     $userEmail = h($currentUser['email'] ?? '');
     $userRole = h($currentUser['role'] ?? '');
     $roleKey = strtolower((string)($currentRole ?? $currentUser['role'] ?? ''));
@@ -180,6 +180,42 @@ function admin_layout_start(string $title, string $activeKey): void
 	            box-shadow: 0 16px 46px rgba(15, 47, 31, 0.08);
 	        }
 	        .table-sm td, .table-sm th { vertical-align: middle; }
+            .admin-data-table {
+                border-color: rgba(15, 47, 31, 0.08);
+            }
+            .admin-data-table thead th {
+                background: #eef4ec;
+                color: var(--text-main);
+                border-bottom-color: rgba(15, 47, 31, 0.12);
+                font-size: 0.84rem;
+                letter-spacing: 0.01em;
+                white-space: nowrap;
+            }
+            .admin-data-table tbody tr:hover td {
+                background: rgba(31, 124, 36, 0.035);
+            }
+            .admin-table-filter-row th {
+                background: #f8faf6;
+                padding-top: 0.45rem;
+                padding-bottom: 0.45rem;
+            }
+            .admin-table-filter {
+                display: grid;
+                gap: 0.35rem;
+            }
+            .admin-table-filter .form-control,
+            .admin-table-filter .form-select {
+                min-height: 34px;
+                padding: 0.32rem 0.5rem;
+                border-radius: 6px;
+                font-size: 0.82rem;
+            }
+            .admin-table-filter-actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 0.35rem;
+                white-space: nowrap;
+            }
 	        .sort-link { display: inline-flex; align-items: center; gap: 0.35rem; }
 	        .sort-arrow { display: inline-block; width: 1ch; text-align: center; color: #888; }
             @media (max-width: 991.98px) {

@@ -34,6 +34,8 @@ $status = (string)($email['status'] ?? '');
 $badgeClass = 'bg-secondary-subtle text-secondary';
 if ($status === 'sent') {
     $badgeClass = 'bg-success-subtle text-success';
+} elseif ($status === 'bounced') {
+    $badgeClass = 'bg-warning-subtle text-warning';
 } elseif ($status === 'failed') {
     $badgeClass = 'bg-danger-subtle text-danger';
 }
@@ -101,8 +103,8 @@ if ($metaJson !== '') {
 
         <?php if ($err !== ''): ?>
             <div class="col-12">
-                <div class="alert alert-danger mb-0">
-                    <div class="fw-semibold">Error</div>
+                <div class="alert <?php echo $status === 'bounced' ? 'alert-warning' : 'alert-danger'; ?> mb-0">
+                    <div class="fw-semibold"><?php echo $status === 'bounced' ? 'Bounce detail' : 'Error'; ?></div>
                     <div><?php echo h($err); ?></div>
                 </div>
             </div>
