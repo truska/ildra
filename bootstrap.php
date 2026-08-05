@@ -78,6 +78,7 @@ require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/finance.php';
 require_once __DIR__ . '/cms.php';
+require_once __DIR__ . '/admin_menu.php';
 require_once __DIR__ . '/bookings_store.php';
 require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/stripe.php';

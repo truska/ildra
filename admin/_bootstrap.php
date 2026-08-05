@@ -30,25 +30,7 @@ $adminBase = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin'), '/');
 $adminBase = $adminBase === '' ? '/admin' : $adminBase;
 $siteBase = rtrim(dirname($adminBase), '/');
 
-$adminNav = [
-    'dashboard' => ['label' => 'Dashboard', 'href' => $adminBase . '/index.php'],
-    'pages' => ['label' => 'Pages', 'href' => $adminBase . '/pages.php'],
-    'events' => ['label' => 'Events', 'href' => $adminBase . '/events.php'],
-    'venues' => ['label' => 'Venues', 'href' => $adminBase . '/venues.php'],
-    'pricing_schemes' => ['label' => 'Pricing Schemes', 'href' => $adminBase . '/pricing_schemes.php'],
-    'bookings' => ['label' => 'Bookings', 'href' => $adminBase . '/bookings.php'],
-    'finance' => ['label' => 'Finance', 'href' => $adminBase . '/finance.php'],
-    'email' => ['label' => 'Email', 'href' => $adminBase . '/email.php'],
-    'entry_components' => ['label' => 'Entry Components', 'href' => $adminBase . '/entry_components.php'],
-    'faqs' => ['label' => 'FAQs', 'href' => $adminBase . '/faqs.php'],
-    'memberships' => ['label' => 'Memberships', 'href' => $adminBase . '/memberships.php'],
-    'members' => ['label' => 'Members', 'href' => $adminBase . '/members.php'],
-    'people' => ['label' => 'People', 'href' => $adminBase . '/people.php'],
-    'horses' => ['label' => 'Horses', 'href' => $adminBase . '/horses.php'],
-    'hero' => ['label' => 'Site Hero & Welcome', 'href' => $adminBase . '/hero.php'],
-    'users' => ['label' => 'Users', 'href' => $adminBase . '/users.php'],
-    'settings' => ['label' => 'Settings', 'href' => $adminBase . '/settings.php'],
-];
+$adminNavItems = fetchAdminMenuItems($pdo, true);
 
 $manualFileName = trim((string)($siteSettingsBootstrap['admin_manual_filename'] ?? ''));
 $manualFileName = ltrim($manualFileName, '/');
@@ -61,10 +43,11 @@ function admin_active(string $key, string $current): string
 
 function admin_layout_start(string $title, string $activeKey): void
 {
-    global $adminNav, $currentUser, $currentRole, $siteBase, $adminManualHref, $_basketDebug, $alerts, $successMessage;
+    global $adminNavItems, $adminBase, $currentUser, $currentRole, $siteBase, $adminManualHref, $_basketDebug, $alerts, $successMessage;
     $userEmail = h($currentUser['email'] ?? '');
     $userRole = h($currentUser['role'] ?? '');
     $roleKey = strtolower((string)($currentRole ?? $currentUser['role'] ?? ''));
+    $adminNavTree = buildAdminMenuTree($adminNavItems, $roleKey);
     ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -118,6 +101,39 @@ function admin_layout_start(string $title, string $activeKey): void
         .admin-sidebar .nav-link.active {
             background: var(--nav-active);
             color: #fff;
+        }
+        .admin-nav-section { margin-bottom: 0.35rem; }
+        .admin-nav-section summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .admin-nav-section summary::-webkit-details-marker { display: none; }
+        .admin-nav-section summary::after {
+            content: '';
+            width: 0.48rem;
+            height: 0.48rem;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(45deg);
+            transition: transform 0.18s ease;
+        }
+        .admin-nav-section[open] summary::after { transform: rotate(-135deg); }
+        .admin-nav-section summary.active {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .admin-nav-children {
+            margin: -0.15rem 0 0.35rem 0.7rem;
+            padding-left: 0.65rem;
+            border-left: 1px solid rgba(255,255,255,0.18);
+        }
+        .admin-nav-children .nav-link {
+            font-size: 0.92rem;
+            padding-top: 0.4rem;
+            padding-bottom: 0.4rem;
         }
         .admin-content {
             padding: 1.5rem;
@@ -344,12 +360,31 @@ function admin_layout_start(string $title, string $activeKey): void
             </div>
             <div class="mb-3 small text-muted">Signed in as<br><?php echo $userEmail; ?> (<?php echo $userRole; ?>)</div>
             <nav class="nav flex-column">
-                <?php foreach ($adminNav as $key => $item): ?>
-                    <?php if ($key === 'users' && !in_array($roleKey, ['superadmin', 'admin'], true)) { continue; } ?>
-                    <?php if ($key === 'email' && !in_array($roleKey, ['superadmin', 'admin'], true)) { continue; } ?>
-                    <?php if ($key === 'pricing_schemes' && !in_array($roleKey, ['superadmin', 'admin'], true)) { continue; } ?>
-                    <?php if (in_array($key, ['people', 'horses'], true) && !in_array($roleKey, ['superadmin', 'admin'], true)) { continue; } ?>
-                    <a class="nav-link <?php echo admin_active($key, $activeKey); ?>" href="<?php echo h($item['href']); ?>"><?php echo h($item['label']); ?></a>
+                <?php foreach ($adminNavTree as $item): ?>
+                    <?php
+                    $children = $item['children'] ?? [];
+                    $itemKey = (string)($item['menu_key'] ?? '');
+                    $sectionActive = $itemKey === $activeKey;
+                    foreach ($children as $child) {
+                        if ((string)($child['menu_key'] ?? '') === $activeKey) {
+                            $sectionActive = true;
+                            break;
+                        }
+                    }
+                    ?>
+                    <?php if ($children): ?>
+                        <details class="admin-nav-section" <?php echo $sectionActive ? 'open' : ''; ?>>
+                            <summary class="nav-link <?php echo $sectionActive ? 'active' : ''; ?>"><?php echo h((string)($item['label'] ?? 'Section')); ?></summary>
+                            <div class="admin-nav-children">
+                                <?php foreach ($children as $child): ?>
+                                    <?php $childKey = (string)($child['menu_key'] ?? ''); ?>
+                                    <a class="nav-link <?php echo admin_active($childKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($child, $adminBase)); ?>"><?php echo h((string)($child['label'] ?? '')); ?></a>
+                                <?php endforeach; ?>
+                            </div>
+                        </details>
+                    <?php else: ?>
+                        <a class="nav-link <?php echo admin_active($itemKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($item, $adminBase)); ?>"><?php echo h((string)($item['label'] ?? '')); ?></a>
+                    <?php endif; ?>
                 <?php endforeach; ?>
                 <a class="nav-link mt-3" href="<?php echo h($siteBase); ?>/">View site</a>
                 <a class="nav-link" href="../?logout=1">Logout</a>
