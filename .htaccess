@@ -21,6 +21,7 @@ RewriteRule ^account/?$ account.php [L,QSA]
 RewriteRule ^bookings/?$ bookings.php [L,QSA]
 RewriteRule ^orders/?$ bookings.php [L,QSA]
 RewriteRule ^memberships/?$ memberships.php [L,QSA]
+RewriteRule ^logbooks/?$ logbooks.php [L,QSA]
 
 # Route clean page URLs: /pages/your-slug -> page.php?path=your-slug
 RewriteRule ^pages/([^/]+)/?$ page.php?path=$1 [L,QSA]

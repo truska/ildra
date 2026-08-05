@@ -16,6 +16,30 @@ tmp/
 uploads/
 private/
 
+# Runtime-managed public media; retain only the folder skeleton and protection files.
+filestore/images/banners/originals/*
+!filestore/images/banners/originals/.gitkeep
+filestore/images/banners/lg/*
+!filestore/images/banners/lg/.gitkeep
+filestore/images/banners/md/*
+!filestore/images/banners/md/.gitkeep
+filestore/images/banners/sm/*
+!filestore/images/banners/sm/.gitkeep
+filestore/images/banners/xs/*
+!filestore/images/banners/xs/.gitkeep
+filestore/images/gallery/originals/*
+!filestore/images/gallery/originals/.gitkeep
+filestore/images/gallery/lg/*
+!filestore/images/gallery/lg/.gitkeep
+filestore/images/gallery/md/*
+!filestore/images/gallery/md/.gitkeep
+filestore/images/gallery/sm/*
+!filestore/images/gallery/sm/.gitkeep
+filestore/images/gallery/xs/*
+!filestore/images/gallery/xs/.gitkeep
+filestore/files/documents/*
+!filestore/files/documents/.gitkeep
+
 # Dependencies and builds
 vendor/
 node_modules/
