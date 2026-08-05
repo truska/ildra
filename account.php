@@ -557,6 +557,14 @@ $isLoggedIn = !empty($currentUser);
             font-size: 0.75rem;
             font-weight: 800;
         }
+        .btn-logbook-action:disabled,
+        .btn-logbook-action.disabled {
+            background: #e5e7e9;
+            border-color: #e5e7e9;
+            color: #555b61;
+            opacity: 1;
+            box-shadow: none;
+        }
         .person-type-icon {
             display: inline-flex;
             align-items: center;
@@ -1230,7 +1238,7 @@ $isLoggedIn = !empty($currentUser);
                                                                         <input type="hidden" name="action" value="add_logbook">
                                                                         <input type="hidden" name="logbook_type_id" value="<?php echo (int)($logbookType['id'] ?? 0); ?>">
                                                                         <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
-                                                                        <button type="submit" class="btn btn-sm btn-outline-success" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo $horseLogbookActionEnabled ? 'Register or renew this horse logbook' : 'Already registered for ' . $horseRegistrationYear . '. Renewal opens in December.'; ?>">Register / Renew</button>
+                                                                        <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo $horseLogbookActionEnabled ? 'Register or renew this horse logbook' : 'Already registered for ' . $horseRegistrationYear . '. Renewal opens in December.'; ?>">Register / Renew</button>
                                                                     </form>
                                                                 <?php endif; ?>
                                                                 <form method="post" class="d-inline">

@@ -133,7 +133,7 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
             <div><?php echo h((string)($footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></div>
             <div class="d-flex align-items-center gap-2">
                 <?php if ($footerCanViewAdmin): ?>
-                    <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php">View admin area</a>
+                    <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> View admin area</a>
                 <?php elseif (!$footerIsLoggedIn): ?>
                     <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/account">Login / Register</a>
                 <?php endif; ?>

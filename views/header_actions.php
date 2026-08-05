@@ -37,7 +37,7 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
             </div>
             <?php if (!empty($canViewAdmin)): ?>
                 <a class="utility-btn header-icon-btn" href="<?php echo h($basePath); ?>/admin/index.php" aria-label="Admin area" title="Admin area">
-                    <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
+                    <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>
                     <span class="visually-hidden">Admin area</span>
                 </a>
             <?php endif; ?>
