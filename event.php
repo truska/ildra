@@ -279,6 +279,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             if (!$p || !empty($p['is_archived'])) {
                 $personId = 0;
             } else {
+                $riderName = trim((string)($p['first_name'] ?? '') . ' ' . (string)($p['last_name'] ?? ''));
                 $selectedPersonIsJunior = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
             }
         }
@@ -295,6 +296,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $h = fetchHorseForUserById($pdo, (int)($currentUser['id'] ?? 0), $horseId);
                 if (!$h || !empty($h['is_archived'])) {
                     $horseId = 0;
+                } else {
+                    $horseName = trim((string)($h['name'] ?? ''));
                 }
             }
         }
@@ -313,8 +316,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         if (!$selectedClass) {
             $alerts[] = ['type' => 'danger', 'message' => 'Please choose a class to book.'];
         }
-        if ($riderName === '' || $horseName === '' || $contactEmail === '') {
-            $alerts[] = ['type' => 'danger', 'message' => 'Rider name, horse name and contact email are required.'];
+        if ($personId <= 0 || $horseId <= 0 || $riderName === '' || $horseName === '' || $contactEmail === '') {
+            $alerts[] = ['type' => 'danger', 'message' => 'Choose a rider and horse, and provide a contact email.'];
         }
         if ($selectedClass && !empty($selectedClass['is_member_price'])) {
             if ($personId <= 0) {
@@ -550,7 +553,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         }
 
         .form-section {
-            padding: 1rem 0 0.5rem;
+            padding: 0.5rem 0 0.25rem;
             border-bottom: 1px solid rgba(0, 0, 0, 0.035);
         }
 
@@ -564,6 +567,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
         .validation-message {
             color: #b02a37;
+        }
+
+        .entry-fee-total {
+            color: var(--text-main);
+            font-size: clamp(1.2rem, 2vw, 1.5rem);
+            font-weight: 800;
         }
 
         .cta-row {
@@ -764,18 +773,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         <?php elseif (!$classOptions): ?>
                             <div class="text-muted small mb-0">No classes available to book.</div>
                         <?php else: ?>
-                                <form method="POST" class="row g-4 px-2 px-md-3" id="entryForm" novalidate>
+                                <form method="POST" class="row g-2 px-2 px-md-3" id="entryForm" novalidate>
                                 <input type="hidden" name="action" value="add_booking">
                                 <input type="hidden" name="person_id" id="personId" value="">
                                 <input type="hidden" name="horse_id" id="horseId" value="">
+                                <input type="hidden" name="rider_name" id="riderName" value="" data-prefill="person.full_name">
+                                <input type="hidden" name="horse_name" id="horseName" value="" data-prefill="horse.name">
 
 	                                <?php if ($isLoggedIn): ?>
 	                                    <div class="col-12 form-section">
-	                                        <div class="fw-bold mb-2">Save time</div>
+	                                        <div class="fw-bold mb-2">Entry selections</div>
 	                                        <div class="row g-3">
 	                                            <div class="col-12 col-md-6">
-	                                                <label class="form-label" for="prefillPerson">Person <span class="text-muted">(optional)</span></label>
-                                                <select class="form-select person-type-select" id="prefillPerson" <?php echo $people ? '' : 'disabled'; ?>>
+	                                                <label class="form-label" for="prefillPerson">Rider <span class="text-danger">*</span></label>
+                                                <select class="form-select person-type-select" id="prefillPerson" name="prefill_person" data-required="true" <?php echo $people ? '' : 'disabled'; ?>>
 	                                                    <option value="">Choose...</option>
 	                                                    <?php foreach ($people as $p): ?>
 	                                                        <?php
@@ -794,6 +805,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>"><?php echo h($pLabel); ?></option>
 	                                                    <?php endforeach; ?>
 	                                                </select>
+	                                                <div class="validation-message small d-none" data-validation-for="prefill_person">Please choose a rider.</div>
 	                                                <div class="small text-muted mt-1">
 	                                                    <?php if ($people): ?>
 	                                                        Select a saved person to prefill matching fields.
@@ -804,8 +816,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                </div>
 	                                            </div>
 	                                            <div class="col-12 col-md-6">
-	                                                <label class="form-label" for="prefillHorse">Horse</label>
-                                                <select class="form-select" id="prefillHorse">
+	                                                <label class="form-label" for="prefillHorse">Horse <span class="text-danger">*</span></label>
+                                                <select class="form-select" id="prefillHorse" name="prefill_horse" data-required="true">
 	                                                    <option value="">Choose...</option>
 	                                                    <?php foreach ($horses as $h): ?>
 	                                                        <?php
@@ -817,6 +829,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                        <option value="<?php echo (int)($h['id'] ?? 0); ?>" <?php echo count($horses) === 1 && !empty($h['is_global_placeholder']) ? 'selected' : ''; ?>><?php echo h($horseLabel); ?></option>
 	                                                    <?php endforeach; ?>
 	                                                </select>
+	                                                <div class="validation-message small d-none" data-validation-for="prefill_horse">Please choose a horse.</div>
 	                                                <div class="small text-muted mt-1">
 	                                                    <?php if ($horses): ?>
 	                                                        Select a saved horse, or choose Not Registered if the horse is not on the system.
@@ -826,6 +839,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                    <a href="<?php echo h($basePath); ?>/account?view=horses">Manage horses</a>
 	                                                </div>
 	                                            </div>
+	                                        </div>
+	                                        <div class="rounded-3 bg-light border p-3 mt-3" id="entrySelectionSummary" aria-live="polite">
+	                                            <div><span class="text-muted">Rider:</span> <strong id="selectedRiderSummary">Not selected</strong></div>
+	                                            <div><span class="text-muted">Horse:</span> <strong id="selectedHorseSummary">Not selected</strong></div>
 	                                        </div>
 	                                    </div>
 	                                <?php endif; ?>
@@ -869,13 +886,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                             <div class="validation-message small d-none" data-validation-for="class_code">Please choose a class.</div>
                                         </div>
                                     <?php elseif ($type === 'rider_details'): ?>
-                                        <div class="col-12 form-section">
-                                            <div class="fw-bold mb-2">Rider details</div>
-                                            <div class="mb-3">
-                                                <label class="form-label" for="riderName">Rider name <span class="text-danger">*</span></label>
-                                                <input type="text" name="rider_name" id="riderName" class="form-control" data-required="true" data-prefill="person.full_name">
-                                                <div class="validation-message small d-none" data-validation-for="rider_name">Rider name is required.</div>
-                                            </div>
+                                        <div class="col-12 form-section d-none" id="juniorRideSection">
                                             <div class="mb-0 d-none" id="juniorRideFields">
                                                 <label class="form-label" for="accompanyingAdult">Accompanying adult <span class="text-danger">*</span></label>
                                                 <input type="text" name="accompanying_adult" id="accompanyingAdult" class="form-control" value="<?php echo h((string)($_POST['accompanying_adult'] ?? '')); ?>">
@@ -884,14 +895,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                             </div>
                                         </div>
                                     <?php elseif ($type === 'horse_details'): ?>
-                                        <div class="col-12 form-section">
-                                            <div class="fw-bold mb-2">Horse details</div>
-                                            <div class="mb-0">
-                                                <label class="form-label" for="horseName">Horse name <span class="text-danger">*</span></label>
-                                                <input type="text" name="horse_name" id="horseName" class="form-control" data-required="true" data-prefill="horse.name">
-                                                <div class="validation-message small d-none" data-validation-for="horse_name">Horse name is required.</div>
-                                            </div>
-                                        </div>
+                                        <?php /* Horse details come from the required selection above. */ ?>
                                     <?php elseif ($type === 'contact'): ?>
                                         <div class="col-12 form-section">
                                             <div class="fw-bold mb-2">Contact information</div>
@@ -990,19 +994,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     <?php endif; ?>
                                 <?php endforeach; ?>
 
-                                <div class="col-12">
-                                        <div class="cta-row d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-                                            <div class="text-muted small" id="classPriceSummary">Total: £0.00</div>
-                                            <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100 w-md-auto">
-                                                <div class="text-danger small d-none" id="formErrorSummary"></div>
-                                                <div class="d-flex gap-2 w-100 w-md-auto">
-                                                    <button class="btn btn-success btn-enter w-100 w-md-auto" id="submitEntry" type="submit" <?php echo $isFull ? 'disabled' : ''; ?>>
-                                                        <?php echo $isFull ? 'Event full' : 'Enter event'; ?>
-                                                    </button>
-                                                    <a class="btn btn-outline-secondary btn-secondary-quiet w-100 w-md-auto" href="<?php echo h($basePath); ?>/basket">View basket<?php echo $basketCount ? ' (' . $basketCount . ')' : ''; ?></a>
-                                                </div>
-                                            </div>
+                                <div class="col-12 mt-2">
+                                    <div class="row g-2 align-items-center cta-row">
+                                        <div class="col-12 text-danger fw-semibold d-none" id="formErrorSummary" role="alert"></div>
+                                        <div class="col-12 col-md-6 text-md-start entry-fee-total" id="classPriceSummary">Total Entry Fee £0.00</div>
+                                        <div class="col-12 col-md-6 text-md-end">
+                                            <button class="btn btn-success btn-enter w-100 w-md-auto" id="submitEntry" type="submit" <?php echo $isFull ? 'disabled' : ''; ?>>
+                                                <?php echo $isFull ? 'Event full' : 'Enter Event'; ?>
+                                            </button>
                                         </div>
+                                    </div>
                                 </div>
                             </form>
                         <?php endif; ?>
@@ -1031,6 +1032,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const form = document.getElementById('entryForm');
         const submitEntry = document.getElementById('submitEntry');
         const juniorRideFields = document.getElementById('juniorRideFields');
+        const juniorRideSection = document.getElementById('juniorRideSection');
         const accompanyingAdult = document.getElementById('accompanyingAdult');
 
         // Optional person/horse prefills (data is baked into the page; no API calls).
@@ -1043,6 +1045,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const prefillHorse = document.getElementById('prefillHorse');
         const personIdInput = document.getElementById('personId');
         const horseIdInput = document.getElementById('horseId');
+        const selectedRiderSummary = document.getElementById('selectedRiderSummary');
+        const selectedHorseSummary = document.getElementById('selectedHorseSummary');
 
         const setIfEmpty = (el, value) => {
             if (!el || value == null) return;
@@ -1060,7 +1064,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 const field = key.slice(kind.length + 1);
                 if (kind === 'person' && field === 'full_name') {
                     const fullName = [data.first_name || '', data.last_name || ''].join(' ').trim();
-                    setIfEmpty(el, fullName);
+                    el.value = fullName;
                     return;
                 }
                 if (kind === 'horse' && field === 'name') {
@@ -1078,7 +1082,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 const id = parseInt(prefillPerson.value || '0', 10) || 0;
                 if (personIdInput) personIdInput.value = id ? String(id) : '';
                 const person = peopleData.find((p) => parseInt(p.id, 10) === id);
-                if (person) applyPrefill('person', person);
+                if (person) {
+                    applyPrefill('person', person);
+                } else {
+                    const riderName = document.getElementById('riderName');
+                    if (riderName) riderName.value = '';
+                }
+                if (selectedRiderSummary) {
+                    selectedRiderSummary.textContent = person
+                        ? [person.first_name || '', person.last_name || ''].join(' ').trim()
+                        : 'Not selected';
+                }
                 updateMemberPriceAvailability();
                 syncJuniorRideFields();
                 setPriceCopy();
@@ -1090,7 +1104,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 const id = parseInt(prefillHorse.value || '0', 10) || 0;
                 if (horseIdInput) horseIdInput.value = id ? String(id) : '';
                 const horse = horsesData.find((h) => parseInt(h.id, 10) === id);
-                if (horse) applyPrefill('horse', horse);
+                if (horse) {
+                    applyPrefill('horse', horse);
+                } else {
+                    const horseName = document.getElementById('horseName');
+                    if (horseName) horseName.value = '';
+                }
+                if (selectedHorseSummary) {
+                    selectedHorseSummary.textContent = horse?.name || 'Not selected';
+                }
             });
             if (prefillHorse.value) {
                 prefillHorse.dispatchEvent(new Event('change'));
@@ -1141,11 +1163,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             if (priceHint) {
                 priceHint.textContent = hintText;
             }
-            if (priceSummary) {
-                priceSummary.textContent = price ?
-                    `Selected: ${label || 'class'} — ${price}` :
-                    'Select a class to see the price.';
-            }
         };
 
         const selectedClassIsJuniorRide = () => {
@@ -1161,6 +1178,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             const isJuniorRide = selectedClassIsJuniorRide() || selectedPersonIsJunior();
             if (juniorRideFields) {
                 juniorRideFields.classList.toggle('d-none', !isJuniorRide);
+            }
+            if (juniorRideSection) {
+                juniorRideSection.classList.toggle('d-none', !isJuniorRide);
             }
             if (accompanyingAdult) {
                 accompanyingAdult.dataset.required = isJuniorRide ? 'true' : 'false';
@@ -1295,7 +1315,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 }
             });
             if (priceSummary) {
-                priceSummary.textContent = `Total: £${total.toFixed(2)}`;
+                priceSummary.textContent = `Total Entry Fee £${total.toFixed(2)}`;
             }
         };
 
@@ -1304,6 +1324,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 const target = e.target;
                 if (target?.matches('[data-required="true"]')) {
                     validateField(target);
+                    validateForm();
+                }
+                if (target?.classList?.contains('component-consent-required')) {
                     validateForm();
                 }
                 if (target?.classList?.contains('component-toggle') || target?.classList?.contains('component-quantity') || target === classSelect) {

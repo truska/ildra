@@ -43,6 +43,7 @@ $paymentDue = round($paymentDue, 2);
 $insufficientCredit = $paymentDue > 0 && $totalAmount > 0;
 $stripeConfig = stripe_config($config);
 $stripeEnabled = stripe_is_enabled($stripeConfig);
+$stripeTestMode = str_starts_with((string)($stripeConfig['publishable_key'] ?? ''), 'pk_test_');
 $bookingRef = 'BK-' . strtoupper(bin2hex(random_bytes(4)));
 $eventIdsForPayment = [];
 
@@ -391,6 +392,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             font-weight: 700;
             color: var(--text-main);
         }
+        .stripe-test-note {
+            border-left: 3px solid #635bff;
+            background: rgba(99, 91, 255, 0.06);
+            color: var(--text-main);
+        }
+        .stripe-test-note code {
+            color: inherit;
+            font-size: inherit;
+        }
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -443,6 +453,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                             <?php endforeach; ?>
                         </ul>
                         <a class="btn btn-outline-success mt-3" href="<?php echo h($basePath); ?>/basket">Edit basket</a>
+                        <?php if ($stripeTestMode): ?>
+                            <div class="stripe-test-note rounded p-3 mt-3 small">
+                                <div class="fw-semibold mb-1">Stripe test payment reminder</div>
+                                <div>Successful payment: <code>4242 4242 4242 4242</code></div>
+                                <div class="text-muted small mt-1">
+                                    Generic decline: <code>4000 0000 0000 0002</code><br>
+                                    Insufficient funds: <code>4000 0000 0000 9995</code><br>
+                                    Authentication required: <code>4000 0025 0000 3155</code>
+                                </div>
+                                <div class="text-muted small mt-1">Use any future expiry date and any three-digit CVC.</div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="col-lg-5">
