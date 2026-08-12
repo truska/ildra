@@ -288,7 +288,7 @@ function event_url(array $event): string
                     <section class="card-soft p-4 bg-white" aria-labelledby="next-events-heading">
                         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
                             <div class="section-title mb-0" id="next-events-heading">Next events</div>
-                            <a class="action-chip text-success" href="<?php echo h($basePath); ?>/events">All Events</a>
+                            <a class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
                         </div>
                         <?php foreach ($eventsByDate as $event): ?>
                             <?php
