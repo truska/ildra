@@ -132,8 +132,8 @@
 }
 
 .person-type-select {
-    font-family: "Font Awesome 6 Free", "Manrope", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-weight: 900;
+    font-family: "Manrope", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-weight: 400;
 }
 
 /* Shared image-ready site header */

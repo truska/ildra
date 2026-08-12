@@ -2393,7 +2393,8 @@ function fetchHorsesForUser(?PDO $pdo, int $ownerUserId, bool $includeArchived =
     $stmt = $pdo->prepare("
         SELECT id, owner_user_id, name, dob, year_of_birth, breed, colour, qualification_id, passport_issuer, passport_number, sex, height_cm, flu_vac_date, is_archived, 0 AS is_linked, 'owner' AS link_permission
         FROM horses
-        WHERE owner_user_id = :uid{$where}
+        WHERE owner_user_id = :uid
+          AND id <> 1{$where}
         ORDER BY name ASC, id ASC
     ");
     $stmt->execute([':uid' => $ownerUserId]);
@@ -2424,6 +2425,7 @@ function fetchHorsesForUser(?PDO $pdo, int $ownerUserId, bool $includeArchived =
           AND uhl.status = 'approved'
           AND uhl.revoked_at IS NULL
           AND h.owner_user_id <> :uid
+          AND h.id <> 1
           {$linkedWhere}
         ORDER BY h.name ASC, h.id ASC
     ");
@@ -2878,12 +2880,12 @@ function personRecordTypeIcon(string $type): string
 function personRecordTypeMarker(string $type): string
 {
     if ($type === 'linked') {
-        return html_entity_decode('&#xf0c1;', ENT_QUOTES, 'UTF-8');
+        return '[Linked]';
     }
     if ($type === 'user') {
-        return html_entity_decode('&#xf007;', ENT_QUOTES, 'UTF-8');
+        return '[You]';
     }
-    return html_entity_decode('&#xf234;', ENT_QUOTES, 'UTF-8');
+    return '[Person]';
 }
 
 function findShareTargetUser(?PDO $pdo, string $identifier): ?array

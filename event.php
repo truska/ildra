@@ -23,6 +23,17 @@ $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['sup
 $basketCount = count($basket);
 $people = $isLoggedIn ? fetchMembersForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];
 $horses = $isLoggedIn ? fetchHorsesForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];
+$notRegisteredHorseId = 1;
+if ($isLoggedIn && $pdo) {
+    $stmt = $pdo->prepare("SELECT id, owner_user_id, name, is_archived, 0 AS is_linked, 'global' AS link_permission FROM horses WHERE id = :id AND is_archived = 0 LIMIT 1");
+    $stmt->execute([':id' => $notRegisteredHorseId]);
+    $notRegisteredHorse = $stmt->fetch();
+    if ($notRegisteredHorse) {
+        $notRegisteredHorse['name'] = 'Not Registered';
+        $notRegisteredHorse['is_global_placeholder'] = 1;
+        $horses[] = $notRegisteredHorse;
+    }
+}
 $peopleWithActiveMembership = [];
 $memberPriceEligibleByPerson = [];
 $memberPriceUsedByPerson = [];
@@ -272,9 +283,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }
         }
         if ($horseId > 0) {
-            $h = fetchHorseForUserById($pdo, (int)($currentUser['id'] ?? 0), $horseId);
-            if (!$h || !empty($h['is_archived'])) {
-                $horseId = 0;
+            if ($horseId === $notRegisteredHorseId) {
+                $stmt = $pdo->prepare("SELECT id FROM horses WHERE id = :id AND is_archived = 0 LIMIT 1");
+                $stmt->execute([':id' => $notRegisteredHorseId]);
+                if (!$stmt->fetchColumn()) {
+                    $horseId = 0;
+                } else {
+                    $horseName = 'Not Registered';
+                }
+            } else {
+                $h = fetchHorseForUserById($pdo, (int)($currentUser['id'] ?? 0), $horseId);
+                if (!$h || !empty($h['is_archived'])) {
+                    $horseId = 0;
+                }
             }
         }
 
@@ -518,6 +539,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
         .form-label {
             font-weight: 600;
+        }
+
+        #entryForm .form-control,
+        #entryForm .form-select {
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 400;
+            line-height: 1.5;
         }
 
         .form-section {
@@ -775,8 +804,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                </div>
 	                                            </div>
 	                                            <div class="col-12 col-md-6">
-	                                                <label class="form-label" for="prefillHorse">Horse <span class="text-muted">(optional)</span></label>
-	                                                <select class="form-select" id="prefillHorse" <?php echo $horses ? '' : 'disabled'; ?>>
+	                                                <label class="form-label" for="prefillHorse">Horse</label>
+                                                <select class="form-select" id="prefillHorse">
 	                                                    <option value="">Choose...</option>
 	                                                    <?php foreach ($horses as $h): ?>
 	                                                        <?php
@@ -785,12 +814,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                                 $horseLabel .= ' [linked]';
                                                             }
                                                             ?>
-	                                                        <option value="<?php echo (int)($h['id'] ?? 0); ?>"><?php echo h($horseLabel); ?></option>
+	                                                        <option value="<?php echo (int)($h['id'] ?? 0); ?>" <?php echo count($horses) === 1 && !empty($h['is_global_placeholder']) ? 'selected' : ''; ?>><?php echo h($horseLabel); ?></option>
 	                                                    <?php endforeach; ?>
 	                                                </select>
 	                                                <div class="small text-muted mt-1">
 	                                                    <?php if ($horses): ?>
-	                                                        Select a saved horse to prefill matching fields.
+	                                                        Select a saved horse, or choose Not Registered if the horse is not on the system.
 	                                                    <?php else: ?>
 	                                                        No saved horses yet.
 	                                                    <?php endif; ?>
@@ -1034,6 +1063,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     setIfEmpty(el, fullName);
                     return;
                 }
+                if (kind === 'horse' && field === 'name') {
+                    el.value = String(data.name || '');
+                    return;
+                }
                 if (Object.prototype.hasOwnProperty.call(data, field)) {
                     setIfEmpty(el, data[field]);
                 }
@@ -1059,6 +1092,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 const horse = horsesData.find((h) => parseInt(h.id, 10) === id);
                 if (horse) applyPrefill('horse', horse);
             });
+            if (prefillHorse.value) {
+                prefillHorse.dispatchEvent(new Event('change'));
+            }
         }
 
         const selectedPersonId = () => parseInt(prefillPerson?.value || '0', 10) || 0;
