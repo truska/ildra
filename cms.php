@@ -242,7 +242,8 @@ function ensurePageButtonColumns(PDO $pdo): void
         'button_name' => "ALTER TABLE pages ADD COLUMN button_name VARCHAR(150) DEFAULT NULL AFTER body_html",
         'button_title' => "ALTER TABLE pages ADD COLUMN button_title VARCHAR(255) DEFAULT NULL AFTER button_name",
         'button_url' => "ALTER TABLE pages ADD COLUMN button_url VARCHAR(1000) DEFAULT NULL AFTER button_title",
-        'button_target' => "ALTER TABLE pages ADD COLUMN button_target VARCHAR(16) NOT NULL DEFAULT '_self' AFTER button_url",
+        'button_asset_id' => "ALTER TABLE pages ADD COLUMN button_asset_id INT UNSIGNED DEFAULT NULL AFTER button_url",
+        'button_target' => "ALTER TABLE pages ADD COLUMN button_target VARCHAR(16) NOT NULL DEFAULT '_self' AFTER button_asset_id",
     ];
     foreach ($columns as $column => $sql) {
         if (!table_column_exists($pdo, 'pages', $column)) {
@@ -376,6 +377,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
     $buttonName = trim((string)($data['button_name'] ?? ''));
     $buttonTitle = trim((string)($data['button_title'] ?? ''));
     $buttonUrl = trim((string)($data['button_url'] ?? ''));
+    $buttonAssetId = max(0, (int)($data['button_asset_id'] ?? 0));
     $buttonTarget = (string)($data['button_target'] ?? '_self');
     if (!in_array($buttonTarget, ['_self', '_blank'], true)) {
         $buttonTarget = '_self';
@@ -389,9 +391,21 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
     if (!isset(NAV_GROUPS[$navGroup])) {
         $navGroup = 'home';
     }
-    if (($buttonName === '') !== ($buttonUrl === '')) {
-        $alerts[] = ['type' => 'danger', 'message' => 'The content button requires both a label and destination URL.'];
+    if ($buttonUrl !== '' && $buttonAssetId > 0) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Choose either a library item or enter a destination URL, not both.'];
         return false;
+    }
+    $hasButtonDestination = $buttonUrl !== '' || $buttonAssetId > 0;
+    if (($buttonName === '') !== !$hasButtonDestination) {
+        $alerts[] = ['type' => 'danger', 'message' => 'The content button requires a label and either a library item or destination URL.'];
+        return false;
+    }
+    if ($buttonAssetId > 0) {
+        $asset = fetchAssetLibraryById($pdo, $buttonAssetId);
+        if (!$asset || !empty($asset['archived'])) {
+            $alerts[] = ['type' => 'danger', 'message' => 'The selected library item is no longer available.'];
+            return false;
+        }
     }
     if ($buttonUrl !== '' && preg_match('~^(?:javascript|data):~i', $buttonUrl)) {
         $alerts[] = ['type' => 'danger', 'message' => 'The content button destination is not allowed.'];
@@ -426,6 +440,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                     button_name = :button_name,
                     button_title = :button_title,
                     button_url = :button_url,
+                    button_asset_id = :button_asset_id,
                     button_target = :button_target,
                     is_published = :is_published,
                     display_order = :display_order,
@@ -441,6 +456,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 ':button_name' => $buttonName !== '' ? $buttonName : null,
                 ':button_title' => $buttonTitle !== '' ? $buttonTitle : null,
                 ':button_url' => $buttonUrl !== '' ? $buttonUrl : null,
+                ':button_asset_id' => $buttonAssetId > 0 ? $buttonAssetId : null,
                 ':button_target' => $buttonTarget,
                 ':is_published' => $isPublished,
                 ':display_order' => $displayOrder,
@@ -448,8 +464,8 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO pages (title, slug, nav_group, excerpt, body_html, button_name, button_title, button_url, button_target, is_published, display_order, created_at, updated_at)
-                VALUES (:title, :slug, :nav_group, :excerpt, :body_html, :button_name, :button_title, :button_url, :button_target, :is_published, :display_order, NOW(), NOW())
+                INSERT INTO pages (title, slug, nav_group, excerpt, body_html, button_name, button_title, button_url, button_asset_id, button_target, is_published, display_order, created_at, updated_at)
+                VALUES (:title, :slug, :nav_group, :excerpt, :body_html, :button_name, :button_title, :button_url, :button_asset_id, :button_target, :is_published, :display_order, NOW(), NOW())
             ");
             $stmt->execute([
                 ':title' => $title,
@@ -460,6 +476,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 ':button_name' => $buttonName !== '' ? $buttonName : null,
                 ':button_title' => $buttonTitle !== '' ? $buttonTitle : null,
                 ':button_url' => $buttonUrl !== '' ? $buttonUrl : null,
+                ':button_asset_id' => $buttonAssetId > 0 ? $buttonAssetId : null,
                 ':button_target' => $buttonTarget,
                 ':is_published' => $isPublished,
                 ':display_order' => $displayOrder,
@@ -1457,6 +1474,66 @@ function fetchAdvertisingById(?PDO $pdo, int $id): ?array
     $stmt = $pdo->prepare('SELECT * FROM advertising WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $id]);
     return $stmt->fetch() ?: null;
+}
+
+function ensureAssetLibraryTable(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS asset_library (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            title VARCHAR(255) DEFAULT NULL,
+            description TEXT DEFAULT NULL,
+            asset_type ENUM('pdf','image') NOT NULL,
+            category VARCHAR(100) DEFAULT NULL,
+            filename VARCHAR(255) NOT NULL,
+            original_filename VARCHAR(255) DEFAULT NULL,
+            mime_type VARCHAR(100) DEFAULT NULL,
+            file_size BIGINT UNSIGNED DEFAULT NULL,
+            width_lg INT UNSIGNED DEFAULT 1200,
+            width_md INT UNSIGNED DEFAULT 600,
+            width_sm INT UNSIGNED DEFAULT 300,
+            width_xs INT UNSIGNED DEFAULT 150,
+            available_sizes VARCHAR(100) DEFAULT NULL,
+            show_in_selectors TINYINT(1) NOT NULL DEFAULT 1,
+            display_order INT NOT NULL DEFAULT 100,
+            archived TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_asset_library_selector (show_in_selectors, archived, asset_type, display_order),
+            INDEX idx_asset_library_category (category)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+}
+
+function fetchAssetLibrary(?PDO $pdo, bool $selectorOnly = false): array
+{
+    if (!$pdo) return [];
+    ensureAssetLibraryTable($pdo);
+    $sql = 'SELECT * FROM asset_library';
+    if ($selectorOnly) $sql .= ' WHERE show_in_selectors = 1 AND archived = 0';
+    $sql .= ' ORDER BY display_order ASC, name ASC, id ASC';
+    return $pdo->query($sql)->fetchAll() ?: [];
+}
+
+function fetchAssetLibraryById(?PDO $pdo, int $id): ?array
+{
+    if (!$pdo || $id <= 0) return null;
+    ensureAssetLibraryTable($pdo);
+    $stmt = $pdo->prepare('SELECT * FROM asset_library WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function assetLibraryPublicUrl(array $asset, string $preferredSize = 'original'): string
+{
+    $filename = rawurlencode(basename((string)($asset['filename'] ?? '')));
+    if ($filename === '') return '';
+    if (($asset['asset_type'] ?? '') === 'pdf') return '/filestore/files/library/' . $filename;
+    $sizes = array_values(array_filter(explode(',', (string)($asset['available_sizes'] ?? ''))));
+    $size = in_array($preferredSize, $sizes, true) ? $preferredSize : (in_array('original', $sizes, true) ? 'original' : ($sizes[0] ?? 'original'));
+    return '/filestore/images/library/' . image_upload_slug($size) . '/' . $filename;
 }
 
 function ensureVenuesTable(?PDO $pdo): void

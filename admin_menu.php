@@ -7,6 +7,7 @@ function defaultAdminMenuItems(): array
         ['dashboard', 'Dashboard', 'index.php'],
         ['pages', 'Pages', 'pages.php'],
         ['advertising', 'Advertising', 'advertising.php'],
+        ['asset_library', 'Document & Image Library', 'asset_library.php'],
         ['events', 'Events', 'events.php'],
         ['venues', 'Venues', 'venues.php'],
         ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php'],
@@ -43,7 +44,7 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
-    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'menu'], true)) {
+    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'menu', 'asset_library'], true)) {
         return ['superadmin', 'admin'];
     }
     return ['superadmin', 'admin', 'organiser'];

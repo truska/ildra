@@ -6,6 +6,7 @@ require __DIR__ . '/_bootstrap.php';
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $pageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $page = $pageId ? fetchPageById($pdo, $pageId) : null;
+$libraryAssets = fetchAssetLibrary($pdo, true);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$isAdmin) {
@@ -31,6 +32,7 @@ $page = $page ?? [
     'button_name' => '',
     'button_title' => '',
     'button_url' => '',
+    'button_asset_id' => null,
     'button_target' => '_self',
     'is_published' => 1,
 ];
@@ -106,9 +108,23 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
                 </select>
             </div>
             <div class="col-12">
+                <label class="form-label">Choose from document &amp; image library</label>
+                <select id="library-button-asset" name="button_asset_id" class="form-select">
+                    <option value="">Select an asset (optional)</option>
+                    <?php foreach (['pdf' => 'PDF documents', 'image' => 'Images'] as $assetType => $groupLabel):
+                        $groupItems = array_values(array_filter($libraryAssets, static fn(array $asset): bool => ($asset['asset_type'] ?? '') === $assetType));
+                        if (!$groupItems) continue; ?>
+                        <optgroup label="<?php echo h($groupLabel); ?>">
+                            <?php foreach ($groupItems as $asset): ?><option value="<?php echo (int)$asset['id']; ?>" data-title="<?php echo h($asset['title'] ?: $asset['name']); ?>" <?php echo (int)($page['button_asset_id'] ?? 0) === (int)$asset['id'] ? 'selected' : ''; ?>><?php echo h($asset['name']); ?><?php echo !empty($asset['category']) ? ' — ' . h($asset['category']) : ''; ?></option><?php endforeach; ?>
+                        </optgroup>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">Use this or enter a destination URL below.</div>
+            </div>
+            <div class="col-12">
                 <label class="form-label">Destination URL</label>
-                <input type="text" name="button_url" class="form-control" value="<?php echo h($page['button_url'] ?? ''); ?>" placeholder="/events or https://example.com/">
-                <div class="form-text">Leave both the label and URL blank to show no button.</div>
+                <input id="button-url" type="text" name="button_url" class="form-control" value="<?php echo h($page['button_url'] ?? ''); ?>" placeholder="/events or https://example.com/">
+                <div class="form-text">Use this or select a library item above. Leave the label and both destinations blank to show no button.</div>
             </div>
         </div>
         <div class="mt-3 d-flex gap-2">
@@ -120,6 +136,18 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
 <?php render_tinymce_bootstrap(); ?>
 <script>
     (function() {
+        const picker = document.getElementById('library-button-asset');
+        const url = document.getElementById('button-url');
+        const title = document.querySelector('[name="button_title"]');
+        picker.addEventListener('change', function() {
+            if (!this.value) return;
+            url.value = '';
+            const option = this.options[this.selectedIndex];
+            if (title && !title.value) title.value = option.dataset.title || '';
+        });
+        url.addEventListener('input', function() {
+            if (this.value.trim()) picker.value = '';
+        });
         if (!window.tinymce) {
             return;
         }

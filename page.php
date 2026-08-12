@@ -174,10 +174,17 @@ if (!$renderPage) {
                             <div class="lead mb-3"><?php echo h($renderPage['excerpt'] ?? ''); ?></div>
                             <div class="page-body"><?php echo (string)($renderPage['body_html'] ?? ''); ?></div>
                             <?php echo $dynamicSections['after_body']; ?>
-                            <?php if (!empty($renderPage['button_name']) && !empty($renderPage['button_url'])): ?>
+                            <?php
+                            $pageButtonUrl = trim((string)($renderPage['button_url'] ?? ''));
+                            if ($pageButtonUrl === '' && !empty($renderPage['button_asset_id'])) {
+                                $pageButtonAsset = fetchAssetLibraryById($pdo, (int)$renderPage['button_asset_id']);
+                                if ($pageButtonAsset && empty($pageButtonAsset['archived'])) $pageButtonUrl = assetLibraryPublicUrl($pageButtonAsset);
+                            }
+                            ?>
+                            <?php if (!empty($renderPage['button_name']) && $pageButtonUrl !== ''): ?>
                                 <?php $pageButtonTarget = ($renderPage['button_target'] ?? '_self') === '_blank' ? '_blank' : '_self'; ?>
                                 <div class="mt-4 text-start">
-                                    <a class="btn button2" href="<?php echo h($renderPage['button_url']); ?>" title="<?php echo h($renderPage['button_title'] ?: $renderPage['button_name']); ?>" target="<?php echo h($pageButtonTarget); ?>"<?php echo $pageButtonTarget === '_blank' ? ' rel="noopener"' : ''; ?>><?php echo h($renderPage['button_name']); ?></a>
+                                    <a class="btn button2" href="<?php echo h($pageButtonUrl); ?>" title="<?php echo h($renderPage['button_title'] ?: $renderPage['button_name']); ?>" target="<?php echo h($pageButtonTarget); ?>"<?php echo $pageButtonTarget === '_blank' ? ' rel="noopener"' : ''; ?>><?php echo h($renderPage['button_name']); ?></a>
                                 </div>
                             <?php endif; ?>
                         <?php else: ?>
