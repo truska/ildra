@@ -28,6 +28,10 @@ $page = $page ?? [
     'display_order' => 0,
     'excerpt' => '',
     'body_html' => '',
+    'button_name' => '',
+    'button_title' => '',
+    'button_url' => '',
+    'button_target' => '_self',
     'is_published' => 1,
 ];
 
@@ -84,6 +88,27 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
                     <span class="small text-muted">Use the editor toolbar for rich formatting</span>
                 </label>
                 <textarea id="pageBody" name="body_html" class="form-control wysiwyg-field" rows="12"><?php echo h($page['body_html']); ?></textarea>
+            </div>
+            <div class="col-12"><hr><div class="fw-semibold">Optional content button</div><div class="small text-muted">Displayed left-aligned beneath this page’s content using the secondary button style.</div></div>
+            <div class="col-md-4">
+                <label class="form-label">Name / button label</label>
+                <input type="text" name="button_name" class="form-control" value="<?php echo h($page['button_name'] ?? ''); ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Title / mouse-over text</label>
+                <input type="text" name="button_title" class="form-control" value="<?php echo h($page['button_title'] ?? ''); ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Target</label>
+                <select name="button_target" class="form-select">
+                    <option value="_self" <?php echo ($page['button_target'] ?? '_self') === '_self' ? 'selected' : ''; ?>>Same window</option>
+                    <option value="_blank" <?php echo ($page['button_target'] ?? '_self') === '_blank' ? 'selected' : ''; ?>>New window / tab</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Destination URL</label>
+                <input type="text" name="button_url" class="form-control" value="<?php echo h($page['button_url'] ?? ''); ?>" placeholder="/events or https://example.com/">
+                <div class="form-text">Leave both the label and URL blank to show no button.</div>
             </div>
         </div>
         <div class="mt-3 d-flex gap-2">

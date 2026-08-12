@@ -88,6 +88,7 @@ if (!$page && $pathSlug && $pdo) {
 
 $renderPage = $pageFromList ?? $page;
 $dynamicSections = $renderPage ? page_dynamic_sections($pdo, $renderPage, $basePath) : ['before_content' => '', 'after_body' => ''];
+$advertising = fetchAdvertising($pdo, true);
 
 if (!$renderPage) {
     http_response_code(404);
@@ -141,6 +142,9 @@ if (!$renderPage) {
         .page-body > :last-child {
             margin-bottom: 0;
         }
+        .page-advertising { display: grid; gap: 0.8rem; }
+        .page-advertising-item { display: block; border-radius: 12px; overflow: hidden; background: #fff; }
+        .page-advertising-item img { display: block; width: 100%; height: auto; max-height: 110px; object-fit: contain; }
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -170,26 +174,30 @@ if (!$renderPage) {
                             <div class="lead mb-3"><?php echo h($renderPage['excerpt'] ?? ''); ?></div>
                             <div class="page-body"><?php echo (string)($renderPage['body_html'] ?? ''); ?></div>
                             <?php echo $dynamicSections['after_body']; ?>
+                            <?php if (!empty($renderPage['button_name']) && !empty($renderPage['button_url'])): ?>
+                                <?php $pageButtonTarget = ($renderPage['button_target'] ?? '_self') === '_blank' ? '_blank' : '_self'; ?>
+                                <div class="mt-4 text-start">
+                                    <a class="btn button2" href="<?php echo h($renderPage['button_url']); ?>" title="<?php echo h($renderPage['button_title'] ?: $renderPage['button_name']); ?>" target="<?php echo h($pageButtonTarget); ?>"<?php echo $pageButtonTarget === '_blank' ? ' rel="noopener"' : ''; ?>><?php echo h($renderPage['button_name']); ?></a>
+                                </div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <p class="mb-0">Try another page from the navigation above.</p>
                         <?php endif; ?>
                     </div>
                 </div>
                 <div class="col-lg-4">
-                    <div class="card-soft p-3">
-                        <div class="fw-bold mb-2">More pages</div>
-                        <div class="list-group list-group-flush">
-                            <?php foreach ($pages as $p): ?>
-                                <a class="list-group-item list-group-item-action" href="<?php echo h($basePath); ?>/pages/<?php echo h($p['slug']); ?>">
-                                    <div class="fw-semibold mb-1"><?php echo h($p['title']); ?></div>
-                                    <div class="small text-muted"><?php echo h($p['excerpt']); ?></div>
-                                </a>
+                    <?php if ($advertising): ?>
+                        <div class="page-advertising" aria-label="Promotions">
+                            <?php foreach ($advertising as $advert): ?>
+                                <?php if (empty($advert['image'])) continue; ?>
+                                <?php $advertImage = image_upload_public_path('advertising', 'sm', (string)$advert['image']); ?>
+                                <?php $advertTarget = ($advert['link_target'] ?? '_blank') === '_self' ? '_self' : '_blank'; ?>
+                                <?php if (!empty($advert['url'])): ?><a class="page-advertising-item card-soft" href="<?php echo h($advert['url']); ?>" target="<?php echo h($advertTarget); ?>"<?php echo $advertTarget === '_blank' ? ' rel="noopener sponsored"' : ''; ?>><?php else: ?><div class="page-advertising-item card-soft"><?php endif; ?>
+                                    <img src="<?php echo h($advertImage); ?>" alt="<?php echo h($advert['name']); ?>" title="<?php echo h($advert['title'] ?: $advert['name']); ?>" loading="lazy">
+                                <?php if (!empty($advert['url'])): ?></a><?php else: ?></div><?php endif; ?>
                             <?php endforeach; ?>
-                            <?php if (!$pages): ?>
-                                <div class="list-group-item text-muted small">No pages published yet.</div>
-                            <?php endif; ?>
                         </div>
-                    </div>
+                    <?php endif; ?>
                     <div class="card-soft p-3 mt-3">
                         <div class="fw-bold mb-2">Back to home</div>
                         <a class="btn btn-outline-success w-100" href="<?php echo h($basePath); ?>/">ILDRA Home</a>

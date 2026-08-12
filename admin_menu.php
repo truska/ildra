@@ -6,6 +6,7 @@ function defaultAdminMenuItems(): array
     $rows = [
         ['dashboard', 'Dashboard', 'index.php'],
         ['pages', 'Pages', 'pages.php'],
+        ['advertising', 'Advertising', 'advertising.php'],
         ['events', 'Events', 'events.php'],
         ['venues', 'Venues', 'venues.php'],
         ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php'],
@@ -70,12 +71,8 @@ function ensureAdminMenuTable(?PDO $pdo): void
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
 
-    $count = (int)$pdo->query('SELECT COUNT(*) FROM admin_menu_items')->fetchColumn();
-    if ($count > 0) {
-        return;
-    }
     $stmt = $pdo->prepare("
-        INSERT INTO admin_menu_items
+        INSERT IGNORE INTO admin_menu_items
             (menu_key, label, href, parent_id, display_order, is_active, required_roles, is_system)
         VALUES
             (:menu_key, :label, :href, NULL, :display_order, 1, :required_roles, 1)

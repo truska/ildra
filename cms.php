@@ -236,6 +236,21 @@ function defaultPages(): array
     ];
 }
 
+function ensurePageButtonColumns(PDO $pdo): void
+{
+    $columns = [
+        'button_name' => "ALTER TABLE pages ADD COLUMN button_name VARCHAR(150) DEFAULT NULL AFTER body_html",
+        'button_title' => "ALTER TABLE pages ADD COLUMN button_title VARCHAR(255) DEFAULT NULL AFTER button_name",
+        'button_url' => "ALTER TABLE pages ADD COLUMN button_url VARCHAR(1000) DEFAULT NULL AFTER button_title",
+        'button_target' => "ALTER TABLE pages ADD COLUMN button_target VARCHAR(16) NOT NULL DEFAULT '_self' AFTER button_url",
+    ];
+    foreach ($columns as $column => $sql) {
+        if (!table_column_exists($pdo, 'pages', $column)) {
+            $pdo->exec($sql);
+        }
+    }
+}
+
 function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
 {
     if (!$pdo) {
@@ -257,6 +272,7 @@ function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         ");
+        ensurePageButtonColumns($pdo);
 
         $sql = "SELECT * FROM pages";
         $params = [];
@@ -357,6 +373,13 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
     $body = trim((string)($data['body_html'] ?? ''));
     $isPublished = isset($data['is_published']) ? 1 : 0;
     $displayOrder = (int)($data['display_order'] ?? 0);
+    $buttonName = trim((string)($data['button_name'] ?? ''));
+    $buttonTitle = trim((string)($data['button_title'] ?? ''));
+    $buttonUrl = trim((string)($data['button_url'] ?? ''));
+    $buttonTarget = (string)($data['button_target'] ?? '_self');
+    if (!in_array($buttonTarget, ['_self', '_blank'], true)) {
+        $buttonTarget = '_self';
+    }
 
     if ($title === '' || $slug === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Title and slug are required for pages.'];
@@ -365,6 +388,14 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
 
     if (!isset(NAV_GROUPS[$navGroup])) {
         $navGroup = 'home';
+    }
+    if (($buttonName === '') !== ($buttonUrl === '')) {
+        $alerts[] = ['type' => 'danger', 'message' => 'The content button requires both a label and destination URL.'];
+        return false;
+    }
+    if ($buttonUrl !== '' && preg_match('~^(?:javascript|data):~i', $buttonUrl)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'The content button destination is not allowed.'];
+        return false;
     }
 
     try {
@@ -382,6 +413,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         ");
+        ensurePageButtonColumns($pdo);
 
         if ($pageId > 0) {
             $stmt = $pdo->prepare("
@@ -391,6 +423,10 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                     nav_group = :nav_group,
                     excerpt = :excerpt,
                     body_html = :body_html,
+                    button_name = :button_name,
+                    button_title = :button_title,
+                    button_url = :button_url,
+                    button_target = :button_target,
                     is_published = :is_published,
                     display_order = :display_order,
                     updated_at = NOW()
@@ -402,14 +438,18 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 ':nav_group' => $navGroup,
                 ':excerpt' => $excerpt,
                 ':body_html' => $body,
+                ':button_name' => $buttonName !== '' ? $buttonName : null,
+                ':button_title' => $buttonTitle !== '' ? $buttonTitle : null,
+                ':button_url' => $buttonUrl !== '' ? $buttonUrl : null,
+                ':button_target' => $buttonTarget,
                 ':is_published' => $isPublished,
                 ':display_order' => $displayOrder,
                 ':id' => $pageId,
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO pages (title, slug, nav_group, excerpt, body_html, is_published, display_order, created_at, updated_at)
-                VALUES (:title, :slug, :nav_group, :excerpt, :body_html, :is_published, :display_order, NOW(), NOW())
+                INSERT INTO pages (title, slug, nav_group, excerpt, body_html, button_name, button_title, button_url, button_target, is_published, display_order, created_at, updated_at)
+                VALUES (:title, :slug, :nav_group, :excerpt, :body_html, :button_name, :button_title, :button_url, :button_target, :is_published, :display_order, NOW(), NOW())
             ");
             $stmt->execute([
                 ':title' => $title,
@@ -417,6 +457,10 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 ':nav_group' => $navGroup,
                 ':excerpt' => $excerpt,
                 ':body_html' => $body,
+                ':button_name' => $buttonName !== '' ? $buttonName : null,
+                ':button_title' => $buttonTitle !== '' ? $buttonTitle : null,
+                ':button_url' => $buttonUrl !== '' ? $buttonUrl : null,
+                ':button_target' => $buttonTarget,
                 ':is_published' => $isPublished,
                 ':display_order' => $displayOrder,
             ]);
@@ -1364,6 +1408,55 @@ function defaultEvents(): array
             'event_type_name' => $awardsType['name'],
         ],
     ];
+}
+
+function ensureAdvertisingTable(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS advertising (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            title VARCHAR(255) DEFAULT NULL,
+            image VARCHAR(255) DEFAULT NULL,
+            url VARCHAR(1000) DEFAULT NULL,
+            link_target VARCHAR(16) NOT NULL DEFAULT '_blank',
+            start_date DATE DEFAULT NULL,
+            finish_date DATE DEFAULT NULL,
+            display_order INT NOT NULL DEFAULT 100,
+            show_on_web TINYINT(1) NOT NULL DEFAULT 1,
+            archived TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_advertising_web (show_on_web, archived, start_date, finish_date, display_order)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ");
+    if (!table_column_exists($pdo, 'advertising', 'link_target')) {
+        $pdo->exec("ALTER TABLE advertising ADD COLUMN link_target VARCHAR(16) NOT NULL DEFAULT '_blank' AFTER url");
+    }
+}
+
+function fetchAdvertising(?PDO $pdo, bool $webOnly = false): array
+{
+    if (!$pdo) return [];
+    ensureAdvertisingTable($pdo);
+    $sql = 'SELECT * FROM advertising';
+    if ($webOnly) {
+        $sql .= " WHERE show_on_web = 1 AND archived = 0
+                  AND (start_date IS NULL OR start_date <= CURDATE())
+                  AND (finish_date IS NULL OR finish_date >= CURDATE())";
+    }
+    $sql .= ' ORDER BY display_order ASC, name ASC, id ASC';
+    return $pdo->query($sql)->fetchAll() ?: [];
+}
+
+function fetchAdvertisingById(?PDO $pdo, int $id): ?array
+{
+    if (!$pdo || $id <= 0) return null;
+    ensureAdvertisingTable($pdo);
+    $stmt = $pdo->prepare('SELECT * FROM advertising WHERE id = :id LIMIT 1');
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
 }
 
 function ensureVenuesTable(?PDO $pdo): void
