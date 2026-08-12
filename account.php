@@ -91,6 +91,25 @@ if ($isLoggedIn) {
 }
 $activeMembershipCount = count($activeMembershipPurchases);
 $previousMembershipCount = count($previousMembershipPurchases);
+$loggedInMembershipNumber = '';
+if ($isLoggedIn && $activeMembershipPurchases) {
+    $accountEmail = strtolower(trim((string)($currentUser['email'] ?? '')));
+    $accountFirst = strtolower(trim((string)($currentUser['first_name'] ?? '')));
+    $accountLast = strtolower(trim((string)($currentUser['last_name'] ?? '')));
+    $ownedPeople = fetchMembersForUser($pdo, $userId);
+    $activeMemberIds = array_map('intval', array_column($activeMembershipPurchases, 'member_id'));
+    foreach ($ownedPeople as $person) {
+        if (!in_array((int)$person['id'], $activeMemberIds, true)) continue;
+        $emailMatches = $accountEmail !== '' && strtolower(trim((string)($person['email'] ?? ''))) === $accountEmail;
+        $nameMatches = $accountFirst !== '' && $accountLast !== ''
+            && strtolower(trim((string)($person['first_name'] ?? ''))) === $accountFirst
+            && strtolower(trim((string)($person['last_name'] ?? ''))) === $accountLast;
+        if ($emailMatches || $nameMatches) {
+            $loggedInMembershipNumber = trim((string)($person['member_number'] ?? ''));
+            break;
+        }
+    }
+}
 $navItemEventsUrl = $basePath . '/events';
 $accountName = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? '')) ?: ($currentUser['email'] ?? 'Your account');
 $scriptName = basename($_SERVER['SCRIPT_NAME'] ?? '');
@@ -630,10 +649,21 @@ $isLoggedIn = !empty($currentUser);
 	                    <div class="col-12">
 	                        <div class="card-soft p-4">
 	                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
-	                                <div>
+	                                <div class="d-flex flex-wrap align-items-center gap-3">
+	                                    <div>
 	                                    <div class="text-uppercase small text-muted">Signed in as</div>
 	                                    <h3 class="fw-bold mb-1"><?php echo h($accountName); ?></h3>
 	                                    <div class="text-muted small"><?php echo h($currentUser['email'] ?? ''); ?></div>
+	                                    <?php if ($activeMembershipCount === 0): ?>
+	                                        <div class="small fw-semibold mt-2" style="color:#765b18;">Currently you are not a member</div>
+	                                    <?php endif; ?>
+	                                    </div>
+	                                    <?php if ($loggedInMembershipNumber !== ''): ?>
+	                                        <div class="border rounded-3 px-3 py-2 bg-light text-center" style="min-width:135px;">
+	                                            <div class="text-uppercase text-muted" style="font-size:.68rem;line-height:1.1;">Membership Number</div>
+	                                            <div class="fw-bold fs-4 lh-sm mt-1"><?php echo h($loggedInMembershipNumber); ?></div>
+	                                        </div>
+	                                    <?php endif; ?>
 	                                </div>
 	                                <div class="d-flex flex-wrap gap-2 align-items-center">
 	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=people">People</a>
