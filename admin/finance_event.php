@@ -53,8 +53,14 @@ if ($event && $pdo) {
         SELECT
             bi.*,
             b.booking_ref,
+            b.contact_name,
             b.created_at AS booking_created_at,
-            JSON_UNQUOTE(JSON_EXTRACT(bi.metadata, '$.class_label')) AS class_label
+            JSON_UNQUOTE(JSON_EXTRACT(bi.metadata, '$.class_label')) AS class_label,
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(bi.metadata, '$.rider_name')), ''),
+                NULLIF(b.contact_name, ''),
+                b.contact_email
+            ) AS person_name
         FROM booking_items bi
         LEFT JOIN bookings b ON bi.booking_id = b.new_id
         WHERE bi.event_id = :event_id
@@ -111,11 +117,19 @@ if ($event && $pdo) {
         $typePlaceholders = implode(',', array_fill(0, count($types), '?'));
 
         $stmt = $pdo->prepare("
-            SELECT *
-            FROM finance_transactions
-            WHERE reference IN ($placeholders)
-              AND type IN ($typePlaceholders)
-            ORDER BY created_at DESC, id DESC
+            SELECT ft.*,
+                   COALESCE(
+                       NULLIF(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.contact_name')), ''),
+                       NULLIF(b.contact_name, ''),
+                       NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
+                       u.email
+                   ) AS person_name
+            FROM finance_transactions ft
+            LEFT JOIN bookings b ON b.booking_ref = ft.reference
+            LEFT JOIN users u ON u.id = ft.user_id
+            WHERE ft.reference IN ($placeholders)
+              AND ft.type IN ($typePlaceholders)
+            ORDER BY ft.created_at DESC, ft.id DESC
         ");
         $stmt->execute(array_merge($refValues, $types));
         foreach ($stmt->fetchAll() ?: [] as $row) {
@@ -125,10 +139,19 @@ if ($event && $pdo) {
     }
 
     $stmt = $pdo->prepare("
-        SELECT ft.*
+        SELECT ft.*,
+               COALESCE(
+                   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(bi.metadata, '$.rider_name')), ''),
+                   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.contact_name')), ''),
+                   NULLIF(b.contact_name, ''),
+                   NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
+                   u.email
+               ) AS person_name
         FROM finance_transactions ft
         JOIN booking_items bi
             ON bi.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.booking_item_id')) AS UNSIGNED)
+        LEFT JOIN bookings b ON b.new_id = bi.booking_id
+        LEFT JOIN users u ON u.id = ft.user_id
         WHERE ft.type = 'entry_refund'
           AND bi.event_id = :event_id
         ORDER BY ft.created_at DESC, ft.id DESC
@@ -226,12 +249,13 @@ admin_layout_start($pageTitle, 'finance');
                             <th><?php echo finance_detail_sort_link('tx', 'date', 'Date', (string)$txSortKey, (string)$txSortDir); ?></th>
                             <th><?php echo finance_detail_sort_link('tx', 'type', 'Type', (string)$txSortKey, (string)$txSortDir); ?></th>
                             <th><?php echo finance_detail_sort_link('tx', 'reference', 'Reference', (string)$txSortKey, (string)$txSortDir); ?></th>
+                            <th><?php echo finance_detail_sort_link('tx', 'person', 'Person', (string)$txSortKey, (string)$txSortDir); ?></th>
                             <th class="text-end"><?php echo finance_detail_sort_link('tx', 'amount', 'Amount', (string)$txSortKey, (string)$txSortDir); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                        $allowedTxSort = ['date', 'type', 'reference', 'amount'];
+                        $allowedTxSort = ['date', 'type', 'reference', 'person', 'amount'];
                         if (!in_array($txSortKey, $allowedTxSort, true)) {
                             $txSortKey = 'date';
                         }
@@ -245,6 +269,9 @@ admin_layout_start($pageTitle, 'finance');
                             }
                             if ($txSortKey === 'reference') {
                                 return strcmp((string)($a['reference'] ?? ''), (string)($b['reference'] ?? '')) * $dir;
+                            }
+                            if ($txSortKey === 'person') {
+                                return strcasecmp((string)($a['person_name'] ?? ''), (string)($b['person_name'] ?? '')) * $dir;
                             }
                             $na = (float)($a['amount'] ?? 0);
                             $nb = (float)($b['amount'] ?? 0);
@@ -267,11 +294,12 @@ admin_layout_start($pageTitle, 'finance');
                                 <td class="text-muted small"><?php echo h(format_display_datetime($tx['created_at'] ?? null, '')); ?></td>
                                 <td class="text-capitalize"><?php echo h($typeLabel); ?></td>
                                 <td><?php echo h($tx['reference'] ?? ''); ?></td>
+                                <td><?php echo h($tx['person_name'] ?? '—'); ?></td>
                                 <td class="text-end"><?php echo ($amountVal < 0 ? '-' : '') . format_price(abs($amountVal)); ?></td>
                             </tr>
                         <?php endforeach; ?>
                         <?php if (!$transactions): ?>
-                            <tr><td colspan="4" class="text-muted">No transactions yet.</td></tr>
+                            <tr><td colspan="5" class="text-muted">No transactions yet.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -289,6 +317,7 @@ admin_layout_start($pageTitle, 'finance');
                         <tr>
                             <th><?php echo finance_detail_sort_link('entry', 'booking_ref', 'Booking ref', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th><?php echo finance_detail_sort_link('entry', 'placed', 'Placed', (string)$entrySortKey, (string)$entrySortDir); ?></th>
+                            <th><?php echo finance_detail_sort_link('entry', 'person', 'Person', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th><?php echo finance_detail_sort_link('entry', 'class', 'Class', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th class="text-end"><?php echo finance_detail_sort_link('entry', 'fee', 'Fee', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th class="text-end"><?php echo finance_detail_sort_link('entry', 'refund', 'Refund', (string)$entrySortKey, (string)$entrySortDir); ?></th>
@@ -297,7 +326,7 @@ admin_layout_start($pageTitle, 'finance');
                     </thead>
                     <tbody>
                         <?php
-                        $allowedEntrySort = ['booking_ref', 'placed', 'class', 'fee', 'refund', 'net'];
+                        $allowedEntrySort = ['booking_ref', 'placed', 'person', 'class', 'fee', 'refund', 'net'];
                         if (!in_array($entrySortKey, $allowedEntrySort, true)) {
                             $entrySortKey = 'placed';
                         }
@@ -311,6 +340,9 @@ admin_layout_start($pageTitle, 'finance');
                             }
                             if ($entrySortKey === 'class') {
                                 return strcmp((string)($a['class_label'] ?? ''), (string)($b['class_label'] ?? '')) * $dir;
+                            }
+                            if ($entrySortKey === 'person') {
+                                return strcasecmp((string)($a['person_name'] ?? ''), (string)($b['person_name'] ?? '')) * $dir;
                             }
                             if ($entrySortKey === 'fee') {
                                 $na = (float)($a['price'] ?? 0);
@@ -338,6 +370,7 @@ admin_layout_start($pageTitle, 'finance');
                             <tr>
                                 <td><?php echo h($entry['booking_ref'] ?? ''); ?></td>
                                 <td class="text-muted small"><?php echo h(format_display_datetime($entry['booking_created_at'] ?? null, '')); ?></td>
+                                <td><?php echo h($entry['person_name'] ?? '—'); ?></td>
                                 <td><?php echo h($entry['class_label'] ?? ''); ?></td>
                                 <td class="text-end"><?php echo format_price($fee); ?></td>
                                 <td class="text-end"><?php echo format_price($refundAmount); ?></td>
@@ -345,7 +378,7 @@ admin_layout_start($pageTitle, 'finance');
                             </tr>
                         <?php endforeach; ?>
                         <?php if (!$entries): ?>
-                            <tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
+                            <tr><td colspan="7" class="text-muted">No entries yet.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

@@ -54,6 +54,7 @@ if ($defaultContactName === '') {
 $contactNamePrefill = trim((string)($_POST['contact_name'] ?? $defaultContactName));
 $contactEmailPrefill = trim((string)($_POST['contact_email'] ?? ($currentUser['email'] ?? '')));
 $contactPhonePrefill = trim((string)($_POST['contact_phone'] ?? ''));
+$showCreditScreen = false;
 $showPaymentScreen = false;
 $pendingPaymentData = [];
 
@@ -78,9 +79,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
 
     $paymentDue = max(0.0, $totalAmount - $userBalance);
     $paymentDue = round($paymentDue, 2);
+    $creditToUse = round(min(max(0.0, $userBalance), max(0.0, $totalAmount)), 2);
+    $needsCreditConfirmation = $creditToUse > 0 && (($_POST['confirm_credit'] ?? '') !== '1');
     $needsSimulatedPayment = !$stripeEnabled && $paymentDue > 0 && $totalAmount > 0 && (($_POST['confirm_payment'] ?? '') !== '1');
 
-    if (!$alerts && $paymentDue > 0 && $stripeEnabled) {
+    if (!$alerts && $needsCreditConfirmation) {
+        $showCreditScreen = true;
+        $pendingPaymentData = [
+            'contact_name' => $contactName,
+            'contact_email' => $contactEmail,
+            'contact_phone' => $contactPhone,
+            'credit_to_use' => $creditToUse,
+            'payment_due' => $paymentDue,
+        ];
+    } elseif (!$alerts && $paymentDue > 0 && $stripeEnabled) {
         // Build Stripe Checkout Session
         $scheme = auth_cookie_secure() ? 'https' : 'http';
         $host = (string)($_SERVER['HTTP_HOST'] ?? '');
@@ -140,6 +152,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                 ],
                 'quantity' => 1,
             ];
+        }
+        if ($creditToUse > 0 && $paymentDue > 0) {
+            $lineItems = [[
+                'price_data' => [
+                    'currency' => $stripeConfig['currency'],
+                    'unit_amount' => (int)round($paymentDue * 100),
+                    'product_data' => [
+                        'name' => 'Booking balance after account credit',
+                        'description' => 'Order total ' . format_price($totalAmount) . ' less account credit ' . format_price($creditToUse),
+                    ],
+                ],
+                'quantity' => 1,
+            ]];
         }
         if (empty($lineItems)) {
             $alerts[] = ['type' => 'danger', 'message' => 'Unable to prepare payment items.'];
@@ -468,7 +493,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                     </div>
                 </div>
                 <div class="col-lg-5">
-                    <?php if ($showPaymentScreen): ?>
+                    <?php if ($showCreditScreen): ?>
+                        <div class="card-soft p-4 payment-hold">
+                            <div class="fw-bold fs-5 mb-2">Account credit available</div>
+                            <p class="mb-3">
+                                You have <strong>£<?php echo number_format($userBalance, 2); ?></strong> account credit.
+                                This order will use <strong>£<?php echo number_format((float)($pendingPaymentData['credit_to_use'] ?? 0), 2); ?></strong> of it.
+                            </p>
+                            <div class="border rounded p-3 bg-white mb-3">
+                                <div class="d-flex justify-content-between"><span>Order total</span><strong>£<?php echo number_format($totalAmount, 2); ?></strong></div>
+                                <div class="d-flex justify-content-between"><span>Credit used</span><strong>−£<?php echo number_format((float)($pendingPaymentData['credit_to_use'] ?? 0), 2); ?></strong></div>
+                                <div class="d-flex justify-content-between border-top mt-2 pt-2"><span>Remaining payment</span><strong>£<?php echo number_format((float)($pendingPaymentData['payment_due'] ?? 0), 2); ?></strong></div>
+                            </div>
+                            <form method="POST">
+                                <input type="hidden" name="action" value="confirm_checkout">
+                                <input type="hidden" name="confirm_credit" value="1">
+                                <input type="hidden" name="contact_name" value="<?php echo h($pendingPaymentData['contact_name'] ?? $contactNamePrefill); ?>">
+                                <input type="hidden" name="contact_email" value="<?php echo h($pendingPaymentData['contact_email'] ?? $contactEmailPrefill); ?>">
+                                <input type="hidden" name="contact_phone" value="<?php echo h($pendingPaymentData['contact_phone'] ?? $contactPhonePrefill); ?>">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                                    <a class="btn btn-outline-secondary" href="<?php echo h($basePath); ?>/basket">Edit basket</a>
+                                    <button class="btn btn-success" type="submit">
+                                        <?php echo ((float)($pendingPaymentData['payment_due'] ?? 0)) > 0 ? 'Use credit and continue' : 'Use credit and place order'; ?>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    <?php elseif ($showPaymentScreen): ?>
                         <div class="card-soft p-4 payment-hold">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
@@ -479,6 +530,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                             </div>
                             <form method="POST" class="row g-3">
                                 <input type="hidden" name="action" value="confirm_checkout">
+                                <input type="hidden" name="confirm_credit" value="1">
                                 <input type="hidden" name="confirm_payment" value="1">
                                 <input type="hidden" name="contact_name" value="<?php echo h($pendingPaymentData['contact_name'] ?? $contactNamePrefill); ?>">
                                 <input type="hidden" name="contact_email" value="<?php echo h($pendingPaymentData['contact_email'] ?? $contactEmailPrefill); ?>">
