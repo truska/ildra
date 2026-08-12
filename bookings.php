@@ -203,6 +203,13 @@ if ($pdo) {
                         $total = isset($order['total']) ? '£' . number_format((float)$order['total'], 2) : '—';
                         $detailsId = 'booking-items-' . h($order['id'] ?? $order['booking_ref'] ?? uniqid('bk'));
                         $nowTs = time();
+                        $eventNames = [];
+                        foreach ($items as $item) {
+                            $eventName = trim((string)($item['event_title'] ?? $item['event_name'] ?? ''));
+                            if ($eventName !== '' && !in_array($eventName, $eventNames, true)) {
+                                $eventNames[] = $eventName;
+                            }
+                        }
                         ?>
                         <div class="booking-card p-4 mb-3">
                             <div class="d-flex flex-wrap justify-content-between gap-3">
@@ -223,6 +230,10 @@ if ($pdo) {
                                         <div class="meta-label">Contact</div>
                                         <div class="fw-semibold"><?php echo h($order['contact_name'] ?? ''); ?></div>
                                         <div class="text-muted small"><?php echo h($order['contact_email'] ?? ''); ?></div>
+                                    </div>
+                                    <div>
+                                        <div class="meta-label">Event Name</div>
+                                        <div class="fw-semibold"><?php echo h($eventNames ? implode(' | ', $eventNames) : '—'); ?></div>
                                     </div>
                                 </div>
                                 <div class="text-end">

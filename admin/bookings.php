@@ -93,6 +93,36 @@ function booking_type_label(array $item, array $labelMap): string
     return ucfirst((string)$raw);
 }
 
+function booking_description(array $booking): string
+{
+    $descriptions = [];
+    foreach ($booking['items'] ?? [] as $item) {
+        $meta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+        $title = trim((string)($item['event_title'] ?? $item['event_name'] ?? 'Entry'));
+        $details = [];
+        foreach (['rider_name' => 'Rider', 'horse_name' => 'Horse', 'class_label' => 'Class'] as $key => $label) {
+            $value = trim((string)($meta[$key] ?? $item[$key] ?? ''));
+            if ($value !== '') {
+                $details[] = $label . ': ' . $value;
+            }
+        }
+        $descriptions[] = $title . ($details ? ' — ' . implode(' · ', $details) : '');
+    }
+    return implode(' | ', $descriptions);
+}
+
+function booking_event_names(array $booking): string
+{
+    $names = [];
+    foreach ($booking['items'] ?? [] as $item) {
+        $name = trim((string)($item['event_title'] ?? $item['event_name'] ?? ''));
+        if ($name !== '' && !in_array($name, $names, true)) {
+            $names[] = $name;
+        }
+    }
+    return implode(' | ', $names);
+}
+
 function booking_sort_value(array $booking, string $key)
 {
     switch ($key) {
@@ -197,6 +227,10 @@ admin_layout_start('Bookings', 'bookings');
         @media (max-width: 767.98px) {
             #bookingsTable th.col-contact,
             #bookingsTable td.col-contact,
+            #bookingsTable th.col-event-name,
+            #bookingsTable td.col-event-name,
+            #bookingsTable th.col-description,
+            #bookingsTable td.col-description,
             #bookingsTable th.col-user,
             #bookingsTable td.col-user {
                 display: none;
@@ -242,6 +276,8 @@ admin_layout_start('Bookings', 'bookings');
                     <th><?php echo admin_sort_link('id', 'Booking ref', (string)$sortKey, (string)$sortDir); ?></th>
                     <th><?php echo admin_sort_link('placed', 'Placed', (string)$sortKey, (string)$sortDir); ?></th>
                     <th class="col-contact"><?php echo admin_sort_link('contact', 'Contact', (string)$sortKey, (string)$sortDir); ?></th>
+                    <th class="col-event-name">Event Name</th>
+                    <th class="col-description">Description</th>
                     <th><?php echo admin_sort_link('entries', 'Events', (string)$sortKey, (string)$sortDir); ?></th>
                     <th><?php echo admin_sort_link('total', 'Total', (string)$sortKey, (string)$sortDir); ?></th>
                     <th class="col-user"><?php echo admin_sort_link('user', 'User', (string)$sortKey, (string)$sortDir); ?></th>
@@ -255,6 +291,8 @@ admin_layout_start('Bookings', 'bookings');
                         $itemCount = count($items);
                         $total = isset($booking['total']) ? format_price($booking['total']) : '£0.00';
                         $bookingRef = $booking['booking_ref'] ?? $booking['id'] ?? '';
+                        $eventNames = booking_event_names($booking);
+                        $description = booking_description($booking);
                     ?>
                     <tr class="booking-row">
                         <td class="small fw-semibold text-muted text-dark"><?php echo h($bookingRef); ?></td>
@@ -262,6 +300,8 @@ admin_layout_start('Bookings', 'bookings');
                         <td class="small col-contact">
                             <div><?php echo h($booking['contact_name'] ?? ''); ?></div>
                         </td>
+                        <td class="small col-event-name fw-semibold text-dark"><?php echo h($eventNames !== '' ? $eventNames : '—'); ?></td>
+                        <td class="small col-description text-muted"><?php echo h($description !== '' ? $description : '—'); ?></td>
                         <td class="small"><div class="fw-semibold text-dark mb-1"><?php echo $itemCount; ?> event<?php echo $itemCount === 1 ? '' : 's'; ?></div></td>
                         <td class="small"><?php echo h($total); ?></td>
                         <td class="small col-user">
@@ -293,7 +333,7 @@ admin_layout_start('Bookings', 'bookings');
                         ?>
                         <tr class="event-row">
                             <td></td>
-                            <td class="event-cell" colspan="5">
+                            <td class="event-cell" colspan="7">
                                 <span class="event-title"><?php echo h($eventTitle); ?></span>
                                 <span class="event-details">
                                     · <?php echo h($eventTypeLabel); ?> · <?php echo h($eventPrice); ?>

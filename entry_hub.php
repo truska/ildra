@@ -547,14 +547,16 @@ if ($item && $pdo) {
                                     $hasCost = $ctype === 'product' && $price !== 0.0;
                                     $isRequiredProduct = $ctype === 'product' && !empty($component['is_required']);
                                     $description = trim((string)($component['description'] ?? ''));
+                                    $descriptionHtml = $description !== '' ? render_wysiwyg($description) : '';
                                     $showSelector = $ctype === 'product' && !$isRequiredProduct;
                                     ?>
                                     <div class="mb-4">
                                         <div class="fw-bold mb-2"><?php echo h($label); ?></div>
-                                        <?php if ($description !== ''): ?>
-                                            <div class="text-muted small mb-2"><?php echo h($description); ?></div>
+                                        <?php if ($descriptionHtml !== ''): ?>
+                                            <div class="text-muted small mb-2"><?php echo $descriptionHtml; ?></div>
                                         <?php endif; ?>
-                                        <div class="border rounded p-3">
+                                        <?php if ($inputKind !== 'none'): ?>
+                                            <div class="border rounded p-3">
                                             <?php if ($inputKind === 'checkbox'): ?>
                                                 <?php if ($isRequiredProduct): ?>
                                                     <div class="d-flex justify-content-between align-items-center mb-1">
@@ -581,7 +583,8 @@ if ($item && $pdo) {
                                                 <input type="text" class="form-control" value="<?php echo h((string)$inputValue); ?>" disabled>
                                                 <?php if ($hasCost && !$showSelector): ?><div class="small text-muted mt-1">+<?php echo h(format_price($price)); ?></div><?php endif; ?>
                                             <?php endif; ?>
-                                        </div>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
                             <?php endforeach; ?>
