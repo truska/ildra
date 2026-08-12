@@ -55,14 +55,12 @@ $basketCount = count($basket);
 $recentBookings = [];
 $userBookingCount = 0;
 $userCreditBalance = 0.0;
-$loyaltyCard = null;
 $incomingShareRequests = [];
 $allBookings = load_all_bookings($pdo);
 if ($isLoggedIn) {
     $userId = (int)($currentUser['id'] ?? 0);
     $userEmail = strtolower((string)($currentUser['email'] ?? ''));
     $userCreditBalance = fetch_user_credit_balance($pdo, $userId);
-    $loyaltyCard = fetch_or_create_loyalty_card($pdo, $userId, $alerts);
     $incomingShareRequests = fetchIncomingShareRequests($pdo, $userId);
     foreach ($allBookings as $booking) {
         $matchesUser = ($userId > 0 && (int)($booking['user_id'] ?? 0) === $userId)
@@ -696,12 +694,6 @@ $isLoggedIn = !empty($currentUser);
 		                                    <div class="fw-bold"><?php echo '£' . number_format((float)$userCreditBalance, 2); ?></div>
 		                                    <div class="small text-uppercase">Credit balance</div>
 		                                </div>
-		                                <?php if ($loyaltyCard): ?>
-		                                    <div class="stat-pill">
-		                                        <div class="fw-bold"><?php echo (int)($loyaltyCard['points_balance'] ?? 0); ?></div>
-		                                        <div class="small text-uppercase">Loyalty points</div>
-		                                    </div>
-		                                <?php endif; ?>
 		                            </div>
 		                        </div>
 
