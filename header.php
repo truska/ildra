@@ -12,6 +12,9 @@ $hasHeaderLogo = $headerLogoUrl !== '';
 $brandClass = $hasHeaderLogo ? 'brand-logo-only' : '';
 $logoAlt = trim((string)($siteSettings['hero_title'] ?? 'ILDRA'));
 $headerIsHome = isset($headerIsHome) ? (bool)$headerIsHome : false;
+$headerBatch = mediaBatchGetOrCreate($pdo ?? null, 'site_header', 'site', 0, 'Site header banners', 'banners');
+$headerBatchImages = $headerBatch ? mediaBatchImages($pdo ?? null, (int)$headerBatch['id']) : [];
+$headerBannerUrl = ($headerBatch && $headerBatchImages) ? mediaBatchImageUrl($headerBatch, $headerBatchImages[0], 'lg') : '';
 if (!function_exists('page_url')) {
     function page_url(array $page): string
     {
@@ -106,7 +109,7 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
         </div>
     </div>
 <?php endif; ?>
-<header class="site-header<?php echo $headerIsHome ? ' site-header-home' : ' site-header-inner'; ?>">
+<header class="site-header<?php echo $headerIsHome ? ' site-header-home' : ' site-header-inner'; ?>"<?php echo $headerBannerUrl !== '' ? ' style="--site-header-image:url(\'' . h($headerBannerUrl) . '\')"' : ''; ?>>
     <div class="site-header-banner">
         <div class="container header-banner-inner">
         <a class="navbar-brand brand-block fw-bold <?php echo h($brandClass); ?>" href="<?php echo h($basePath); ?>/">

@@ -7,6 +7,7 @@ $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['le
 $pageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $page = $pageId ? fetchPageById($pdo, $pageId) : null;
 $libraryAssets = fetchAssetLibrary($pdo, true);
+$pageContentElements = $pageId ? fetchPageContentElements($pdo, $pageId) : [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$isAdmin) {
@@ -46,6 +47,8 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
     </div>
     <div>
         <a class="btn btn-outline-secondary" href="pages.php">Back to list</a>
+        <?php if ($pageId): ?><a class="btn btn-success" href="page_images.php?page_id=<?php echo $pageId; ?>">Manage Images</a><?php endif; ?>
+        <?php if ($pageId): ?><a class="btn btn-success" href="page_elements.php?page_id=<?php echo $pageId; ?>">Content Sections</a><?php endif; ?>
     </div>
 </div>
 
@@ -131,8 +134,21 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
             <button class="btn btn-success">Save</button>
             <a class="btn btn-outline-secondary" href="pages.php">Cancel</a>
         </div>
+        <?php if (!$pageId): ?><div class="form-text mt-2">Save the page first, then use Manage Images to add one or more images.</div><?php endif; ?>
     </form>
 </div>
+
+<?php if ($pageId && $pageContentElements): ?>
+<div class="card-soft p-3 mt-3">
+    <div class="fw-semibold mb-2">Content section anchors</div>
+    <div class="d-flex flex-wrap gap-3">
+        <?php foreach ($pageContentElements as $element): $anchor=(string)($element['anchor_slug'] ?: image_upload_slug($element['heading'] ?: $element['name'])); $anchorUrl=($siteBase ?: '').'/pages/'.$page['slug'].'#'.$anchor; ?>
+            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" title="Copy anchor link" data-copy-anchor="<?php echo h($anchorUrl); ?>">&#128279; #<?php echo h($anchor); ?></button>
+        <?php endforeach; ?>
+    </div>
+</div>
+<script>document.querySelectorAll('[data-copy-anchor]').forEach(button=>button.addEventListener('click',()=>navigator.clipboard.writeText(button.dataset.copyAnchor)));</script>
+<?php endif; ?>
 <?php render_tinymce_bootstrap(); ?>
 <script>
     (function() {

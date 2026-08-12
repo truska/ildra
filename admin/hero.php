@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 admin_layout_start('Site Hero & Welcome', 'hero');
 ?>
+<div class="d-flex justify-content-end mb-3"><a class="btn btn-success" href="banner_images.php">Manage Banner Images</a></div>
 <div class="card-soft p-4">
     <form method="POST">
         <input type="hidden" name="action" value="save_settings">

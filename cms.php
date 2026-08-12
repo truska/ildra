@@ -1536,6 +1536,45 @@ function assetLibraryPublicUrl(array $asset, string $preferredSize = 'original')
     return '/filestore/images/library/' . image_upload_slug($size) . '/' . $filename;
 }
 
+function ensurePageContentElementsTable(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS page_content_elements (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        page_id INT UNSIGNED NOT NULL,
+        name VARCHAR(150) NOT NULL,
+        heading VARCHAR(255) DEFAULT NULL,
+        anchor_slug VARCHAR(180) DEFAULT NULL,
+        body_html MEDIUMTEXT DEFAULT NULL,
+        layout ENUM('auto','image_left','image_right','text_only') NOT NULL DEFAULT 'auto',
+        display_order INT NOT NULL DEFAULT 100,
+        show_on_web TINYINT(1) NOT NULL DEFAULT 1,
+        archived TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_page_elements (page_id, archived, show_on_web, display_order)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    if (!table_column_exists($pdo, 'page_content_elements', 'anchor_slug')) {
+        $pdo->exec("ALTER TABLE page_content_elements ADD COLUMN anchor_slug VARCHAR(180) DEFAULT NULL AFTER heading");
+    }
+}
+
+function fetchPageContentElements(?PDO $pdo, int $pageId, bool $webOnly = false): array
+{
+    if (!$pdo || $pageId <= 0) return [];
+    ensurePageContentElementsTable($pdo);
+    $sql='SELECT * FROM page_content_elements WHERE page_id=:page_id';
+    if($webOnly)$sql.=' AND show_on_web=1 AND archived=0';
+    $sql.=' ORDER BY display_order,id';
+    $stmt=$pdo->prepare($sql);$stmt->execute([':page_id'=>$pageId]);return $stmt->fetchAll()?:[];
+}
+
+function fetchPageContentElement(?PDO $pdo, int $id): ?array
+{
+    if(!$pdo||$id<=0)return null; ensurePageContentElementsTable($pdo);
+    $stmt=$pdo->prepare('SELECT * FROM page_content_elements WHERE id=:id LIMIT 1');$stmt->execute([':id'=>$id]);return $stmt->fetch()?:null;
+}
+
 function ensureVenuesTable(?PDO $pdo): void
 {
     if (!$pdo) {

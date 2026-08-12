@@ -89,6 +89,14 @@ if (!$page && $pathSlug && $pdo) {
 $renderPage = $pageFromList ?? $page;
 $dynamicSections = $renderPage ? page_dynamic_sections($pdo, $renderPage, $basePath) : ['before_content' => '', 'after_body' => ''];
 $advertising = fetchAdvertising($pdo, true);
+$pageImageBatch = $renderPage ? mediaBatchFind($pdo, 'page_images', 'page', (int)($renderPage['id'] ?? 0)) : null;
+$pageImages = $pageImageBatch ? mediaBatchImages($pdo, (int)$pageImageBatch['id']) : [];
+$pageElements = $renderPage ? fetchPageContentElements($pdo, (int)($renderPage['id'] ?? 0), true) : [];
+foreach ($pageElements as &$pageElement) {
+    $pageElement['image_batch'] = mediaBatchFind($pdo, 'content_element_images', 'page_content_element', (int)$pageElement['id']);
+    $pageElement['images'] = $pageElement['image_batch'] ? mediaBatchImages($pdo, (int)$pageElement['image_batch']['id']) : [];
+}
+unset($pageElement);
 
 if (!$renderPage) {
     http_response_code(404);
@@ -142,9 +150,39 @@ if (!$renderPage) {
         .page-body > :last-child {
             margin-bottom: 0;
         }
+        .page-body a:not(.btn) {
+            color: #244a29;
+            text-decoration: none;
+            transition: color 0.15s ease;
+        }
+        .page-body a:not(.btn):hover,
+        .page-body a:not(.btn):focus {
+            color: #476146;
+            text-decoration: none;
+        }
         .page-advertising { display: grid; gap: 0.8rem; }
         .page-advertising-item { display: block; border-radius: 12px; overflow: hidden; background: #fff; }
         .page-advertising-item img { display: block; width: 100%; height: auto; max-height: 110px; object-fit: contain; }
+        .page-gallery-main { display:block; width:100%; border:0; padding:0; background:none; cursor:zoom-in; }
+        .page-gallery-main img { display:block; width:100%; height:auto; max-height:520px; object-fit:contain; border-radius:12px; }
+        .page-gallery-caption { margin-top:.55rem; color:var(--muted); font-size:.9rem; }
+        .page-gallery-thumbs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.45rem; margin-top:.65rem; }
+        .page-gallery-thumb { border:2px solid transparent; border-radius:8px; padding:0; overflow:hidden; background:#fff; }
+        .page-gallery-thumb.active { border-color:var(--green-alt); }
+        .page-gallery-thumb img { display:block; width:100%; aspect-ratio:1/1; object-fit:cover; }
+        .page-lightbox { position:fixed; inset:0; z-index:4000; display:none; place-items:center; padding:2rem; background:rgba(0,0,0,.9); }
+        .page-lightbox.open { display:grid; }
+        .page-lightbox img { max-width:94vw; max-height:88vh; object-fit:contain; }
+        .page-lightbox-figure { margin:0; max-width:94vw; text-align:center; }
+        .page-lightbox-caption { margin-top:.65rem; color:#fff; font-size:1rem; }
+        .page-lightbox-close { position:absolute; right:1rem; top:.5rem; border:0; background:none; color:#fff; font-size:2.5rem; }
+        .page-lightbox-nav { position:absolute; top:50%; transform:translateY(-50%); border:0; border-radius:999px; width:3rem; height:3rem; background:rgba(255,255,255,.16); color:#fff; font-size:2rem; line-height:1; }
+        .page-lightbox-prev { left:1rem; }
+        .page-lightbox-next { right:1rem; }
+        .page-content-elements { margin-top:2rem; }
+        .page-content-element { margin-bottom:1.5rem; }
+        .page-content-element .element-text { padding:1.5rem; }
+        @media (max-width: 767.98px) { .page-lightbox { padding:1rem; } .page-lightbox-nav { width:2.5rem; height:2.5rem; } .page-lightbox-prev { left:.25rem; } .page-lightbox-next { right:.25rem; } }
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -168,7 +206,21 @@ if (!$renderPage) {
             <?php echo $dynamicSections['before_content']; ?>
 
             <div class="row g-4 mt-2">
-                <div class="col-lg-8">
+                <?php if ($pageImages && $pageImageBatch): ?>
+                <div class="col-lg-4">
+                    <div class="card-soft p-3 page-gallery" data-page-gallery>
+                        <?php $mainImage=$pageImages[0]; ?>
+                        <button type="button" class="page-gallery-main" data-lightbox-src="<?php echo h(mediaBatchImageUrl($pageImageBatch,$mainImage,'original')); ?>" aria-label="Enlarge image">
+                            <img src="<?php echo h(mediaBatchImageUrl($pageImageBatch,$mainImage,'md')); ?>" alt="<?php echo h($mainImage['alt_text'] ?: $mainImage['title'] ?: $renderPage['title']); ?>" title="<?php echo h($mainImage['title'] ?: ''); ?>">
+                        </button>
+                        <div class="page-gallery-caption"><?php echo h($mainImage['caption'] ?: ''); ?></div>
+                        <?php if(count($pageImages)>1): ?><div class="page-gallery-thumbs">
+                            <?php foreach($pageImages as $index=>$image): ?><button type="button" class="page-gallery-thumb <?php echo $index===0?'active':''; ?>" data-md="<?php echo h(mediaBatchImageUrl($pageImageBatch,$image,'md')); ?>" data-full="<?php echo h(mediaBatchImageUrl($pageImageBatch,$image,'original')); ?>" data-alt="<?php echo h($image['alt_text'] ?: $image['title'] ?: $renderPage['title']); ?>" data-title="<?php echo h($image['title'] ?: ''); ?>" data-caption="<?php echo h($image['caption'] ?: ''); ?>"><img src="<?php echo h(mediaBatchImageUrl($pageImageBatch,$image,'xs')); ?>" alt=""></button><?php endforeach; ?>
+                        </div><?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+                <div class="<?php echo $pageImages ? 'col-lg-6' : 'col-lg-10'; ?>">
                     <div class="card-soft p-4">
                         <?php if ($renderPage): ?>
                             <div class="lead mb-3"><?php echo h($renderPage['excerpt'] ?? ''); ?></div>
@@ -192,7 +244,7 @@ if (!$renderPage) {
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="col-lg-4">
+                <div class="col-lg-2">
                     <?php if ($advertising): ?>
                         <div class="page-advertising" aria-label="Promotions">
                             <?php foreach ($advertising as $advert): ?>
@@ -211,8 +263,29 @@ if (!$renderPage) {
                     </div>
                 </div>
             </div>
+            <?php if ($pageElements): ?>
+            <div class="page-content-elements">
+                <?php $nextAutoSide='left'; foreach($pageElements as $element):
+                    $elementImages=$element['images']; $elementBatch=$element['image_batch']; $layout=(string)$element['layout'];
+                    $hasElementImages=$elementImages && $layout!=='text_only';
+                    if(!$hasElementImages){$side='left';$nextAutoSide='left';}
+                    elseif($layout==='image_left'){$side='left';}
+                    elseif($layout==='image_right'){$side='right';}
+                    else{$side=$nextAutoSide;$nextAutoSide=$nextAutoSide==='left'?'right':'left';}
+                ?>
+                <section id="<?php echo h($element['anchor_slug'] ?: image_upload_slug($element['heading'] ?: $element['name'])); ?>" class="page-content-element card-soft overflow-hidden">
+                    <div class="row g-0 align-items-start justify-content-center">
+                        <?php if($hasElementImages): ?><div class="col-lg-4 <?php echo $side==='right'?'order-lg-2':''; ?>"><div class="p-3 page-gallery" data-page-gallery><?php $mainImage=$elementImages[0]; ?><button type="button" class="page-gallery-main" data-lightbox-src="<?php echo h(mediaBatchImageUrl($elementBatch,$mainImage,'original')); ?>"><img src="<?php echo h(mediaBatchImageUrl($elementBatch,$mainImage,'md')); ?>" alt="<?php echo h($mainImage['alt_text']?:$mainImage['title']?:$element['heading']); ?>"></button><div class="page-gallery-caption"><?php echo h($mainImage['caption']?:''); ?></div><?php if(count($elementImages)>1): ?><div class="page-gallery-thumbs"><?php foreach($elementImages as$i=>$image): ?><button type="button" class="page-gallery-thumb <?php echo $i===0?'active':''; ?>" data-md="<?php echo h(mediaBatchImageUrl($elementBatch,$image,'md')); ?>" data-full="<?php echo h(mediaBatchImageUrl($elementBatch,$image,'original')); ?>" data-alt="<?php echo h($image['alt_text']?:$image['title']?:$element['heading']); ?>" data-title="<?php echo h($image['title']?:''); ?>" data-caption="<?php echo h($image['caption']?:''); ?>"><img src="<?php echo h(mediaBatchImageUrl($elementBatch,$image,'xs')); ?>" alt=""></button><?php endforeach; ?></div><?php endif; ?></div></div><?php endif; ?>
+                        <div class="<?php echo $hasElementImages?'col-lg-6':'col-lg-10'; ?> <?php echo $side==='right'?'order-lg-1':''; ?> element-text"><?php if(!empty($element['heading'])): ?><h2 class="h3 mb-3"><?php echo h($element['heading']); ?></h2><?php endif; ?><div class="page-body"><?php echo (string)$element['body_html']; ?></div></div>
+                    </div>
+                </section>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
         </div>
     </main>
+
+    <div class="page-lightbox" id="page-lightbox" role="dialog" aria-modal="true" aria-label="Image preview"><button type="button" class="page-lightbox-close" aria-label="Close">&times;</button><button type="button" class="page-lightbox-nav page-lightbox-prev" aria-label="Previous image">&#8249;</button><figure class="page-lightbox-figure"><img src="" alt=""><figcaption class="page-lightbox-caption"></figcaption></figure><button type="button" class="page-lightbox-nav page-lightbox-next" aria-label="Next image">&#8250;</button></div>
 
     <?php include __DIR__ . '/views/footer.php'; ?>
 
@@ -220,5 +293,16 @@ if (!$renderPage) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+    (function(){
+        const galleries=Array.from(document.querySelectorAll('[data-page-gallery]')), box=document.getElementById('page-lightbox');
+        if(!galleries.length||!box)return;
+        const boxImg=box.querySelector('img'),boxCaption=box.querySelector('.page-lightbox-caption');let active=null;
+        galleries.forEach(gallery=>{const main=gallery.querySelector('.page-gallery-main'),mainImg=main.querySelector('img'),caption=gallery.querySelector('.page-gallery-caption'),thumbs=Array.from(gallery.querySelectorAll('.page-gallery-thumb'));const state={gallery,main,mainImg,caption,thumbs,current:0};state.select=index=>{if(!thumbs.length)return;state.current=(index+thumbs.length)%thumbs.length;const thumb=thumbs[state.current];thumbs.forEach(x=>x.classList.remove('active'));thumb.classList.add('active');mainImg.src=thumb.dataset.md;mainImg.alt=thumb.dataset.alt||'';main.dataset.lightboxSrc=thumb.dataset.full;caption.textContent=thumb.dataset.caption||'';if(box.classList.contains('open')){boxImg.src=thumb.dataset.full;boxImg.alt=thumb.dataset.alt||'';boxCaption.textContent=thumb.dataset.caption||'';}};thumbs.forEach((thumb,index)=>thumb.addEventListener('click',()=>state.select(index)));main.addEventListener('click',()=>{active=state;box.querySelectorAll('.page-lightbox-nav').forEach(button=>button.hidden=thumbs.length<2);boxImg.src=main.dataset.lightboxSrc;boxImg.alt=mainImg.alt;boxCaption.textContent=caption.textContent;box.classList.add('open');document.body.style.overflow='hidden';});});
+        function close(){box.classList.remove('open');boxImg.src='';boxCaption.textContent='';document.body.style.overflow='';}
+        box.querySelector('.page-lightbox-close').addEventListener('click',close);box.querySelector('.page-lightbox-prev').addEventListener('click',()=>{if(active)active.select(active.current-1);});box.querySelector('.page-lightbox-next').addEventListener('click',()=>{if(active)active.select(active.current+1);});
+        box.addEventListener('click',e=>{if(e.target===box)close();});document.addEventListener('keydown',e=>{if(!box.classList.contains('open'))return;if(e.key==='Escape')close();if(e.key==='ArrowLeft'&&active)active.select(active.current-1);if(e.key==='ArrowRight'&&active)active.select(active.current+1);});
+    })();
+    </script>
 </body>
 </html>
