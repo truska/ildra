@@ -138,11 +138,12 @@ function admin_layout_start(string $title, string $activeKey): void
             cursor: pointer;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
         }
         .admin-nav-section summary::-webkit-details-marker { display: none; }
         .admin-nav-section summary::after {
             content: '';
+            margin-left: auto;
             width: 0.48rem;
             height: 0.48rem;
             border-right: 2px solid currentColor;
