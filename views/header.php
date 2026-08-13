@@ -129,13 +129,13 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
             <?php include __DIR__ . '/header_actions.php'; ?>
         </div>
     </div>
-    <nav class="navbar navbar-expand-xl navbar-dark bg-success bg-gradient py-0">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success bg-gradient py-0">
         <div class="container nav-shell">
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="mainNav">
-            <ul class="navbar-nav nav-primary align-items-xl-center w-100">
+            <ul class="navbar-nav nav-primary align-items-lg-center w-100">
                 <?php foreach ($navTree as $groupKey => $group): ?>
                     <?php if (!$group['pages']) { continue; } ?>
                     <?php

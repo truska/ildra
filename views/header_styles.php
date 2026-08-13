@@ -455,7 +455,25 @@ body.show-page-hero .page-hero {
     display: block;
 }
 
-@media (max-width: 1199.98px) {
+/* Older iPad landscape and similar widths: show the full menu, compactly. */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .nav-shell { gap: 0; }
+    .nav-primary {
+        justify-content: space-between;
+        gap: 0.1rem;
+    }
+    .nav-primary > .nav-item { flex: 0 1 auto; }
+    .nav-parent,
+    .nav-primary .nav-link {
+        padding: 0.55rem 0.5rem;
+        font-size: 0.76rem;
+        letter-spacing: 0;
+    }
+    .nav-parent { gap: 4px; }
+    .nav-parent .chevron { width: 8px; height: 8px; }
+}
+
+@media (max-width: 991.98px) {
     .navbar { min-height: 54px; }
     .navbar-toggler { margin: 7px 0; }
     .nav-primary { width: 100%; }
