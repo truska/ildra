@@ -81,29 +81,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $allUsers = fetchAllUsersForAdmin($pdo, $alerts);
 
-$sortKey = $_GET['sort'] ?? 'email';
-$sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-$sortFields = [
-    'name' => ['first_name', 'last_name'],
-    'email' => ['email'],
-    'role' => ['role'],
-    'last_login' => ['last_login_at'],
+$filterForm='user-filter-form';
+$tableColumns=[
+    'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name','form'=>$filterForm,'value'=>static fn(array $r):string=>trim((string)($r['first_name']??'').' '.(string)($r['last_name']??''))],
+    'email'=>['label'=>'Email','sortable'=>true,'filter'=>'text','placeholder'=>'Search email','form'=>$filterForm,'data_type'=>'email'],
+    'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['superadmin'=>'SuperAdmin','admin'=>'Admin','organiser'=>'Organiser','user'=>'User']],
+    'last_login'=>['label'=>'Last login','field'=>'last_login_at','sortable'=>true,'filter'=>'text','placeholder'=>'Search last login','form'=>$filterForm],
+    'actions'=>['label'=>'Actions'],
 ];
-$activeFields = $sortFields[$sortKey] ?? ['email'];
-usort($allUsers, function ($a, $b) use ($activeFields, $sortDir) {
-    foreach ($activeFields as $field) {
-        $va = $a[$field] ?? '';
-        $vb = $b[$field] ?? '';
-        if ($va == $vb) {
-            continue;
-        }
-        if ($sortDir === 'asc') {
-            return ($va < $vb) ? -1 : 1;
-        }
-        return ($va > $vb) ? -1 : 1;
-    }
-    return 0;
-});
+$table=admin_table_prepare($allUsers,$tableColumns,'email');$allUsers=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 
 admin_layout_start('Users', 'users');
 ?>
@@ -112,19 +98,19 @@ admin_layout_start('Users', 'users');
         <div class="small text-muted">Manage users</div>
         <h5 class="mb-0">Users</h5>
     </div>
+    <?php echo admin_table_pagination($table); ?>
 </div>
+<form method="get" id="user-filter-form" class="mb-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="users.php">Clear</a></form>
 
 <div class="card-soft p-3">
+    <?php echo admin_table_record_count($table,'user','users'); ?>
     <div class="table-responsive">
         <table class="table table-sm align-middle">
             <thead class="table-light">
                 <tr>
-                    <th><?php echo admin_sort_link('name', 'Name', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('email', 'Email', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('role', 'Role', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('last_login', 'Last login', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th></th>
+                    <?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?>
                 </tr>
+                <tr class="admin-table-filter-row"><?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_filter($key,$column,$filters); ?></th><?php endforeach; ?></tr>
             </thead>
             <tbody>
                 <?php foreach ($allUsers as $userRow): ?>
@@ -135,7 +121,7 @@ admin_layout_start('Users', 'users');
                     ?>
                     <tr>
                         <td><?php echo h($fullName); ?></td>
-                        <td><?php echo h($userRow['email']); ?></td>
+                        <td><?php echo admin_table_value($userRow['email'] ?? '', 'email'); ?></td>
                         <td>
                             <form class="d-flex gap-2 align-items-center" method="POST">
                                 <input type="hidden" name="action" value="update_user">

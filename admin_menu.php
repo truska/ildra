@@ -16,6 +16,7 @@ function defaultAdminMenuItems(): array
         ['email', 'Email', 'email.php'],
         ['entry_components', 'Entry Components', 'entry_components.php'],
         ['faqs', 'FAQs', 'faqs.php'],
+        ['help', 'Help', 'help.php'],
         ['memberships', 'Memberships', 'memberships.php'],
         ['members', 'Members', 'members.php'],
         ['people', 'People', 'people.php'],
@@ -44,7 +45,7 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
-    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'menu', 'asset_library'], true)) {
+    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'menu', 'asset_library', 'help'], true)) {
         return ['superadmin', 'admin'];
     }
     return ['superadmin', 'admin', 'organiser'];

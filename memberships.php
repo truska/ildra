@@ -349,7 +349,7 @@ $navItemEventsUrl = $basePath . '/events';
 	                                        <div class="cta-row d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mt-2">
 	                                            <div class="text-muted small">Sign in to buy or renew memberships.</div>
 	                                            <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100">
-	                                                <a class="btn btn-success btn-enter w-100" href="<?php echo h($basePath); ?>/account">Login / Register</a>
+	                                                <a class="btn btn-success btn-enter w-100" href="<?php echo h($basePath); ?>/account">Login / Register<br>Membership</a>
 	                                            </div>
 	                                        </div>
 	                                    <?php endif; ?>

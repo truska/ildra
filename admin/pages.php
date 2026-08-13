@@ -28,28 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pages = fetchPages($pdo);
-
-$sortKey = $_GET['sort'] ?? 'title';
-$sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-$sortFields = [
-    'title' => 'title',
-    'group' => 'nav_group',
-    'slug' => 'slug',
-    'order' => 'display_order',
-    'published' => 'is_published',
+$filterForm = 'page-filter-form';
+$tableColumns = [
+    'title' => ['label' => 'Title', 'field' => 'title', 'sortable' => true, 'filter' => 'text', 'form' => $filterForm],
+    'group' => ['label' => 'Menu Section', 'field' => 'nav_group', 'sortable' => true, 'filter' => 'select', 'options' => NAV_GROUPS, 'form' => $filterForm],
+    'slug' => ['label' => 'Slug', 'field' => 'slug', 'sortable' => true, 'filter' => 'text', 'form' => $filterForm],
+    'order' => ['label' => 'Order', 'field' => 'display_order', 'sortable' => true, 'filter' => 'text', 'compare' => 'number', 'form' => $filterForm],
+    'published' => ['label' => 'Published', 'field' => 'is_published', 'sortable' => true, 'filter' => 'select', 'options' => ['1' => 'Published', '0' => 'Unpublished'], 'compare' => 'number', 'form' => $filterForm],
 ];
-$activeField = $sortFields[$sortKey] ?? 'title';
-usort($pages, function ($a, $b) use ($activeField, $sortDir) {
-    $va = $a[$activeField] ?? '';
-    $vb = $b[$activeField] ?? '';
-    if ($va == $vb) {
-        return 0;
-    }
-    if ($sortDir === 'asc') {
-        return ($va < $vb) ? -1 : 1;
-    }
-    return ($va > $vb) ? -1 : 1;
-});
+$table = admin_table_prepare($pages, $tableColumns, 'title');
+$pages = $table['rows'];
 
 admin_layout_start('Pages', 'pages');
 ?>
@@ -63,18 +51,26 @@ admin_layout_start('Pages', 'pages');
     </div>
 </div>
 
+<form method="get" id="<?php echo h($filterForm); ?>"></form>
 <div class="card-soft p-3">
+    <?php echo admin_table_record_count($table, 'page', 'pages'); ?>
     <div class="table-responsive">
 		<table class="table table-sm align-middle">
 			<thead class="table-light">
 				<tr>
-					<th><?php echo admin_sort_link('title', 'Title', (string)$sortKey, (string)$sortDir); ?></th>
-					<th><?php echo admin_sort_link('group', 'Group', (string)$sortKey, (string)$sortDir); ?></th>
-					<th><?php echo admin_sort_link('slug', 'Slug', (string)$sortKey, (string)$sortDir); ?></th>
-					<th><?php echo admin_sort_link('order', 'Order', (string)$sortKey, (string)$sortDir); ?></th>
-					<th><?php echo admin_sort_link('published', 'Published', (string)$sortKey, (string)$sortDir); ?></th>
-					<th></th>
+					<?php foreach ($tableColumns as $key => $column): ?>
+                        <th><?php echo admin_table_heading($key, $column, $table['sort_key'], $table['sort_dir']); ?></th>
+                    <?php endforeach; ?>
+					<th class="text-end">Actions</th>
 				</tr>
+				<tr class="admin-table-filter-row">
+                    <?php foreach ($tableColumns as $key => $column): ?>
+                        <th><?php echo admin_table_filter($key, $column, $table['filters']); ?></th>
+                    <?php endforeach; ?>
+                    <th class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary" href="pages.php">Clear</a>
+                    </th>
+                </tr>
 			</thead>
             <tbody>
                 <?php foreach ($pages as $page): ?>
@@ -103,6 +99,7 @@ admin_layout_start('Pages', 'pages');
             </tbody>
         </table>
     </div>
+    <?php echo admin_table_pagination($table); ?>
 </div>
 <?php
 admin_layout_end();

@@ -110,41 +110,28 @@ if ($isEditor):
     </form>
 </div>
 <?php else:
-    $filters = [
-        'name' => trim((string)($_GET['name'] ?? '')), 'title' => trim((string)($_GET['title'] ?? '')),
-        'schedule' => trim((string)($_GET['schedule'] ?? '')), 'status' => trim((string)($_GET['status'] ?? '')),
+    $tableColumns = [
+        'order'=>['label'=>'Order','field'=>'display_order','sortable'=>true,'compare'=>'number'],
+        'image'=>['label'=>'Image'],
+        'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name'],
+        'title'=>['label'=>'Title','sortable'=>true,'filter'=>'text','placeholder'=>'Search title'],
+        'target'=>['label'=>'Target','filter'=>'select','options'=>['_self'=>'Same window','_blank'=>'New tab'],'value'=>static fn(array $row):string=>(string)($row['link_target']??'_blank')],
+        'schedule'=>['label'=>'Schedule','filter'=>'text','placeholder'=>'YYYY-MM-DD','value'=>static fn(array $row):string=>trim((string)($row['start_date']??'').' '.(string)($row['finish_date']??''))],
+        'status'=>['label'=>'Status','filter'=>'select','options'=>['visible'=>'Visible','hidden'=>'Hidden','archived'=>'Archived'],'value'=>static fn(array $row):string=>!empty($row['archived'])?'archived':(!empty($row['show_on_web'])?'visible':'hidden')],
+        'modified'=>['label'=>'Modified','field'=>'updated_at','sortable'=>true],
+        'actions'=>['label'=>'Actions'],
     ];
-    $sortKey = (string)($_GET['sort'] ?? 'order');
-    $sortDir = strtolower((string)($_GET['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
-    $items = fetchAdvertising($pdo);
-    $items = array_values(array_filter($items, static function (array $item) use ($filters): bool {
-        $status = !empty($item['archived']) ? 'archived' : (!empty($item['show_on_web']) ? 'visible' : 'hidden');
-        $schedule = trim((string)($item['start_date'] ?? '') . ' ' . (string)($item['finish_date'] ?? ''));
-        return ($filters['name'] === '' || stripos((string)$item['name'], $filters['name']) !== false)
-            && ($filters['title'] === '' || stripos((string)($item['title'] ?? ''), $filters['title']) !== false)
-            && ($filters['schedule'] === '' || stripos($schedule, $filters['schedule']) !== false)
-            && ($filters['status'] === '' || $status === $filters['status']);
-    }));
-    usort($items, static function (array $a, array $b) use ($sortKey, $sortDir): int {
-        $map = ['order' => 'display_order', 'name' => 'name', 'title' => 'title', 'start' => 'start_date', 'finish' => 'finish_date', 'created' => 'created_at', 'modified' => 'updated_at'];
-        $field = $map[$sortKey] ?? 'display_order';
-        $result = $field === 'display_order' ? ((int)$a[$field] <=> (int)$b[$field]) : strcasecmp((string)($a[$field] ?? ''), (string)($b[$field] ?? ''));
-        return $sortDir === 'desc' ? -$result : $result;
-    });
+    $table=admin_table_prepare(fetchAdvertising($pdo),$tableColumns,'order');$items=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div><div class="small text-muted">Manage scheduled promotions shown beside standard pages.</div><h5 class="mb-0">Advertising</h5></div>
     <a class="btn btn-success" href="advertising.php?edit=new">Add New</a>
 </div>
-<div class="card-soft p-3"><form method="get" id="advertising-filter-form"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+<div class="card-soft p-3"><?php echo admin_table_record_count($table,'item','items'); ?><form method="get" id="advertising-filter-form"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
     <thead class="table-light">
-        <tr><th><?php echo admin_sort_link('order', 'Order', $sortKey, $sortDir); ?></th><th>Image</th><th><?php echo admin_sort_link('name', 'Name', $sortKey, $sortDir); ?></th><th><?php echo admin_sort_link('title', 'Title', $sortKey, $sortDir); ?></th><th>Target</th><th>Schedule</th><th>Status</th><th><?php echo admin_sort_link('modified', 'Modified', $sortKey, $sortDir); ?></th><th class="text-end">Actions</th></tr>
+        <tr><?php foreach($tableColumns as$key=>$column): ?><th class="<?php echo $key==='actions'?'text-end':''; ?>"><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?></tr>
         <tr class="admin-table-filter-row">
-            <th></th><th></th><th><input class="form-control form-control-sm" name="name" value="<?php echo h($filters['name']); ?>" placeholder="Search name"></th>
-            <th><input class="form-control form-control-sm" name="title" value="<?php echo h($filters['title']); ?>" placeholder="Search title"></th><th></th>
-            <th><input class="form-control form-control-sm" name="schedule" value="<?php echo h($filters['schedule']); ?>" placeholder="YYYY-MM-DD"></th>
-            <th><select class="form-select form-select-sm" name="status"><option value="">All</option><?php foreach (['visible' => 'Visible', 'hidden' => 'Hidden', 'archived' => 'Archived'] as $value => $label): ?><option value="<?php echo $value; ?>" <?php echo $filters['status'] === $value ? 'selected' : ''; ?>><?php echo $label; ?></option><?php endforeach; ?></select></th>
-            <th></th><th class="text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="advertising.php">Clear</a></th>
+            <?php foreach($tableColumns as$key=>$column): ?><th class="<?php echo $key==='actions'?'text-end':''; ?>"><?php if($key==='actions'): ?><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="advertising.php">Clear</a><?php else: echo admin_table_filter($key,$column,$filters); endif; ?></th><?php endforeach; ?>
         </tr>
     </thead>
     <tbody><?php foreach ($items as $item): ?><tr>
@@ -157,4 +144,5 @@ if ($isEditor):
         <td class="text-end"><div class="d-flex justify-content-end gap-1"><a class="btn btn-sm btn-outline-secondary" href="advertising.php?edit=<?php echo (int)$item['id']; ?>">Edit</a><?php if (empty($item['archived'])): ?><form method="post"><input type="hidden" name="action" value="archive"><input type="hidden" name="id" value="<?php echo (int)$item['id']; ?>"><button class="btn btn-sm btn-outline-warning">Archive</button></form><?php endif; ?><form method="post" onsubmit="return confirm('Permanently delete this advertising item?');"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?php echo (int)$item['id']; ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form></div></td>
     </tr><?php endforeach; ?><?php if (!$items): ?><tr><td colspan="9" class="text-muted">No matching advertising items.</td></tr><?php endif; ?></tbody>
 </table></div></form></div>
+<?php echo admin_table_pagination($table); ?>
 <?php endif; admin_layout_end(); ?>

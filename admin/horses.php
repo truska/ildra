@@ -34,36 +34,20 @@ if ($pdo) {
     $rows = $stmt->fetchAll() ?: [];
 }
 
-$sortKey = $_GET['sort'] ?? 'name';
-$sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-
-$sortFields = [
-    'name' => ['name', 'id'],
-    'dob' => ['dob', 'name', 'id'],
-    'breed' => ['breed', 'name', 'id'],
-    'colour' => ['colour', 'name', 'id'],
-    'owner' => ['owner_email', 'name', 'id'],
-    'status' => ['is_archived', 'name', 'id'],
-    'created' => ['created_at', 'id'],
+$ownerOptions=[];
+foreach($rows as$row){$owner=trim((string)($row['owner_email']??''));if($owner!=='')$ownerOptions[$owner]=$owner;}
+natcasesort($ownerOptions);$ownerOptions=['__none__'=>'No owner']+$ownerOptions;
+$tableColumns = [
+    'name'=>['label'=>'Horse','sortable'=>true,'filter'=>'text','placeholder'=>'Search horse'],
+    'dob'=>['label'=>'DOB','sortable'=>true,'filter'=>'text','placeholder'=>'Search DOB','value'=>static fn(array $r):string=>format_display_date($r['dob']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['dob']??'')],
+    'year_of_birth'=>['label'=>'Year of birth','filter'=>'text','placeholder'=>'Search year'],
+    'breed'=>['label'=>'Breed','sortable'=>true,'filter'=>'text','placeholder'=>'Search breed'],
+    'colour'=>['label'=>'Colour','sortable'=>true,'filter'=>'text','placeholder'=>'Search colour'],
+    'owner'=>['label'=>'Owner (user)','sortable'=>true,'filter'=>'select','options'=>$ownerOptions,'value'=>static fn(array $r):string=>trim((string)($r['owner_email']??''))?:'__none__'],
+    'status'=>['label'=>'Status','sortable'=>true,'filter'=>'select','options'=>['active'=>'Active','archived'=>'Archived'],'value'=>static fn(array $r):string=>!empty($r['is_archived'])?'archived':'active'],
+    'created'=>['label'=>'Created','sortable'=>true,'filter'=>'text','placeholder'=>'Search created','value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['created_at']??'')],
 ];
-$activeFields = $sortFields[$sortKey] ?? $sortFields['name'];
-
-usort($rows, function (array $a, array $b) use ($activeFields, $sortDir): int {
-    foreach ($activeFields as $field) {
-        $va = $a[$field] ?? '';
-        $vb = $b[$field] ?? '';
-        $va = is_string($va) ? mb_strtolower($va) : $va;
-        $vb = is_string($vb) ? mb_strtolower($vb) : $vb;
-        if ($va == $vb) {
-            continue;
-        }
-        if ($sortDir === 'asc') {
-            return ($va < $vb) ? -1 : 1;
-        }
-        return ($va > $vb) ? -1 : 1;
-    }
-    return 0;
-});
+$table=admin_table_prepare($rows,$tableColumns,'name');$rows=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 
 admin_layout_start('Horses', 'horses');
 ?>
@@ -75,20 +59,15 @@ admin_layout_start('Horses', 'horses');
     </div>
 </div>
 
-<div class="card-soft p-3">
+<div class="card-soft p-3"><form method="get">
+    <?php echo admin_table_record_count($table,'horse','horses'); ?>
     <div class="table-responsive">
         <table class="table table-sm align-middle">
             <thead class="table-light">
             <tr>
-                <th><?php echo admin_sort_link('name', 'Horse', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('dob', 'DOB', (string)$sortKey, (string)$sortDir); ?></th>
-                <th>Year of birth</th>
-                <th><?php echo admin_sort_link('breed', 'Breed', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('colour', 'Colour', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('owner', 'Owner (user)', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('status', 'Status', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('created', 'Created', (string)$sortKey, (string)$sortDir); ?></th>
+                <?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?>
             </tr>
+            <tr class="admin-table-filter-row"><?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_filter($key,$column,$filters); ?></th><?php endforeach; ?></tr>
             </thead>
             <tbody>
             <?php foreach ($rows as $row): ?>
@@ -111,7 +90,7 @@ admin_layout_start('Horses', 'horses');
                     <td class="text-muted small"><?php echo h($yob); ?></td>
                     <td class="text-muted small"><?php echo h($breed); ?></td>
                     <td class="text-muted small"><?php echo h($colour); ?></td>
-                    <td class="text-muted small"><?php echo h((string)($row['owner_email'] ?? '—')); ?></td>
+                    <td class="text-muted small"><?php echo admin_table_value($row['owner_email'] ?? '', 'email'); ?></td>
                     <td class="text-muted small"><?php echo h($status); ?></td>
                     <td class="text-muted small"><?php echo h($created); ?></td>
                 </tr>
@@ -122,7 +101,9 @@ admin_layout_start('Horses', 'horses');
             </tbody>
         </table>
     </div>
-</div>
+    <?php echo admin_table_pagination($table); ?>
+    <div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="horses.php">Clear</a></div>
+</form></div>
 
 <?php
 admin_layout_end();

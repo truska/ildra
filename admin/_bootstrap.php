@@ -448,6 +448,25 @@ function admin_layout_end(): void
                 }
             });
         })();
+        (function() {
+            let timer;
+            function submitControl(control) {
+                const form = control.form || (control.getAttribute('form') ? document.getElementById(control.getAttribute('form')) : null);
+                if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
+            }
+            document.querySelectorAll('.admin-table-filter-row select').forEach(select => {
+                select.addEventListener('change', () => submitControl(select));
+            });
+            document.querySelectorAll('.admin-table-filter-row input[type="text"], .admin-table-filter-row input[type="search"]').forEach(input => {
+                input.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    const value = input.value.trim();
+                    if (value.length === 0) return submitControl(input);
+                    if (value.length < 3) return;
+                    timer = setTimeout(() => submitControl(input), 450);
+                });
+            });
+        })();
     </script>
     <?php render_password_reveal_assets(); ?>
 </body>

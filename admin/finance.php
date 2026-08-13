@@ -60,7 +60,25 @@ $allUsers = fetchAllUsersForAdmin($pdo, $alerts);
 $balances = fetch_credit_balances($pdo, 500);
 $sortKey = $_GET['sort'] ?? 'when';
 $sortDir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
-$transactionsDisplayed = fetch_finance_transactions($pdo, 150, (string)$sortKey, strtoupper($sortDir));
+$transactionsDisplayed = fetch_finance_transactions($pdo, 500, (string)$sortKey, strtoupper($sortDir));
+$transactionUserOptions=[];$transactionTypeOptions=[];
+foreach($transactionsDisplayed as$tx){
+    $uid=(string)($tx['user_id']??'');$name=trim((string)($tx['first_name']??'').' '.(string)($tx['last_name']??''));$email=trim((string)($tx['email']??''));
+    if($uid!=='')$transactionUserOptions[$uid]=$name!==''?$name.($email!==''?' ('.$email.')':''):($email?:'User #'.$uid);
+    $type=(string)($tx['type']??'');if($type!=='')$transactionTypeOptions[$type]=ucwords(str_replace('_',' ',$type));
+}
+natcasesort($transactionUserOptions);natcasesort($transactionTypeOptions);
+$transactionFilterForm='transaction-filter-form';
+$transactionColumns=[
+    'when'=>['label'=>'When','sortable'=>true,'filter'=>'text','placeholder'=>'Search when','form'=>$transactionFilterForm,'value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['created_at']??'')],
+    'user'=>['label'=>'User','sortable'=>true,'filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionUserOptions,'value'=>static fn(array $r):string=>(string)($r['user_id']??'')],
+    'type'=>['label'=>'Type','sortable'=>true,'filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionTypeOptions],
+    'amount'=>['label'=>'Amount','sortable'=>true,'filter'=>'text','placeholder'=>'Search amount','form'=>$transactionFilterForm,'compare'=>'number'],
+    'balance'=>['label'=>'Balance after','field'=>'balance_after','sortable'=>true,'filter'=>'text','placeholder'=>'Search balance','form'=>$transactionFilterForm,'compare'=>'number'],
+    'reference'=>['label'=>'Reference','sortable'=>true,'filter'=>'text','placeholder'=>'Search reference','form'=>$transactionFilterForm],
+    'notes'=>['label'=>'Notes','sortable'=>true,'filter'=>'text','placeholder'=>'Search notes','form'=>$transactionFilterForm,'value'=>static function(array $r):string{$notes=(string)($r['notes']??'');$meta=$r['metadata']??[];if(is_array($meta)&&($r['type']??'')==='entry_refund'&&!empty($meta['actor_name']))$notes='Entry refunded and withdrawn by admin ('.(string)$meta['actor_name'].')';return $notes;}],
+];
+$transactionTable=admin_table_prepare($transactionsDisplayed,$transactionColumns,'when','desc');$transactionsDisplayed=$transactionTable['rows'];$transactionFilters=$transactionTable['filters'];$sortKey=$transactionTable['sort_key'];$sortDir=$transactionTable['sort_dir'];
 $events = fetchEvents($pdo, false);
 $eventStats = [];
 $eventRefunds = [];
@@ -426,18 +444,15 @@ admin_layout_start('Finance', 'finance');
             <div class="text-muted small">Checkouts, refunds, and adjustments are logged here.</div>
         </div>
     </div>
+    <form method="get" id="transaction-filter-form" class="mb-2 text-end"><input type="hidden" name="tab" value="transactions"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="finance.php?tab=transactions">Clear</a></form>
+    <?php echo admin_table_record_count($transactionTable,'transaction','transactions'); ?>
     <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th><?php echo admin_sort_link('when', 'When', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('user', 'User', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('type', 'Type', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('amount', 'Amount', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('balance', 'Balance after', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('reference', 'Reference', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('notes', 'Notes', (string)$sortKey, (string)$sortDir); ?></th>
+                    <?php foreach($transactionColumns as$key=>$column): ?><th><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?>
                 </tr>
+                <tr class="admin-table-filter-row"><?php foreach($transactionColumns as$key=>$column): ?><th><?php echo admin_table_filter($key,$column,$transactionFilters); ?></th><?php endforeach; ?></tr>
             </thead>
             <tbody>
                 <?php foreach ($transactionsDisplayed as $tx): ?>
@@ -459,7 +474,7 @@ admin_layout_start('Finance', 'finance');
                         <td class="text-muted small"><?php echo h(format_display_datetime($tx['created_at'] ?? null, '')); ?></td>
                         <td>
                             <div class="fw-semibold"><?php echo h($label); ?></div>
-                            <?php if ($email): ?><div class="text-muted small"><?php echo h($email); ?></div><?php endif; ?>
+                            <?php if ($email): ?><div class="text-muted small"><?php echo admin_table_value($email, 'email'); ?></div><?php endif; ?>
                         </td>
                         <td class="text-capitalize"><?php echo h(str_replace('_', ' ', $tx['type'])); ?></td>
                         <td>
@@ -478,6 +493,7 @@ admin_layout_start('Finance', 'finance');
             </tbody>
         </table>
     </div>
+    <?php echo admin_table_pagination($transactionTable); ?>
 
 <script>
     (() => {

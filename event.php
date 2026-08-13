@@ -768,7 +768,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         <?php if (!$isLoggedIn): ?>
                             <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
                                 <div class="text-muted small mb-0">You’ll need an account so we can attach this entry to you and manage your bookings.</div>
-                                <a class="btn btn-success" href="<?php echo h($basePath); ?>/account">Login / Register</a>
+                                <a class="btn btn-success text-center" href="<?php echo h($basePath); ?>/account">Login / Register<br>Membership</a>
                             </div>
                         <?php elseif (!$classOptions): ?>
                             <div class="text-muted small mb-0">No classes available to book.</div>

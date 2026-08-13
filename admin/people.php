@@ -35,35 +35,17 @@ if ($pdo) {
     $rows = $stmt->fetchAll() ?: [];
 }
 
-$sortKey = $_GET['sort'] ?? 'name';
-$sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-
-$sortFields = [
-    'name' => ['last_name', 'first_name', 'id'],
-    'member_number' => ['member_number', 'last_name', 'first_name', 'id'],
-    'dob' => ['dob', 'last_name', 'first_name', 'id'],
-    'owner' => ['owner_email', 'last_name', 'first_name', 'id'],
-    'created' => ['created_at', 'id'],
-    'status' => ['is_archived', 'last_name', 'first_name', 'id'],
+$tableColumns = [
+    'name'=>['label'=>'Person','sortable'=>true,'filter'=>'text','placeholder'=>'Search person','value'=>static fn(array $r):string=>trim((string)($r['last_name']??'').' '.(string)($r['first_name']??''))],
+    'member_number'=>['label'=>'Member #','sortable'=>true,'filter'=>'text','placeholder'=>'Search #','compare'=>'number'],
+    'dob'=>['label'=>'DOB','sortable'=>true],
+    'email'=>['label'=>'Email','filter'=>'text','placeholder'=>'Search email','data_type'=>'email'],
+    'phone'=>['label'=>'Phone','filter'=>'text','placeholder'=>'Search phone','data_type'=>'phone'],
+    'owner'=>['label'=>'Owner (user)','field'=>'owner_email','sortable'=>true,'filter'=>'text','placeholder'=>'Search user','data_type'=>'email'],
+    'status'=>['label'=>'Status','sortable'=>true,'filter'=>'select','options'=>['active'=>'Active','archived'=>'Archived'],'value'=>static fn(array $r):string=>!empty($r['is_archived'])?'archived':'active'],
+    'created'=>['label'=>'Created','field'=>'created_at','sortable'=>true,'filter'=>'text','placeholder'=>'Search created','value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['created_at']??'')],
 ];
-$activeFields = $sortFields[$sortKey] ?? $sortFields['name'];
-
-usort($rows, function (array $a, array $b) use ($activeFields, $sortDir): int {
-    foreach ($activeFields as $field) {
-        $va = $a[$field] ?? '';
-        $vb = $b[$field] ?? '';
-        $va = is_string($va) ? mb_strtolower($va) : $va;
-        $vb = is_string($vb) ? mb_strtolower($vb) : $vb;
-        if ($va == $vb) {
-            continue;
-        }
-        if ($sortDir === 'asc') {
-            return ($va < $vb) ? -1 : 1;
-        }
-        return ($va > $vb) ? -1 : 1;
-    }
-    return 0;
-});
+$table=admin_table_prepare($rows,$tableColumns,'name');$rows=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 
 admin_layout_start('People', 'people');
 ?>
@@ -75,20 +57,15 @@ admin_layout_start('People', 'people');
     </div>
 </div>
 
-<div class="card-soft p-3">
+<div class="card-soft p-3"><form method="get">
+    <?php echo admin_table_record_count($table,'person','people'); ?>
     <div class="table-responsive">
         <table class="table table-sm align-middle">
             <thead class="table-light">
             <tr>
-                <th><?php echo admin_sort_link('name', 'Person', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('member_number', 'Member #', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('dob', 'DOB', (string)$sortKey, (string)$sortDir); ?></th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th><?php echo admin_sort_link('owner', 'Owner (user)', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('status', 'Status', (string)$sortKey, (string)$sortDir); ?></th>
-                <th><?php echo admin_sort_link('created', 'Created', (string)$sortKey, (string)$sortDir); ?></th>
+                <?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?>
             </tr>
+            <tr class="admin-table-filter-row"><?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_filter($key,$column,$filters); ?></th><?php endforeach; ?></tr>
             </thead>
             <tbody>
             <?php foreach ($rows as $row): ?>
@@ -104,9 +81,9 @@ admin_layout_start('People', 'people');
                     <td class="fw-semibold"><?php echo h($name); ?></td>
                     <td class="text-muted small"><?php echo h($memberNumber); ?></td>
                     <td class="text-muted small"><?php echo h($dob); ?></td>
-                    <td class="text-muted small"><?php echo h((string)($row['email'] ?? '—')); ?></td>
-                    <td class="text-muted small"><?php echo h((string)($row['phone'] ?? '—')); ?></td>
-                    <td class="text-muted small"><?php echo h((string)($row['owner_email'] ?? '—')); ?></td>
+                    <td class="text-muted small"><?php echo admin_table_value($row['email'] ?? '', 'email'); ?></td>
+                    <td class="text-muted small"><?php echo admin_table_value($row['phone'] ?? '', 'phone'); ?></td>
+                    <td class="text-muted small"><?php echo admin_table_value($row['owner_email'] ?? '', 'email'); ?></td>
                     <td class="text-muted small"><?php echo h($status); ?></td>
                     <td class="text-muted small"><?php echo h($created); ?></td>
                 </tr>
@@ -117,7 +94,9 @@ admin_layout_start('People', 'people');
             </tbody>
         </table>
     </div>
-</div>
+    <?php echo admin_table_pagination($table); ?>
+    <div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="people.php">Clear</a></div>
+</form></div>
 
 <?php
 admin_layout_end();
