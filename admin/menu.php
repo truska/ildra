@@ -42,6 +42,7 @@ $editItem = $editId > 0 ? ($itemsById[$editId] ?? null) : ($isCreate ? [
     'id' => 0,
     'label' => '',
     'href' => '',
+    'icon_class' => 'fa-solid fa-circle',
     'parent_id' => null,
     'display_order' => count($items) * 10 + 10,
     'is_active' => 1,
@@ -166,6 +167,11 @@ admin_layout_start('Menu', 'menu');
                             <option value="link" <?php echo $editKind === 'link' ? 'selected' : ''; ?>>Link</option>
                             <option value="section" <?php echo $editKind === 'section' ? 'selected' : ''; ?>>Section heading</option>
                         </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Font Awesome icon</label>
+                        <div class="input-group"><span class="input-group-text"><i class="<?php echo h((string)($editItem['icon_class'] ?? 'fa-solid fa-circle')); ?>"></i></span><input class="form-control" name="icon_class" required value="<?php echo h((string)($editItem['icon_class'] ?? 'fa-solid fa-circle')); ?>" placeholder="fa-solid fa-calendar-days"></div>
+                        <div class="form-text">Use a Font Awesome class. This icon remains visible when the sidebar is collapsed.</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Order</label>
