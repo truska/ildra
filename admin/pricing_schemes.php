@@ -42,23 +42,36 @@ if ($pdo) {
     }
 }
 
-$sortKey = (string)($_GET['sort'] ?? 'name');
-$sortDir = strtolower((string)($_GET['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
-$allowedSort = ['name', 'rows'];
-if (!in_array($sortKey, $allowedSort, true)) {
-    $sortKey = 'name';
-}
-usort($schemes, function (array $a, array $b) use ($sortKey, $sortDir, $rowCounts): int {
-    $dir = $sortDir === 'asc' ? 1 : -1;
-    if ($sortKey === 'rows') {
-        $va = $rowCounts[(int)($a['id'] ?? 0)] ?? 0;
-        $vb = $rowCounts[(int)($b['id'] ?? 0)] ?? 0;
-        return ($va <=> $vb) * $dir;
+$appliesOptions = [];
+foreach ($schemes as &$scheme) {
+    $scheme['_row_count'] = $rowCounts[(int)($scheme['id'] ?? 0)] ?? 0;
+    $scheme['_event_type_ids'] = [];
+    $scheme['_applies_label'] = '';
+    $labels = [];
+    foreach ((array)($scheme['event_types'] ?? []) as $eventType) {
+        $typeId = (int)($eventType['id'] ?? 0);
+        $label = trim((string)($eventType['name'] ?? ''));
+        if ($typeId > 0 && $label !== '') {
+            $scheme['_event_type_ids'][] = $typeId;
+            $appliesOptions[(string)$typeId] = $label;
+            $labels[] = $label;
+        }
     }
-    $va = (string)($a['name'] ?? '');
-    $vb = (string)($b['name'] ?? '');
-    return strcmp($va, $vb) * $dir;
-});
+    $scheme['_applies_label'] = implode(', ', $labels);
+}
+unset($scheme);
+natcasesort($appliesOptions);
+$filterForm = 'pricing-schemes-filter-form';
+$tableColumns = [
+    'name' => ['label'=>'Name', 'field'=>'name', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm],
+    'applies_to' => ['label'=>'Applies to', 'sortable'=>true, 'filter'=>'select', 'options'=>$appliesOptions, 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => (string)($row['_applies_label'] ?? ''),
+        'filter_match'=>static fn(array $row, string $needle): bool => in_array((int)$needle, (array)($row['_event_type_ids'] ?? []), true)],
+    'rows' => ['label'=>'Rows', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => (string)($row['_row_count'] ?? 0)],
+];
+$table = admin_table_prepare($schemes, $tableColumns, 'name');
+$schemes = $table['rows'];
 
 admin_layout_start('Pricing Schemes', 'pricing_schemes');
 ?>
@@ -72,15 +85,19 @@ admin_layout_start('Pricing Schemes', 'pricing_schemes');
     </div>
 </div>
 
+<form method="get" id="<?php echo h($filterForm); ?>"></form>
 <div class="card-soft p-3">
+    <?php echo admin_table_record_count($table, 'pricing scheme', 'pricing schemes'); ?>
     <div class="table-responsive">
-        <table class="table table-sm align-middle">
+        <table class="table table-sm admin-data-table align-middle">
             <thead class="table-light">
             <tr>
-                <th><?php echo admin_sort_link('name', 'Name', $sortKey, $sortDir); ?></th>
-                <th>Applies to</th>
-                <th class="text-end"><?php echo admin_sort_link('rows', 'Rows', $sortKey, $sortDir); ?></th>
+                <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_heading($key, $column, $table['sort_key'], $table['sort_dir']); ?></th><?php endforeach; ?>
                 <th class="text-end"></th>
+            </tr>
+            <tr class="admin-table-filter-row">
+                <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_filter($key, $column, $table['filters']); ?></th><?php endforeach; ?>
+                <th class="text-end"><a class="btn btn-sm btn-outline-secondary" href="pricing_schemes.php">Clear</a></th>
             </tr>
             </thead>
             <tbody>
@@ -106,7 +123,7 @@ admin_layout_start('Pricing Schemes', 'pricing_schemes');
                             <span class="text-muted small">—</span>
                         <?php endif; ?>
                     </td>
-                    <td class="text-end"><?php echo (int)($rowCounts[$sid] ?? 0); ?></td>
+                    <td><?php echo (int)($scheme['_row_count'] ?? 0); ?></td>
                     <td class="text-end">
                         <a class="btn btn-sm btn-outline-success" href="pricing_scheme_edit.php?id=<?php echo $sid; ?>">Edit</a>
                         <?php if ($isAdmin): ?>
@@ -120,11 +137,12 @@ admin_layout_start('Pricing Schemes', 'pricing_schemes');
                 </tr>
             <?php endforeach; ?>
             <?php if (!$schemes): ?>
-                <tr><td colspan="4" class="text-muted">No pricing schemes yet.</td></tr>
+                <tr><td colspan="4" class="text-muted">No pricing schemes match these filters.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
     </div>
+    <?php echo admin_table_pagination($table); ?>
 </div>
 <?php
 admin_layout_end();

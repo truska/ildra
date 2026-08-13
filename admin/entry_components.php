@@ -39,14 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $components = fetchEntryComponents($pdo, null, false);
 
-$sortKey = $_GET['sort'] ?? 'name';
-$sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-$allowedSortKeys = ['name', 'type', 'price', 'allowed'];
-if (!in_array($sortKey, $allowedSortKeys, true)) {
-    $sortKey = 'name';
-}
-
-// Precompute allowed types label text for sorting + display.
+// Precompute allowed types label text for filtering, sorting and display.
 foreach ($components as &$comp) {
     $allowedIds = parseAllowedEventTypeIds($comp['allowed_event_type_ids'] ?? []);
     if (!$allowedIds) {
@@ -65,46 +58,18 @@ foreach ($components as &$comp) {
     $comp['_allowed_label'] = $labels ? implode(', ', $labels) : 'None selected';
 }
 unset($comp);
-
-usort($components, function (array $a, array $b) use ($sortKey, $sortDir): int {
-    $dir = $sortDir === 'asc' ? 1 : -1;
-    if ($sortKey === 'price') {
-        $va = (float)($a['price'] ?? 0);
-        $vb = (float)($b['price'] ?? 0);
-        if ($va === $vb) {
-            return 0;
-        }
-        return ($va < $vb ? -1 : 1) * $dir;
-    }
-    if ($sortKey === 'allowed') {
-        $ca = (int)($a['_allowed_count'] ?? 0);
-        $cb = (int)($b['_allowed_count'] ?? 0);
-        if ($ca !== $cb) {
-            return ($ca < $cb ? -1 : 1) * $dir;
-        }
-        $va = mb_strtolower((string)($a['_allowed_label'] ?? ''));
-        $vb = mb_strtolower((string)($b['_allowed_label'] ?? ''));
-        if ($va === $vb) {
-            return 0;
-        }
-        return ($va < $vb ? -1 : 1) * $dir;
-    }
-    if ($sortKey === 'type') {
-        $va = mb_strtolower((string)($a['type'] ?? ''));
-        $vb = mb_strtolower((string)($b['type'] ?? ''));
-        if ($va === $vb) {
-            return 0;
-        }
-        return ($va < $vb ? -1 : 1) * $dir;
-    }
-    // name
-    $va = mb_strtolower((string)($a['name'] ?? ''));
-    $vb = mb_strtolower((string)($b['name'] ?? ''));
-    if ($va === $vb) {
-        return 0;
-    }
-    return ($va < $vb ? -1 : 1) * $dir;
-});
+$filterForm = 'entry-components-filter-form';
+$tableColumns = [
+    'name' => ['label'=>'Name', 'field'=>'name', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm],
+    'type' => ['label'=>'Type', 'field'=>'type', 'sortable'=>true, 'filter'=>'select', 'options'=>['product'=>'Product / Add-on', 'question'=>'Question / Info'], 'form'=>$filterForm],
+    'price' => ['label'=>'Price', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => number_format((float)($row['price'] ?? 0), 2, '.', ''),
+        'sort_value'=>static fn(array $row): float => (float)($row['price'] ?? 0)],
+    'allowed' => ['label'=>'Allowed types', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => (string)($row['_allowed_label'] ?? 'None selected')],
+];
+$table = admin_table_prepare($components, $tableColumns, 'name');
+$components = $table['rows'];
 
 admin_layout_start('Entry Components', 'entry_components');
 ?>
@@ -124,20 +89,19 @@ admin_layout_start('Entry Components', 'entry_components');
 </div>
 
 <?php if ($isListView): ?>
+    <form method="get" id="<?php echo h($filterForm); ?>"></form>
     <div class="card-soft p-3">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="fw-semibold">Components</div>
-            <span class="badge bg-secondary"><?php echo count($components); ?> total</span>
-        </div>
+        <?php echo admin_table_record_count($table, 'component', 'components'); ?>
         <div class="table-responsive">
-	            <table class="table table-sm align-middle">
+	            <table class="table table-sm admin-data-table align-middle">
 	                <thead>
 	                    <tr>
-	                        <th><?php echo admin_sort_link('name', 'Name', (string)$sortKey, (string)$sortDir); ?></th>
-	                        <th><?php echo admin_sort_link('type', 'Type', (string)$sortKey, (string)$sortDir); ?></th>
-	                        <th><?php echo admin_sort_link('price', 'Price', (string)$sortKey, (string)$sortDir); ?></th>
-	                        <th><?php echo admin_sort_link('allowed', 'Allowed types', (string)$sortKey, (string)$sortDir); ?></th>
+	                        <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_heading($key, $column, $table['sort_key'], $table['sort_dir']); ?></th><?php endforeach; ?>
 	                        <th></th>
+	                    </tr>
+	                    <tr class="admin-table-filter-row">
+	                        <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_filter($key, $column, $table['filters']); ?></th><?php endforeach; ?>
+	                        <th class="text-end"><a class="btn btn-sm btn-outline-secondary" href="entry_components.php">Clear</a></th>
 	                    </tr>
 	                </thead>
 	                <tbody>
@@ -159,9 +123,11 @@ admin_layout_start('Entry Components', 'entry_components');
                             </td>
                         </tr>
                     <?php endforeach; ?>
+                    <?php if (!$components): ?><tr><td colspan="5" class="text-muted">No components match these filters.</td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
+        <?php echo admin_table_pagination($table); ?>
     </div>
 <?php else: ?>
     <style>

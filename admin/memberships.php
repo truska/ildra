@@ -32,62 +32,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $membershipTypes = fetchMembershipTypes($pdo, false);
 
-$sortKey = $_GET['sort'] ?? 'membership_ends';
-$sortDir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
-$allowedSortKeys = ['name', 'sale_starts', 'sale_ends', 'membership_starts', 'membership_ends', 'cost', 'status'];
-$hasExplicitSort = array_key_exists('sort', $_GET) || array_key_exists('dir', $_GET);
-if (!in_array($sortKey, $allowedSortKeys, true)) {
-    $sortKey = 'membership_ends';
+$filterForm = 'membership-types-filter-form';
+$statusOptions = [];
+foreach ($membershipTypes as $membershipType) {
+    $status = trim((string)($membershipType['status'] ?? ''));
+    if ($status !== '') $statusOptions[$status] = ucfirst($status);
 }
-
-if ($hasExplicitSort) {
-    usort($membershipTypes, function (array $a, array $b) use ($sortKey, $sortDir): int {
-        $dir = $sortDir === 'asc' ? 1 : -1;
-        if ($sortKey === 'cost') {
-            $va = (float)($a['cost'] ?? 0);
-            $vb = (float)($b['cost'] ?? 0);
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'status') {
-            $va = mb_strtolower((string)($a['status'] ?? ''));
-            $vb = mb_strtolower((string)($b['status'] ?? ''));
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'name') {
-            $va = mb_strtolower((string)($a['name'] ?? ''));
-            $vb = mb_strtolower((string)($b['name'] ?? ''));
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-
-        // dates: sale_starts, sale_ends, membership_starts, membership_ends
-        $fieldMap = [
-            'sale_starts' => 'sale_starts',
-            'sale_ends' => 'sale_ends',
-            'membership_starts' => 'membership_starts',
-            'membership_ends' => 'membership_ends',
-        ];
-        $field = $fieldMap[$sortKey] ?? $sortKey;
-        $va = (string)($a[$field] ?? '');
-        $vb = (string)($b[$field] ?? '');
-        if ($va === $vb) {
-            return 0;
-        }
-        return ($va < $vb ? -1 : 1) * $dir;
-    });
-} else {
-    // Keep DB default ordering and don't highlight a sort column.
-    $sortKey = '__none__';
-    $sortDir = 'asc';
-}
+natcasesort($statusOptions);
+$tableColumns = [
+    'name' => ['label'=>'Name', 'field'=>'name', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm],
+    'sale_window' => ['label'=>'Sale window', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => format_display_date($row['sale_starts'] ?? null, '') . ' ' . format_display_date($row['sale_ends'] ?? null, ''),
+        'sort_value'=>static fn(array $row): string => (string)($row['sale_starts'] ?? '')],
+    'membership_window' => ['label'=>'Membership window', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => format_display_date($row['membership_starts'] ?? null, '') . ' ' . format_display_date($row['membership_ends'] ?? null, ''),
+        'sort_value'=>static fn(array $row): string => (string)($row['membership_starts'] ?? '')],
+    'cost' => ['label'=>'Cost', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => number_format((float)($row['cost'] ?? 0), 2, '.', ''),
+        'sort_value'=>static fn(array $row): float => (float)($row['cost'] ?? 0)],
+    'status' => ['label'=>'Status', 'field'=>'status', 'sortable'=>true, 'filter'=>'select', 'options'=>$statusOptions, 'form'=>$filterForm],
+];
+$table = admin_table_prepare($membershipTypes, $tableColumns, 'membership_window', 'desc');
+$membershipTypes = $table['rows'];
 
 $editId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $editingType = $editId ? fetchMembershipTypeById($pdo, $editId) : null;
@@ -199,25 +165,6 @@ admin_layout_start('Memberships', 'memberships');
     }
     .status-pill.draft { background: #f1f3f6; border-color: #e1e6ed; color: #485260; }
     .action-menu { display: flex; gap: 0.35rem; justify-content: flex-end; }
-    .btn-ghost {
-        border: 1px solid var(--border-soft);
-        background: #fff;
-        color: #1f4325;
-        padding: 0.35rem 0.7rem;
-        border-radius: 10px;
-        font-weight: 700;
-        font-size: 0.9rem;
-    }
-    .btn-ghost:hover { background: #eaf7ec; color: #17401f; }
-    .btn-danger-soft {
-        background: #fff4f4;
-        border: 1px solid #ffd7d7;
-        color: #b42318;
-        padding: 0.35rem 0.7rem;
-        border-radius: 10px;
-        font-weight: 700;
-    }
-    .btn-danger-soft:hover { background: #ffecec; }
     .drawer { position: sticky; top: 18px; }
     .drawer-shell { display: none; }
     .drawer-shell.is-open { display: block; }
@@ -241,14 +188,6 @@ admin_layout_start('Memberships', 'memberships');
     @keyframes slideIn {
         from { opacity: 0; transform: translateX(12px); }
         to { opacity: 1; transform: translateX(0); }
-    }
-    .btn-secondary-ghost {
-        border: 1px solid var(--border-soft);
-        background: #f7faf7;
-        color: #364036;
-        border-radius: 10px;
-        padding: 0.35rem 0.8rem;
-        font-weight: 700;
     }
     .catalog-card.hidden { display: none; }
 </style>
@@ -275,19 +214,20 @@ admin_layout_start('Memberships', 'memberships');
                 <div class="notes">Hover rows for quick actions. Consistent spacing keeps scanning easy.</div>
             </div>
             <div class="membership-meta">
-                <span class="chip"><?php echo count($membershipTypes); ?> live items</span>
+                <span class="chip"><?php echo (int)$table['pagination']['total']; ?> items</span>
             </div>
         </div>
-        <div class="modern-table">
-            <table class="table align-middle mb-0">
+        <form method="get" id="<?php echo h($filterForm); ?>"></form>
+        <div class="modern-table table-responsive">
+            <table class="table table-sm admin-data-table align-middle mb-0">
                 <thead>
                     <tr>
-                        <th><?php echo admin_sort_link('name', 'Name', (string)$sortKey, (string)$sortDir); ?></th>
-                        <th><?php echo admin_sort_link('sale_starts', 'Sale window', (string)$sortKey, (string)$sortDir); ?></th>
-                        <th><?php echo admin_sort_link('membership_starts', 'Membership window', (string)$sortKey, (string)$sortDir); ?></th>
-                        <th><?php echo admin_sort_link('cost', 'Cost', (string)$sortKey, (string)$sortDir); ?></th>
-                        <th><?php echo admin_sort_link('status', 'Status', (string)$sortKey, (string)$sortDir); ?></th>
+                        <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_heading($key, $column, $table['sort_key'], $table['sort_dir']); ?></th><?php endforeach; ?>
                         <th class="text-end">Actions</th>
+                    </tr>
+                    <tr class="admin-table-filter-row">
+                        <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_filter($key, $column, $table['filters']); ?></th><?php endforeach; ?>
+                        <th class="text-end"><a class="btn btn-sm btn-outline-secondary" href="memberships.php">Clear</a></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -311,7 +251,7 @@ admin_layout_start('Memberships', 'memberships');
                             <td class="text-end">
                                 <div class="action-menu">
                                     <a
-                                        class="btn-ghost js-edit"
+                                        class="btn btn-sm btn-outline-secondary js-edit"
                                         href="memberships.php?id=<?php echo (int)$type['id']; ?>"
                                         data-id="<?php echo (int)$type['id']; ?>"
                                         data-name="<?php echo h($type['name'] ?? ''); ?>"
@@ -328,7 +268,7 @@ admin_layout_start('Memberships', 'memberships');
                                         <form method="POST" class="d-inline" onsubmit="return confirm('Delete this membership type?');">
                                             <input type="hidden" name="action" value="delete_membership_type">
                                             <input type="hidden" name="membership_type_id" value="<?php echo (int)$type['id']; ?>">
-                                            <button class="btn-danger-soft" type="submit">Delete</button>
+                                            <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
                                         </form>
                                     <?php endif; ?>
                                 </div>
@@ -336,11 +276,12 @@ admin_layout_start('Memberships', 'memberships');
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$membershipTypes): ?>
-                        <tr><td colspan="6" class="text-muted">No membership types yet.</td></tr>
+                        <tr><td colspan="6" class="text-muted">No membership types match these filters.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
+        <?php echo admin_table_pagination($table); ?>
     </section>
 
     <aside class="card-soft p-3 drawer drawer-outer drawer-shell <?php echo $panelOpen ? 'is-open' : 'is-hidden'; ?>" id="membership-drawer" data-mode="<?php echo h($panelMode); ?>">
@@ -358,7 +299,7 @@ admin_layout_start('Memberships', 'memberships');
                 <div class="status-pill <?php echo (($formValues['status'] ?? '') === 'draft') ? 'draft' : ''; ?>" data-status-pill>
                     <?php echo ucfirst($formValues['status'] ?? 'Draft'); ?>
                 </div>
-                <button class="btn-secondary-ghost btn-sm" type="button" data-close>Close</button>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-close>Close</button>
             </div>
         </div>
         <form method="POST" class="mt-2" id="membership-form">

@@ -5,188 +5,82 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $memberships = fetchMemberships($pdo);
+$filterForm = 'members-filter-form';
 
-$sortKey = $_GET['sort'] ?? 'status';
-$sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-$allowedSortKeys = ['member', 'email', 'type', 'status', 'starts', 'ends', 'purchased', 'amount'];
-$hasExplicitSort = array_key_exists('sort', $_GET) || array_key_exists('dir', $_GET);
-if (!in_array($sortKey, $allowedSortKeys, true)) {
-    $sortKey = 'status';
+$typeOptions = [];
+$statusOptions = [];
+$periodOptions = [];
+foreach ($memberships as $membership) {
+    $type = trim((string)($membership['membership_name'] ?? ''));
+    if ($type !== '') $typeOptions[$type] = $type;
+    $status = trim((string)($membership['status'] ?? ''));
+    if ($status !== '') $statusOptions[$status] = ucfirst($status);
+    $start = trim((string)($membership['starts_at'] ?? ''));
+    $end = trim((string)($membership['ends_at'] ?? ''));
+    $periodKey = $start . '|' . $end;
+    $periodLabel = format_display_date($start ?: null, 'No start') . ' – ' . format_display_date($end ?: null, 'No end');
+    $periodOptions[$periodKey] = $periodLabel;
 }
+natcasesort($typeOptions);
+natcasesort($statusOptions);
+asort($periodOptions);
 
-if ($hasExplicitSort) {
-    usort($memberships, function (array $a, array $b) use ($sortKey, $sortDir): int {
-        $dir = $sortDir === 'asc' ? 1 : -1;
-        if ($sortKey === 'amount') {
-            $va = (float)($a['amount'] ?? 0);
-            $vb = (float)($b['amount'] ?? 0);
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'member') {
-            $va = trim((string)($a['member_name'] ?? ''));
-            $vb = trim((string)($b['member_name'] ?? ''));
-            if ($va === '') {
-                $va = (string)($a['user_email'] ?? '');
-            }
-            if ($vb === '') {
-                $vb = (string)($b['user_email'] ?? '');
-            }
-            $va = mb_strtolower($va);
-            $vb = mb_strtolower($vb);
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'email') {
-            $va = mb_strtolower((string)($a['user_email'] ?? ''));
-            $vb = mb_strtolower((string)($b['user_email'] ?? ''));
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'type') {
-            $va = mb_strtolower((string)($a['membership_name'] ?? ''));
-            $vb = mb_strtolower((string)($b['membership_name'] ?? ''));
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'status') {
-            $statusOrder = ['active' => 0, 'pending' => 1, 'expired' => 2];
-            $sa = $statusOrder[strtolower((string)($a['status'] ?? ''))] ?? 99;
-            $sb = $statusOrder[strtolower((string)($b['status'] ?? ''))] ?? 99;
-            if ($sa === $sb) {
-                return 0;
-            }
-            return ($sa < $sb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'starts') {
-            $va = (string)($a['starts_at'] ?? '');
-            $vb = (string)($b['starts_at'] ?? '');
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        if ($sortKey === 'ends') {
-            $va = (string)($a['ends_at'] ?? '');
-            $vb = (string)($b['ends_at'] ?? '');
-            if ($va === $vb) {
-                return 0;
-            }
-            return ($va < $vb ? -1 : 1) * $dir;
-        }
-        // purchased
-        $va = (string)($a['purchased_at'] ?? '');
-        $vb = (string)($b['purchased_at'] ?? '');
-        if ($va === $vb) {
-            return 0;
-        }
-        return ($va < $vb ? -1 : 1) * $dir;
-    });
-} else {
-    // Keep the existing default ordering: active → pending → expired, then newest purchased.
-    usort($memberships, function ($a, $b) {
-        $statusOrder = ['active' => 0, 'pending' => 1, 'expired' => 2];
-        $sa = $statusOrder[strtolower($a['status'] ?? '')] ?? 99;
-        $sb = $statusOrder[strtolower($b['status'] ?? '')] ?? 99;
-        if ($sa === $sb) {
-            return strcmp((string)($b['purchased_at'] ?? ''), (string)($a['purchased_at'] ?? ''));
-        }
-        return $sa <=> $sb;
-    });
-    $sortKey = '__none__';
-    $sortDir = 'asc';
-}
+$tableColumns = [
+    'membership_number' => ['label'=>'Membership No.', 'field'=>'member_number', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm],
+    'member' => ['label'=>'Member', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => trim((string)($row['member_name'] ?? ''))],
+    'email' => ['label'=>'Email', 'field'=>'user_email', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm],
+    'type' => ['label'=>'Type', 'field'=>'membership_name', 'sortable'=>true, 'filter'=>'select', 'options'=>$typeOptions, 'form'=>$filterForm],
+    'status' => ['label'=>'Status', 'field'=>'status', 'sortable'=>true, 'filter'=>'select', 'options'=>$statusOptions, 'form'=>$filterForm],
+    'period' => ['label'=>'Period', 'sortable'=>true, 'filter'=>'select', 'options'=>$periodOptions, 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => trim((string)($row['starts_at'] ?? '')) . '|' . trim((string)($row['ends_at'] ?? '')),
+        'sort_value'=>static fn(array $row): string => (string)($row['starts_at'] ?? '')],
+    'purchased' => ['label'=>'Purchased', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => format_display_date($row['purchased_at'] ?? null, ''),
+        'sort_value'=>static fn(array $row): string => (string)($row['purchased_at'] ?? '')],
+    'amount' => ['label'=>'Amount', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => number_format((float)($row['amount'] ?? 0), 2, '.', ''),
+        'sort_value'=>static fn(array $row): float => (float)($row['amount'] ?? 0)],
+];
+$table = admin_table_prepare($memberships, $tableColumns, 'status');
+$memberships = $table['rows'];
 
 admin_layout_start('Members', 'members');
 ?>
-<style>
-    .eyebrow {
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-size: 0.72rem;
-        color: var(--text-muted);
-        font-weight: 700;
-    }
-    .notes { color: var(--text-muted); font-size: 0.9rem; }
-    .modern-table table { width: 100%; border-collapse: separate; border-spacing: 0; }
-    .modern-table thead th {
-        background: #f8faf7;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        font-size: 0.85rem;
-        color: #4c5a4c;
-        border-bottom: 1px solid var(--border-soft);
-    }
-    .modern-table th, .modern-table td { padding: 0.85rem; }
-    .modern-table tbody tr {
-        border-bottom: 1px solid var(--border-soft);
-    }
-    .modern-table tbody tr:hover {
-        background: #f7fbf6;
-    }
-</style>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div><div class="small text-muted">Memberships</div><h5 class="mb-0">Members (active &amp; expired)</h5></div>
+</div>
+<form method="get" id="<?php echo h($filterForm); ?>"></form>
 <section class="card-soft p-3">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <div>
-            <div class="eyebrow">Memberships</div>
-            <h6 class="mb-0 fw-bold">Members (active & expired)</h6>
-            <div class="notes">Structured view with hover affordances and aligned dates.</div>
-        </div>
-    </div>
-    <div class="modern-table">
-	        <table class="table align-middle mb-0">
-	            <thead>
-	                <tr>
-	                    <th><?php echo admin_sort_link('member', 'Member', (string)$sortKey, (string)$sortDir); ?></th>
-	                    <th><?php echo admin_sort_link('email', 'Email', (string)$sortKey, (string)$sortDir); ?></th>
-	                    <th><?php echo admin_sort_link('type', 'Type', (string)$sortKey, (string)$sortDir); ?></th>
-	                    <th><?php echo admin_sort_link('status', 'Status', (string)$sortKey, (string)$sortDir); ?></th>
-	                    <th><?php echo admin_sort_link('starts', 'Period', (string)$sortKey, (string)$sortDir); ?></th>
-	                    <th><?php echo admin_sort_link('purchased', 'Purchased', (string)$sortKey, (string)$sortDir); ?></th>
-	                    <th><?php echo admin_sort_link('amount', 'Amount', (string)$sortKey, (string)$sortDir); ?></th>
-	                </tr>
-	            </thead>
+    <?php echo admin_table_record_count($table, 'membership', 'memberships'); ?>
+    <div class="table-responsive">
+        <table class="table table-sm admin-data-table align-middle mb-0">
+            <thead>
+                <tr>
+                    <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_heading($key, $column, $table['sort_key'], $table['sort_dir']); ?></th><?php endforeach; ?>
+                </tr>
+                <tr class="admin-table-filter-row">
+                    <?php foreach ($tableColumns as $key => $column): ?><th><?php echo admin_table_filter($key, $column, $table['filters']); ?></th><?php endforeach; ?>
+                </tr>
+            </thead>
             <tbody>
-                <?php foreach ($memberships as $m): ?>
+                <?php foreach ($memberships as $membership): ?>
                     <tr>
-                        <td>
-                            <?php
-                            $displayName = trim((string)($m['member_name'] ?? ''));
-                            if ($displayName === '') {
-                                $displayName = '—';
-                            }
-                            echo h($displayName);
-                            $memberNumber = trim((string)($m['member_number'] ?? ''));
-                            if ($memberNumber !== '') {
-                                echo '<div class="text-muted small">' . h($memberNumber) . '</div>';
-                            }
-                            ?>
-                        </td>
-                        <td><?php echo h($m['user_email'] ?? ''); ?></td>
-                        <td><?php echo h($m['membership_name'] ?? ''); ?></td>
-                        <td class="text-capitalize"><?php echo h($m['status'] ?? ''); ?></td>
-                        <td class="text-muted">
-                            <div><?php echo h(format_display_date($m['starts_at'] ?? null, '')); ?></div>
-                            <div><?php echo h(format_display_date($m['ends_at'] ?? null, '')); ?></div>
-                        </td>
-                        <td class="text-muted"><?php echo h(format_display_date($m['purchased_at'] ?? null, '')); ?></td>
-                        <td class="fw-semibold"><?php echo '£' . h(number_format((float)($m['amount'] ?? 0), 2)); ?></td>
+                        <td class="fw-semibold"><?php echo h((string)($membership['member_number'] ?? '—')); ?></td>
+                        <td><?php echo h(trim((string)($membership['member_name'] ?? '')) ?: '—'); ?></td>
+                        <td><?php echo admin_table_value($membership['user_email'] ?? '', 'email'); ?></td>
+                        <td><?php echo h((string)($membership['membership_name'] ?? '')); ?></td>
+                        <td><span class="text-capitalize"><?php echo h((string)($membership['status'] ?? '')); ?></span></td>
+                        <td class="text-muted text-nowrap"><?php echo h(format_display_date($membership['starts_at'] ?? null, '')); ?><br><?php echo h(format_display_date($membership['ends_at'] ?? null, '')); ?></td>
+                        <td class="text-muted text-nowrap"><?php echo h(format_display_date($membership['purchased_at'] ?? null, '')); ?></td>
+                        <td class="fw-semibold text-nowrap">£<?php echo h(number_format((float)($membership['amount'] ?? 0), 2)); ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$memberships): ?>
-                    <tr><td colspan="7" class="text-muted">No memberships yet.</td></tr>
-                <?php endif; ?>
+                <?php if (!$memberships): ?><tr><td colspan="8" class="text-muted">No memberships match these filters.</td></tr><?php endif; ?>
             </tbody>
         </table>
     </div>
+    <div class="d-flex justify-content-end mt-2"><a class="btn btn-sm btn-outline-secondary" href="members.php">Clear filters</a></div>
+    <?php echo admin_table_pagination($table); ?>
 </section>
-<?php
-admin_layout_end();
+<?php admin_layout_end(); ?>

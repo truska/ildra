@@ -61,7 +61,9 @@ function admin_table_prepare(array $rows, array $columns, string $defaultSort, s
             if ($needle === '') continue;
             $column = $columns[$key];
             $value = (string)$valueFor($row, $key, $column);
-            if (($column['filter'] ?? '') === 'select') {
+            if (isset($column['filter_match']) && is_callable($column['filter_match'])) {
+                if (!$column['filter_match']($row, $needle, $value)) return false;
+            } elseif (($column['filter'] ?? '') === 'select') {
                 if ($value !== $needle) return false;
             } elseif (stripos($value, $needle) === false) return false;
         }
