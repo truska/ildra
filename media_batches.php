@@ -26,12 +26,16 @@ function ensureMediaBatchTables(?PDO $pdo): void
         caption TEXT DEFAULT NULL,
         available_sizes VARCHAR(100) DEFAULT NULL,
         display_order INT NOT NULL DEFAULT 100,
+        lightbox_enabled TINYINT(1) NOT NULL DEFAULT 1,
         archived TINYINT(1) NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_media_batch_images (batch_id, archived, display_order),
         CONSTRAINT fk_media_batch_images_batch FOREIGN KEY (batch_id) REFERENCES media_batches(id) ON DELETE CASCADE
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    if (!table_column_exists($pdo, 'media_batch_images', 'lightbox_enabled')) {
+        $pdo->exec("ALTER TABLE media_batch_images ADD COLUMN lightbox_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER display_order");
+    }
 }
 
 function mediaBatchGetOrCreate(?PDO $pdo, string $purpose, string $ownerType, int $ownerId, string $name, string $section): ?array
