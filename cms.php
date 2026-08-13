@@ -5,6 +5,7 @@ require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/bookings_store.php';
 
 const NAV_GROUPS = [
+    'not-on-menu' => 'Not on main menu',
     'home' => 'Home',
     'about-ildra' => 'About ILDRA',
     'about-endurance' => 'About Endurance',
@@ -221,7 +222,7 @@ function defaultPages(): array
         ['id' => 0, 'title' => 'Membership', 'slug' => 'membership', 'nav_group' => 'about-ildra', 'excerpt' => 'Member benefits and how to join.', 'body_html' => 'Members enjoy access to organised rides, training days and discounts with our partners.', 'is_published' => 1, 'display_order' => 2],
         ['id' => 0, 'title' => 'Committees', 'slug' => 'committees', 'nav_group' => 'about-ildra', 'excerpt' => 'Our volunteer leadership.', 'body_html' => 'Regional and discipline committees keep the sport welcoming and safe.', 'is_published' => 1, 'display_order' => 3],
         ['id' => 0, 'title' => 'Rules', 'slug' => 'rules', 'nav_group' => 'about-ildra', 'excerpt' => 'Ride and welfare rules.', 'body_html' => 'We follow Horse Sport Ireland and FEI-aligned rules to protect horses and riders.', 'is_published' => 1, 'display_order' => 4],
-        ['id' => 0, 'title' => 'Policies', 'slug' => 'policies', 'nav_group' => 'about-ildra', 'excerpt' => 'Welfare, safeguarding and sport integrity.', 'body_html' => 'ILDRA follows Horse Sport Ireland guidance on safeguarding, welfare and safe sport.', 'is_published' => 1, 'show_in_footer' => 1, 'display_order' => 5],
+        ['id' => 0, 'title' => 'Policies', 'slug' => 'policies', 'nav_group' => 'not-on-menu', 'excerpt' => 'Welfare, safeguarding and sport integrity.', 'body_html' => 'ILDRA follows Horse Sport Ireland guidance on safeguarding, welfare and safe sport.', 'is_published' => 1, 'show_in_footer' => 1, 'display_order' => 5],
         ['id' => 0, 'title' => 'Awards & Recognition', 'slug' => 'awards', 'nav_group' => 'about-ildra', 'excerpt' => 'Annual awards and milestones.', 'body_html' => 'From Shamrock Awards to the 100 Mile High Club, we celebrate riders and volunteers.', 'is_published' => 1, 'display_order' => 6],
         ['id' => 0, 'title' => 'ILDRA Clothing', 'slug' => 'ildra-clothing', 'nav_group' => 'about-ildra', 'excerpt' => 'Club kit and merchandise.', 'body_html' => 'Order branded clothing and merchandise to represent ILDRA at events.', 'is_published' => 1, 'display_order' => 7],
         ['id' => 0, 'title' => 'What is endurance riding?', 'slug' => 'what-is-endurance', 'nav_group' => 'about-endurance', 'excerpt' => 'How the sport works.', 'body_html' => 'Endurance riding tests horse fitness and rider planning over marked distances with veterinary checks.', 'is_published' => 1, 'display_order' => 1],
@@ -5270,11 +5271,17 @@ function buildNavTree(array $pages): array
 {
     $nav = [];
     foreach (NAV_GROUPS as $key => $label) {
+        if ($key === 'not-on-menu') {
+            continue;
+        }
         $nav[$key] = ['label' => $label, 'pages' => []];
     }
 
     foreach ($pages as $page) {
         $group = $page['nav_group'] ?? 'home';
+        if ($group === 'not-on-menu') {
+            continue;
+        }
         if (!isset($nav[$group])) {
             $nav[$group] = ['label' => ucfirst(str_replace('-', ' ', $group)), 'pages' => []];
         }

@@ -17,6 +17,14 @@ uploads/
 private/
 
 # Runtime-managed public media; retain only the folder skeleton and protection files.
+# Advertising and library assets are created/uploaded on each server and must not
+# be copied through source control.
+filestore/images/advertising/
+filestore/images/library/
+filestore/images/page-images/
+filestore/images/page-elements/
+filestore/files/library/
+
 filestore/images/banners/originals/*
 !filestore/images/banners/originals/.gitkeep
 filestore/images/banners/lg/*

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/table_sort.php';
 
 $roleKey = strtolower((string)($currentUser['role'] ?? ''));
 if (!in_array($roleKey, ['superadmin', 'admin'], true)) {
@@ -60,6 +61,24 @@ foreach ($items as $item) {
     }
 }
 
+$filterForm = 'menu-filter-form';
+$parentOptions = ['0' => 'Top level'];
+foreach ($topLevelItems as $parent) {
+    $parentOptions[(string)(int)$parent['id']] = (string)$parent['label'];
+}
+$tableColumns = [
+    'order' => ['label' => 'Order', 'field' => 'display_order', 'sortable' => true, 'filter' => 'text', 'compare' => 'number', 'form' => $filterForm],
+    'label' => ['label' => 'Label', 'field' => 'label', 'sortable' => true, 'filter' => 'text', 'form' => $filterForm],
+    'parent' => ['label' => 'Parent', 'sortable' => true, 'filter' => 'select', 'options' => $parentOptions, 'form' => $filterForm,
+        'value' => static fn(array $item): string => (string)(int)($item['parent_id'] ?? 0),
+        'sort_value' => static fn(array $item): string => (string)($itemsById[(int)($item['parent_id'] ?? 0)]['label'] ?? 'Top level')],
+    'destination' => ['label' => 'Destination', 'sortable' => true, 'filter' => 'text', 'form' => $filterForm,
+        'value' => static fn(array $item): string => !empty($childCounts[(int)$item['id']]) ? 'Expandable section' : (string)($item['href'] ?? '')],
+    'status' => ['label' => 'Status', 'field' => 'is_active', 'sortable' => true, 'filter' => 'select', 'options' => ['1' => 'Visible', '0' => 'Hidden'], 'compare' => 'number', 'form' => $filterForm],
+];
+$table = admin_table_prepare($items, $tableColumns, 'order');
+$items = $table['rows'];
+
 admin_layout_start('Menu', 'menu');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -70,19 +89,27 @@ admin_layout_start('Menu', 'menu');
     <a class="btn btn-success" href="<?php echo h($adminBase); ?>/menu.php?edit=new">Add menu item</a>
 </div>
 
+<form method="get" id="<?php echo h($filterForm); ?>">
+    <?php if ($editParam !== ''): ?><input type="hidden" name="edit" value="<?php echo h($editParam); ?>"><?php endif; ?>
+</form>
 <div class="row g-3">
     <div class="<?php echo $editItem !== null ? 'col-xl-7' : 'col-12'; ?>">
         <div class="card-soft p-3">
+            <?php echo admin_table_record_count($table, 'menu item', 'menu items'); ?>
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Order</th>
-                            <th>Label</th>
-                            <th>Parent</th>
-                            <th>Destination</th>
-                            <th>Status</th>
+                            <?php foreach ($tableColumns as $key => $column): ?>
+                                <th><?php echo admin_table_heading($key, $column, $table['sort_key'], $table['sort_dir']); ?></th>
+                            <?php endforeach; ?>
                             <th></th>
+                        </tr>
+                        <tr class="admin-table-filter-row">
+                            <?php foreach ($tableColumns as $key => $column): ?>
+                                <th><?php echo admin_table_filter($key, $column, $table['filters']); ?></th>
+                            <?php endforeach; ?>
+                            <th class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/menu.php<?php echo $editParam !== '' ? '?edit=' . rawurlencode($editParam) : ''; ?>">Clear</a></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -104,9 +131,11 @@ admin_layout_start('Menu', 'menu');
                                 <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/menu.php?edit=<?php echo $id; ?>">Edit</a></td>
                             </tr>
                         <?php endforeach; ?>
+                        <?php if (!$items): ?><tr><td colspan="6" class="text-muted">No menu items match these filters.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
+            <?php echo admin_table_pagination($table); ?>
         </div>
     </div>
 
