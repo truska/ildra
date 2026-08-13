@@ -11,13 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $totalSeconds = max(1, ($minutes * 60) + $seconds);
     $rememberDays = max(0, (int)($_POST['remember_me_days'] ?? 30));
     $rememberTtlSeconds = $rememberDays === 0 ? 0 : ($rememberDays * 86400);
-    $manualFilename = trim((string)($_POST['admin_manual_filename'] ?? ''));
+    $manualAssetId = max(0, (int)($_POST['admin_manual_asset_id'] ?? 0));
     $authAppLoginEnabled = !empty($_POST['auth_app_login_enabled']) ? '1' : '0';
 
     $payload = [
         'basket_timeout_seconds' => $totalSeconds,
         'remember_me_ttl_seconds' => $rememberTtlSeconds,
-        'admin_manual_filename' => $manualFilename,
+        'admin_manual_asset_id' => (string)$manualAssetId,
         'auth_app_login_enabled' => $authAppLoginEnabled,
     ];
     if (saveSiteSettings($pdo, $payload, $alerts)) {
@@ -35,7 +35,10 @@ $timeoutMinutes = intdiv($timeoutSeconds, 60);
 $timeoutRemainder = $timeoutSeconds % 60;
 $rememberMeSeconds = (int)($siteSettings['remember_me_ttl_seconds'] ?? (30 * 86400));
 $rememberMeDays = $rememberMeSeconds > 0 ? (int)floor($rememberMeSeconds / 86400) : 0;
-$manualFilename = trim((string)($siteSettings['admin_manual_filename'] ?? ''));
+$manualAssetId = (int)($siteSettings['admin_manual_asset_id'] ?? 0);
+$manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), static function (array $asset): bool {
+    return ($asset['asset_type'] ?? '') === 'pdf' && empty($asset['archived']);
+}));
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 
 admin_layout_start('Settings', 'settings');
@@ -74,10 +77,15 @@ admin_layout_start('Settings', 'settings');
                         </div>
                     </div>
                     <div class="col-12">
-                        <label class="form-label fw-semibold mb-2">Admin manual filename</label>
+                        <label class="form-label fw-semibold mb-2">CMS manual</label>
                         <div class="d-flex flex-wrap align-items-center gap-2">
-                            <input type="text" class="form-control" style="max-width: 320px;" name="admin_manual_filename" value="<?php echo h($manualFilename); ?>" placeholder="e.g. admin_manual.pdf">
-                            <span class="text-muted small">Upload the file to the admin folder and enter the exact filename (with extension).</span>
+                            <select class="form-select" style="max-width: 420px;" name="admin_manual_asset_id">
+                                <option value="0">No manual selected</option>
+                                <?php foreach ($manualDocuments as $manualDocument): ?>
+                                    <option value="<?php echo (int)$manualDocument['id']; ?>" <?php echo $manualAssetId === (int)$manualDocument['id'] ? 'selected' : ''; ?>><?php echo h((string)($manualDocument['title'] ?: $manualDocument['name'])); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span class="text-muted small">PDFs are managed in Document &amp; Image Library.</span>
                         </div>
                     </div>
                     <div class="col-12 d-flex gap-2">

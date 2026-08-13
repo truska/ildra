@@ -32,9 +32,19 @@ $siteBase = rtrim(dirname($adminBase), '/');
 
 $adminNavItems = fetchAdminMenuItems($pdo, true);
 
-$manualFileName = trim((string)($siteSettingsBootstrap['admin_manual_filename'] ?? ''));
-$manualFileName = ltrim($manualFileName, '/');
-$adminManualHref = $manualFileName !== '' ? ($adminBase . '/' . $manualFileName) : null;
+$adminManualHref = null;
+$manualAssetId = (int)($siteSettingsBootstrap['admin_manual_asset_id'] ?? 0);
+if ($manualAssetId > 0) {
+    $manualAsset = fetchAssetLibraryById($pdo, $manualAssetId);
+    if ($manualAsset && ($manualAsset['asset_type'] ?? '') === 'pdf' && empty($manualAsset['archived'])) {
+        $adminManualHref = ($siteBase ?: '') . assetLibraryPublicUrl($manualAsset);
+    }
+}
+// Retain compatibility with installations still using the old admin-folder file.
+if ($adminManualHref === null) {
+    $manualFileName = ltrim(trim((string)($siteSettingsBootstrap['admin_manual_filename'] ?? '')), '/');
+    $adminManualHref = $manualFileName !== '' ? ($adminBase . '/' . $manualFileName) : null;
+}
 
 function admin_active(string $key, string $current): string
 {

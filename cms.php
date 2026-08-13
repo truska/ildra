@@ -91,6 +91,7 @@ function defaultSiteSettings(): array
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days
         'admin_manual_filename' => '',
+        'admin_manual_asset_id' => '0',
         'auth_app_login_enabled' => '0',
     ];
 }
