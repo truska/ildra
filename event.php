@@ -29,7 +29,6 @@ if ($isLoggedIn && $pdo) {
     $stmt->execute([':id' => $notRegisteredHorseId]);
     $notRegisteredHorse = $stmt->fetch();
     if ($notRegisteredHorse) {
-        $notRegisteredHorse['name'] = 'Not Registered';
         $notRegisteredHorse['is_global_placeholder'] = 1;
         $horses[] = $notRegisteredHorse;
     }

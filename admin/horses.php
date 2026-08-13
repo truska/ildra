@@ -13,7 +13,22 @@ if (!$canManageHorses) {
 
 ensureHorsesTables($pdo);
 
+$globalHorseId = 1;
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'save_global_horse') {
+    $globalHorseName = trim((string)($_POST['global_horse_name'] ?? ''));
+    if ($globalHorseName === '') {
+        $alerts[] = ['type'=>'danger', 'message'=>'The system horse label is required.'];
+    } elseif ($pdo) {
+        $stmt = $pdo->prepare('UPDATE horses SET name=:name, is_archived=0, updated_at=NOW() WHERE id=:id');
+        $stmt->execute([':name'=>$globalHorseName, ':id'=>$globalHorseId]);
+        $_SESSION['flash_success'] = 'System horse option updated.';
+        header('Location: horses.php');
+        exit;
+    }
+}
+
 $rows = [];
+$globalHorse = null;
 if ($pdo) {
     $stmt = $pdo->query("
         SELECT
@@ -29,9 +44,13 @@ if ($pdo) {
             u.email AS owner_email
         FROM horses h
         LEFT JOIN users u ON u.id = h.owner_user_id
+        WHERE h.id <> 1
         ORDER BY h.name ASC, h.id ASC
     ");
     $rows = $stmt->fetchAll() ?: [];
+    $stmt = $pdo->prepare('SELECT id,name,is_archived,updated_at FROM horses WHERE id=:id LIMIT 1');
+    $stmt->execute([':id'=>$globalHorseId]);
+    $globalHorse = $stmt->fetch() ?: null;
 }
 
 $ownerOptions=[];
@@ -54,8 +73,8 @@ admin_layout_start('Horses', 'horses');
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <div class="small text-muted">Horses stored per account</div>
-        <h5 class="mb-0">Horses</h5>
+        <div class="small text-muted">Genuine horse records stored per account</div>
+        <h5 class="mb-0">Registered horses</h5>
     </div>
 </div>
 
@@ -104,6 +123,27 @@ admin_layout_start('Horses', 'horses');
     <?php echo admin_table_pagination($table); ?>
     <div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="horses.php">Clear</a></div>
 </form></div>
+
+<div class="card-soft p-3 mt-3">
+    <div class="mb-3">
+        <div class="small text-muted">Entry form fallback</div>
+        <h6 class="mb-1 fw-bold">System entry option</h6>
+        <div class="small text-muted">This is not a registered horse record. It is the global option used when an entrant’s horse is not registered in the system.</div>
+    </div>
+    <?php if ($globalHorse): ?>
+        <form method="post" class="row g-3 align-items-end">
+            <input type="hidden" name="action" value="save_global_horse">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Entry selector label</label>
+                <input class="form-control" name="global_horse_name" required value="<?php echo h((string)$globalHorse['name']); ?>">
+            </div>
+            <div class="col-md-auto"><button class="btn btn-success">Save label</button></div>
+            <div class="col-12 small text-muted">System record ID <?php echo (int)$globalHorse['id']; ?> · always available globally and excluded from registered-horse lists.</div>
+        </form>
+    <?php else: ?>
+        <div class="alert alert-warning mb-0">The system horse record (ID 1) is missing. Event entries requiring the fallback option may not work.</div>
+    <?php endif; ?>
+</div>
 
 <?php
 admin_layout_end();
