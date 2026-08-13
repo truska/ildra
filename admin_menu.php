@@ -4,27 +4,27 @@ declare(strict_types=1);
 function defaultAdminMenuItems(): array
 {
     $rows = [
-        ['dashboard', 'Dashboard', 'index.php'],
-        ['pages', 'Pages', 'pages.php'],
-        ['advertising', 'Advertising', 'advertising.php'],
-        ['asset_library', 'Document & Image Library', 'asset_library.php'],
-        ['events', 'Events', 'events.php'],
-        ['venues', 'Venues', 'venues.php'],
-        ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php'],
-        ['bookings', 'Bookings', 'bookings.php'],
-        ['finance', 'Finance', 'finance.php'],
-        ['email', 'Email', 'email.php'],
-        ['entry_components', 'Entry Components', 'entry_components.php'],
-        ['faqs', 'FAQs', 'faqs.php'],
-        ['help', 'Help', 'help.php'],
-        ['memberships', 'Memberships', 'memberships.php'],
-        ['members', 'Members', 'members.php'],
-        ['people', 'People', 'people.php'],
-        ['horses', 'Horses', 'horses.php'],
-        ['hero', 'Site Hero & Welcome', 'hero.php'],
-        ['users', 'Users', 'users.php'],
-        ['settings', 'Settings', 'settings.php'],
-        ['menu', 'Menu', 'menu.php'],
+        ['dashboard', 'Dashboard', 'index.php', 'fa-solid fa-gauge-high'],
+        ['pages', 'Pages', 'pages.php', 'fa-solid fa-file-lines'],
+        ['advertising', 'Advertising', 'advertising.php', 'fa-solid fa-rectangle-ad'],
+        ['asset_library', 'Document & Image Library', 'asset_library.php', 'fa-solid fa-photo-film'],
+        ['events', 'Events', 'events.php', 'fa-solid fa-calendar-days'],
+        ['venues', 'Venues', 'venues.php', 'fa-solid fa-location-dot'],
+        ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php', 'fa-solid fa-tags'],
+        ['bookings', 'Bookings', 'bookings.php', 'fa-solid fa-ticket'],
+        ['finance', 'Finance', 'finance.php', 'fa-solid fa-sterling-sign'],
+        ['email', 'Email', 'email.php', 'fa-solid fa-envelope'],
+        ['entry_components', 'Entry Components', 'entry_components.php', 'fa-solid fa-puzzle-piece'],
+        ['faqs', 'FAQs', 'faqs.php', 'fa-solid fa-circle-question'],
+        ['help', 'Help', 'help.php', 'fa-solid fa-life-ring'],
+        ['memberships', 'Memberships', 'memberships.php', 'fa-solid fa-id-card'],
+        ['members', 'Members', 'members.php', 'fa-solid fa-user-group'],
+        ['people', 'People', 'people.php', 'fa-solid fa-address-book'],
+        ['horses', 'Horses', 'horses.php', 'fa-solid fa-horse'],
+        ['hero', 'Site Hero & Welcome', 'hero.php', 'fa-solid fa-panorama'],
+        ['users', 'Users', 'users.php', 'fa-solid fa-users-gear'],
+        ['settings', 'Settings', 'settings.php', 'fa-solid fa-gear'],
+        ['menu', 'Menu', 'menu.php', 'fa-solid fa-bars'],
     ];
     $out = [];
     foreach ($rows as $index => $row) {
@@ -33,6 +33,7 @@ function defaultAdminMenuItems(): array
             'menu_key' => $row[0],
             'label' => $row[1],
             'href' => $row[2],
+            'icon_class' => $row[3],
             'parent_id' => null,
             'display_order' => ($index + 1) * 10,
             'is_active' => 1,
@@ -62,6 +63,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
             menu_key VARCHAR(64) NOT NULL UNIQUE,
             label VARCHAR(100) NOT NULL,
             href VARCHAR(255) DEFAULT NULL,
+            icon_class VARCHAR(100) NOT NULL DEFAULT 'fa-solid fa-circle',
             parent_id INT UNSIGNED DEFAULT NULL,
             display_order INT NOT NULL DEFAULT 0,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -72,21 +74,27 @@ function ensureAdminMenuTable(?PDO $pdo): void
             INDEX idx_admin_menu_parent_order (parent_id, display_order)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
+    if (!table_column_exists($pdo, 'admin_menu_items', 'icon_class')) {
+        $pdo->exec("ALTER TABLE admin_menu_items ADD COLUMN icon_class VARCHAR(100) NOT NULL DEFAULT 'fa-solid fa-circle' AFTER href");
+    }
 
     $stmt = $pdo->prepare("
         INSERT IGNORE INTO admin_menu_items
-            (menu_key, label, href, parent_id, display_order, is_active, required_roles, is_system)
+            (menu_key, label, href, icon_class, parent_id, display_order, is_active, required_roles, is_system)
         VALUES
-            (:menu_key, :label, :href, NULL, :display_order, 1, :required_roles, 1)
+            (:menu_key, :label, :href, :icon_class, NULL, :display_order, 1, :required_roles, 1)
     ");
     foreach (defaultAdminMenuItems() as $item) {
         $stmt->execute([
             ':menu_key' => $item['menu_key'],
             ':label' => $item['label'],
             ':href' => $item['href'],
+            ':icon_class' => $item['icon_class'],
             ':display_order' => $item['display_order'],
             ':required_roles' => $item['required_roles'],
         ]);
+        $iconUpdate = $pdo->prepare("UPDATE admin_menu_items SET icon_class=:icon WHERE menu_key=:menu_key AND (icon_class='' OR icon_class='fa-solid fa-circle')");
+        $iconUpdate->execute([':icon'=>$item['icon_class'], ':menu_key'=>$item['menu_key']]);
     }
 }
 
@@ -177,6 +185,7 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     $label = trim((string)($data['label'] ?? ''));
     $kind = (string)($data['kind'] ?? 'link');
     $href = $kind === 'section' ? '' : trim((string)($data['href'] ?? ''));
+    $iconClass = trim((string)($data['icon_class'] ?? 'fa-solid fa-circle'));
     $parentId = max(0, (int)($data['parent_id'] ?? 0));
     $displayOrder = (int)($data['display_order'] ?? 0);
     $isActive = !empty($data['is_active']) ? 1 : 0;
@@ -184,6 +193,9 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
 
     if ($label === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Menu label is required.'];
+    }
+    if (!preg_match('/^fa-(?:solid|regular|brands)(?: fa-[a-z0-9-]+)+$/', $iconClass)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid Font Awesome class, for example fa-solid fa-calendar-days.'];
     }
     if ($kind !== 'section' && ($href === '' || str_contains($href, '://') || str_starts_with($href, '//') || preg_match('/[\x00-\x1F<>"\']/', $href))) {
         $alerts[] = ['type' => 'danger', 'message' => 'Enter a safe internal link such as events.php.'];
@@ -219,13 +231,14 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
             : implode(',', $roles);
         $stmt = $pdo->prepare("
             UPDATE admin_menu_items
-            SET label = :label, href = :href, parent_id = :parent_id,
+            SET label = :label, href = :href, icon_class=:icon_class, parent_id = :parent_id,
                 display_order = :display_order, is_active = :is_active, required_roles = :required_roles
             WHERE id = :id
         ");
         $stmt->execute([
             ':label' => $label,
             ':href' => $href !== '' ? $href : null,
+            ':icon_class' => $iconClass,
             ':parent_id' => $parentId ?: null,
             ':display_order' => $displayOrder,
             ':is_active' => $isActive,
@@ -248,14 +261,15 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     } while ($suffix < 1000);
     $stmt = $pdo->prepare("
         INSERT INTO admin_menu_items
-            (menu_key, label, href, parent_id, display_order, is_active, required_roles, is_system)
+            (menu_key, label, href, icon_class, parent_id, display_order, is_active, required_roles, is_system)
         VALUES
-            (:menu_key, :label, :href, :parent_id, :display_order, :is_active, :required_roles, 0)
+            (:menu_key, :label, :href, :icon_class, :parent_id, :display_order, :is_active, :required_roles, 0)
     ");
     $stmt->execute([
         ':menu_key' => $key,
         ':label' => $label,
         ':href' => $href !== '' ? $href : null,
+        ':icon_class' => $iconClass,
         ':parent_id' => $parentId ?: null,
         ':display_order' => $displayOrder,
         ':is_active' => $isActive,

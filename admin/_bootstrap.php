@@ -88,7 +88,9 @@ function admin_layout_start(string $title, string $activeKey): void
             display: grid;
             grid-template-columns: 260px 1fr;
             min-height: 100vh;
+            transition: grid-template-columns 0.2s ease;
         }
+        body.admin-nav-collapsed .admin-shell { grid-template-columns: 76px 1fr; }
         .admin-mobilebar {
             display: none;
         }
@@ -96,7 +98,12 @@ function admin_layout_start(string $title, string $activeKey): void
             background: var(--nav-bg);
             color: #f1fff0;
             padding: 1.5rem 1rem;
+            overflow-x: hidden;
+            transition: padding 0.2s ease;
         }
+        .admin-sidebar-header { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+        .admin-sidebar-brand { border:0; padding:0; background:none; color:inherit; font:inherit; text-align:left; white-space:nowrap; }
+        .admin-sidebar-collapse { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; flex:0 0 36px; border:1px solid rgba(255,255,255,.16); border-radius:8px; background:rgba(255,255,255,.08); color:#fff; }
         .admin-sidebar .brand {
             font-weight: 800;
             letter-spacing: 0.02em;
@@ -107,7 +114,20 @@ function admin_layout_start(string $title, string $activeKey): void
             border-radius: 10px;
             margin-bottom: 0.35rem;
             font-weight: 600;
+            display:flex;
+            align-items:center;
+            gap:.65rem;
+            white-space:nowrap;
         }
+        .admin-nav-icon { width:1.25rem; flex:0 0 1.25rem; text-align:center; }
+        body.admin-nav-collapsed .admin-sidebar { padding-left:.6rem; padding-right:.6rem; }
+        body.admin-nav-collapsed .admin-sidebar-brand,
+        body.admin-nav-collapsed .admin-sidebar-meta,
+        body.admin-nav-collapsed .admin-nav-label,
+        body.admin-nav-collapsed .admin-nav-section summary::after { display:none; }
+        body.admin-nav-collapsed .admin-sidebar-header { justify-content:center; }
+        body.admin-nav-collapsed .admin-sidebar .nav-link { justify-content:center; padding-left:.65rem; padding-right:.65rem; }
+        body.admin-nav-collapsed .admin-nav-section .admin-nav-children { display:none; }
         .admin-sidebar .nav-link.active {
             background: var(--nav-active);
             color: #fff;
@@ -245,6 +265,15 @@ function admin_layout_start(string $title, string $activeKey): void
 	        .sort-link { display: inline-flex; align-items: center; gap: 0.35rem; }
 	        .sort-arrow { display: inline-block; width: 1ch; text-align: center; color: #888; }
             @media (max-width: 991.98px) {
+                body.admin-nav-collapsed .admin-shell { display:block; }
+                body.admin-nav-collapsed .admin-sidebar { padding:1.5rem 1rem; }
+                body.admin-nav-collapsed .admin-sidebar-brand,
+                body.admin-nav-collapsed .admin-sidebar-meta,
+                body.admin-nav-collapsed .admin-nav-label { display:initial; }
+                body.admin-nav-collapsed .admin-sidebar-header { justify-content:space-between; }
+                body.admin-nav-collapsed .admin-sidebar .nav-link { justify-content:flex-start; padding-left:.5rem; padding-right:.5rem; }
+                body.admin-nav-collapsed .admin-nav-section .admin-nav-children { display:block; }
+                .admin-sidebar-collapse { display:none; }
                 .admin-shell {
                     display: block;
                     min-height: 100vh;
@@ -361,17 +390,16 @@ function admin_layout_start(string $title, string $activeKey): void
         <div class="admin-shell">
         <aside class="admin-sidebar" id="admin-sidebar">
             <div class="admin-sidebar-header">
-                <div class="brand">
-                    ILDRA Admin
-                </div>
+                <button class="brand admin-sidebar-brand" type="button" data-admin-collapse title="Collapse or expand admin menu">ILDRA Admin</button>
+                <button class="admin-sidebar-collapse" type="button" data-admin-collapse aria-label="Collapse admin menu" title="Collapse admin menu"><i class="fa-solid fa-bars"></i></button>
                 <button class="admin-sidebar-close" type="button" aria-label="Close admin menu" data-admin-menu-close>
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            <div class="mb-3 small text-muted">Signed in as<br><?php echo $userEmail; ?> (<?php echo $userRole; ?>)</div>
+            <div class="mb-3 small text-muted admin-sidebar-meta">Signed in as<br><?php echo $userEmail; ?> (<?php echo $userRole; ?>)</div>
             <nav class="nav flex-column">
                 <a class="nav-link mb-2" href="<?php echo h($siteBase); ?>/" target="_blank" rel="noopener">
-                    <i class="fa-solid fa-house me-2" aria-hidden="true"></i>Site home
+                    <i class="fa-solid fa-house admin-nav-icon" aria-hidden="true"></i><span class="admin-nav-label">Site home</span>
                 </a>
                 <?php foreach ($adminNavTree as $item): ?>
                     <?php
@@ -387,26 +415,26 @@ function admin_layout_start(string $title, string $activeKey): void
                     ?>
                     <?php if ($children): ?>
                         <details class="admin-nav-section" <?php echo $sectionActive ? 'open' : ''; ?>>
-                            <summary class="nav-link <?php echo $sectionActive ? 'active' : ''; ?>"><?php echo h((string)($item['label'] ?? 'Section')); ?></summary>
+                            <summary class="nav-link <?php echo $sectionActive ? 'active' : ''; ?>" title="<?php echo h((string)($item['label'] ?? 'Section')); ?>"><i class="<?php echo h((string)($item['icon_class'] ?? 'fa-solid fa-circle')); ?> admin-nav-icon" aria-hidden="true"></i><span class="admin-nav-label"><?php echo h((string)($item['label'] ?? 'Section')); ?></span></summary>
                             <div class="admin-nav-children">
                                 <?php foreach ($children as $child): ?>
                                     <?php $childKey = (string)($child['menu_key'] ?? ''); ?>
-                                    <a class="nav-link <?php echo admin_active($childKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($child, $adminBase)); ?>"><?php echo h((string)($child['label'] ?? '')); ?></a>
+                                    <a class="nav-link <?php echo admin_active($childKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($child, $adminBase)); ?>" title="<?php echo h((string)($child['label'] ?? '')); ?>"><i class="<?php echo h((string)($child['icon_class'] ?? 'fa-solid fa-circle')); ?> admin-nav-icon" aria-hidden="true"></i><span class="admin-nav-label"><?php echo h((string)($child['label'] ?? '')); ?></span></a>
                                 <?php endforeach; ?>
                             </div>
                         </details>
                     <?php else: ?>
-                        <a class="nav-link <?php echo admin_active($itemKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($item, $adminBase)); ?>"><?php echo h((string)($item['label'] ?? '')); ?></a>
+                        <a class="nav-link <?php echo admin_active($itemKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($item, $adminBase)); ?>" title="<?php echo h((string)($item['label'] ?? '')); ?>"><i class="<?php echo h((string)($item['icon_class'] ?? 'fa-solid fa-circle')); ?> admin-nav-icon" aria-hidden="true"></i><span class="admin-nav-label"><?php echo h((string)($item['label'] ?? '')); ?></span></a>
                     <?php endif; ?>
                 <?php endforeach; ?>
-                <a class="nav-link" href="../?logout=1">Logout</a>
+                <a class="nav-link" href="../?logout=1" title="Logout"><i class="fa-solid fa-right-from-bracket admin-nav-icon"></i><span class="admin-nav-label">Logout</span></a>
                 <div class="mt-3 pt-2 border-top border-success border-opacity-25">
                     <?php if ($adminManualHref): ?>
                         <a class="nav-link" href="<?php echo h($adminManualHref); ?>" target="_blank" rel="noopener">
-                            <i class="fa-solid fa-file-pdf me-2"></i>Manual
+                            <i class="fa-solid fa-file-pdf admin-nav-icon"></i><span class="admin-nav-label">Manual</span>
                         </a>
                     <?php else: ?>
-                        <span class="nav-link disabled text-muted"><i class="fa-solid fa-file-pdf me-2"></i>Manual not set</span>
+                        <span class="nav-link disabled text-muted"><i class="fa-solid fa-file-pdf admin-nav-icon"></i><span class="admin-nav-label">Manual not set</span></span>
                     <?php endif; ?>
                 </div>
             </nav>
@@ -436,6 +464,26 @@ function admin_layout_end(): void
             const closeButtons = document.querySelectorAll('[data-admin-menu-close]');
             const sidebar = document.getElementById('admin-sidebar');
             if (!body || !sidebar) return;
+
+            const collapseButtons = document.querySelectorAll('[data-admin-collapse]');
+            const savedCollapsed = window.localStorage.getItem('ildra-admin-nav-collapsed') === '1';
+            if (savedCollapsed && window.innerWidth >= 992) body.classList.add('admin-nav-collapsed');
+            const toggleCollapsed = () => {
+                if (window.innerWidth < 992) return;
+                body.classList.toggle('admin-nav-collapsed');
+                const collapsed = body.classList.contains('admin-nav-collapsed');
+                window.localStorage.setItem('ildra-admin-nav-collapsed', collapsed ? '1' : '0');
+                collapseButtons.forEach(button => button.setAttribute('aria-label', collapsed ? 'Expand admin menu' : 'Collapse admin menu'));
+            };
+            collapseButtons.forEach(button => button.addEventListener('click', toggleCollapsed));
+            sidebar.querySelectorAll('.admin-nav-section summary').forEach(summary => {
+                summary.addEventListener('click', event => {
+                    if (window.innerWidth >= 992 && body.classList.contains('admin-nav-collapsed')) {
+                        event.preventDefault();
+                        toggleCollapsed();
+                    }
+                });
+            });
 
             const openMenu = () => body.classList.add('admin-nav-open');
             const closeMenu = () => body.classList.remove('admin-nav-open');
