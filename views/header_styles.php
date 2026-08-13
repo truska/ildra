@@ -16,6 +16,15 @@
     --site-btn-hover-shadow: 0 10px 24px rgba(15, 93, 45, 0.18);
 }
 
+/* Site-wide links use colour and controls for emphasis, never underlines. */
+a,
+a:hover,
+a:focus,
+a:active,
+a:visited {
+    text-decoration: none !important;
+}
+
 .btn,
 .button1,
 .button2,
@@ -317,6 +326,13 @@
     gap: 12px;
     flex-shrink: 0;
 }
+.guest-help-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+.guest-login-btn { height: auto; min-height: 48px; }
 
 .account-wrapper {
     display: flex;

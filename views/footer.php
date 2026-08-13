@@ -135,7 +135,7 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
                 <?php if ($footerCanViewAdmin): ?>
                     <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> View admin area</a>
                 <?php elseif (!$footerIsLoggedIn): ?>
-                    <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/account">Login / Register</a>
+                    <a class="btn button3 btn-sm fw-bold text-center" href="<?php echo h($footerBasePath); ?>/account">Login / Register<br>Membership</a>
                 <?php endif; ?>
             </div>
         </div>

@@ -12,6 +12,10 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
 ?>
 <div class="nav-actions-panel">
     <div class="nav-actions">
+        <?php
+        $helpContext = (string)($_SERVER['REQUEST_URI'] ?? '/');
+        $helpHref = ($basePath ?: '') . '/help?from=' . rawurlencode($helpContext);
+        ?>
         <?php if ($isLoggedIn): ?>
             <div class="account-wrapper">
                 <div class="dropdown">
@@ -46,8 +50,18 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
                 <span class="basket-count<?php echo $basketCount > 0 ? '' : ' is-empty'; ?>"><?php echo (int)$basketCount; ?></span>
                 <span class="basket-hover-value" role="tooltip">Basket total: <?php echo h(format_price($headerBasketTotal)); ?></span>
             </a>
+            <a class="utility-btn header-icon-btn" href="<?php echo h($helpHref); ?>" target="_blank" rel="noopener" aria-label="Help for this page (opens in a new tab)" title="Help for this page (opens in a new tab)">
+                <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+                <span class="visually-hidden">Help</span>
+            </a>
         <?php else: ?>
-            <a class="utility-btn" href="<?php echo h($basePath); ?>/account">Login / Register</a>
+            <div class="guest-help-actions">
+                <a class="utility-btn guest-login-btn text-center" href="<?php echo h($basePath); ?>/account">Login / Register<br>Membership</a>
+                <a class="utility-btn header-icon-btn" href="<?php echo h($helpHref); ?>" target="_blank" rel="noopener" aria-label="Help for this page (opens in a new tab)" title="Help for this page (opens in a new tab)">
+                    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+                    <span class="visually-hidden">Help</span>
+                </a>
+            </div>
         <?php endif; ?>
     </div>
 </div>

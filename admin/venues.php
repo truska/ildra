@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/table_sort.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 if (!$isAdmin) {
@@ -47,6 +48,15 @@ if ($editId > 0 && $editVenue === null) {
 
 $venues = fetchVenues($pdo);
 $venueCount = count($venues);
+$filterForm='venue-filter-form';
+$tableColumns=[
+    'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name','form'=>$filterForm],
+    'address'=>['label'=>'Address','sortable'=>true,'filter'=>'text','placeholder'=>'Search address','form'=>$filterForm],
+    'postcode'=>['label'=>'Postcode','sortable'=>true,'filter'=>'text','placeholder'=>'Search postcode','form'=>$filterForm,'data_type'=>'postcode_map'],
+    'updated'=>['label'=>'Updated','sortable'=>true,'filter'=>'text','placeholder'=>'Search updated','form'=>$filterForm,'value'=>static fn(array $r):string=>format_display_datetime($r['updated_at']??$r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['updated_at']??$r['created_at']??'')],
+    'actions'=>['label'=>'Actions'],
+];
+$table=admin_table_prepare($venues,$tableColumns,'name');$venues=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 
 admin_layout_start('Venues', 'venues');
 ?>
@@ -67,7 +77,9 @@ admin_layout_start('Venues', 'venues');
 </div>
 
 <?php if ($isListView): ?>
+    <form method="get" id="venue-filter-form" class="mb-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="venues.php">Clear</a></form>
     <div class="card-soft p-3">
+        <?php echo admin_table_record_count($table,'venue','venues'); ?>
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="fw-semibold">Saved venues</div>
             <span class="badge bg-secondary"><?php echo (int)$venueCount; ?> total</span>
@@ -76,19 +88,16 @@ admin_layout_start('Venues', 'venues');
             <table class="table table-sm align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Name</th>
-                        <th>Address</th>
-                        <th>Postcode</th>
-                        <th>Updated</th>
-                        <th class="text-end"></th>
+                        <?php foreach($tableColumns as$key=>$column): ?><th class="<?php echo $key==='actions'?'text-end':''; ?>"><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?>
                     </tr>
+                    <tr class="admin-table-filter-row"><?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_filter($key,$column,$filters); ?></th><?php endforeach; ?></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($venues as $venue): ?>
                         <tr>
                             <td class="fw-semibold"><?php echo h((string)($venue['name'] ?? '')); ?></td>
                             <td class="text-muted small"><?php echo h((string)($venue['address'] ?? '—')); ?></td>
-                            <td class="text-muted small"><?php echo h((string)($venue['postcode'] ?? '—')); ?></td>
+                            <td class="text-muted small"><?php echo admin_table_value($venue['postcode'] ?? '', 'postcode_map'); ?></td>
                             <td class="text-muted small">
                                 <?php echo h(format_display_datetime($venue['updated_at'] ?? $venue['created_at'] ?? '', '—')); ?>
                             </td>
@@ -108,6 +117,7 @@ admin_layout_start('Venues', 'venues');
                 </tbody>
             </table>
         </div>
+        <?php echo admin_table_pagination($table); ?>
     </div>
 <?php else: ?>
     <?php $v = $editVenue ?? []; ?>
