@@ -159,7 +159,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
                 <div class="text-uppercase small text-secondary">Access Portal</div>
-                <h4 class="fw-semibold mb-0">Sign in or create</h4>
+                <h4 class="fw-semibold mb-0">Sign in or Create Account</h4>
             </div>
             <div class="d-flex gap-2">
                 <button class="btn btn-toggle <?php echo $activeTab === 'login' ? 'active' : ''; ?>" data-target="login">Login</button>

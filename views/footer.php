@@ -65,6 +65,9 @@ if (!function_exists('footer_entry_status')) {
 $footerBasePath = isset($basePath) ? (string)$basePath : '';
 $footerSettings = isset($siteSettings) && is_array($siteSettings) ? $siteSettings : defaultSiteSettings();
 $footerPages = isset($pages) && is_array($pages) ? $pages : [];
+$footerPolicyPages = array_values(array_filter($footerPages, static function (array $page): bool {
+    return !empty($page['is_published']) && !empty($page['show_in_footer']);
+}));
 $footerNavTree = isset($navTree) && is_array($navTree) ? $navTree : buildNavTree($footerPages);
 $footerEvents = isset($eventsByDate) && is_array($eventsByDate) ? $eventsByDate : fetchEvents($pdo ?? null, true);
 $footerEvents = array_slice(array_values($footerEvents), 0, 3);
@@ -84,6 +87,16 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
     .site-footer-event:hover .site-footer-event-name { text-decoration: underline; }
     .site-footer-event-date { display: block; color: rgba(255,255,255,0.72); font-size: 0.78rem; }
     .site-footer-bottom { border-top: 1px solid rgba(255,255,255,0.14); }
+    .site-footer-copyright { display: flex; flex-wrap: wrap; align-items: center; }
+    .site-footer-policy-links { display: inline-flex; flex-wrap: wrap; align-items: center; }
+    .site-footer-policy-links::before,
+    .site-footer-policy-links a + a::before { content: '|'; padding: 0 0.65rem; color: rgba(255,255,255,0.55); }
+    @media (max-width: 767.98px) {
+        .site-footer-copyright { display: block; }
+        .site-footer-policy-links { display: flex; margin-top: 0.25rem; }
+        .site-footer-policy-links::before { display: none; }
+        .site-footer-policy-links a:first-child::before { display: none; }
+    }
 </style>
 <footer class="site-footer pt-5 pb-3">
     <div class="container">
@@ -130,7 +143,16 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
         </div>
 
         <div class="site-footer-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-4 pt-3 small">
-            <div><?php echo h((string)($footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></div>
+            <div class="site-footer-copyright">
+                <span><?php echo h((string)($footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></span>
+                <?php if ($footerPolicyPages): ?>
+                    <span class="site-footer-policy-links">
+                        <?php foreach ($footerPolicyPages as $footerPolicyPage): ?>
+                            <a href="<?php echo h(footer_page_url($footerPolicyPage, $footerBasePath)); ?>"><?php echo h((string)$footerPolicyPage['title']); ?></a>
+                        <?php endforeach; ?>
+                    </span>
+                <?php endif; ?>
+            </div>
             <div class="d-flex align-items-center gap-2">
                 <?php if ($footerCanViewAdmin): ?>
                     <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> View admin area</a>

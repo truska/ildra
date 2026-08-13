@@ -36,6 +36,7 @@ $page = $page ?? [
     'button_asset_id' => null,
     'button_target' => '_self',
     'is_published' => 1,
+    'show_in_footer' => 0,
 ];
 
 admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
@@ -77,10 +78,14 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
                 <label class="form-label">Order</label>
                 <input type="number" name="display_order" class="form-control" value="<?php echo h((string)$page['display_order']); ?>">
             </div>
-            <div class="col-md-4 d-flex align-items-end">
+            <div class="col-md-4 d-flex align-items-end gap-4">
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="is_published" id="published" <?php echo ($page['is_published'] ?? 0) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="published">Published</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="show_in_footer" id="show-in-footer" <?php echo ($page['show_in_footer'] ?? 0) ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="show-in-footer">Footer policy link</label>
                 </div>
             </div>
             <div class="col-12">

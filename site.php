@@ -210,17 +210,6 @@ function event_url(array $event): string
             grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
             gap: 2rem;
         }
-        .stat-pill {
-            background: rgba(255,255,255,0.14);
-            color: #fff;
-            border-radius: 8px;
-            padding: 0.3rem 0.7rem;
-            font-weight: 700;
-            display: inline-flex;
-            gap: 0.3rem;
-            align-items: center;
-            font-size: 0.9rem;
-        }
         .subdued { color: rgba(255,255,255,0.8); }
         @media (max-width: 991px) {
             .hero-grid { grid-template-columns: 1fr; }
@@ -241,11 +230,7 @@ function event_url(array $event): string
                 <div>
                     <p class="mb-2 text-uppercase small fw-bold letter-spacing-1"><?php echo h($siteSettings['hero_subtitle']); ?></p>
                     <h1 class="display-4 fw-bold mb-3"><?php echo h($siteSettings['hero_title']); ?></h1>
-                    <p class="lead mb-4 subdued"><?php echo h($siteSettings['hero_tagline']); ?></p>
-                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                        <span class="stat-pill">Recognised by Horse Sport Ireland</span>
-                        <span class="stat-pill">Events: <?php echo h((string)$counts['events']); ?></span>
-                    </div>
+                    <p class="lead mb-3 subdued"><?php echo h($siteSettings['hero_tagline']); ?></p>
                     <div class="d-flex align-items-center gap-3 flex-wrap">
                         <a class="btn button1 btn-lg" href="<?php echo h($siteSettings['hero_cta_url']); ?>"><?php echo h($siteSettings['hero_cta_label']); ?></a>
                         <a class="button2 btn-lg" href="<?php echo h($basePath); ?>/events">View events</a>

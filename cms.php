@@ -221,7 +221,7 @@ function defaultPages(): array
         ['id' => 0, 'title' => 'Membership', 'slug' => 'membership', 'nav_group' => 'about-ildra', 'excerpt' => 'Member benefits and how to join.', 'body_html' => 'Members enjoy access to organised rides, training days and discounts with our partners.', 'is_published' => 1, 'display_order' => 2],
         ['id' => 0, 'title' => 'Committees', 'slug' => 'committees', 'nav_group' => 'about-ildra', 'excerpt' => 'Our volunteer leadership.', 'body_html' => 'Regional and discipline committees keep the sport welcoming and safe.', 'is_published' => 1, 'display_order' => 3],
         ['id' => 0, 'title' => 'Rules', 'slug' => 'rules', 'nav_group' => 'about-ildra', 'excerpt' => 'Ride and welfare rules.', 'body_html' => 'We follow Horse Sport Ireland and FEI-aligned rules to protect horses and riders.', 'is_published' => 1, 'display_order' => 4],
-        ['id' => 0, 'title' => 'Policies', 'slug' => 'policies', 'nav_group' => 'about-ildra', 'excerpt' => 'Welfare, safeguarding and sport integrity.', 'body_html' => 'ILDRA follows Horse Sport Ireland guidance on safeguarding, welfare and safe sport.', 'is_published' => 1, 'display_order' => 5],
+        ['id' => 0, 'title' => 'Policies', 'slug' => 'policies', 'nav_group' => 'about-ildra', 'excerpt' => 'Welfare, safeguarding and sport integrity.', 'body_html' => 'ILDRA follows Horse Sport Ireland guidance on safeguarding, welfare and safe sport.', 'is_published' => 1, 'show_in_footer' => 1, 'display_order' => 5],
         ['id' => 0, 'title' => 'Awards & Recognition', 'slug' => 'awards', 'nav_group' => 'about-ildra', 'excerpt' => 'Annual awards and milestones.', 'body_html' => 'From Shamrock Awards to the 100 Mile High Club, we celebrate riders and volunteers.', 'is_published' => 1, 'display_order' => 6],
         ['id' => 0, 'title' => 'ILDRA Clothing', 'slug' => 'ildra-clothing', 'nav_group' => 'about-ildra', 'excerpt' => 'Club kit and merchandise.', 'body_html' => 'Order branded clothing and merchandise to represent ILDRA at events.', 'is_published' => 1, 'display_order' => 7],
         ['id' => 0, 'title' => 'What is endurance riding?', 'slug' => 'what-is-endurance', 'nav_group' => 'about-endurance', 'excerpt' => 'How the sport works.', 'body_html' => 'Endurance riding tests horse fitness and rider planning over marked distances with veterinary checks.', 'is_published' => 1, 'display_order' => 1],
@@ -244,10 +244,14 @@ function ensurePageButtonColumns(PDO $pdo): void
         'button_url' => "ALTER TABLE pages ADD COLUMN button_url VARCHAR(1000) DEFAULT NULL AFTER button_title",
         'button_asset_id' => "ALTER TABLE pages ADD COLUMN button_asset_id INT UNSIGNED DEFAULT NULL AFTER button_url",
         'button_target' => "ALTER TABLE pages ADD COLUMN button_target VARCHAR(16) NOT NULL DEFAULT '_self' AFTER button_asset_id",
+        'show_in_footer' => "ALTER TABLE pages ADD COLUMN show_in_footer TINYINT(1) NOT NULL DEFAULT 0 AFTER is_published",
     ];
     foreach ($columns as $column => $sql) {
         if (!table_column_exists($pdo, 'pages', $column)) {
             $pdo->exec($sql);
+            if ($column === 'show_in_footer') {
+                $pdo->exec("UPDATE pages SET show_in_footer = 1 WHERE slug = 'policies'");
+            }
         }
     }
 }
@@ -373,6 +377,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
     $excerpt = trim((string)($data['excerpt'] ?? ''));
     $body = trim((string)($data['body_html'] ?? ''));
     $isPublished = isset($data['is_published']) ? 1 : 0;
+    $showInFooter = isset($data['show_in_footer']) ? 1 : 0;
     $displayOrder = (int)($data['display_order'] ?? 0);
     $buttonName = trim((string)($data['button_name'] ?? ''));
     $buttonTitle = trim((string)($data['button_title'] ?? ''));
@@ -443,6 +448,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                     button_asset_id = :button_asset_id,
                     button_target = :button_target,
                     is_published = :is_published,
+                    show_in_footer = :show_in_footer,
                     display_order = :display_order,
                     updated_at = NOW()
                 WHERE id = :id
@@ -459,13 +465,14 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 ':button_asset_id' => $buttonAssetId > 0 ? $buttonAssetId : null,
                 ':button_target' => $buttonTarget,
                 ':is_published' => $isPublished,
+                ':show_in_footer' => $showInFooter,
                 ':display_order' => $displayOrder,
                 ':id' => $pageId,
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO pages (title, slug, nav_group, excerpt, body_html, button_name, button_title, button_url, button_asset_id, button_target, is_published, display_order, created_at, updated_at)
-                VALUES (:title, :slug, :nav_group, :excerpt, :body_html, :button_name, :button_title, :button_url, :button_asset_id, :button_target, :is_published, :display_order, NOW(), NOW())
+                INSERT INTO pages (title, slug, nav_group, excerpt, body_html, button_name, button_title, button_url, button_asset_id, button_target, is_published, show_in_footer, display_order, created_at, updated_at)
+                VALUES (:title, :slug, :nav_group, :excerpt, :body_html, :button_name, :button_title, :button_url, :button_asset_id, :button_target, :is_published, :show_in_footer, :display_order, NOW(), NOW())
             ");
             $stmt->execute([
                 ':title' => $title,
@@ -479,6 +486,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 ':button_asset_id' => $buttonAssetId > 0 ? $buttonAssetId : null,
                 ':button_target' => $buttonTarget,
                 ':is_published' => $isPublished,
+                ':show_in_footer' => $showInFooter,
                 ':display_order' => $displayOrder,
             ]);
         }

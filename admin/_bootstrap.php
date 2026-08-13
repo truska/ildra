@@ -360,6 +360,9 @@ function admin_layout_start(string $title, string $activeKey): void
             </div>
             <div class="mb-3 small text-muted">Signed in as<br><?php echo $userEmail; ?> (<?php echo $userRole; ?>)</div>
             <nav class="nav flex-column">
+                <a class="nav-link mb-2" href="<?php echo h($siteBase); ?>/" target="_blank" rel="noopener">
+                    <i class="fa-solid fa-house me-2" aria-hidden="true"></i>Site home
+                </a>
                 <?php foreach ($adminNavTree as $item): ?>
                     <?php
                     $children = $item['children'] ?? [];
@@ -386,7 +389,6 @@ function admin_layout_start(string $title, string $activeKey): void
                         <a class="nav-link <?php echo admin_active($itemKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($item, $adminBase)); ?>"><?php echo h((string)($item['label'] ?? '')); ?></a>
                     <?php endif; ?>
                 <?php endforeach; ?>
-                <a class="nav-link mt-3" href="<?php echo h($siteBase); ?>/">View site</a>
                 <a class="nav-link" href="../?logout=1">Logout</a>
                 <div class="mt-3 pt-2 border-top border-success border-opacity-25">
                     <?php if ($adminManualHref): ?>
