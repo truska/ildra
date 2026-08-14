@@ -39,7 +39,7 @@ $clearUrl = $path . '?' . http_build_query($query);
     }
     .sql-error-bar a {
         color: #fff;
-        text-decoration: underline;
+        text-decoration: none;
         font-weight: 700;
     }
     .sql-error-list {

@@ -35,6 +35,71 @@ function ensureHelpTables(?PDO $pdo): void
     if (!$globalColumn) {
         $pdo->exec("ALTER TABLE help_articles ADD COLUMN is_global TINYINT(1) NOT NULL DEFAULT 0 AFTER group_id");
     }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS account_intro_modals (
+        view_key VARCHAR(30) PRIMARY KEY,
+        heading VARCHAR(200) NOT NULL,
+        body_html MEDIUMTEXT NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $seed = $pdo->prepare("INSERT IGNORE INTO account_intro_modals (view_key, heading, body_html, is_active) VALUES (:view_key, :heading, :body_html, 1)");
+    $defaults = [
+        'people' => ['Adding People', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Add people here so their details can be selected when completing entries and membership forms.</p>'],
+        'horses' => ['Adding Horses', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Add horses here to manage their details, registrations and logbooks.</p>'],
+        'shares' => ['Managing Shares', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Shares allow approved account holders to select people or horses without changing their private details.</p>'],
+        'security' => ['Account Security', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Use this area to manage your password and additional sign-in security.</p>'],
+    ];
+    foreach ($defaults as $viewKey => [$heading, $bodyHtml]) {
+        $seed->execute([':view_key' => $viewKey, ':heading' => $heading, ':body_html' => $bodyHtml]);
+    }
+}
+
+function fetchAccountIntroModal(?PDO $pdo, string $viewKey, bool $activeOnly = true): ?array
+{
+    if (!$pdo || !in_array($viewKey, ['people', 'horses', 'shares', 'security'], true)) return null;
+    try {
+        ensureHelpTables($pdo);
+        $sql = 'SELECT view_key, heading, body_html, is_active FROM account_intro_modals WHERE view_key = :view_key';
+        if ($activeOnly) $sql .= ' AND is_active = 1';
+        $stmt = $pdo->prepare($sql); $stmt->execute([':view_key' => $viewKey]);
+        return $stmt->fetch() ?: null;
+    } catch (PDOException $e) { return null; }
+}
+
+function fetchAccountIntroModals(?PDO $pdo): array
+{
+    if (!$pdo) return [];
+    try {
+        ensureHelpTables($pdo);
+        $rows = $pdo->query("SELECT view_key, heading, body_html, is_active FROM account_intro_modals ORDER BY FIELD(view_key, 'people', 'horses', 'shares', 'security')")->fetchAll() ?: [];
+        $result = [];
+        foreach ($rows as $row) $result[(string)$row['view_key']] = $row;
+        return $result;
+    } catch (PDOException $e) { return []; }
+}
+
+function saveAccountIntroModals(?PDO $pdo, array $data, array &$alerts): bool
+{
+    if (!$pdo) return false;
+    ensureHelpTables($pdo);
+    $posted = isset($data['intros']) && is_array($data['intros']) ? $data['intros'] : [];
+    try {
+        $stmt = $pdo->prepare("UPDATE account_intro_modals SET heading = :heading, body_html = :body_html, is_active = :active WHERE view_key = :view_key");
+        foreach (['people', 'horses', 'shares', 'security'] as $viewKey) {
+            $row = isset($posted[$viewKey]) && is_array($posted[$viewKey]) ? $posted[$viewKey] : [];
+            $heading = trim((string)($row['heading'] ?? ''));
+            $bodyHtml = trim((string)($row['body_html'] ?? ''));
+            if ($heading === '' || $bodyHtml === '') {
+                $alerts[] = ['type' => 'danger', 'message' => 'Every active account introduction needs a heading and text.'];
+                return false;
+            }
+            $stmt->execute([':heading' => $heading, ':body_html' => $bodyHtml, ':active' => !empty($row['is_active']) ? 1 : 0, ':view_key' => $viewKey]);
+        }
+        return true;
+    } catch (PDOException $e) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not save account introduction modals.'];
+        return false;
+    }
 }
 
 function fetchHelpGroups(?PDO $pdo, bool $activeOnly = true): array

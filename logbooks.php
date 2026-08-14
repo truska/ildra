@@ -23,6 +23,30 @@ $horses = $isLoggedIn ? array_values(array_filter(
 )) : [];
 $logbookTypes = fetchHorseLogbookTypes($pdo, true);
 $preselectedHorseId = max(0, (int)($_GET['horse_id'] ?? 0));
+$preselectedHorse = null;
+foreach ($horses as $horse) {
+    if ((int)($horse['id'] ?? 0) === $preselectedHorseId) {
+        $preselectedHorse = $horse;
+        break;
+    }
+}
+$isHorseRegistrationFlow = $preselectedHorse !== null;
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'register_only') {
+    if (!$isLoggedIn) {
+        $_SESSION['flash_alerts'] = [['type'=>'warning','message'=>'Please login to register a horse.']];
+        header('Location: ' . $basePath . '/account');
+        exit;
+    }
+    $horseId = (int)($_POST['horse_id'] ?? 0);
+    $horse = $horseId > 0 ? fetchHorseForUserById($pdo, (int)$currentUser['id'], $horseId) : null;
+    if ($horse && empty($horse['is_linked'])) {
+        $_SESSION['flash_success'] = 'Horse registered successfully. You can now select it on event entry forms.';
+        header('Location: ' . $basePath . '/account?view=horses');
+        exit;
+    }
+    $alerts[] = ['type'=>'danger','message'=>'The horse registration could not be confirmed.'];
+}
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_logbook') {
     if (!$isLoggedIn) {
@@ -193,14 +217,12 @@ $navItemEventsUrl = $basePath . '/events';
                     <div class="row g-3">
                         <?php foreach ($logbookTypes as $type): ?>
                             <div class="col-12">
-                                <div class="card-soft h-100 p-3">
-                                    <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <div>
+                                <div class="card-soft h-100 p-4">
+                                    <div class="row g-4">
+                                        <div class="col-12 <?php echo $isHorseRegistrationFlow ? 'col-lg-6' : ''; ?>">
                                             <div class="fw-bold"><?php echo h($type['name']); ?></div>
                                             <div class="text-muted small">Valid year: <?php echo h((string)($type['valid_year'] ?? date('Y'))); ?></div>
-                                        </div>
-                                        <div class="chip"><?php echo h(format_price($type['cost'] ?? 0)); ?></div>
-                                    </div>
+                                            <div class="chip my-3"><?php echo h(format_price($type['cost'] ?? 0)); ?></div>
                                     <?php
                                     $description = trim((string)($type['description'] ?? ''));
                                     if ($description !== ''):
@@ -208,6 +230,29 @@ $navItemEventsUrl = $basePath . '/events';
                                         <div class="text-muted small mb-2"><?php echo h($description); ?></div>
                                     <?php endif; ?>
                                     <?php if ($isLoggedIn): ?>
+                                        <?php if ($isHorseRegistrationFlow): ?>
+                                            <div class="mb-3">
+                                                <label class="form-label small mb-1">Horse</label>
+                                                <div class="form-control bg-light fw-semibold"><?php echo h((string)$preselectedHorse['name']); ?></div>
+                                            </div>
+                                            <div class="row g-2">
+                                                <div class="col-6 d-grid">
+                                                    <form method="post" class="d-grid h-100">
+                                                        <input type="hidden" name="action" value="add_logbook">
+                                                        <input type="hidden" name="logbook_type_id" value="<?php echo (int)$type['id']; ?>">
+                                                        <input type="hidden" name="horse_id" value="<?php echo (int)$preselectedHorse['id']; ?>">
+                                                        <button class="btn btn-success">Add Logbook to Basket</button>
+                                                    </form>
+                                                </div>
+                                                <div class="col-6 d-grid">
+                                                    <form method="post" class="d-grid h-100">
+                                                        <input type="hidden" name="action" value="register_only">
+                                                        <input type="hidden" name="horse_id" value="<?php echo (int)$preselectedHorse['id']; ?>">
+                                                        <button class="btn btn-outline-success">Register Only</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        <?php else: ?>
                                         <form method="POST" class="row g-2 align-items-end mb-2">
                                             <input type="hidden" name="action" value="add_logbook">
                                             <input type="hidden" name="logbook_type_id" value="<?php echo (int)$type['id']; ?>">
@@ -224,9 +269,10 @@ $navItemEventsUrl = $basePath . '/events';
                                                 <div class="text-muted small mt-1">One logbook per horse per year.</div>
                                             </div>
                                             <div class="col-12 col-md-auto d-grid">
-                                                <button class="btn btn-success btn-enter">Add logbook</button>
+                                                <button class="btn btn-success btn-enter">Add Logbook to Basket</button>
                                             </div>
                                         </form>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <div class="cta-row d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mt-2">
                                             <div class="text-muted small">Sign in to buy or renew logbooks.</div>
@@ -235,6 +281,17 @@ $navItemEventsUrl = $basePath . '/events';
                                             </div>
                                         </div>
                                     <?php endif; ?>
+                                        </div>
+                                        <?php if ($isHorseRegistrationFlow): ?>
+                                            <div class="col-12 col-lg-6">
+                                                <div class="cta-row h-100">
+                                                    <h2 class="h5 fw-bold">Which option should I choose?</h2>
+                                                    <p><strong>Buy Logbook</strong> if you want to take part in competitive rides or registered VPRs.</p>
+                                                    <p class="mb-0"><strong>Register Only</strong> if you only need the horse available on entry forms. Without a logbook, the horse cannot claim mileage awards or take part in competitive rides.</p>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>

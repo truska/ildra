@@ -73,19 +73,43 @@ $footerEvents = isset($eventsByDate) && is_array($eventsByDate) ? $eventsByDate 
 $footerEvents = array_slice(array_values($footerEvents), 0, 3);
 $footerIsLoggedIn = isset($isLoggedIn) ? (bool)$isLoggedIn : !empty($currentUser);
 $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
+$footerCompanyName = trim((string)($footerSettings['company_name'] ?? ''));
+$footerWebmasterEmail = trim((string)($footerSettings['company_webmaster_email'] ?? ''));
+$footerSocials = fetchCompanySocials($pdo ?? null, true);
+$footerAffiliates = fetchCompanyAffiliates($pdo ?? null, true);
+$footerSocialIcons = [
+    'facebook' => 'fa-brands fa-facebook-f',
+    'instagram' => 'fa-brands fa-instagram',
+    'youtube' => 'fa-brands fa-youtube',
+    'x-twitter' => 'fa-brands fa-x-twitter',
+    'linkedin' => 'fa-brands fa-linkedin-in',
+    'tiktok' => 'fa-brands fa-tiktok',
+    'website' => 'fa-solid fa-link',
+];
 ?>
 <style>
     .site-footer { background: var(--green, #0f5d2d); color: #fff; }
     .site-footer a { color: inherit; }
+    .site-footer a:hover,
+    .site-footer a:focus-visible,
+    .site-footer .btn:hover,
+    .site-footer .btn:focus-visible { color: var(--yellow, #dce705); text-decoration: none; }
     .site-footer-title { color: var(--yellow, #dce705); font-size: 0.82rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
     .site-footer-links { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
     .site-footer-links a { text-decoration: none; }
-    .site-footer-links a:hover { text-decoration: underline; }
     .site-footer-muted { color: rgba(255,255,255,0.72); }
+    .site-footer-contact { display: grid; gap: 0.75rem; }
+    .site-footer-contact-name { max-width: 25rem; line-height: 1.45; }
+    .site-footer-contact-link { display: flex; align-items: flex-start; gap: 0.65rem; width: fit-content; text-decoration: none; overflow-wrap: anywhere; }
+    .site-footer-contact-link i { flex: 0 0 1.1rem; margin-top: 0.15rem; color: var(--yellow, #dce705); text-align: center; }
     .site-footer-events { display: grid; gap: 0.65rem; margin: 0; padding: 0; list-style: none; }
     .site-footer-event { display: inline-block; text-decoration: none; line-height: 1.35; }
-    .site-footer-event:hover .site-footer-event-name { text-decoration: underline; }
     .site-footer-event-date { display: block; color: rgba(255,255,255,0.72); font-size: 0.78rem; }
+    .site-footer-affiliates { display: grid; gap: 1rem; align-items: start; }
+    .site-footer-affiliate { display: block; width: fit-content; padding: 0.45rem; border-radius: 8px; background: rgba(255,255,255,0.94); }
+    .site-footer-affiliate:hover,
+    .site-footer-affiliate:focus-visible { background: var(--yellow, #dce705); }
+    .site-footer-affiliate img { display: block; width: 100%; max-width: 150px; max-height: 90px; object-fit: contain; }
     .site-footer-bottom { border-top: 1px solid rgba(255,255,255,0.14); }
     .site-footer-copyright { display: flex; flex-wrap: wrap; align-items: center; }
     .site-footer-policy-links { display: inline-flex; flex-wrap: wrap; align-items: center; }
@@ -113,16 +137,33 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
                 </ul>
             </div>
 
-            <div class="col-6 col-lg-2">
+            <div class="col-12 col-md-6 col-lg-4">
                 <div class="site-footer-title mb-3">Contact</div>
-                <div class="site-footer-muted small">Contact details coming soon.</div>
+                <div class="site-footer-contact small">
+                    <?php if ($footerCompanyName !== ''): ?><div class="site-footer-contact-name"><?php echo h($footerCompanyName); ?></div><?php endif; ?>
+                    <?php if ($footerWebmasterEmail !== ''): ?><a class="site-footer-contact-link" href="mailto:<?php echo h($footerWebmasterEmail); ?>">
+                        <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+                        <span><?php echo h($footerWebmasterEmail); ?></span>
+                    </a><?php endif; ?>
+                    <?php foreach ($footerSocials as $footerSocial): ?>
+                        <?php
+                        $footerSocialPlatform = strtolower((string)($footerSocial['platform'] ?? 'website'));
+                        $footerSocialLabel = trim((string)($footerSocial['label'] ?? ''));
+                        if ($footerSocialLabel === '') {
+                            $footerSocialLabel = $footerSocialPlatform === 'x-twitter' ? 'X / Twitter' : ucfirst($footerSocialPlatform);
+                        }
+                        $footerSocialIcon = $footerSocialIcons[$footerSocialPlatform] ?? $footerSocialIcons['website'];
+                        ?>
+                        <a class="site-footer-contact-link" href="<?php echo h((string)$footerSocial['url']); ?>" target="_blank" rel="noopener noreferrer" aria-label="<?php echo h($footerSocialLabel); ?>">
+                            <i class="<?php echo h($footerSocialIcon); ?>" aria-hidden="true"></i>
+                            <span><?php echo h($footerSocialLabel); ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
             </div>
 
-            <div class="col-12 col-lg-6">
-                <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
-                    <div class="site-footer-title mb-0">Events</div>
-                    <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
-                </div>
+            <div class="col-12 <?php echo $footerAffiliates ? 'col-md-8 col-lg-4' : 'col-lg-6'; ?>">
+                <div class="site-footer-title mb-3">Events</div>
                 <ul class="site-footer-events">
                     <?php foreach ($footerEvents as $footerEvent): ?>
                         <li>
@@ -134,17 +175,33 @@ $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
                     <?php endforeach; ?>
                     <?php if (!$footerEvents): ?><li class="site-footer-muted small">No upcoming events published.</li><?php endif; ?>
                 </ul>
+                <a class="btn button3 btn-sm fw-bold mt-3" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
             </div>
 
-            <div class="col-12 col-lg-2">
-                <div class="site-footer-title mb-3">Social</div>
-                <div class="site-footer-muted small">Social links coming soon.</div>
-            </div>
+            <?php if ($footerAffiliates): ?>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <div class="site-footer-title mb-3">Partners</div>
+                    <div class="site-footer-affiliates">
+                        <?php foreach ($footerAffiliates as $footerAffiliate): ?>
+                            <?php
+                            $footerAffiliateName = trim((string)($footerAffiliate['name'] ?? 'Affiliate'));
+                            $footerAffiliateAsset = fetchAssetLibraryById($pdo ?? null, (int)($footerAffiliate['asset_id'] ?? 0));
+                            $footerAffiliateLogo = $footerAffiliateAsset && ($footerAffiliateAsset['asset_type'] ?? '') === 'image' && empty($footerAffiliateAsset['archived'])
+                                ? assetLibraryPublicUrl($footerAffiliateAsset, 'sm')
+                                : '/filestore/images/affiliate-placeholder.svg';
+                            ?>
+                            <a class="site-footer-affiliate" href="<?php echo h((string)$footerAffiliate['website_url']); ?>" target="_blank" rel="noopener noreferrer" aria-label="Visit <?php echo h($footerAffiliateName); ?>">
+                                <img src="<?php echo h($footerAffiliateLogo); ?>" alt="<?php echo h($footerAffiliateName); ?>" loading="lazy">
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
 
         <div class="site-footer-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-4 pt-3 small">
             <div class="site-footer-copyright">
-                <span><?php echo h((string)($footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></span>
+                <span><?php echo h((string)($footerSettings['company_short_name'] ?? $footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></span>
                 <?php if ($footerPolicyPages): ?>
                     <span class="site-footer-policy-links">
                         <?php foreach ($footerPolicyPages as $footerPolicyPage): ?>

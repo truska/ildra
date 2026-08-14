@@ -49,6 +49,14 @@ $userId = (int)($currentUser['id'] ?? 0);
 $authAppStatus = $isLoggedIn ? currentUserAuthAppStatus($pdo, $userId) : ['enabled' => false, 'confirmed_at' => null];
 $authAppSetup = $isLoggedIn ? pendingAuthAppSetup($currentUser ?: [], $siteSettings) : null;
 $accountView = (string)($_GET['view'] ?? '');
+$accountSectionLabels = [
+    'people' => 'People Management',
+    'horses' => 'Horse Management',
+    'shares' => 'Share Management',
+    'security' => 'Security Management',
+];
+$isAccountManagementView = isset($accountSectionLabels[$accountView]);
+$accountSectionTitle = $accountSectionLabels[$accountView] ?? 'Account Overview';
 $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
 $basket = $_SESSION['basket'] ?? [];
 $basketCount = count($basket);
@@ -322,17 +330,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
         } elseif ($action === 'save_horse') {
             $horseId = (int)($_POST['horse_id'] ?? 0);
-            $logbookChoice = (string)($_POST['buy_logbook_after_save'] ?? '');
-            $hasLogbookChoice = $horseId > 0 || in_array($logbookChoice, ['0', '1'], true);
-            if (!$hasLogbookChoice) {
-                $alerts[] = ['type' => 'danger', 'message' => 'Please choose whether you want a logbook for this horse.'];
-            }
-            $savedId = $hasLogbookChoice ? saveHorseForUser($pdo, $userId, $_POST, $alerts, $horseId > 0 ? $horseId : null) : null;
+            $savedId = saveHorseForUser($pdo, $userId, $_POST, $alerts, $horseId > 0 ? $horseId : null);
             if ($savedId && !$alerts) {
-                $_SESSION['flash_success'] = $horseId > 0 ? 'Horse updated.' : 'Horse added.';
-                if ($horseId <= 0 && $logbookChoice === '1') {
+                if ($horseId <= 0) {
                     header('Location: ' . $basePath . '/logbooks?horse_id=' . (int)$savedId . '#available-logbooks');
                 } else {
+                    $_SESSION['flash_success'] = 'Horse updated.';
                     header('Location: ' . $basePath . '/account?view=horses');
                 }
                 exit;
@@ -400,6 +403,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 }
 
 $isLoggedIn = !empty($currentUser);
+$accountIntroModal = $isLoggedIn && $isAccountManagementView ? fetchAccountIntroModal($pdo, $accountView) : null;
+$accountIntroAutoOpen = false;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -645,36 +650,55 @@ $isLoggedIn = !empty($currentUser);
 	            <?php if ($isLoggedIn): ?>
 	                <div class="row g-4">
 	                    <div class="col-12">
-	                        <div class="card-soft p-4">
+	                        <div class="card-soft <?php echo $isAccountManagementView ? 'p-3' : 'p-4'; ?>">
+	                            <?php if ($isAccountManagementView): ?>
+	                                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-2">
+	                                    <div class="d-flex align-items-center gap-2">
+	                                        <h2 class="h4 fw-bold mb-0"><?php echo h($accountSectionTitle); ?></h2>
+                                        </div>
+	                                    <div class="d-flex flex-wrap gap-2 align-items-center">
+	                                        <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/account">Account</a>
+	                                        <a class="btn btn-sm <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
+	                                        <a class="btn btn-sm <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
+	                                        <a class="btn btn-sm <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
+	                                        <a class="btn btn-sm <?php echo $accountView === 'security' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=security">Security</a>
+	                                        <?php if ($canViewAdmin): ?><a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a><?php endif; ?>
+	                                        <a class="btn btn-sm btn-outline-danger" href="<?php echo h($basePath); ?>/account?logout=1">Logout</a>
+	                                    </div>
+	                                </div>
+	                            <?php endif; ?>
 	                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
 	                                <div class="d-flex flex-wrap align-items-center gap-3">
 	                                    <div>
 	                                    <div class="text-uppercase small text-muted">Signed in as</div>
-	                                    <h3 class="fw-bold mb-1"><?php echo h($accountName); ?></h3>
-	                                    <div class="text-muted small"><?php echo h($currentUser['email'] ?? ''); ?></div>
-	                                    <?php if ($activeMembershipCount === 0): ?>
-	                                        <div class="small fw-semibold mt-2" style="color:#765b18;">Currently you are not a member</div>
-	                                    <?php endif; ?>
+	                                    <div class="fw-bold <?php echo $isAccountManagementView ? 'h5 mb-0' : 'h3 mb-1'; ?>"><?php echo h($accountName); ?></div>
+	                                    <?php if (!$isAccountManagementView): ?><div class="text-muted small"><?php echo h($currentUser['email'] ?? ''); ?></div><?php endif; ?>
 	                                    </div>
 	                                    <?php if ($loggedInMembershipNumber !== ''): ?>
 	                                        <div class="border rounded-3 px-3 py-2 bg-light text-center" style="min-width:135px;">
 	                                            <div class="text-uppercase text-muted" style="font-size:.68rem;line-height:1.1;">Membership Number</div>
 	                                            <div class="fw-bold fs-4 lh-sm mt-1"><?php echo h($loggedInMembershipNumber); ?></div>
 	                                        </div>
+	                                    <?php else: ?>
+	                                        <div class="border border-warning rounded-3 px-3 py-2 bg-warning-subtle text-center" style="min-width:135px;">
+	                                            <div class="text-uppercase text-muted" style="font-size:.68rem;line-height:1.1;">Membership</div>
+	                                            <div class="fw-bold lh-sm mt-1">NOT A MEMBER</div>
+	                                        </div>
 	                                    <?php endif; ?>
 	                                </div>
-	                                <div class="d-flex flex-wrap gap-2 align-items-center">
-	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=people">People</a>
-	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
-	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
-	                                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=security">Security</a>
+	                                <?php if (!$isAccountManagementView): ?><div class="d-flex flex-wrap gap-2 align-items-center">
+	                                    <a class="btn <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
+	                                    <a class="btn <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
+	                                    <a class="btn <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
+	                                    <a class="btn <?php echo $accountView === 'security' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=security">Security</a>
 	                                    <?php if ($canViewAdmin): ?>
 	                                        <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a>
 	                                    <?php endif; ?>
 	                                    <a class="btn btn-outline-danger" href="<?php echo h($basePath); ?>/account?logout=1">Logout</a>
-	                                </div>
+	                                </div><?php endif; ?>
 	                            </div>
 
+	                            <?php if (!$isAccountManagementView): ?>
 	                            <div class="divider"></div>
 
 	                            <div class="d-flex flex-wrap gap-2">
@@ -695,6 +719,7 @@ $isLoggedIn = !empty($currentUser);
 		                                    <div class="small text-uppercase">Credit balance</div>
 		                                </div>
 		                            </div>
+	                            <?php endif; ?>
 		                        </div>
 
                                 <?php if ($incomingShareRequests): ?>
@@ -754,7 +779,10 @@ $isLoggedIn = !empty($currentUser);
                                             <h4 class="fw-bold mb-1">Authenticator app</h4>
                                             <div class="text-muted small">Use a 6-digit code from an authentication app as a sign-in option.</div>
                                         </div>
-                                        <span class="badge-role"><?php echo !empty($authAppStatus['enabled']) ? 'Enabled' : 'Not set up'; ?></span>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
+                                            <span class="badge-role"><?php echo !empty($authAppStatus['enabled']) ? 'Enabled' : 'Not set up'; ?></span>
+                                        </div>
                                     </div>
                                     <?php if (empty($siteSettings['auth_app_login_enabled']) || (string)$siteSettings['auth_app_login_enabled'] === '0'): ?>
                                         <div class="alert alert-warning mb-3">Authenticator app login is currently disabled at site level. Users can set it up, but it will not appear as a login option until the site setting is enabled.</div>
@@ -811,6 +839,7 @@ $isLoggedIn = !empty($currentUser);
                                 if ($editPerson && !empty($editPerson['is_linked'])) {
                                     $editPerson = null;
                                 }
+                                $accountIntroAutoOpen = !$activePeople && !$editPerson && !(($action ?? '') === 'save_person' && !empty($alerts));
                                 ?>
 
 	                                <div class="card-soft p-4 mt-4">
@@ -819,7 +848,10 @@ $isLoggedIn = !empty($currentUser);
 	                                            <div class="fw-bold">Your people</div>
 	                                            <div class="text-muted small"><?php echo count($activePeople); ?> active<?php echo $archivedPeople ? ' · ' . count($archivedPeople) . ' archived' : ''; ?></div>
 	                                        </div>
-	                                        <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#personEditorModal">Add person</button>
+	                                        <div class="d-flex gap-2">
+                                                <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
+	                                            <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#personEditorModal">Add person</button>
+                                            </div>
 	                                    </div>
                                     <div class="table-responsive">
                                         <table class="table table-sm align-middle">
@@ -1001,11 +1033,14 @@ $isLoggedIn = !empty($currentUser);
                                             <h4 class="fw-bold mb-1">Share for entries</h4>
                                             <div class="text-muted small">Share a rider or horse as select-only for event entries.</div>
                                         </div>
+                                        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-start">
+                                        <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
                                         <form method="post" class="d-flex flex-column flex-sm-row gap-2">
                                             <input type="hidden" name="action" value="accept_share_code">
                                             <input class="form-control" name="share_code" placeholder="Share code" style="min-width: 180px;">
                                             <button class="btn btn-outline-success fw-bold" type="submit">Accept code</button>
                                         </form>
+                                        </div>
                                     </div>
                                     <div class="divider"></div>
                                     <div class="row g-4">
@@ -1179,6 +1214,7 @@ $isLoggedIn = !empty($currentUser);
                                 if ($editHorse && !empty($editHorse['is_linked'])) {
                                     $editHorse = null;
                                 }
+                                $accountIntroAutoOpen = !$activeHorses && !$editHorse && !(($action ?? '') === 'save_horse' && !empty($alerts));
                                 $horseQualifications = fetchHorseQualifications($pdo);
                                 $horseQualificationLookup = [];
                                 foreach ($horseQualifications as $hq) {
@@ -1198,6 +1234,17 @@ $isLoggedIn = !empty($currentUser);
                                         $horseRegisteredYear[$registeredHorseId] = $registeredYear;
                                     }
                                 }
+                                $currentLogbookYear = (int)date('Y');
+                                $renewalLogbookYear = (int)date('n') === 12 ? $currentLogbookYear + 1 : $currentLogbookYear;
+                                $horseLogbookStatus = static function (int $latestYear) use ($renewalLogbookYear): array {
+                                    if ($latestYear <= 0) {
+                                        return ['class'=>'text-danger', 'icon'=>'fa-solid fa-circle-xmark', 'label'=>'No logbook', 'title'=>'No logbook has been purchased'];
+                                    }
+                                    if ($latestYear < $renewalLogbookYear) {
+                                        return ['class'=>'text-warning', 'icon'=>'fa-solid fa-triangle-exclamation', 'label'=>'Renewal due', 'title'=>'Logbook renewal is due for ' . $renewalLogbookYear];
+                                    }
+                                    return ['class'=>'text-success', 'icon'=>'fa-solid fa-circle-check', 'label'=>'Valid', 'title'=>'Logbook valid for ' . $latestYear];
+                                };
                                 ?>
 
 	                                <div class="card-soft p-4 mt-4">
@@ -1206,7 +1253,10 @@ $isLoggedIn = !empty($currentUser);
 	                                            <div class="fw-bold">Your horses</div>
 	                                            <div class="text-muted small"><?php echo count($activeHorses); ?> active<?php echo $archivedHorses ? ' · ' . count($archivedHorses) . ' archived' : ''; ?></div>
 	                                        </div>
-	                                        <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#horseEditorModal">Add horse</button>
+	                                        <div class="d-flex gap-2">
+                                                <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
+	                                            <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#horseEditorModal">Add Horse Registration / Logbook</button>
+                                            </div>
 	                                    </div>
                                     <div class="table-responsive">
                                         <table class="table table-sm align-middle">
@@ -1218,7 +1268,7 @@ $isLoggedIn = !empty($currentUser);
                                                     <th>Colour</th>
                                                     <th>Qualification</th>
                                                     <th>Sex</th>
-                                                    <th>Registered for</th>
+                                                    <th>Logbook</th>
                                                     <th class="text-end">Actions</th>
                                                 </tr>
                                             </thead>
@@ -1229,6 +1279,7 @@ $isLoggedIn = !empty($currentUser);
 	                                                <?php foreach ($activeHorses as $h): ?>
                                                     <?php
                                                     $horseRegistrationYear = (int)($horseRegisteredYear[(int)$h['id']] ?? 0);
+                                                    $logbookStatus = $horseLogbookStatus($horseRegistrationYear);
                                                     $horseRegisteredThisYear = $horseRegistrationYear >= (int)date('Y');
                                                     $horseLogbookActionEnabled = !$horseRegisteredThisYear
                                                         || ((int)date('n') === 12 && $horseRegistrationYear === (int)date('Y'));
@@ -1243,7 +1294,12 @@ $isLoggedIn = !empty($currentUser);
                                                         <td class="text-muted small"><?php echo h($h['colour'] ?? '—'); ?></td>
                                                         <td class="text-muted small"><?php echo h($horseQualificationLookup[(int)($h['qualification_id'] ?? 0)] ?? '—'); ?></td>
                                                         <td class="text-muted small"><?php echo h($h['sex'] ?? '—'); ?></td>
-                                                        <td class="text-muted small"><?php echo $horseRegistrationYear > 0 ? $horseRegistrationYear : 'No'; ?></td>
+                                                        <td class="small">
+                                                            <span class="<?php echo h($logbookStatus['class']); ?> d-inline-flex align-items-center gap-1" title="<?php echo h($logbookStatus['title']); ?>">
+                                                                <i class="<?php echo h($logbookStatus['icon']); ?>" aria-hidden="true"></i>
+                                                                <span class="visually-hidden"><?php echo h($logbookStatus['label']); ?></span>
+                                                            </span>
+                                                        </td>
                                                         <td class="text-end">
                                                             <?php if (!empty($h['is_linked'])): ?>
                                                                 <form method="post" class="d-inline">
@@ -1289,11 +1345,12 @@ $isLoggedIn = !empty($currentUser);
                                                         <th>Colour</th>
                                                         <th>Qualification</th>
                                                         <th>Sex</th>
-                                                        <th>Registered for</th>
+                                                        <th>Logbook</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($archivedHorses as $h): ?>
+                                                        <?php $archivedLogbookStatus = $horseLogbookStatus((int)($horseRegisteredYear[(int)$h['id']] ?? 0)); ?>
                                                         <tr class="text-muted">
                                                             <td><?php echo h($h['name'] ?? ''); ?></td>
                                                             <td class="small"><?php echo h($h['year_of_birth'] ?? '—'); ?></td>
@@ -1301,7 +1358,7 @@ $isLoggedIn = !empty($currentUser);
                                                             <td class="small"><?php echo h($h['colour'] ?? '—'); ?></td>
                                                             <td class="small"><?php echo h($horseQualificationLookup[(int)($h['qualification_id'] ?? 0)] ?? '—'); ?></td>
                                                             <td class="small"><?php echo h($h['sex'] ?? '—'); ?></td>
-                                                            <td class="small"><?php echo !empty($horseRegisteredYear[(int)$h['id']]) ? (int)$horseRegisteredYear[(int)$h['id']] : 'No'; ?></td>
+                                                            <td class="small"><span class="<?php echo h($archivedLogbookStatus['class']); ?> d-inline-flex align-items-center" title="<?php echo h($archivedLogbookStatus['title']); ?>"><i class="<?php echo h($archivedLogbookStatus['icon']); ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo h($archivedLogbookStatus['label']); ?></span></span></td>
                                                         </tr>
                                                     <?php endforeach; ?>
                                                 </tbody>
@@ -1315,7 +1372,7 @@ $isLoggedIn = !empty($currentUser);
 	                                        <div class="modal-content">
 	                                            <div class="modal-header">
 	                                                <div>
-	                                                    <h4 class="modal-title fw-bold mb-1" id="horseEditorModalLabel"><?php echo $editHorse ? 'Edit horse' : 'Add horse'; ?></h4>
+	                                                    <h4 class="modal-title fw-bold mb-1" id="horseEditorModalLabel"><?php echo $editHorse ? 'Edit horse' : 'Add Horse Registration / Logbook'; ?></h4>
 	                                                    <div class="text-muted small">Horses can be selected on event entry forms to prefill details.</div>
 	                                                </div>
 	                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1324,23 +1381,6 @@ $isLoggedIn = !empty($currentUser);
 	                                    <form method="post" class="row g-3">
 	                                        <input type="hidden" name="action" value="save_horse">
 	                                        <input type="hidden" name="horse_id" value="<?php echo $editHorse ? (int)$editHorse['id'] : 0; ?>">
-	                                        <?php if (!$editHorse): ?>
-	                                            <div class="col-12">
-	                                                <div class="p-3 rounded-3 bg-success-subtle border border-success-subtle">
-	                                                    <div class="fw-bold mb-2">Do you want to register for a logbook for this horse?</div>
-	                                                    <div class="d-flex flex-wrap gap-3">
-	                                                        <div class="form-check">
-	                                                            <input class="form-check-input" type="radio" name="buy_logbook_after_save" id="horseLogbookYes" value="1" required <?php echo (string)($_POST['buy_logbook_after_save'] ?? '') === '1' ? 'checked' : ''; ?>>
-	                                                            <label class="form-check-label" for="horseLogbookYes">Yes — continue to Buy Logbook after saving</label>
-	                                                        </div>
-	                                                        <div class="form-check">
-	                                                            <input class="form-check-input" type="radio" name="buy_logbook_after_save" id="horseLogbookNo" value="0" required <?php echo (string)($_POST['buy_logbook_after_save'] ?? '') === '0' ? 'checked' : ''; ?>>
-	                                                            <label class="form-check-label" for="horseLogbookNo">No — just save this horse</label>
-	                                                        </div>
-	                                                    </div>
-	                                                </div>
-	                                            </div>
-	                                        <?php endif; ?>
 	                                        <div class="col-12 col-md-6">
 	                                            <label class="form-label fw-bold">Horse name</label>
 	                                            <input class="form-control" name="name" required value="<?php echo h($editHorse['name'] ?? ''); ?>">
@@ -1401,7 +1441,7 @@ $isLoggedIn = !empty($currentUser);
 	                                            <input type="date" class="form-control" name="flu_vac_date" value="<?php echo h($editHorse['flu_vac_date'] ?? ''); ?>">
 	                                        </div>
                                         <div class="col-12 d-flex gap-2">
-                                            <button class="btn btn-success fw-bold" type="submit"><?php echo $editHorse ? 'Save changes' : 'Add horse'; ?></button>
+                                            <button class="btn btn-success fw-bold" type="submit"><?php echo $editHorse ? 'Save changes' : 'Continue'; ?></button>
 	                                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                                         </div>
                                     </form>
@@ -1719,6 +1759,21 @@ $isLoggedIn = !empty($currentUser);
         </div>
     <?php endif; ?>
 
+    <?php if ($accountIntroModal): ?>
+        <div class="modal fade" id="accountIntroModal" tabindex="-1" aria-labelledby="accountIntroModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h4 class="modal-title fw-bold" id="accountIntroModalLabel"><?php echo h((string)$accountIntroModal['heading']); ?></h4>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body account-intro-content"><?php echo (string)$accountIntroModal['body_html']; ?></div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <?php include __DIR__ . '/views/footer.php'; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1787,6 +1842,12 @@ $isLoggedIn = !empty($currentUser);
         const horseEditorModalEl = document.getElementById('horseEditorModal');
         if (horseEditorModalEl) {
             new bootstrap.Modal(horseEditorModalEl).show();
+        }
+        <?php endif; ?>
+        <?php if ($accountIntroModal && $accountIntroAutoOpen): ?>
+        const accountIntroModalEl = document.getElementById('accountIntroModal');
+        if (accountIntroModalEl) {
+            new bootstrap.Modal(accountIntroModalEl).show();
         }
         <?php endif; ?>
         <?php if ($promptPerson): ?>

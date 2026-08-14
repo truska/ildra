@@ -66,31 +66,7 @@ function event_url(array $event): string
             font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             line-height: 1.7;
         }
-        .hero {
-            background: url('<?php echo h($siteSettings['background_image_url']); ?>') center/cover no-repeat;
-            color: #fff;
-            position: relative;
-            overflow: hidden;
-        }
-        .hero::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(160deg, rgba(12,69,34,0.9) 0%, rgba(12,69,34,0.78) 40%, rgba(12,69,34,0.72) 100%);
-            z-index: 0;
-        }
-        .hero::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1), transparent 36%), radial-gradient(circle at 70% 10%, rgba(255,255,255,0.08), transparent 32%);
-            z-index: 0;
-        }
-        .hero-content {
-            position: relative;
-            z-index: 2;
-            padding: 3.5rem 0 4.5rem;
-        }
+        .hero { color: #fff; }
         .logo-badge {
             width: 110px;
             height: 110px;
@@ -161,16 +137,49 @@ function event_url(array $event): string
             transform: translateY(-3px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
         }
-        .announcement-placeholder {
-            min-height: 92px;
-            border: 2px dashed rgba(15, 93, 45, 0.28);
-            background: var(--green-soft);
-            color: var(--green);
+        .announcement-bar {
+            background: var(--green-strong);
+            color: #fff;
+        }
+        .announcement-toggle {
+            position: relative;
+            width: 100%;
+            min-height: 54px;
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: .7rem 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-weight: 800;
             text-align: center;
         }
+        .announcement-toggle > span { width: 100%; padding: 0 2.5rem; }
+        .announcement-toggle .collapse-icon { position: absolute; right: 0; }
+        .announcement-toggle:hover,
+        .announcement-toggle:focus-visible { color: var(--yellow); }
+        .announcement-toggle .collapse-icon { transition: transform .2s ease; }
+        .announcement-toggle[aria-expanded="true"] .collapse-icon { transform: rotate(180deg); }
+        .announcement-detail {
+            border-top: 1px solid rgba(255,255,255,.2);
+            padding: 1.25rem 0 1.5rem;
+        }
+        .announcement-image {
+            width: 100%;
+            max-height: 230px;
+            object-fit: contain;
+            background: rgba(255,255,255,.08);
+            border-radius: var(--radius-md);
+        }
+        .announcement-copy { color: rgba(255,255,255,.9); }
+        .announcement-collapse {
+            color: #fff;
+            border-color: rgba(255,255,255,.65);
+        }
+        .announcement-collapse:hover { background: #fff; color: var(--green-strong); }
         .entry-status {
             display: inline-flex;
             flex-direction: column;
@@ -204,15 +213,7 @@ function event_url(array $event): string
             background: #c3cf00;
             color: var(--green);
         }
-        /* Hero layout */
-        .hero-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
-            gap: 2rem;
-        }
-        .subdued { color: rgba(255,255,255,0.8); }
         @media (max-width: 991px) {
-            .hero-grid { grid-template-columns: 1fr; }
             .brand-block { min-width: 0; }
             .nav-actions {
                 flex-direction: column;
@@ -225,31 +226,35 @@ function event_url(array $event): string
 <body>
     <header class="hero">
         <?php $headerIsHome = true; include __DIR__ . '/views/header.php'; ?>
-        <div class="container hero-content">
-            <div class="hero-grid align-items-center">
-                <div>
-                    <p class="mb-2 text-uppercase small fw-bold letter-spacing-1"><?php echo h($siteSettings['hero_subtitle']); ?></p>
-                    <h1 class="display-4 fw-bold mb-3"><?php echo h($siteSettings['hero_title']); ?></h1>
-                    <p class="lead mb-3 subdued"><?php echo h($siteSettings['hero_tagline']); ?></p>
-                    <div class="d-flex align-items-center gap-3 flex-wrap">
-                        <a class="btn button1 btn-lg" href="<?php echo h($siteSettings['hero_cta_url']); ?>"><?php echo h($siteSettings['hero_cta_label']); ?></a>
-                        <a class="button2 btn-lg" href="<?php echo h($basePath); ?>/events">View events</a>
+    </header>
+
+    <section class="announcement-bar" aria-labelledby="home-announcement-title">
+        <div class="container">
+            <button class="announcement-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#homeAnnouncement" aria-expanded="false" aria-controls="homeAnnouncement">
+                <span id="home-announcement-title">St. Patrick's Coast Entries are open</span>
+                <i class="fa-solid fa-chevron-down collapse-icon" aria-hidden="true"></i>
+            </button>
+            <div class="collapse" id="homeAnnouncement">
+                <div class="announcement-detail">
+                    <div class="row g-4 align-items-center">
+                        <div class="col-md-5">
+                            <img class="announcement-image" src="<?php echo h($basePath); ?>/filestore/images/advertising/md/st-patrick-s-2026.png" alt="St. Patrick's Coast event holding image">
+                        </div>
+                        <div class="col-md-7 announcement-copy">
+                            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis dapibus posuere velit aliquet.</p>
+                            <p>Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Donec sed odio dui. Cras mattis consectetur purus sit amet fermentum.</p>
+                            <button class="btn btn-outline-light announcement-collapse" type="button" data-bs-toggle="collapse" data-bs-target="#homeAnnouncement" aria-expanded="true" aria-controls="homeAnnouncement">
+                                Collapse <i class="fa-solid fa-chevron-up ms-1" aria-hidden="true"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div class="text-end d-none d-lg-block"></div>
             </div>
         </div>
-    </header>
+    </section>
 
     <main class="py-5">
         <div class="container">
-            <div class="announcement-placeholder card-soft rounded-3 p-4 mb-5" aria-label="Announcement placeholder">
-                <div>
-                    <div class="small text-uppercase fw-bold letter-spacing-1">Announcement</div>
-                    <div class="text-muted">Latest ILDRA news and notices will appear here.</div>
-                </div>
-            </div>
-
             <div class="row g-4 align-items-start mb-5">
                 <div class="col-lg-5">
                     <section class="mb-4" id="about-us">

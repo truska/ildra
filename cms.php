@@ -81,8 +81,8 @@ function defaultSiteSettings(): array
         'hero_title' => 'Endurance Riding Ireland LTD',
         'hero_subtitle' => 'Recognised by Horse Sport Ireland',
         'hero_tagline' => 'Home for Endurance Riding in Ireland',
-        'hero_cta_label' => 'Become a member',
-        'hero_cta_url' => '#contact',
+        'hero_cta_label' => 'JOIN',
+        'hero_cta_url' => '/memberships',
         'welcome_title' => 'Welcome to ILDRA',
         'welcome_body' => "The Irish Long Distance Riding Association (1990) runs rides across Ireland for members and newcomers. Distances range from pleasure rides through competitive trail rides for experienced horses and riders.",
         'sponsor_image_url' => 'https://placehold.co/640x140/216c22/ffffff?text=Sponsor+Banner',
@@ -93,6 +93,14 @@ function defaultSiteSettings(): array
         'admin_manual_filename' => '',
         'admin_manual_asset_id' => '0',
         'auth_app_login_enabled' => '0',
+        'company_name' => 'Irish Long Distance Riding Association Ltd.',
+        'company_short_name' => 'ILDRA',
+        'company_contact_email' => '',
+        'company_webmaster_email' => 'webmaster@enduranceridingirland.com',
+        'company_facebook_url' => 'https://www.facebook.com/EnduranceRidingIreland',
+        'company_website_url' => 'https://enduranceridingireland.com',
+        'company_address' => '',
+        'company_postcode' => '',
     ];
 }
 
@@ -212,6 +220,215 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
         return true;
     } catch (PDOException $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not save site settings.'];
+        return false;
+    }
+}
+
+function ensureCompanySocialsTable(?PDO $pdo): void
+{
+    if (!$pdo) {
+        return;
+    }
+
+    $existed = false;
+    try {
+        $check = $pdo->query("SHOW TABLES LIKE 'company_socials'");
+        $existed = (bool)($check && $check->fetchColumn());
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS company_socials (
+                id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                platform VARCHAR(50) NOT NULL DEFAULT 'website',
+                label VARCHAR(120) NOT NULL DEFAULT '',
+                url VARCHAR(500) NOT NULL,
+                display_order INT NOT NULL DEFAULT 0,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_company_socials_display (is_active, display_order, id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
+        if (!$existed) {
+            $settings = getSiteSettings($pdo);
+            $facebookUrl = trim((string)($settings['company_facebook_url'] ?? ''));
+            if ($facebookUrl !== '') {
+                $seed = $pdo->prepare("INSERT INTO company_socials (platform, label, url, display_order, is_active) VALUES ('facebook', :label, :url, 10, 1)");
+                $seed->execute([':label' => 'Endurance Riding Ireland', ':url' => $facebookUrl]);
+            }
+        }
+    } catch (PDOException $e) {
+        // Callers handle an unavailable table as an empty social list.
+    }
+}
+
+function fetchCompanySocials(?PDO $pdo, bool $activeOnly = false): array
+{
+    if (!$pdo) {
+        return [];
+    }
+    try {
+        ensureCompanySocialsTable($pdo);
+        $sql = "SELECT id, platform, label, url, display_order, is_active FROM company_socials";
+        if ($activeOnly) {
+            $sql .= " WHERE is_active = 1 AND url <> ''";
+        }
+        $sql .= " ORDER BY display_order ASC, id ASC";
+        $stmt = $pdo->query($sql);
+        return $stmt ? $stmt->fetchAll() : [];
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+function saveCompanySocials(?PDO $pdo, array $rows, array &$alerts): bool
+{
+    if (!$pdo) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return false;
+    }
+
+    $cleanRows = [];
+    foreach ($rows as $index => $row) {
+        $url = trim((string)($row['url'] ?? ''));
+        if ($url === '') {
+            continue;
+        }
+        if (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Social link ' . ($index + 1) . ' needs a valid http or https URL.'];
+            return false;
+        }
+        $cleanRows[] = [
+            'platform' => strtolower(trim((string)($row['platform'] ?? 'website'))) ?: 'website',
+            'label' => trim((string)($row['label'] ?? '')),
+            'url' => $url,
+            'display_order' => (int)($row['display_order'] ?? 0),
+            'is_active' => !empty($row['is_active']) ? 1 : 0,
+        ];
+    }
+
+    try {
+        ensureCompanySocialsTable($pdo);
+        $pdo->beginTransaction();
+        $pdo->exec("DELETE FROM company_socials");
+        $insert = $pdo->prepare("INSERT INTO company_socials (platform, label, url, display_order, is_active) VALUES (:platform, :label, :url, :display_order, :is_active)");
+        foreach ($cleanRows as $row) {
+            $insert->execute([
+                ':platform' => $row['platform'], ':label' => $row['label'], ':url' => $row['url'],
+                ':display_order' => $row['display_order'], ':is_active' => $row['is_active'],
+            ]);
+        }
+        $pdo->commit();
+        return true;
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not save social links.'];
+        return false;
+    }
+}
+
+function ensureCompanyAffiliatesTable(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    try {
+        $check = $pdo->query("SHOW TABLES LIKE 'company_affiliates'");
+        $existed = (bool)($check && $check->fetchColumn());
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS company_affiliates (
+                id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(160) NOT NULL DEFAULT '',
+                asset_id INT UNSIGNED DEFAULT NULL,
+                logo_url VARCHAR(500) NOT NULL,
+                website_url VARCHAR(500) NOT NULL,
+                display_order INT NOT NULL DEFAULT 0,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_company_affiliates_display (is_active, display_order, id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $assetColumn = $pdo->query("SHOW COLUMNS FROM company_affiliates LIKE 'asset_id'");
+        if (!$assetColumn || !$assetColumn->fetch()) {
+            $pdo->exec("ALTER TABLE company_affiliates ADD COLUMN asset_id INT UNSIGNED DEFAULT NULL AFTER name");
+        }
+        if (!$existed) {
+            $seed = $pdo->prepare("INSERT INTO company_affiliates (name, logo_url, website_url, display_order, is_active) VALUES (:name, :logo, :website, 10, 1)");
+            $seed->execute([
+                ':name' => "St. Patrick's Coast Endurance Ride",
+                ':logo' => '/filestore/images/affiliate-placeholder.svg',
+                ':website' => 'https://stpatrickscoast.com/',
+            ]);
+        }
+        $replaceRemoteLogo = $pdo->prepare("UPDATE company_affiliates SET logo_url = :placeholder WHERE logo_url = :remote_logo");
+        $replaceRemoteLogo->execute([
+            ':placeholder' => '/filestore/images/affiliate-placeholder.svg',
+            ':remote_logo' => 'https://stpatrickscoast.com/filestore/images/logos/StPatricksCoast-logo.png',
+        ]);
+    } catch (PDOException $e) {
+        // Callers handle an unavailable table as an empty affiliate list.
+    }
+}
+
+function fetchCompanyAffiliates(?PDO $pdo, bool $activeOnly = false): array
+{
+    if (!$pdo) return [];
+    try {
+        ensureCompanyAffiliatesTable($pdo);
+        $sql = "SELECT id, name, asset_id, logo_url, website_url, display_order, is_active FROM company_affiliates";
+        if ($activeOnly) $sql .= " WHERE is_active = 1 AND logo_url <> '' AND website_url <> ''";
+        $sql .= " ORDER BY display_order ASC, id ASC";
+        $stmt = $pdo->query($sql);
+        return $stmt ? $stmt->fetchAll() : [];
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+function saveCompanyAffiliates(?PDO $pdo, array $rows, array &$alerts): bool
+{
+    if (!$pdo) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return false;
+    }
+    $cleanRows = [];
+    foreach ($rows as $index => $row) {
+        $assetId = max(0, (int)($row['asset_id'] ?? 0));
+        $websiteUrl = trim((string)($row['website_url'] ?? ''));
+        if ($assetId === 0 && $websiteUrl === '' && trim((string)($row['name'] ?? '')) === '') continue;
+        if ($assetId > 0) {
+            $asset = fetchAssetLibraryById($pdo, $assetId);
+            if (!$asset || ($asset['asset_type'] ?? '') !== 'image' || !empty($asset['archived'])) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Affiliate ' . ($index + 1) . ' has an unavailable library image.'];
+                return false;
+            }
+        }
+        if (!filter_var($websiteUrl, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($websiteUrl, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Affiliate ' . ($index + 1) . ' needs a valid http or https website URL.'];
+            return false;
+        }
+        $cleanRows[] = [
+            'name' => trim((string)($row['name'] ?? '')),
+            'asset_id' => $assetId ?: null,
+            'logo_url' => '/filestore/images/affiliate-placeholder.svg',
+            'website_url' => $websiteUrl,
+            'display_order' => (int)($row['display_order'] ?? 0),
+            'is_active' => !empty($row['is_active']) ? 1 : 0,
+        ];
+    }
+    try {
+        ensureCompanyAffiliatesTable($pdo);
+        $pdo->beginTransaction();
+        $pdo->exec("DELETE FROM company_affiliates");
+        $insert = $pdo->prepare("INSERT INTO company_affiliates (name, asset_id, logo_url, website_url, display_order, is_active) VALUES (:name, :asset_id, :logo_url, :website_url, :display_order, :is_active)");
+        foreach ($cleanRows as $row) {
+            $insert->execute([':name' => $row['name'], ':asset_id' => $row['asset_id'], ':logo_url' => $row['logo_url'], ':website_url' => $row['website_url'], ':display_order' => $row['display_order'], ':is_active' => $row['is_active']]);
+        }
+        $pdo->commit();
+        return true;
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not save affiliate links.'];
         return false;
     }
 }

@@ -165,7 +165,7 @@ a:visited {
     overflow: visible;
 }
 .site-header .navbar { position: relative; z-index: 1; }
-.site-header-home .site-header-banner { min-height: 320px; }
+.site-header-home .site-header-banner { min-height: 220px; }
 .header-banner-inner {
     min-height: inherit;
     display: flex;
@@ -195,6 +195,40 @@ a:visited {
     z-index: 20;
 }
 .nav-shell { gap: 1rem; }
+.home-banner-identity {
+    position: absolute;
+    left: 50%;
+    bottom: 24%;
+    transform: translateX(-50%);
+    padding: 10px 20px 12px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 14px;
+    background: rgba(12,42,18,.58);
+    box-shadow: 0 12px 34px rgba(12,42,18,.18);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    color: #fff;
+    font-size: clamp(3rem, 6vw, 5rem);
+    line-height: .9;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-shadow: 0 3px 18px rgba(0,0,0,.72);
+    z-index: 5;
+}
+.home-intro-bar { background: #3f7555; color: #fff; }
+.home-intro-inner {
+    min-height: 162px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-top: 22px;
+    padding-bottom: 22px;
+}
+.home-intro-established { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.home-intro-title { margin-top: .3rem; font-size: clamp(1.9rem, 4vw, 3.6rem); line-height: 1.12; font-weight: 500; }
+.home-intro-tagline { margin-top: .35rem; font-size: clamp(.95rem, 1.6vw, 1.22rem); font-weight: 400; }
+.home-intro-join { flex: 0 0 auto; min-width: 180px; margin-top: 4px; padding: .7rem 1.5rem; font-size: 1.05rem; }
 .navbar {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
@@ -496,11 +530,13 @@ body.show-page-hero .page-hero {
         color: #0f2d17;
         font-weight: 600;
     }
+    .site-header-home .site-header-banner { min-height: 210px; }
+    .home-intro-inner { min-height: 150px; }
 }
 
 @media (max-width: 575.98px) {
     .site-header-banner { min-height: 165px; }
-    .site-header-home .site-header-banner { min-height: 220px; }
+    .site-header-home .site-header-banner { min-height: 190px; }
     .header-banner-inner {
         gap: 0.5rem;
         padding-top: 16px;
@@ -517,5 +553,10 @@ body.show-page-hero .page-hero {
         padding-right: 10px;
         font-size: 0.78rem;
     }
+    .home-banner-identity { bottom: 18%; padding: 8px 14px 10px; font-size: 3rem; }
+    .home-intro-inner { min-height: 0; gap: 1rem; padding-top: 16px; padding-bottom: 16px; }
+    .home-intro-title { font-size: 1.65rem; }
+    .home-intro-tagline { font-size: .9rem; }
+    .home-intro-join { min-width: 92px; padding: .55rem .8rem; font-size: .9rem; }
 }
 </style>

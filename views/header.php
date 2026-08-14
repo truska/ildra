@@ -125,10 +125,25 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                 <small>Irish Long Distance</small>
                 <strong>Endurance Riding</strong>
             </div>
-        </a>
+            </a>
+            <?php if ($headerIsHome): ?>
+                <div class="home-banner-identity">I L D R A</div>
+            <?php endif; ?>
             <?php include __DIR__ . '/header_actions.php'; ?>
         </div>
     </div>
+    <?php if ($headerIsHome): ?>
+        <div class="home-intro-bar">
+            <div class="container home-intro-inner">
+                <div class="home-intro-copy">
+                    <div class="home-intro-established">Established in 1990</div>
+                    <div class="home-intro-title">Endurance Riding Ireland</div>
+                    <div class="home-intro-tagline">Home for Endurance Riding in Ireland</div>
+                </div>
+                <a class="btn button1 home-intro-join" href="<?php echo h((string)($siteSettings['hero_cta_url'] ?? '/memberships')); ?>"><?php echo h((string)($siteSettings['hero_cta_label'] ?? 'JOIN')); ?></a>
+            </div>
+        </div>
+    <?php endif; ?>
     <nav class="navbar navbar-expand-lg navbar-dark bg-success bg-gradient py-0">
         <div class="container nav-shell">
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">

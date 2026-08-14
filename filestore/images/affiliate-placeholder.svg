@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 260" role="img" aria-labelledby="title desc">
+  <title id="title">Affiliate logo placeholder</title>
+  <desc id="desc">Temporary holding image awaiting an affiliate logo.</desc>
+  <rect width="600" height="260" rx="24" fill="#f4f6ee"/>
+  <rect x="12" y="12" width="576" height="236" rx="18" fill="none" stroke="#0f5d2d" stroke-width="6" stroke-dasharray="16 12"/>
+  <circle cx="300" cy="86" r="35" fill="#dce705"/>
+  <path d="M283 86h34M300 69v34" stroke="#0f5d2d" stroke-width="8" stroke-linecap="round"/>
+  <text x="300" y="157" fill="#0f5d2d" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" text-anchor="middle">AFFILIATE LOGO</text>
+  <text x="300" y="194" fill="#526558" font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle">Image coming soon</text>
+</svg>
