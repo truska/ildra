@@ -17,6 +17,7 @@ function defaultAdminMenuItems(): array
         ['entry_components', 'Entry Components', 'entry_components.php', 'fa-solid fa-puzzle-piece'],
         ['faqs', 'FAQs', 'faqs.php', 'fa-solid fa-circle-question'],
         ['help', 'Help', 'help.php', 'fa-solid fa-life-ring'],
+        ['help_accounts', 'Account Help', 'account_intros.php', 'fa-solid fa-circle-info'],
         ['memberships', 'Memberships', 'memberships.php', 'fa-solid fa-id-card'],
         ['members', 'Members', 'members.php', 'fa-solid fa-user-group'],
         ['people', 'People', 'people.php', 'fa-solid fa-address-book'],
@@ -46,7 +47,7 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
-    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'menu', 'asset_library', 'help'], true)) {
+    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
         return ['superadmin', 'admin'];
     }
     return ['superadmin', 'admin', 'organiser'];
@@ -96,6 +97,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
         $iconUpdate = $pdo->prepare("UPDATE admin_menu_items SET icon_class=:icon WHERE menu_key=:menu_key AND (icon_class='' OR icon_class='fa-solid fa-circle')");
         $iconUpdate->execute([':icon'=>$item['icon_class'], ':menu_key'=>$item['menu_key']]);
     }
+    $pdo->exec("UPDATE admin_menu_items SET parent_id = NULL, label = 'Account Help', href = 'account_intros.php' WHERE menu_key = 'help_accounts'");
 }
 
 function fetchAdminMenuItems(?PDO $pdo, bool $activeOnly = true): array

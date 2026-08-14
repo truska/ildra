@@ -20,10 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['intros']) && is_array
 }
 $labels = ['people' => 'People', 'horses' => 'Horses', 'shares' => 'Shares', 'security' => 'Security'];
 
-admin_layout_start('Account intro modals', 'help');
+admin_layout_start('Account Help', 'help_accounts');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <div><div class="small text-muted">Help guidance</div><h5 class="mb-0">Account intro modals</h5></div>
+    <div><div class="small text-muted">Help guidance</div><h5 class="mb-0">Account Help</h5></div>
     <a class="btn btn-outline-secondary" href="help.php">Back to Help</a>
 </div>
 <div class="card-soft p-4">
