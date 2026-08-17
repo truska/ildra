@@ -162,7 +162,7 @@ $footerSocialIcons = [
                 </div>
             </div>
 
-            <div class="col-12 <?php echo $footerAffiliates ? 'col-md-8 col-lg-4' : 'col-lg-6'; ?>">
+            <div class="col-12 <?php echo $footerAffiliates ? 'col-md-4 col-lg-2' : 'col-lg-4'; ?>">
                 <div class="site-footer-title mb-3">Events</div>
                 <ul class="site-footer-events">
                     <?php foreach ($footerEvents as $footerEvent): ?>
@@ -176,6 +176,16 @@ $footerSocialIcons = [
                     <?php if (!$footerEvents): ?><li class="site-footer-muted small">No upcoming events published.</li><?php endif; ?>
                 </ul>
                 <a class="btn button3 btn-sm fw-bold mt-3" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
+            </div>
+
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="site-footer-title mb-3">Member services</div>
+                <ul class="site-footer-links small">
+                    <li><a href="<?php echo h($footerBasePath); ?>/memberships">Memberships</a></li>
+                    <li><a href="<?php echo h($footerBasePath); ?>/logbooks">Horse logbooks</a></li>
+                    <li><a href="<?php echo h($footerBasePath); ?>/bookings">Bookings</a></li>
+                    <li><a href="<?php echo h($footerBasePath); ?>/basket">Basket</a></li>
+                </ul>
             </div>
 
             <?php if ($footerAffiliates): ?>

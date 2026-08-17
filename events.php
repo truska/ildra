@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
+header('Location: /pages/ride-calendar', true, 302);
+exit;
+
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
 $siteBase = $basePath ?: '';

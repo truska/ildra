@@ -155,9 +155,7 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                     <?php if (!$group['pages']) { continue; } ?>
                     <?php
                         $firstPage = $group['pages'][0];
-                        $primaryUrl = $groupKey === 'events'
-                            ? ($navItemEventsUrl)
-                            : page_url($firstPage);
+                        $primaryUrl = $basePath . '/pages/' . rawurlencode($groupKey . '-overview');
                         $hasDropdown = (count($group['pages']) > 1) || $groupKey === 'events';
                         $menuId = nav_menu_id((string)$groupKey);
                         $overviewLabel = trim((string)($group['label'] ?? 'Overview')) . ' overview';
@@ -175,15 +173,9 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                             </button>
                             <ul class="nav-submenu list-unstyled mb-0" id="<?php echo h($menuId); ?>" hidden>
                                 <?php if ($showOverview): ?><li><a class="dropdown-item fw-semibold" href="<?php echo h($primaryUrl); ?>"><?php echo h($overviewLabel); ?></a></li><li><hr class="dropdown-divider"></li><?php endif; ?>
-                                <?php if ($groupKey === 'events'): ?>
-                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/memberships">Memberships</a></li>
-                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/logbooks">Horse logbooks</a></li>
-                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/basket">Basket</a></li>
-                                    <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">Bookings</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                <?php endif; ?>
                                 <?php foreach ($group['pages'] as $page): ?>
-                                    <li><a class="dropdown-item" href="<?php echo h(page_url($page)); ?>"><?php echo h($page['title']); ?></a></li>
+                                    <?php $pageMenuUrl = page_url($page); ?>
+                                    <li><a class="dropdown-item" href="<?php echo h($pageMenuUrl); ?>"><?php echo h($page['title']); ?></a></li>
                                     <?php if (!empty($page['menu_divider_below'])): ?><li><hr class="dropdown-divider"></li><?php endif; ?>
                                 <?php endforeach; ?>
                             </ul>

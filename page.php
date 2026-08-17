@@ -61,6 +61,14 @@ if (!$pages) {
     $pages = defaultPages();
 }
 $navTree = buildNavTree($pages);
+$overviewGroupFromPath = null;
+foreach (NAV_GROUPS as $groupKey => $_groupLabel) {
+    if (in_array($groupKey, ['home', 'not-on-menu'], true)) continue;
+    if (strcasecmp($pathSlug, $groupKey . '-overview') === 0) {
+        $overviewGroupFromPath = $groupKey;
+        break;
+    }
+}
 $isLoggedIn = !empty($currentUser);
 $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
 $pageFromList = null;
@@ -73,6 +81,16 @@ if ($pathSlug !== '') {
     }
     if ($pageFromList) {
         $page = $pageFromList;
+    }
+}
+
+if ($overviewGroupFromPath !== null) {
+    foreach ($pages as $candidate) {
+        if (strtolower((string)($candidate['nav_group'] ?? '')) === $overviewGroupFromPath) {
+            $pageFromList = $candidate;
+            $page = $candidate;
+            break;
+        }
     }
 }
 
@@ -101,7 +119,9 @@ $groupPages = $renderGroup !== '' ? array_values(array_filter($pages, static fn(
 )) : [];
 $showGroupOverview = !array_key_exists('menu_overview_' . $renderGroup, $siteSettings)
     || !empty($siteSettings['menu_overview_' . $renderGroup]);
-if ($renderPage && $showGroupOverview && count($groupPages) > 1 && (int)$renderPage['id'] === (int)$groupPages[0]['id']) {
+$isMenuOverview = $renderPage && $showGroupOverview && count($groupPages) > 1 && $overviewGroupFromPath !== null;
+$menuOverviewTitle = (NAV_GROUPS[$renderGroup] ?? ucwords(str_replace('-', ' ', $renderGroup))) . ' Overview';
+if ($isMenuOverview) {
     ob_start();
     ?>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4 justify-content-center mt-2">
@@ -113,7 +133,8 @@ if ($renderPage && $showGroupOverview && count($groupPages) > 1 && (int)$renderP
             $menuImageUrl = $menuImage ? mediaBatchImageUrl($menuImageBatch, $menuImage, 'md') : '/filestore/images/award-placeholder.svg';
             ?>
             <div class="col">
-                <a class="card h-100 text-decoration-none text-reset shadow-sm position-relative overflow-hidden" href="<?php echo h(page_url($menuPage)); ?>">
+                <?php $menuPageUrl = $renderGroup === 'events' && (int)$menuPage['id'] === (int)$groupPages[0]['id'] ? $basePath . '/events' : $basePath . '/pages/' . rawurlencode((string)$menuPage['slug']); ?>
+                <a class="card h-100 text-decoration-none text-reset shadow-sm position-relative overflow-hidden" href="<?php echo h($menuPageUrl); ?>">
                     <img class="card-img-top" style="height: 170px; object-fit: cover;" src="<?php echo h($menuImageUrl); ?>" alt="<?php echo h((string)($menuImage['alt_text'] ?? $menuPage['title'])); ?>">
                     <div class="card-body">
                         <h2 class="h5 card-title text-success"><?php echo h($menuPage['title']); ?></h2>
@@ -126,6 +147,19 @@ if ($renderPage && $showGroupOverview && count($groupPages) > 1 && (int)$renderP
     <?php
     $dynamicSections['after_body'] .= (string)ob_get_clean();
 }
+foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'current_events_calendar') continue;
+    $calendarEvents = array_values(array_filter(fetchEvents($pdo, true), static fn(array $event): bool => strtolower((string)($event['status'] ?? '')) === 'published'));
+    usort($calendarEvents, static fn(array $a, array $b): int => strcmp((string)($a['event_date'] ?? ''), (string)($b['event_date'] ?? '')));
+    ob_start(); ?>
+    <div class="current-events-calendar mt-4">
+        <?php if ($calendarEvents): ?><div class="list-group"><?php foreach ($calendarEvents as $event): ?>
+            <?php $eventUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title'])); ?>
+            <a class="list-group-item list-group-item-action" href="<?php echo h($eventUrl); ?>"><div class="d-flex justify-content-between gap-3"><span class="fw-semibold"><?php echo h((string)$event['title']); ?></span><span class="text-muted text-nowrap"><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></span></div><?php if (!empty($event['location'])): ?><div class="small text-muted mt-1"><?php echo h((string)$event['location']); ?></div><?php endif; ?></a>
+        <?php endforeach; ?></div><?php else: ?><div class="alert alert-info mb-0">No current events are published.</div><?php endif; ?>
+    </div><?php $pageElement['body_html']=(string)($pageElement['body_html']??'').(string)ob_get_clean();
+}
+unset($pageElement);
 foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'membership_options') {
         continue;
@@ -364,9 +398,9 @@ if (!$renderPage) {
 
     <header class="py-3" style="background: #f5f7ef; border-bottom: 1px solid rgba(0,0,0,0.05);">
         <div class="container">
-            <p class="mb-1 text-uppercase small fw-bold text-muted"><?php echo h($siteSettings['hero_subtitle']); ?></p>
-            <h1 class="fw-bold mb-1" style="color: var(--text-main);"><?php echo $renderPage ? h($renderPage['title']) : 'Page not found'; ?></h1>
-            <?php if ($renderPage): ?>
+            <?php if (!$isMenuOverview): ?><p class="mb-1 text-uppercase small fw-bold text-muted"><?php echo h($siteSettings['hero_subtitle']); ?></p><?php endif; ?>
+            <h1 class="fw-bold mb-1" style="color: var(--text-main);"><?php echo $renderPage ? h($isMenuOverview ? $menuOverviewTitle : $renderPage['title']) : 'Page not found'; ?></h1>
+            <?php if ($renderPage && !$isMenuOverview): ?>
                 <div class="text-muted"><?php echo h($renderPage['excerpt'] ?? ''); ?></div>
             <?php else: ?>
                 <div class="text-muted">We could not find that page.</div>
@@ -379,7 +413,7 @@ if (!$renderPage) {
             <?php echo $dynamicSections['before_content']; ?>
 
             <div class="row g-4 mt-2">
-                <?php if ($pageImages && $pageImageBatch): ?>
+                <?php if (!$isMenuOverview && $pageImages && $pageImageBatch): ?>
                 <div class="col-lg-4">
                     <div class="card-soft p-3 page-gallery" data-page-gallery>
                         <?php $mainImage=$pageImages[0]; ?>
@@ -393,12 +427,12 @@ if (!$renderPage) {
                     </div>
                 </div>
                 <?php endif; ?>
-                <div class="<?php echo $pageImages ? 'col-lg-6' : 'col-lg-10'; ?>">
+                <div class="<?php echo $isMenuOverview ? 'col-12' : ($pageImages ? 'col-lg-6' : 'col-lg-10'); ?>">
                     <div class="card-soft p-4">
                         <?php if ($renderPage): ?>
-                            <div class="lead mb-3"><?php echo h($renderPage['excerpt'] ?? ''); ?></div>
-                            <div class="page-body"><?php echo (string)($renderPage['body_html'] ?? ''); ?></div>
+                            <?php if (!$isMenuOverview): ?><div class="lead mb-3"><?php echo h($renderPage['excerpt'] ?? ''); ?></div><div class="page-body"><?php echo (string)($renderPage['body_html'] ?? ''); ?></div><?php endif; ?>
                             <?php echo $dynamicSections['after_body']; ?>
+                            <?php if (!$isMenuOverview): ?>
                             <?php
                             $pageButtonUrl = trim((string)($renderPage['button_url'] ?? ''));
                             if ($pageButtonUrl === '' && !empty($renderPage['button_asset_id'])) {
@@ -412,12 +446,13 @@ if (!$renderPage) {
                                     <a class="btn button2" href="<?php echo h($pageButtonUrl); ?>" title="<?php echo h($renderPage['button_title'] ?: $renderPage['button_name']); ?>" target="<?php echo h($pageButtonTarget); ?>"<?php echo $pageButtonTarget === '_blank' ? ' rel="noopener"' : ''; ?>><?php echo h($renderPage['button_name']); ?></a>
                                 </div>
                             <?php endif; ?>
+                            <?php endif; ?>
                         <?php else: ?>
                             <p class="mb-0">Try another page from the navigation above.</p>
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="col-lg-2">
+                <?php if (!$isMenuOverview): ?><div class="col-lg-2">
                     <?php if ($advertising): ?>
                         <div class="page-advertising" aria-label="Promotions">
                             <?php foreach ($advertising as $advert): ?>
@@ -434,7 +469,7 @@ if (!$renderPage) {
                         <div class="fw-bold mb-2">Back to home</div>
                         <a class="btn btn-outline-success w-100" href="<?php echo h($basePath); ?>/">ILDRA Home</a>
                     </div>
-                </div>
+                </div><?php endif; ?>
             </div>
             <?php if ($pageElements): ?>
             <div class="page-content-elements">
