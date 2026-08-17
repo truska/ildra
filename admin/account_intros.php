@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['intros']) && is_array
         if (isset($intros[$key]) && is_array($postedIntro)) $intros[$key] = array_merge($intros[$key], $postedIntro);
     }
 }
-$labels = ['people' => 'People', 'horses' => 'Horses', 'shares' => 'Shares', 'security' => 'Security'];
+$labels = ['people' => 'People', 'horses' => 'Horses', 'shares' => 'Shares', 'my-account' => 'My Account'];
 
 admin_layout_start('Account Help', 'help_accounts');
 ?>

@@ -48,6 +48,7 @@ function ensureHelpTables(?PDO $pdo): void
         'horses' => ['Adding Horses', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Add horses here to manage their details, registrations and logbooks.</p>'],
         'shares' => ['Managing Shares', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Shares allow approved account holders to select people or horses without changing their private details.</p>'],
         'security' => ['Account Security', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Use this area to manage your password and additional sign-in security.</p>'],
+        'my-account' => ['My Account', '<p>Use this page to update your website login details, change your password and manage authenticator app access. These details belong to your user account and are separate from people and membership records.</p>'],
     ];
     foreach ($defaults as $viewKey => [$heading, $bodyHtml]) {
         $seed->execute([':view_key' => $viewKey, ':heading' => $heading, ':body_html' => $bodyHtml]);
@@ -56,7 +57,7 @@ function ensureHelpTables(?PDO $pdo): void
 
 function fetchAccountIntroModal(?PDO $pdo, string $viewKey, bool $activeOnly = true): ?array
 {
-    if (!$pdo || !in_array($viewKey, ['people', 'horses', 'shares', 'security'], true)) return null;
+    if (!$pdo || !in_array($viewKey, ['people', 'horses', 'shares', 'security', 'my-account'], true)) return null;
     try {
         ensureHelpTables($pdo);
         $sql = 'SELECT view_key, heading, body_html, is_active FROM account_intro_modals WHERE view_key = :view_key';
@@ -71,7 +72,7 @@ function fetchAccountIntroModals(?PDO $pdo): array
     if (!$pdo) return [];
     try {
         ensureHelpTables($pdo);
-        $rows = $pdo->query("SELECT view_key, heading, body_html, is_active FROM account_intro_modals ORDER BY FIELD(view_key, 'people', 'horses', 'shares', 'security')")->fetchAll() ?: [];
+        $rows = $pdo->query("SELECT view_key, heading, body_html, is_active FROM account_intro_modals ORDER BY FIELD(view_key, 'people', 'horses', 'shares', 'my-account', 'security')")->fetchAll() ?: [];
         $result = [];
         foreach ($rows as $row) $result[(string)$row['view_key']] = $row;
         return $result;
@@ -85,7 +86,7 @@ function saveAccountIntroModals(?PDO $pdo, array $data, array &$alerts): bool
     $posted = isset($data['intros']) && is_array($data['intros']) ? $data['intros'] : [];
     try {
         $stmt = $pdo->prepare("UPDATE account_intro_modals SET heading = :heading, body_html = :body_html, is_active = :active WHERE view_key = :view_key");
-        foreach (['people', 'horses', 'shares', 'security'] as $viewKey) {
+        foreach (['people', 'horses', 'shares', 'my-account'] as $viewKey) {
             $row = isset($posted[$viewKey]) && is_array($posted[$viewKey]) ? $posted[$viewKey] : [];
             $heading = trim((string)($row['heading'] ?? ''));
             $bodyHtml = trim((string)($row['body_html'] ?? ''));

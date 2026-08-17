@@ -49,11 +49,15 @@ $userId = (int)($currentUser['id'] ?? 0);
 $authAppStatus = $isLoggedIn ? currentUserAuthAppStatus($pdo, $userId) : ['enabled' => false, 'confirmed_at' => null];
 $authAppSetup = $isLoggedIn ? pendingAuthAppSetup($currentUser ?: [], $siteSettings) : null;
 $accountView = (string)($_GET['view'] ?? '');
+// Keep old Security links/bookmarks working now that security lives in My Account.
+if ($accountView === 'security') {
+    $accountView = 'my-account';
+}
 $accountSectionLabels = [
     'people' => 'People Management',
     'horses' => 'Horse Management',
     'shares' => 'Share Management',
-    'security' => 'Security Management',
+    'my-account' => 'My Account',
 ];
 $isAccountManagementView = isset($accountSectionLabels[$accountView]);
 $accountSectionTitle = $accountSectionLabels[$accountView] ?? 'Account Overview';
@@ -218,22 +222,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
     } elseif ($isLoggedIn) {
         $userId = (int)($currentUser['id'] ?? 0);
-        if ($action === 'auth_app_begin_setup') {
+        if ($action === 'save_user_details') {
+            $accountView = 'my-account';
+            $updatedDetails = updateOwnUserDetails($pdo, $userId, $_POST, $alerts);
+            if ($updatedDetails && !$alerts) {
+                $_SESSION['user'] = array_merge($_SESSION['user'] ?? [], $updatedDetails);
+                $_SESSION['flash_success'] = 'Your account details have been updated.';
+                header('Location: ' . $basePath . '/account?view=my-account');
+                exit;
+            }
+        } elseif ($action === 'change_own_password') {
+            $accountView = 'my-account';
+            if (changeOwnPassword($pdo, $userId, $_POST, $alerts)) {
+                $_SESSION['flash_success'] = 'Your password has been changed.';
+                header('Location: ' . $basePath . '/account?view=my-account');
+                exit;
+            }
+        } elseif ($action === 'auth_app_begin_setup') {
             $authAppSetup = beginAuthAppSetup($currentUser ?: [], $siteSettings);
-            $accountView = 'security';
+            $accountView = 'my-account';
         } elseif ($action === 'auth_app_confirm_setup') {
-            $accountView = 'security';
+            $accountView = 'my-account';
             if (confirmAuthAppSetup($pdo, $userId, $alerts)) {
                 $_SESSION['flash_success'] = 'Authenticator app login enabled.';
-                header('Location: ' . $basePath . '/account?view=security');
+                header('Location: ' . $basePath . '/account?view=my-account');
                 exit;
             }
             $authAppSetup = pendingAuthAppSetup($currentUser ?: [], $siteSettings);
         } elseif ($action === 'auth_app_disable') {
-            $accountView = 'security';
+            $accountView = 'my-account';
             if (disableAuthApp($pdo, $userId, $alerts)) {
                 $_SESSION['flash_success'] = 'Authenticator app login disabled.';
-                header('Location: ' . $basePath . '/account?view=security');
+                header('Location: ' . $basePath . '/account?view=my-account');
                 exit;
             }
         } elseif ($action === 'save_person') {
@@ -623,8 +643,8 @@ $accountIntroAutoOpen = false;
                         echo 'Your horses';
                     } elseif ($accountView === 'shares') {
                         echo 'Shares';
-                    } elseif ($accountView === 'security') {
-                        echo 'Security';
+                    } elseif ($accountView === 'my-account') {
+                        echo 'My Account';
                     } else {
                         echo 'Your account';
                     }
@@ -661,7 +681,6 @@ $accountIntroAutoOpen = false;
 	                                        <a class="btn btn-sm <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
 	                                        <a class="btn btn-sm <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
 	                                        <a class="btn btn-sm <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
-	                                        <a class="btn btn-sm <?php echo $accountView === 'security' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=security">Security</a>
 	                                        <?php if ($canViewAdmin): ?><a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a><?php endif; ?>
 	                                        <a class="btn btn-sm btn-outline-danger" href="<?php echo h($basePath); ?>/account?logout=1">Logout</a>
 	                                    </div>
@@ -690,7 +709,6 @@ $accountIntroAutoOpen = false;
 	                                    <a class="btn <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
 	                                    <a class="btn <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
 	                                    <a class="btn <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
-	                                    <a class="btn <?php echo $accountView === 'security' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=security">Security</a>
 	                                    <?php if ($canViewAdmin): ?>
 	                                        <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a>
 	                                    <?php endif; ?>
@@ -771,7 +789,56 @@ $accountIntroAutoOpen = false;
                                 </div>
                                 <?php endif; ?>
 
-                            <?php if ($accountView === 'security'): ?>
+                            <?php if ($accountView === 'my-account'): ?>
+                                <div class="card-soft p-4 mt-4">
+                                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+                                        <div>
+                                            <div class="text-uppercase small text-muted">User account</div>
+                                            <h4 class="fw-bold mb-1">Login details</h4>
+                                            <p class="text-muted small mb-0">These details belong to your website user account, not a person or membership record.</p>
+                                        </div>
+                                        <?php if ($accountIntroModal): ?>
+                                            <button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal">
+                                                <i class="fa-solid fa-circle-info" aria-hidden="true"></i> More Information
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
+                                    <form method="POST" class="row g-3">
+                                        <input type="hidden" name="action" value="save_user_details">
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="user_first_name">First name</label>
+                                            <input class="form-control" id="user_first_name" name="first_name" value="<?php echo h((string)($_POST['first_name'] ?? $currentUser['first_name'] ?? '')); ?>" autocomplete="given-name" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="user_last_name">Last name</label>
+                                            <input class="form-control" id="user_last_name" name="last_name" value="<?php echo h((string)($_POST['last_name'] ?? $currentUser['last_name'] ?? '')); ?>" autocomplete="family-name" required>
+                                        </div>
+                                        <div class="col-md-7">
+                                            <label class="form-label" for="user_email">Login email</label>
+                                            <input class="form-control" type="email" id="user_email" name="email" value="<?php echo h((string)($_POST['email'] ?? $currentUser['email'] ?? '')); ?>" autocomplete="email" required>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label" for="details_current_password">Current password</label>
+                                            <input class="form-control" type="password" id="details_current_password" name="current_password" autocomplete="current-password">
+                                            <div class="form-text">Required only when changing your email.</div>
+                                        </div>
+                                        <div class="col-12"><button class="btn btn-success">Save login details</button></div>
+                                    </form>
+                                </div>
+
+                                <div class="card-soft p-4 mt-4">
+                                    <div class="text-uppercase small text-muted">Security</div>
+                                    <h4 class="fw-bold mb-1">Change password</h4>
+                                    <p class="text-muted small">Enter your new password twice so it can be checked before saving.</p>
+                                    <form method="POST" class="row g-3">
+                                        <input type="hidden" name="action" value="change_own_password">
+                                        <div class="col-md-4"><label class="form-label" for="password_current">Current password</label><input class="form-control" type="password" id="password_current" name="current_password" autocomplete="current-password" required></div>
+                                        <div class="col-md-4"><label class="form-label" for="password_new">New password</label><input class="form-control" type="password" id="password_new" name="new_password" minlength="8" autocomplete="new-password" required></div>
+                                        <div class="col-md-4"><label class="form-label" for="password_confirm">Repeat new password</label><input class="form-control" type="password" id="password_confirm" name="confirm_password" minlength="8" autocomplete="new-password" required></div>
+                                        <div class="col-12"><button class="btn btn-success">Change password</button></div>
+                                    </form>
+                                </div>
+
                                 <div class="card-soft p-4 mt-4">
                                     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
                                         <div>

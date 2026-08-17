@@ -1282,3 +1282,84 @@ function resetUserPassword(?PDO $pdo, int $userId, string $password, array &$ale
         return false;
     }
 }
+
+function updateOwnUserDetails(?PDO $pdo, int $userId, array $data, array &$alerts): ?array
+{
+    if (!$pdo || $userId <= 0) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return null;
+    }
+
+    $firstName = trim((string)($data['first_name'] ?? ''));
+    $lastName = trim((string)($data['last_name'] ?? ''));
+    $email = strtolower(trim((string)($data['email'] ?? '')));
+    $currentPassword = (string)($data['current_password'] ?? '');
+    if ($firstName === '' || $lastName === '') {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter your first and last name.'];
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];
+    }
+    if ($alerts) return null;
+
+    try {
+        $stmt = $pdo->prepare('SELECT email, password_hash FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $userId]);
+        $existing = $stmt->fetch();
+        if (!$existing) {
+            $alerts[] = ['type' => 'danger', 'message' => 'User account not found.'];
+            return null;
+        }
+        if (strcasecmp($email, (string)$existing['email']) !== 0) {
+            if ($currentPassword === '' || !password_verify($currentPassword, (string)$existing['password_hash'])) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Enter your current password to change your email address.'];
+                return null;
+            }
+            $duplicate = $pdo->prepare('SELECT id FROM users WHERE email = :email AND id <> :id LIMIT 1');
+            $duplicate->execute([':email' => $email, ':id' => $userId]);
+            if ($duplicate->fetch()) {
+                $alerts[] = ['type' => 'danger', 'message' => 'That email address is already in use.'];
+                return null;
+            }
+        }
+        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, updated_at = NOW() WHERE id = :id');
+        $update->execute([':first_name' => $firstName, ':last_name' => $lastName, ':email' => $email, ':id' => $userId]);
+        return ['first_name' => $firstName, 'last_name' => $lastName, 'email' => $email];
+    } catch (PDOException $e) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not update your account details.'];
+        return null;
+    }
+}
+
+function changeOwnPassword(?PDO $pdo, int $userId, array $data, array &$alerts): bool
+{
+    if (!$pdo || $userId <= 0) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return false;
+    }
+    $current = (string)($data['current_password'] ?? '');
+    $password = (string)($data['new_password'] ?? '');
+    $confirm = (string)($data['confirm_password'] ?? '');
+    if (strlen($password) < 8) {
+        $alerts[] = ['type' => 'danger', 'message' => 'New password must be at least 8 characters.'];
+    } elseif ($password !== $confirm) {
+        $alerts[] = ['type' => 'danger', 'message' => 'The new passwords do not match.'];
+    }
+    if ($alerts) return false;
+
+    try {
+        $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $userId]);
+        $hash = (string)($stmt->fetchColumn() ?: '');
+        if ($hash === '' || !password_verify($current, $hash)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Your current password is incorrect.'];
+            return false;
+        }
+        $update = $pdo->prepare('UPDATE users SET password_hash = :hash, updated_at = NOW() WHERE id = :id');
+        $update->execute([':hash' => password_hash($password, PASSWORD_DEFAULT), ':id' => $userId]);
+        return true;
+    } catch (PDOException $e) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not change your password.'];
+        return false;
+    }
+}

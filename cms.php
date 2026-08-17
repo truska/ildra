@@ -1773,6 +1773,7 @@ function ensurePageContentElementsTable(?PDO $pdo): void
         heading VARCHAR(255) DEFAULT NULL,
         anchor_slug VARCHAR(180) DEFAULT NULL,
         body_html MEDIUMTEXT DEFAULT NULL,
+        content_type VARCHAR(50) NOT NULL DEFAULT 'rich_text',
         layout ENUM('auto','image_left','image_right','text_only') NOT NULL DEFAULT 'auto',
         display_order INT NOT NULL DEFAULT 100,
         show_on_web TINYINT(1) NOT NULL DEFAULT 1,
@@ -1783,6 +1784,9 @@ function ensurePageContentElementsTable(?PDO $pdo): void
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     if (!table_column_exists($pdo, 'page_content_elements', 'anchor_slug')) {
         $pdo->exec("ALTER TABLE page_content_elements ADD COLUMN anchor_slug VARCHAR(180) DEFAULT NULL AFTER heading");
+    }
+    if (!table_column_exists($pdo, 'page_content_elements', 'content_type')) {
+        $pdo->exec("ALTER TABLE page_content_elements ADD COLUMN content_type VARCHAR(50) NOT NULL DEFAULT 'rich_text' AFTER body_html");
     }
 }
 
