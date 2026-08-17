@@ -37,6 +37,7 @@ $page = $page ?? [
     'button_target' => '_self',
     'is_published' => 1,
     'show_in_footer' => 0,
+    'menu_divider_below' => 0,
 ];
 
 admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
@@ -86,6 +87,10 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="show_in_footer" id="show-in-footer" <?php echo ($page['show_in_footer'] ?? 0) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="show-in-footer">Footer policy link</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="menu_divider_below" id="menu-divider-below" <?php echo ($page['menu_divider_below'] ?? 0) ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="menu-divider-below">Divider below in dropdown menu</label>
                 </div>
             </div>
             <div class="col-12">

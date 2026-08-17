@@ -183,6 +183,7 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                                 <?php endif; ?>
                                 <?php foreach ($group['pages'] as $page): ?>
                                     <li><a class="dropdown-item" href="<?php echo h(page_url($page)); ?>"><?php echo h($page['title']); ?></a></li>
+                                    <?php if (!empty($page['menu_divider_below'])): ?><li><hr class="dropdown-divider"></li><?php endif; ?>
                                 <?php endforeach; ?>
                             </ul>
                         </li>
