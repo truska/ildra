@@ -5444,23 +5444,6 @@ function page_dynamic_sections(?PDO $pdo, array $page, string $basePath = ''): a
     $slug = strtolower(trim((string)($page['slug'] ?? '')));
     $group = strtolower(trim((string)($page['nav_group'] ?? '')));
 
-    // Events pages should steer users to the dedicated events template.
-    if ($group === 'events') {
-        ob_start();
-        ?>
-        <div class="card-soft p-3 mb-4">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-                <div>
-                    <div class="fw-bold">Looking for the event listings?</div>
-                    <div class="text-muted small">Events now live on a dedicated template with detail pages.</div>
-                </div>
-                <a class="btn btn-success" href="<?php echo h($basePath); ?>/events">View events</a>
-            </div>
-        </div>
-        <?php
-        $sections['before_content'] = (string)ob_get_clean();
-    }
-
     // FAQ pages render DB-backed accordion entries.
     $isFaqPage = $group === 'faqs' || in_array($slug, ['faq', 'faqs'], true);
     if ($isFaqPage) {

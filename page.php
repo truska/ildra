@@ -152,11 +152,39 @@ foreach ($pageElements as &$pageElement) {
     $calendarEvents = array_values(array_filter(fetchEvents($pdo, true), static fn(array $event): bool => strtolower((string)($event['status'] ?? '')) === 'published'));
     usort($calendarEvents, static fn(array $a, array $b): int => strcmp((string)($a['event_date'] ?? ''), (string)($b['event_date'] ?? '')));
     ob_start(); ?>
+    <style>.current-events-calendar .d-flex.flex-column.align-items-md-end.gap-2 > .d-flex { flex-direction: column; align-items: flex-end; }</style>
     <div class="current-events-calendar mt-4">
-        <?php if ($calendarEvents): ?><div class="list-group"><?php foreach ($calendarEvents as $event): ?>
-            <?php $eventUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title'])); ?>
-            <a class="list-group-item list-group-item-action" href="<?php echo h($eventUrl); ?>"><div class="d-flex justify-content-between gap-3"><span class="fw-semibold"><?php echo h((string)$event['title']); ?></span><span class="text-muted text-nowrap"><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></span></div><?php if (!empty($event['location'])): ?><div class="small text-muted mt-1"><?php echo h((string)$event['location']); ?></div><?php endif; ?></a>
-        <?php endforeach; ?></div><?php else: ?><div class="alert alert-info mb-0">No current events are published.</div><?php endif; ?>
+        <?php $currentMonth = ''; ?>
+        <?php if ($calendarEvents): ?><?php foreach ($calendarEvents as $event): ?>
+            <?php
+            $eventDate = (string)($event['event_date'] ?? '');
+            $monthLabel = $eventDate ? strtoupper(date('F Y', strtotime($eventDate))) : '';
+            if ($monthLabel && $monthLabel !== $currentMonth) { $currentMonth = $monthLabel; echo '<div class="small fw-bold text-muted mt-4 mb-2">' . h($currentMonth) . '</div>'; }
+            $dateLabel = $eventDate ? date('jS M Y', strtotime($eventDate)) : 'Date TBC';
+            $endDate = (string)($event['end_date'] ?? '');
+            if ($endDate && $endDate !== $eventDate) $dateLabel .= ' to ' . date('jS M Y', strtotime($endDate));
+            $eventUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title']));
+            $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
+            if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');
+            $entryOpenAt = $event['entry_open_at'] ?? null;
+            $nonMemberOpenAt = $event['non_member_entry_open_at'] ?? null;
+            $entryCloseAt = $event['entry_close_at'] ?? null;
+            if (!$entryOpenAt && $eventDate) $entryOpenAt = date('Y-m-d 00:00:00', strtotime($eventDate . ' -1 month'));
+            if (!$nonMemberOpenAt && $entryOpenAt) $nonMemberOpenAt = date('Y-m-d H:i:s', strtotime((string)$entryOpenAt . ' +1 week'));
+            if (!$entryCloseAt && $eventDate) $entryCloseAt = date('Y-m-d 23:59:59', strtotime($eventDate . ' -1 week'));
+            $now = new DateTimeImmutable('now');
+            $entryOpenDt = $entryOpenAt ? new DateTimeImmutable((string)$entryOpenAt) : null;
+            $nonMemberOpenDt = $nonMemberOpenAt ? new DateTimeImmutable((string)$nonMemberOpenAt) : null;
+            $entryCloseDt = $entryCloseAt ? new DateTimeImmutable((string)$entryCloseAt) : null;
+            $capacity = (int)($event['capacity_limit'] ?? 0); $isLimited = !empty($event['capacity_enabled']) && $capacity > 0;
+            $entryCount = (int)($event['entry_count'] ?? 0); $isFull = $isLimited && $entryCount >= $capacity;
+            $entriesClosed = $entryCloseDt && $now > $entryCloseDt;
+            $closingSoon = $entryCloseDt && !$entriesClosed && $entryCloseDt <= $now->modify('+4 days');
+            ?>
+            <a class="d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div><?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?><?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?><?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h((string)$event['description']); ?></div><?php endif; ?></div><div class="d-flex flex-column align-items-md-end gap-2"><span class="btn btn-sm btn-outline-success">View ride &amp; enter</span><div class="d-flex flex-wrap justify-content-md-end gap-2"><?php if ($entryOpenDt): ?><span class="badge <?php echo $now < $entryOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Members <?php echo h($now < $entryOpenDt ? 'open ' . $entryOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($nonMemberOpenDt): ?><span class="badge <?php echo $now < $nonMemberOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Non-members <?php echo h($now < $nonMemberOpenDt ? 'open ' . $nonMemberOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($entriesClosed): ?><span class="badge text-bg-secondary">Entries closed</span><?php elseif ($entryCloseDt): ?><span class="badge text-bg-light border">Closes <?php echo h($entryCloseDt->format('j M H:i')); ?></span><?php endif; ?><?php if ($closingSoon): ?><span class="fw-bold text-danger small align-self-center">CLOSING SOON</span><?php endif; ?><?php if ($isLimited): ?><span class="badge <?php echo $isFull ? 'text-bg-danger' : 'text-bg-light border'; ?>"><?php echo $isFull ? 'Event full' : $entryCount . '/' . $capacity . ' places'; ?></span><?php endif; ?></div></div></div>
+            </a>
+        <?php endforeach; ?><?php else: ?><div class="alert alert-info mb-0">No current events are published.</div><?php endif; ?>
     </div><?php $pageElement['body_html']=(string)($pageElement['body_html']??'').(string)ob_get_clean();
 }
 unset($pageElement);
