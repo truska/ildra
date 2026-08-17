@@ -134,7 +134,8 @@ foreach ($pageElements as &$pageElement) {
         <?php foreach ($awards as $award): ?>
             <?php
             $winnerCollapseId = 'award-winners-' . (int)$award['id'];
-            $recentAwardYears = [(int)date('Y'), (int)date('Y') - 1];
+            // Awards are presented after the calendar year has finished, so begin with last year.
+            $recentAwardYears = [(int)date('Y') - 1, (int)date('Y') - 2];
             $awardWinners = $winnerMap[(int)$award['id']] ?? [];
             $winnersByYear = [];
             foreach ($awardWinners as $winner) $winnersByYear[(int)$winner['award_year']][] = $winner;
