@@ -15,6 +15,12 @@ if (!$pages) {
 }
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
+$membershipAccessUrl = $basePath . '/account';
+if (!$isLoggedIn) {
+    $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please sign in to join or renew a membership.']];
+    header('Location: ' . $membershipAccessUrl);
+    exit;
+}
 $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
 $basketCount = count($basket);
 $members = $isLoggedIn ? array_values(array_filter(

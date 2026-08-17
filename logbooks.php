@@ -15,6 +15,11 @@ if (!$pages) {
 }
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
+if (!$isLoggedIn) {
+    $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please sign in to register a horse or buy a logbook.']];
+    header('Location: ' . $basePath . '/account');
+    exit;
+}
 $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
 $basketCount = count($basket);
 $horses = $isLoggedIn ? array_values(array_filter(

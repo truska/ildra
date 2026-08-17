@@ -93,6 +93,120 @@ $pageImageBatch = $renderPage ? mediaBatchFind($pdo, 'page_images', 'page', (int
 $pageImages = $pageImageBatch ? mediaBatchImages($pdo, (int)$pageImageBatch['id']) : [];
 $pageElements = $renderPage ? fetchPageContentElements($pdo, (int)($renderPage['id'] ?? 0), true) : [];
 foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'membership_options') {
+        continue;
+    }
+    $membershipTypes = fetchMembershipTypes($pdo, true);
+    $membershipHref = $basePath . ($isLoggedIn ? '/memberships' : '/account');
+    ob_start();
+    ?>
+    <div class="membership-options mt-4">
+        <?php if ($membershipTypes): ?>
+            <div class="row g-3">
+                <?php foreach ($membershipTypes as $membershipType): ?>
+                    <div class="col-md-6">
+                        <div class="border rounded-4 h-100 p-3 bg-light-subtle">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div class="fw-bold fs-5"><?php echo h((string)$membershipType['name']); ?></div>
+                                <span class="badge text-bg-success fs-6"><?php echo h(format_price($membershipType['cost'] ?? 0)); ?></span>
+                            </div>
+                            <?php if (trim((string)($membershipType['description'] ?? '')) !== ''): ?><div class="text-muted small mt-2"><?php echo h((string)$membershipType['description']); ?></div><?php endif; ?>
+                            <?php if (!empty($membershipType['membership_starts']) || !empty($membershipType['membership_ends'])): ?><div class="text-muted small mt-3"><strong>Membership period:</strong> <?php echo h(format_display_date($membershipType['membership_starts'] ?? null, '')); ?> — <?php echo h(format_display_date($membershipType['membership_ends'] ?? null, '')); ?></div><?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <div class="mt-4"><a class="btn btn-success" href="<?php echo h($membershipHref); ?>">Join now</a></div>
+        <?php else: ?>
+            <div class="alert alert-info mb-0">Membership options will be available soon.</div>
+        <?php endif; ?>
+    </div>
+    <?php
+    $pageElement['body_html'] = (string)($pageElement['body_html'] ?? '') . (string)ob_get_clean();
+}
+unset($pageElement);
+foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'ride_prices') {
+        continue;
+    }
+    $rideSchemes = array_values(array_filter(fetchPricingSchemes($pdo), static function (array $scheme): bool {
+        if (stripos((string)($scheme['name'] ?? ''), 'ride') !== false) {
+            return true;
+        }
+        foreach ((array)($scheme['event_types'] ?? []) as $eventType) {
+            if (stripos((string)($eventType['name'] ?? ''), 'ride') !== false) {
+                return true;
+            }
+        }
+        return false;
+    }));
+    ob_start();
+    ?>
+    <div class="ride-prices mt-4">
+        <?php if ($rideSchemes): ?>
+            <?php foreach ($rideSchemes as $rideScheme): ?>
+                <?php $rideRows = fetchPricingSchemeRows($pdo, (int)($rideScheme['id'] ?? 0)); ?>
+                <?php if ($rideRows): ?>
+                    <div class="mb-4">
+                        <div class="fw-bold mb-2"><?php echo h((string)$rideScheme['name']); ?></div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped align-middle mb-0">
+                                <thead class="table-light"><tr><th>Class name</th><th>Entry type</th><th>Rider</th><th class="text-end">Price</th></tr></thead>
+                                <tbody>
+                                    <?php foreach ($rideRows as $rideRow): ?>
+                                        <tr>
+                                            <td><?php echo h((string)($rideRow['class_name'] ?? '')); ?></td>
+                                            <td><?php echo !empty($rideRow['is_member_price']) ? 'Member' : 'Non-member'; ?></td>
+                                            <td><?php echo !empty($rideRow['is_junior_ride']) ? 'Junior' : 'Senior'; ?></td>
+                                            <td class="text-end fw-semibold"><?php echo h(format_price($rideRow['price'] ?? 0)); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div class="alert alert-info mb-0">Ride prices will be available soon.</div>
+        <?php endif; ?>
+    </div>
+    <?php
+    $pageElement['body_html'] = (string)($pageElement['body_html'] ?? '') . (string)ob_get_clean();
+}
+unset($pageElement);
+foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'horse_logbook_information') {
+        continue;
+    }
+    // There is one horse logbook category. Use the current/latest published offering.
+    $logbookTypes = array_slice(fetchHorseLogbookTypes($pdo, true), 0, 1);
+    $logbookHref = $basePath . ($isLoggedIn ? '/logbooks' : '/account');
+    ob_start();
+    ?>
+    <div class="horse-logbook-information mt-4">
+        <?php if ($logbookTypes): ?>
+            <?php $logbookType = $logbookTypes[0]; ?>
+            <div class="border rounded-4 p-4 bg-light-subtle">
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-start gap-3">
+                    <div>
+                        <div class="fw-bold fs-5"><?php echo h((string)$logbookType['name']); ?></div>
+                        <?php if (trim((string)($logbookType['description'] ?? '')) !== ''): ?><div class="text-muted small mt-2"><?php echo h((string)$logbookType['description']); ?></div><?php endif; ?>
+                        <div class="text-muted small mt-3"><strong>Logbook year:</strong> <?php echo (int)($logbookType['valid_year'] ?? date('Y')); ?></div>
+                    </div>
+                    <span class="badge text-bg-success fs-6 align-self-sm-start"><?php echo h(format_price($logbookType['cost'] ?? 0)); ?></span>
+                </div>
+            </div>
+            <div class="mt-4"><a class="btn btn-success" href="<?php echo h($logbookHref); ?>">Get a horse logbook</a></div>
+        <?php else: ?>
+            <div class="alert alert-info mb-0">Horse logbooks will be available soon.</div>
+        <?php endif; ?>
+    </div>
+    <?php
+    $pageElement['body_html'] = (string)($pageElement['body_html'] ?? '') . (string)ob_get_clean();
+}
+unset($pageElement);
+foreach ($pageElements as &$pageElement) {
     $pageElement['image_batch'] = mediaBatchFind($pdo, 'content_element_images', 'page_content_element', (int)$pageElement['id']);
     $pageElement['images'] = $pageElement['image_batch'] ? mediaBatchImages($pdo, (int)$pageElement['image_batch']['id']) : [];
 }
