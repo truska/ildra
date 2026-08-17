@@ -28,6 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $events = fetchEvents($pdo, false);
+$rideReportsByEvent = [];
+foreach (fetchNewsArticles($pdo, false) as $newsItem) {
+    if (($newsItem['article_type'] ?? 'news') === 'ride_report' && !empty($newsItem['event_id'])) {
+        $rideReportsByEvent[(int)$newsItem['event_id']] = $newsItem;
+    }
+}
 $entryCounts = [];
 $basketCounts = [];
 if ($pdo) {
@@ -203,6 +209,8 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
     $classes = $classNames ? implode(', ', $classNames) : '';
     $slugTitle = slugify((string)($event['title'] ?? 'event'));
     $viewUrl = $siteBase . '/events/' . (int)($event['id'] ?? 0) . '-' . $slugTitle;
+    $reportId = (int)($GLOBALS['rideReportsByEvent'][(int)($event['id'] ?? 0)]['id'] ?? 0);
+    $reportUrl = $reportId ? 'news_edit.php?id=' . $reportId : 'news_edit.php?type=ride_report&event_id=' . (int)$event['id'];
     ob_start();
     ?>
     <div class="py-2 border-bottom">
@@ -233,6 +241,7 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
                 <div class="d-flex flex-wrap flex-md-column gap-1 justify-content-end">
                     <a class="btn btn-sm btn-outline-success" href="event_edit.php?id=<?php echo (int)$event['id']; ?>">Edit</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">View</a>
+                    <a class="btn btn-sm btn-outline-primary" href="<?php echo h($reportUrl); ?>"><?php echo $reportId ? 'Edit Report' : 'Add Report'; ?></a>
                     <?php if ($isAdmin): ?>
                         <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
                             <input type="hidden" name="action" value="delete_event">
@@ -287,6 +296,10 @@ admin_layout_start('Events', 'events');
         <h5 class="mb-0">Events</h5>
     </div>
     <div class="admin-page-actions">
+        <a class="btn btn-outline-primary has-icon" href="#past-rides">
+            <i class="fa-solid fa-clock-rotate-left btn-icon"></i>
+            <span class="btn-label">Past Rides (<?php echo count($past); ?>)</span>
+        </a>
         <a class="btn btn-success has-icon" href="event_edit.php">
             <i class="fa-solid fa-calendar-plus btn-icon"></i>
             <span class="btn-label">Add New Event</span>
@@ -304,7 +317,8 @@ admin_layout_start('Events', 'events');
 
 <div class="card-soft p-3">
     <div class="mb-2">
-        <div class="small text-muted">Upcoming events (ascending by start date)</div>
+        <h6 class="mb-1">Current and Upcoming Rides</h6>
+        <div class="small text-muted">Ascending by start date.</div>
     </div>
     <div class="table-responsive">
 	        <table class="table table-sm align-middle">
@@ -374,6 +388,7 @@ admin_layout_start('Events', 'events');
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">
                                     <i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span>
                                 </a>
+                                <?php $reportId=(int)($rideReportsByEvent[(int)$event['id']]['id']??0); ?><a class="btn btn-sm btn-outline-primary has-icon" href="<?php echo $reportId?'news_edit.php?id='.$reportId:'news_edit.php?type=ride_report&amp;event_id='.(int)$event['id']; ?>"><i class="fa-solid fa-newspaper btn-icon"></i><span class="btn-label"><?php echo $reportId?'Edit Report':'Add Report'; ?></span></a>
                             <?php if ($isAdmin): ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
                                     <input type="hidden" name="action" value="delete_event">
@@ -393,10 +408,10 @@ admin_layout_start('Events', 'events');
     </div>
 </div><div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary" type="submit" form="event-filter-form">Apply table filters</button> <a class="btn btn-sm btn-link" href="events.php">Clear</a></div></div>
 
-<?php if ($past): ?>
-    <div class="card-soft p-3 mt-3">
+    <div class="card-soft p-3 mt-3" id="past-rides">
         <div class="mb-2">
-            <div class="small text-muted">Previous events (most recent first)</div>
+            <h6 class="mb-1">Past Rides</h6>
+            <div class="small text-muted">Past rides, most recent first. Add or edit each ride report from the action row.</div>
         </div>
         <div class="table-responsive">
 	        <table class="table table-sm align-middle">
@@ -465,6 +480,7 @@ admin_layout_start('Events', 'events');
                                     <a class="btn btn-sm btn-outline-secondary has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">
                                         <i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span>
                                     </a>
+                                    <?php $reportId=(int)($rideReportsByEvent[(int)$event['id']]['id']??0); ?><a class="btn btn-sm btn-outline-primary has-icon" href="<?php echo $reportId?'news_edit.php?id='.$reportId:'news_edit.php?type=ride_report&amp;event_id='.(int)$event['id']; ?>"><i class="fa-solid fa-newspaper btn-icon"></i><span class="btn-label"><?php echo $reportId?'Edit Report':'Add Report'; ?></span></a>
                                 <?php if ($isAdmin): ?>
                                     <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
                                         <input type="hidden" name="action" value="delete_event">
@@ -476,10 +492,12 @@ admin_layout_start('Events', 'events');
                             </td>
                         </tr>
                     <?php endforeach; ?>
+                    <?php if (!$past): ?>
+                        <tr><td colspan="9" class="text-muted">No past rides match the current filters. <a href="events.php">Clear filters</a></td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-<?php endif; ?>
 <?php
 admin_layout_end();

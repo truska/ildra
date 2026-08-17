@@ -50,6 +50,49 @@ function render_tinymce_bootstrap(): void
             const base = Object.assign({}, window.ildraTinyMceBaseConfig || {});
             return Object.assign(base, overrides || {});
         };
+        window.ildraNewsTinyMceConfig = function(selector) {
+            const allowedTags = new Set(['P','BR','H2','H3','H4','BLOCKQUOTE','STRONG','B','EM','I','U','UL','OL','LI','A']);
+            const removeTags = new Set(['SCRIPT','STYLE','META','LINK','TITLE','IMG','OBJECT','EMBED','IFRAME']);
+            return window.ildraTinyMceConfig({
+                selector: selector,
+                paste_data_images: false,
+                paste_webkit_styles: 'none',
+                paste_remove_styles_if_webkit: true,
+                valid_elements: 'p,br,h2,h3,h4,blockquote,strong,b,em,i,u,ul,ol,li,a[href|target|rel]',
+                invalid_elements: 'script,style,meta,link,title,img,object,embed,iframe',
+                paste_preprocess: function (plugin, args) {
+                    const template = document.createElement('template');
+                    template.innerHTML = args.content || '';
+                    const comments = document.createTreeWalker(template.content, NodeFilter.SHOW_COMMENT);
+                    const commentsToRemove = [];
+                    while (comments.nextNode()) commentsToRemove.push(comments.currentNode);
+                    commentsToRemove.forEach(function (comment) { comment.remove(); });
+                    Array.from(template.content.querySelectorAll('*')).reverse().forEach(function (element) {
+                        if (removeTags.has(element.tagName)) {
+                            element.remove();
+                            return;
+                        }
+                        if (!allowedTags.has(element.tagName)) {
+                            element.replaceWith(...Array.from(element.childNodes));
+                            return;
+                        }
+                        Array.from(element.attributes).forEach(function (attribute) {
+                            if (element.tagName !== 'A' || !['href','target'].includes(attribute.name.toLowerCase())) {
+                                element.removeAttribute(attribute.name);
+                            }
+                        });
+                        if (element.tagName === 'A') {
+                            const href = (element.getAttribute('href') || '').trim();
+                            if (/^(?:javascript|data):/i.test(href)) element.removeAttribute('href');
+                            if (element.getAttribute('target') === '_blank') element.setAttribute('rel', 'noopener');
+                        }
+                    });
+                    const textNodes = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+                    while (textNodes.nextNode()) textNodes.currentNode.nodeValue = textNodes.currentNode.nodeValue.replace(/\u00a0/g, ' ');
+                    args.content = template.innerHTML;
+                }
+            });
+        };
     </script>
     <?php
 }

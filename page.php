@@ -182,6 +182,39 @@ foreach ($pageElements as &$pageElement) {
 }
 unset($pageElement);
 foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'news_list') continue;
+    $newsArticles = fetchNewsArticles($pdo, true);
+    ob_start(); ?>
+    <div class="news-list mt-4">
+        <?php if ($newsArticles): ?>
+            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+                <?php foreach ($newsArticles as $newsArticle): ?>
+                    <?php
+                    $newsBatch = mediaBatchFind($pdo, 'news_images', 'news_article', (int)$newsArticle['id']);
+                    $newsImages = $newsBatch ? mediaBatchImages($pdo, (int)$newsBatch['id']) : [];
+                    $newsImage = $newsImages[0] ?? null;
+                    $newsImageUrl = ($newsBatch && $newsImage) ? mediaBatchImageUrl($newsBatch, $newsImage, 'md') : '/filestore/images/award-placeholder.svg';
+                    $newsUrl = $basePath . '/news/' . (int)$newsArticle['id'] . '-' . rawurlencode((string)$newsArticle['slug']);
+                    ?>
+                    <div class="col">
+                        <a class="card h-100 text-decoration-none text-reset shadow-sm overflow-hidden" href="<?php echo h($newsUrl); ?>">
+                            <img class="card-img-top" style="height:210px;object-fit:cover" src="<?php echo h($newsImageUrl); ?>" alt="<?php echo h((string)($newsImage['alt_text'] ?? $newsArticle['headline'])); ?>">
+                            <div class="card-body d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-center gap-2 mb-1"><span class="small text-muted"><?php echo h(format_display_date($newsArticle['published_at'] ?? $newsArticle['created_at'], '')); ?></span><?php if (($newsArticle['article_type'] ?? 'news') === 'ride_report'): ?><span class="badge text-bg-success">Ride Report</span><?php endif; ?></div>
+                                <h3 class="h5 card-title"><?php echo h((string)$newsArticle['headline']); ?></h3>
+                                <?php if (!empty($newsArticle['subheading'])): ?><p class="card-text small text-muted mb-0"><?php echo h((string)$newsArticle['subheading']); ?></p><?php endif; ?>
+                                <span class="text-success fw-semibold small mt-auto pt-3">Read story</span>
+                            </div>
+                        </a>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?><div class="alert alert-info mb-0">No news has been published yet.</div><?php endif; ?>
+    </div>
+    <?php $pageElement['body_html'] = (string)($pageElement['body_html'] ?? '') . (string)ob_get_clean();
+}
+unset($pageElement);
+foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'current_events_calendar') continue;
     $calendarEvents = array_values(array_filter(fetchEvents($pdo, true), static fn(array $event): bool => strtolower((string)($event['status'] ?? '')) === 'published'));
     usort($calendarEvents, static fn(array $a, array $b): int => strcmp((string)($a['event_date'] ?? ''), (string)($b['event_date'] ?? '')));

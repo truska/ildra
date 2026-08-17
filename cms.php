@@ -1854,6 +1854,83 @@ function fetchPageContentElement(?PDO $pdo, int $id): ?array
     $stmt=$pdo->prepare('SELECT * FROM page_content_elements WHERE id=:id LIMIT 1');$stmt->execute([':id'=>$id]);return $stmt->fetch()?:null;
 }
 
+function ensureNewsTables(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS news_articles (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        article_type VARCHAR(30) NOT NULL DEFAULT 'news',
+        event_id INT UNSIGNED NULL DEFAULT NULL,
+        headline VARCHAR(255) NOT NULL,
+        slug VARCHAR(180) NOT NULL UNIQUE,
+        subheading TEXT DEFAULT NULL,
+        body_html MEDIUMTEXT DEFAULT NULL,
+        is_published TINYINT(1) NOT NULL DEFAULT 0,
+        published_at DATETIME DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_news_published (is_published, published_at),
+        UNIQUE KEY uniq_ride_report_event (event_id, article_type)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    if (!table_column_exists($pdo, 'news_articles', 'article_type')) {
+        $pdo->exec("ALTER TABLE news_articles ADD COLUMN article_type VARCHAR(30) NOT NULL DEFAULT 'news' AFTER id");
+    }
+    if (!table_column_exists($pdo, 'news_articles', 'event_id')) {
+        $pdo->exec("ALTER TABLE news_articles ADD COLUMN event_id INT UNSIGNED NULL DEFAULT NULL AFTER article_type, ADD INDEX idx_news_event (event_id, article_type)");
+    }
+    if (!table_index_exists($pdo, 'news_articles', 'uniq_ride_report_event')) {
+        try {
+            $pdo->exec("ALTER TABLE news_articles ADD UNIQUE INDEX uniq_ride_report_event (event_id, article_type)");
+        } catch (PDOException $e) {
+            // Existing duplicate draft reports need resolving before adding the constraint.
+        }
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS news_content_sections (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        news_id INT UNSIGNED NOT NULL,
+        subheading VARCHAR(255) DEFAULT NULL,
+        body_html MEDIUMTEXT DEFAULT NULL,
+        layout ENUM('auto','image_left','image_right','text_only') NOT NULL DEFAULT 'auto',
+        display_order INT NOT NULL DEFAULT 100,
+        show_on_web TINYINT(1) NOT NULL DEFAULT 1,
+        archived TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_news_sections (news_id, archived, show_on_web, display_order)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+}
+
+function fetchNewsArticles(?PDO $pdo, bool $publishedOnly = false): array
+{
+    if (!$pdo) return [];
+    ensureNewsTables($pdo);
+    $sql = 'SELECT * FROM news_articles';
+    if ($publishedOnly) $sql .= ' WHERE is_published=1 AND (published_at IS NULL OR published_at<=NOW())';
+    $sql .= ' ORDER BY COALESCE(published_at,created_at) DESC,id DESC';
+    return $pdo->query($sql)->fetchAll() ?: [];
+}
+
+function fetchNewsArticle(?PDO $pdo, int $id): ?array
+{
+    if (!$pdo || $id <= 0) return null;
+    ensureNewsTables($pdo);
+    $stmt=$pdo->prepare('SELECT * FROM news_articles WHERE id=:id LIMIT 1');$stmt->execute([':id'=>$id]);return $stmt->fetch()?:null;
+}
+
+function fetchNewsSections(?PDO $pdo, int $newsId, bool $webOnly=false): array
+{
+    if (!$pdo || $newsId <= 0) return [];
+    ensureNewsTables($pdo);
+    $sql='SELECT * FROM news_content_sections WHERE news_id=:news';
+    if($webOnly)$sql.=' AND show_on_web=1 AND archived=0';
+    $sql.=' ORDER BY display_order,id';$stmt=$pdo->prepare($sql);$stmt->execute([':news'=>$newsId]);return $stmt->fetchAll()?:[];
+}
+
+function fetchNewsSection(?PDO $pdo, int $id): ?array
+{
+    if(!$pdo||$id<=0)return null;ensureNewsTables($pdo);$stmt=$pdo->prepare('SELECT * FROM news_content_sections WHERE id=:id LIMIT 1');$stmt->execute([':id'=>$id]);return $stmt->fetch()?:null;
+}
+
 function ensureVenuesTable(?PDO $pdo): void
 {
     if (!$pdo) {

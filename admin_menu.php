@@ -6,6 +6,7 @@ function defaultAdminMenuItems(): array
     $rows = [
         ['dashboard', 'Dashboard', 'index.php', 'fa-solid fa-gauge-high'],
         ['pages', 'Pages', 'pages.php', 'fa-solid fa-file-lines'],
+        ['news', 'News', 'news.php', 'fa-solid fa-newspaper'],
         ['advertising', 'Advertising', 'advertising.php', 'fa-solid fa-rectangle-ad'],
         ['asset_library', 'Document & Image Library', 'asset_library.php', 'fa-solid fa-photo-film'],
         ['events', 'Events', 'events.php', 'fa-solid fa-calendar-days'],
