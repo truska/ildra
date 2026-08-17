@@ -145,6 +145,7 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                         $hasDropdown = (count($group['pages']) > 1) || $groupKey === 'events';
                         $menuId = nav_menu_id((string)$groupKey);
                         $overviewLabel = trim((string)($group['label'] ?? 'Overview')) . ' overview';
+                        $showOverview = !array_key_exists('menu_overview_' . $groupKey, $siteSettings) || !empty($siteSettings['menu_overview_' . $groupKey]);
                     ?>
                     <?php if (!$hasDropdown): ?>
                         <li class="nav-item">
@@ -157,7 +158,7 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                                 <span class="chevron" aria-hidden="true"></span>
                             </button>
                             <ul class="nav-submenu list-unstyled mb-0" id="<?php echo h($menuId); ?>" hidden>
-                                <li><a class="dropdown-item fw-semibold" href="<?php echo h($primaryUrl); ?>"><?php echo h($overviewLabel); ?></a></li>
+                                <?php if ($showOverview): ?><li><a class="dropdown-item fw-semibold" href="<?php echo h($primaryUrl); ?>"><?php echo h($overviewLabel); ?></a></li><li><hr class="dropdown-divider"></li><?php endif; ?>
                                 <?php if ($groupKey === 'events'): ?>
                                     <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/memberships">Memberships</a></li>
                                     <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/logbooks">Horse logbooks</a></li>

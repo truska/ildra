@@ -92,6 +92,40 @@ $advertising = fetchAdvertising($pdo, true);
 $pageImageBatch = $renderPage ? mediaBatchFind($pdo, 'page_images', 'page', (int)($renderPage['id'] ?? 0)) : null;
 $pageImages = $pageImageBatch ? mediaBatchImages($pdo, (int)$pageImageBatch['id']) : [];
 $pageElements = $renderPage ? fetchPageContentElements($pdo, (int)($renderPage['id'] ?? 0), true) : [];
+
+// A group's first page is its optional dropdown overview destination. Present it as
+// a visual menu while this feature is enabled for that top-level menu section.
+$renderGroup = strtolower((string)($renderPage['nav_group'] ?? ''));
+$groupPages = $renderGroup !== '' ? array_values(array_filter($pages, static fn(array $candidate): bool =>
+    strtolower((string)($candidate['nav_group'] ?? '')) === $renderGroup
+)) : [];
+$showGroupOverview = !array_key_exists('menu_overview_' . $renderGroup, $siteSettings)
+    || !empty($siteSettings['menu_overview_' . $renderGroup]);
+if ($renderPage && $showGroupOverview && count($groupPages) > 1 && (int)$renderPage['id'] === (int)$groupPages[0]['id']) {
+    ob_start();
+    ?>
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4 justify-content-center mt-2">
+        <?php foreach ($groupPages as $menuPage): ?>
+            <?php
+            $menuImageBatch = mediaBatchFind($pdo, 'page_images', 'page', (int)$menuPage['id']);
+            $menuImages = $menuImageBatch ? mediaBatchImages($pdo, (int)$menuImageBatch['id']) : [];
+            $menuImage = $menuImages[0] ?? null;
+            $menuImageUrl = $menuImage ? mediaBatchImageUrl($menuImageBatch, $menuImage, 'md') : '/filestore/images/award-placeholder.svg';
+            ?>
+            <div class="col">
+                <a class="card h-100 text-decoration-none text-reset shadow-sm position-relative overflow-hidden" href="<?php echo h(page_url($menuPage)); ?>">
+                    <img class="card-img-top" style="height: 170px; object-fit: cover;" src="<?php echo h($menuImageUrl); ?>" alt="<?php echo h((string)($menuImage['alt_text'] ?? $menuPage['title'])); ?>">
+                    <div class="card-body">
+                        <h2 class="h5 card-title text-success"><?php echo h($menuPage['title']); ?></h2>
+                        <p class="card-text small mb-0"><?php echo h((string)($menuPage['excerpt'] ?? '')); ?></p>
+                    </div>
+                </a>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    <?php
+    $dynamicSections['after_body'] .= (string)ob_get_clean();
+}
 foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'membership_options') {
         continue;
