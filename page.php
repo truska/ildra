@@ -126,6 +126,29 @@ foreach ($pageElements as &$pageElement) {
 }
 unset($pageElement);
 foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'awards_winners') continue;
+    $awards = fetchAwards($pdo, true); $winners = fetchAwardWinners($pdo, 0, true);
+    $winnerMap = []; foreach ($winners as $winner) $winnerMap[(int)$winner['award_id']][] = $winner;
+    ob_start(); ?>
+    <div class="awards-winners mt-4 row g-4">
+        <?php foreach ($awards as $award): ?>
+            <?php
+            $winnerCollapseId = 'award-winners-' . (int)$award['id'];
+            $recentAwardYears = [(int)date('Y'), (int)date('Y') - 1];
+            $awardWinners = $winnerMap[(int)$award['id']] ?? [];
+            $winnersByYear = [];
+            foreach ($awardWinners as $winner) $winnersByYear[(int)$winner['award_year']][] = $winner;
+            $olderWinners = array_values(array_filter($awardWinners, static fn(array $winner): bool => (int)$winner['award_year'] < min($recentAwardYears)));
+            ?>
+            <?php $awardImageUrl = !empty($award['image_asset_id']) && ($asset = fetchAssetLibraryById($pdo, (int)$award['image_asset_id'])) ? assetLibraryPublicUrl($asset, 'sm') : (!empty($award['legacy_image_filename']) ? $basePath . '/filestore/images/awards/originals/' . rawurlencode(basename((string)$award['legacy_image_filename'])) : '/filestore/images/award-placeholder.svg'); ?>
+            <div class="col-12"><div class="card-soft p-4 h-100"><div class="row g-3 align-items-start"><div class="col-8"><h3 class="h4 mb-2"><?php echo h($award['name']); ?></h3><div class="page-body"><?php echo (string)($award['description_html'] ?? ''); ?></div><div class="table-responsive mt-3"><table class="table table-sm mb-0"><thead class="table-light"><tr><th>Year</th><th>Winner</th></tr></thead><tbody><?php foreach ($recentAwardYears as $awardYear): ?><tr><td><?php echo $awardYear; ?></td><td><?php if (!empty($winnersByYear[$awardYear])): ?><?php foreach ($winnersByYear[$awardYear] as $winner): ?><div><?php echo render_wysiwyg((string)$winner['winner_name']); ?></div><?php endforeach; ?><?php else: ?><span class="text-muted">Not awarded</span><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div><?php if ($olderWinners): ?><button class="btn btn-sm btn-outline-success mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#<?php echo h($winnerCollapseId); ?>" aria-expanded="false" aria-controls="<?php echo h($winnerCollapseId); ?>">Show More Winners</button><div class="collapse" id="<?php echo h($winnerCollapseId); ?>"><div class="table-responsive mt-3"><table class="table table-sm mb-0"><thead class="table-light"><tr><th>Year</th><th>Winner</th></tr></thead><tbody><?php foreach ($olderWinners as $winner): ?><tr><td><?php echo (int)$winner['award_year']; ?></td><td><?php echo render_wysiwyg((string)$winner['winner_name']); ?></td></tr><?php endforeach; ?></tbody></table></div></div><?php endif; ?></div><div class="col-4 align-self-start"><img class="w-100 rounded border bg-light p-2" style="min-height:210px;object-fit:contain;" src="<?php echo h($awardImageUrl); ?>" alt="<?php echo h($award['name']); ?>"></div></div></div></div>
+        <?php endforeach; ?>
+        <?php if (!$awards): ?><div class="col-12"><div class="alert alert-info mb-0">Awards will be available soon.</div></div><?php endif; ?>
+    </div>
+    <?php $pageElement['body_html']=(string)($pageElement['body_html']??'').(string)ob_get_clean();
+}
+unset($pageElement);
+foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'ride_prices') {
         continue;
     }
@@ -418,6 +441,14 @@ if (!$renderPage) {
         box.querySelector('.page-lightbox-close').addEventListener('click',close);box.querySelector('.page-lightbox-prev').addEventListener('click',()=>{if(active)active.select(active.current-1);});box.querySelector('.page-lightbox-next').addEventListener('click',()=>{if(active)active.select(active.current+1);});
         box.addEventListener('click',e=>{if(e.target===box)close();});document.addEventListener('keydown',e=>{if(!box.classList.contains('open'))return;if(e.key==='Escape')close();if(e.key==='ArrowLeft'&&active)active.select(active.current-1);if(e.key==='ArrowRight'&&active)active.select(active.current+1);});
     })();
+    </script>
+    <script>
+    document.querySelectorAll('[data-bs-target^="#award-winners-"]').forEach(function (button) {
+        var panel = document.querySelector(button.getAttribute('data-bs-target'));
+        if (!panel) return;
+        panel.addEventListener('shown.bs.collapse', function () { button.textContent = 'Hide More Winners'; });
+        panel.addEventListener('hidden.bs.collapse', function () { button.textContent = 'Show More Winners'; });
+    });
     </script>
 </body>
 </html>

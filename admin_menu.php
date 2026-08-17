@@ -20,6 +20,7 @@ function defaultAdminMenuItems(): array
         ['help_accounts', 'Account Help', 'account_intros.php', 'fa-solid fa-circle-info'],
         ['memberships', 'Memberships', 'memberships.php', 'fa-solid fa-id-card'],
         ['members', 'Members', 'members.php', 'fa-solid fa-user-group'],
+        ['awards', 'Awards', 'awards.php', 'fa-solid fa-trophy'],
         ['people', 'People', 'people.php', 'fa-solid fa-address-book'],
         ['horses', 'Horses', 'horses.php', 'fa-solid fa-horse'],
         ['hero', 'Site Hero & Welcome', 'hero.php', 'fa-solid fa-panorama'],
@@ -47,7 +48,7 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
-    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
+    if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
         return ['superadmin', 'admin'];
     }
     return ['superadmin', 'admin', 'organiser'];

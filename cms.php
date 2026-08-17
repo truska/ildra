@@ -5526,3 +5526,57 @@ function contentCounts(array $pages, array $events, array $faqs): array
         'faqs' => count($faqs),
     ];
 }
+
+function ensureAwardsTables(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS award_catalog (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        source_award_id INT UNSIGNED DEFAULT NULL UNIQUE,
+        name VARCHAR(180) NOT NULL,
+        description_html MEDIUMTEXT DEFAULT NULL,
+        image_asset_id INT UNSIGNED DEFAULT NULL,
+        legacy_image_filename VARCHAR(255) DEFAULT NULL,
+        legacy_type VARCHAR(10) DEFAULT NULL,
+        legacy_branch INT DEFAULT NULL,
+        display_order INT NOT NULL DEFAULT 100,
+        is_published TINYINT(1) NOT NULL DEFAULT 1,
+        is_archived TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_awards_display (is_archived, is_published, display_order)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS award_winners (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        award_id INT UNSIGNED NOT NULL,
+        award_year INT NOT NULL,
+        winner_name VARCHAR(255) NOT NULL,
+        source_winner_id INT UNSIGNED DEFAULT NULL UNIQUE,
+        is_published TINYINT(1) NOT NULL DEFAULT 1,
+        is_archived TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_award_winners (award_id, is_archived, is_published, award_year)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+}
+
+function fetchAwards(?PDO $pdo, bool $webOnly = false): array
+{
+    if (!$pdo) return [];
+    ensureAwardsTables($pdo);
+    $sql = 'SELECT * FROM award_catalog';
+    if ($webOnly) $sql .= ' WHERE is_published=1 AND is_archived=0';
+    $sql .= ' ORDER BY display_order ASC, name ASC';
+    return $pdo->query($sql)->fetchAll() ?: [];
+}
+
+function fetchAwardWinners(?PDO $pdo, int $awardId = 0, bool $webOnly = false): array
+{
+    if (!$pdo) return [];
+    ensureAwardsTables($pdo);
+    $sql = 'SELECT * FROM award_winners WHERE 1=1'; $params = [];
+    if ($awardId > 0) { $sql .= ' AND award_id=:award_id'; $params[':award_id'] = $awardId; }
+    if ($webOnly) $sql .= ' AND is_published=1 AND is_archived=0';
+    $sql .= ' ORDER BY award_year DESC, winner_name ASC';
+    $stmt = $pdo->prepare($sql); $stmt->execute($params); return $stmt->fetchAll() ?: [];
+}
