@@ -109,7 +109,7 @@ admin_layout_start('Pages', 'pages');
                         <td><?php echo ($page['is_published'] ?? 0) ? 'Yes' : 'No'; ?></td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-success" href="page_edit.php?id=<?php echo (int)$page['id']; ?>">Edit</a>
-                            <a class="btn btn-sm btn-outline-primary" href="<?php echo h($siteBase); ?>/pages/<?php echo h($page['slug']); ?>" target="_blank">View</a>
+                            <a class="btn btn-sm btn-outline-primary" href="<?php echo h($siteBase); ?>/pages/<?php echo h(page_destination_slug($page)); ?>" target="_blank">View</a>
                             <?php if ($isAdmin): ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Delete this page?');">
                                     <input type="hidden" name="action" value="delete_page">

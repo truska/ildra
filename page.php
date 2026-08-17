@@ -122,6 +122,11 @@ $showGroupOverview = !array_key_exists('menu_overview_' . $renderGroup, $siteSet
 $isMenuOverview = $renderPage && $showGroupOverview && count($groupPages) > 1 && $overviewGroupFromPath !== null;
 $menuOverviewTitle = (NAV_GROUPS[$renderGroup] ?? ucwords(str_replace('-', ' ', $renderGroup))) . ' Overview';
 if ($isMenuOverview) {
+    // Virtual overview URLs use the first page in their group for routing only.
+    // They must not inherit that page's regular content sections.
+    $pageElements = [];
+}
+if ($isMenuOverview) {
     ob_start();
     ?>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4 justify-content-center mt-2">
@@ -133,7 +138,7 @@ if ($isMenuOverview) {
             $menuImageUrl = $menuImage ? mediaBatchImageUrl($menuImageBatch, $menuImage, 'md') : '/filestore/images/award-placeholder.svg';
             ?>
             <div class="col">
-                <?php $menuPageUrl = $renderGroup === 'events' && (int)$menuPage['id'] === (int)$groupPages[0]['id'] ? $basePath . '/events' : $basePath . '/pages/' . rawurlencode((string)$menuPage['slug']); ?>
+                <?php $menuPageUrl = $renderGroup === 'events' && (int)$menuPage['id'] === (int)$groupPages[0]['id'] ? $basePath . '/events' : $basePath . '/pages/' . rawurlencode(page_destination_slug($menuPage)); ?>
                 <a class="card h-100 text-decoration-none text-reset shadow-sm position-relative overflow-hidden" href="<?php echo h($menuPageUrl); ?>">
                     <img class="card-img-top" style="height: 170px; object-fit: cover;" src="<?php echo h($menuImageUrl); ?>" alt="<?php echo h((string)($menuImage['alt_text'] ?? $menuPage['title'])); ?>">
                     <div class="card-body">
@@ -186,6 +191,50 @@ foreach ($pageElements as &$pageElement) {
             </a>
         <?php endforeach; ?><?php else: ?><div class="alert alert-info mb-0">No current events are published.</div><?php endif; ?>
     </div><?php $pageElement['body_html']=(string)($pageElement['body_html']??'').(string)ob_get_clean();
+}
+unset($pageElement);
+foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'past_events_calendar') continue;
+    $pastCalendarEvents = array_values(array_filter(fetchEvents($pdo, false), static function (array $event): bool {
+        $eventDate = trim((string)($event['event_date'] ?? ''));
+        return strtolower((string)($event['status'] ?? '')) === 'published'
+            && $eventDate !== ''
+            && $eventDate < date('Y-m-d');
+    }));
+    usort($pastCalendarEvents, static fn(array $a, array $b): int => strcmp((string)($b['event_date'] ?? ''), (string)($a['event_date'] ?? '')));
+    ob_start(); ?>
+    <div class="past-events-calendar mt-4">
+        <?php $currentMonth = ''; ?>
+        <?php if ($pastCalendarEvents): ?><?php foreach ($pastCalendarEvents as $event): ?>
+            <?php
+            $eventDate = (string)($event['event_date'] ?? '');
+            $monthLabel = strtoupper(date('F Y', strtotime($eventDate)));
+            if ($monthLabel !== $currentMonth) { $currentMonth = $monthLabel; echo '<div class="small fw-bold text-muted mt-4 mb-2">' . h($currentMonth) . '</div>'; }
+            $dateLabel = date('jS M Y', strtotime($eventDate));
+            $endDate = (string)($event['end_date'] ?? '');
+            if ($endDate && $endDate !== $eventDate) $dateLabel .= ' to ' . date('jS M Y', strtotime($endDate));
+            $eventUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title']));
+            $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
+            if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');
+            ?>
+            <a class="d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div>
+                        <div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div>
+                        <?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?>
+                        <?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?>
+                        <?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h((string)$event['description']); ?></div><?php endif; ?>
+                    </div>
+                    <div class="d-flex flex-column align-items-md-end gap-2">
+                        <span class="btn btn-sm btn-outline-success">Ride Report</span>
+                        <span class="btn btn-sm btn-outline-success">Ride Results</span>
+                    </div>
+                </div>
+            </a>
+        <?php endforeach; ?><?php else: ?><div class="alert alert-info mb-0">No past events are published.</div><?php endif; ?>
+    </div>
+    <?php $pageElement['body_html'] = (string)($pageElement['body_html'] ?? '') . (string)ob_get_clean();
 }
 unset($pageElement);
 foreach ($pageElements as &$pageElement) {

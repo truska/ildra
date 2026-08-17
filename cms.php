@@ -498,13 +498,18 @@ function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
             )
         ");
         ensurePageButtonColumns($pdo);
+        ensurePageDestinationColumn($pdo);
 
-        $sql = "SELECT * FROM pages";
+        $sql = "SELECT pages.*, destination.slug AS destination_slug
+                FROM pages
+                LEFT JOIN pages AS destination
+                  ON destination.id = pages.destination_page_id
+                 AND destination.is_published = 1";
         $params = [];
         if ($publishedOnly) {
-            $sql .= " WHERE is_published = 1";
+            $sql .= " WHERE pages.is_published = 1";
         }
-        $sql .= " ORDER BY nav_group, display_order, title";
+        $sql .= " ORDER BY pages.nav_group, pages.display_order, pages.title";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $pages = $stmt->fetchAll();
@@ -558,6 +563,25 @@ function fetchPageById(?PDO $pdo, int $id): ?array
     }
 }
 
+function ensurePageDestinationColumn(?PDO $pdo): void
+{
+    if (!$pdo || table_column_exists($pdo, 'pages', 'destination_page_id')) {
+        return;
+    }
+    $pdo->exec("ALTER TABLE pages ADD COLUMN destination_page_id INT UNSIGNED NULL DEFAULT NULL AFTER nav_group");
+    try {
+        $pdo->exec("ALTER TABLE pages ADD INDEX idx_pages_destination_page_id (destination_page_id)");
+    } catch (PDOException $e) {
+        // The column is sufficient if an older database already has the index.
+    }
+}
+
+function page_destination_slug(array $page): string
+{
+    $destinationSlug = trim((string)($page['destination_slug'] ?? ''));
+    return $destinationSlug !== '' ? $destinationSlug : trim((string)($page['slug'] ?? ''));
+}
+
 function fetchPageBySlug(?PDO $pdo, string $slug, bool $publishedOnly = true): ?array
 {
     if (!$pdo) {
@@ -594,6 +618,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
     $title = trim((string)($data['title'] ?? ''));
     $slug = strtolower(trim((string)($data['slug'] ?? '')));
     $navGroup = $data['nav_group'] ?? 'home';
+    $destinationPageId = max(0, (int)($data['destination_page_id'] ?? 0));
     $excerpt = trim((string)($data['excerpt'] ?? ''));
     $body = trim((string)($data['body_html'] ?? ''));
     $isPublished = isset($data['is_published']) ? 1 : 0;
@@ -616,6 +641,17 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
 
     if (!isset(NAV_GROUPS[$navGroup])) {
         $navGroup = 'home';
+    }
+    if ($destinationPageId === $pageId && $pageId > 0) {
+        $alerts[] = ['type' => 'danger', 'message' => 'A page cannot link to itself.'];
+        return false;
+    }
+    if ($destinationPageId > 0) {
+        $destinationPage = fetchPageById($pdo, $destinationPageId);
+        if (!$destinationPage || empty($destinationPage['is_published']) || !empty($destinationPage['destination_page_id'])) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Choose a published content page as the destination.'];
+            return false;
+        }
     }
     if ($buttonUrl !== '' && $buttonAssetId > 0) {
         $alerts[] = ['type' => 'danger', 'message' => 'Choose either a library item or enter a destination URL, not both.'];
@@ -654,6 +690,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
             )
         ");
         ensurePageButtonColumns($pdo);
+        ensurePageDestinationColumn($pdo);
 
         if ($pageId > 0) {
             $stmt = $pdo->prepare("
@@ -661,6 +698,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                     title = :title,
                     slug = :slug,
                     nav_group = :nav_group,
+                    destination_page_id = :destination_page_id,
                     excerpt = :excerpt,
                     body_html = :body_html,
                     button_name = :button_name,
@@ -679,6 +717,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                 ':title' => $title,
                 ':slug' => $slug,
                 ':nav_group' => $navGroup,
+                ':destination_page_id' => $destinationPageId > 0 ? $destinationPageId : null,
                 ':excerpt' => $excerpt,
                 ':body_html' => $body,
                 ':button_name' => $buttonName !== '' ? $buttonName : null,
@@ -694,13 +733,14 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO pages (title, slug, nav_group, excerpt, body_html, button_name, button_title, button_url, button_asset_id, button_target, is_published, show_in_footer, menu_divider_below, display_order, created_at, updated_at)
-                VALUES (:title, :slug, :nav_group, :excerpt, :body_html, :button_name, :button_title, :button_url, :button_asset_id, :button_target, :is_published, :show_in_footer, :menu_divider_below, :display_order, NOW(), NOW())
+                INSERT INTO pages (title, slug, nav_group, destination_page_id, excerpt, body_html, button_name, button_title, button_url, button_asset_id, button_target, is_published, show_in_footer, menu_divider_below, display_order, created_at, updated_at)
+                VALUES (:title, :slug, :nav_group, :destination_page_id, :excerpt, :body_html, :button_name, :button_title, :button_url, :button_asset_id, :button_target, :is_published, :show_in_footer, :menu_divider_below, :display_order, NOW(), NOW())
             ");
             $stmt->execute([
                 ':title' => $title,
                 ':slug' => $slug,
                 ':nav_group' => $navGroup,
+                ':destination_page_id' => $destinationPageId > 0 ? $destinationPageId : null,
                 ':excerpt' => $excerpt,
                 ':body_html' => $body,
                 ':button_name' => $buttonName !== '' ? $buttonName : null,
@@ -729,6 +769,9 @@ function deletePage(?PDO $pdo, int $id, array &$alerts): bool
     }
 
     try {
+        ensurePageDestinationColumn($pdo);
+        $clearDestinations = $pdo->prepare("UPDATE pages SET destination_page_id = NULL WHERE destination_page_id = :id");
+        $clearDestinations->execute([':id' => $id]);
         $stmt = $pdo->prepare("DELETE FROM pages WHERE id = :id");
         $stmt->execute([':id' => $id]);
         return true;

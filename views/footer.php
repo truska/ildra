@@ -4,7 +4,7 @@ declare(strict_types=1);
 if (!function_exists('footer_page_url')) {
     function footer_page_url(array $page, string $basePath = ''): string
     {
-        $slug = trim((string)($page['slug'] ?? ''));
+        $slug = page_destination_slug($page);
         return $slug === '' ? '#' : $basePath . '/pages/' . rawurlencode($slug);
     }
 }

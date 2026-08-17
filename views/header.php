@@ -18,7 +18,7 @@ $headerBannerUrl = ($headerBatch && $headerBatchImages) ? mediaBatchImageUrl($he
 if (!function_exists('page_url')) {
     function page_url(array $page): string
     {
-        $slug = $page['slug'] ?? '';
+        $slug = page_destination_slug($page);
         global $basePath;
         return $basePath . '/pages/' . rawurlencode($slug);
     }

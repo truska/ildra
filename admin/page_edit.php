@@ -6,6 +6,9 @@ require __DIR__ . '/_bootstrap.php';
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $pageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $page = $pageId ? fetchPageById($pdo, $pageId) : null;
+$destinationPages = array_values(array_filter(fetchPages($pdo, true), static fn(array $candidate): bool =>
+    (int)($candidate['id'] ?? 0) !== $pageId && empty($candidate['destination_page_id'])
+));
 $libraryAssets = fetchAssetLibrary($pdo, true);
 $pageContentElements = $pageId ? fetchPageContentElements($pdo, $pageId) : [];
 
@@ -27,6 +30,7 @@ $page = $page ?? [
     'title' => '',
     'slug' => '',
     'nav_group' => 'home',
+    'destination_page_id' => null,
     'display_order' => 0,
     'excerpt' => '',
     'body_html' => '',
@@ -78,6 +82,16 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
             <div class="col-md-4">
                 <label class="form-label">Order</label>
                 <input type="number" name="display_order" class="form-control" value="<?php echo h((string)$page['display_order']); ?>">
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">Link to existing page</label>
+                <select name="destination_page_id" class="form-select">
+                    <option value="">Use this page's own content</option>
+                    <?php foreach ($destinationPages as $destinationPage): ?>
+                        <option value="<?php echo (int)$destinationPage['id']; ?>" <?php echo (int)($page['destination_page_id'] ?? 0) === (int)$destinationPage['id'] ? 'selected' : ''; ?>><?php echo h((string)$destinationPage['title']); ?> (<?php echo h(NAV_GROUPS[$destinationPage['nav_group']] ?? (string)$destinationPage['nav_group']); ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">Optional menu alias: this menu item opens the selected page, so its content stays in one place. The slug above must still be unique.</div>
             </div>
             <div class="col-md-4 d-flex align-items-end gap-4">
                 <div class="form-check">
