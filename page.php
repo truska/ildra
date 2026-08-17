@@ -153,6 +153,35 @@ if ($isMenuOverview) {
     $dynamicSections['after_body'] .= (string)ob_get_clean();
 }
 foreach ($pageElements as &$pageElement) {
+    if (($pageElement['content_type'] ?? 'rich_text') !== 'faqs') continue;
+    $faqs = fetchFaqs($pdo);
+    ob_start();
+    ?>
+    <hr class="my-4">
+    <?php if ($faqs): ?>
+        <div class="accordion" id="faqAccordion">
+            <?php foreach ($faqs as $index => $faq): ?>
+                <?php $collapseId = 'faqCollapse' . (int)$index; ?>
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="faqHeading<?php echo (int)$index; ?>">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#<?php echo h($collapseId); ?>" aria-expanded="false" aria-controls="<?php echo h($collapseId); ?>">
+                            <?php echo h((string)($faq['question'] ?? '')); ?>
+                        </button>
+                    </h2>
+                    <div id="<?php echo h($collapseId); ?>" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body"><?php echo render_wysiwyg((string)($faq['answer'] ?? '')); ?></div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php else: ?>
+        <div class="alert alert-info mb-0">No FAQs have been added yet.</div>
+    <?php endif; ?>
+    <?php
+    $pageElement['body_html'] = (string)($pageElement['body_html'] ?? '') . (string)ob_get_clean();
+}
+unset($pageElement);
+foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'current_events_calendar') continue;
     $calendarEvents = array_values(array_filter(fetchEvents($pdo, true), static fn(array $event): bool => strtolower((string)($event['status'] ?? '')) === 'published'));
     usort($calendarEvents, static fn(array $a, array $b): int => strcmp((string)($a['event_date'] ?? ''), (string)($b['event_date'] ?? '')));
