@@ -303,7 +303,13 @@
     color: #0f2d17;
     font-weight: 700;
 }
-.nav-submenu .dropdown-divider { margin: 0.35rem 0; }
+.nav-submenu .dropdown-divider {
+    height: 2px;
+    margin: 0.45rem 0.9rem;
+    border: 0;
+    background-color: #198754;
+    opacity: 1;
+}
 
 /* FIXED UTILITY BUTTONS */
 .nav-actions {
@@ -457,6 +463,7 @@ body.show-page-hero .page-hero {
         color: #0f2d17;
         font-weight: 600;
     }
+    .nav-submenu .dropdown-divider { background-color: rgba(255,255,255,0.75); }
 }
 
 @media (max-width: 575.98px) {
