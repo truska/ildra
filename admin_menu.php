@@ -19,6 +19,7 @@ function defaultAdminMenuItems(): array
         ['faqs', 'FAQs', 'faqs.php', 'fa-solid fa-circle-question'],
         ['help', 'Help', 'help.php', 'fa-solid fa-life-ring'],
         ['help_accounts', 'Account Help', 'account_intros.php', 'fa-solid fa-circle-info'],
+        ['dev_tasks', 'Dev Tasks', 'dev_tasks.php', 'fa-solid fa-list-check'],
         ['memberships', 'Memberships', 'memberships.php', 'fa-solid fa-id-card'],
         ['members', 'Members', 'members.php', 'fa-solid fa-user-group'],
         ['awards', 'Awards', 'awards.php', 'fa-solid fa-trophy'],
