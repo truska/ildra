@@ -10,13 +10,16 @@ function ensureDevTaskTables(?PDO $pdo): void
         priority TINYINT UNSIGNED NOT NULL DEFAULT 3,
         status ENUM('open','closed') NOT NULL DEFAULT 'open',
         created_by INT UNSIGNED NOT NULL,
+        next_action_by INT UNSIGNED DEFAULT NULL,
         closed_by INT UNSIGNED DEFAULT NULL,
         closed_at DATETIME DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_dev_tasks_status_priority (status, priority, updated_at),
-        INDEX idx_dev_tasks_created_by (created_by)
+        INDEX idx_dev_tasks_created_by (created_by),
+        INDEX idx_dev_tasks_next_action_by (next_action_by)
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS next_action_by INT UNSIGNED DEFAULT NULL AFTER created_by");
     $pdo->exec("CREATE TABLE IF NOT EXISTS dev_task_messages (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         task_id INT UNSIGNED NOT NULL,
@@ -27,6 +30,28 @@ function ensureDevTaskTables(?PDO $pdo): void
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_dev_task_messages_task (task_id, created_at, id)
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+}
+
+function devTaskAssignableUsers(?PDO $pdo): array
+{
+    if (!$pdo) return [];
+    $stmt = $pdo->query("SELECT u.id,u.first_name,u.last_name,u.email
+        FROM users u JOIN roles r ON r.id=u.role_id
+        WHERE LOWER(r.name) IN ('superadmin','admin','organiser')
+        ORDER BY COALESCE(NULLIF(u.first_name,''),u.email),u.last_name,u.email");
+    return $stmt->fetchAll() ?: [];
+}
+
+function devTaskAssigneeId(PDO $pdo, mixed $value, array &$alerts): ?int
+{
+    $id = max(0, (int)$value);
+    if ($id === 0) return null;
+    $stmt = $pdo->prepare("SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id
+        WHERE u.id=:id AND LOWER(r.name) IN ('superadmin','admin','organiser') LIMIT 1");
+    $stmt->execute([':id'=>$id]);
+    if ($stmt->fetchColumn()) return $id;
+    $alerts[] = ['type'=>'danger', 'message'=>'Please select a valid Next action by user.'];
+    return null;
 }
 
 function devTaskAuthorName(array $user): string
@@ -53,6 +78,7 @@ function devTaskCreate(PDO $pdo, array $data, array $file, array $user, array &$
     $title = trim((string)($data['title'] ?? ''));
     $message = trim((string)($data['message'] ?? ''));
     $priority = (int)($data['priority'] ?? 3);
+    $nextActionBy = devTaskAssigneeId($pdo, $data['next_action_by'] ?? 0, $alerts);
     if ($title === '') $alerts[] = ['type' => 'danger', 'message' => 'Please enter a task title.'];
     if ($message === '') $alerts[] = ['type' => 'danger', 'message' => 'Please describe the task, question or fault.'];
     if ($priority < 1 || $priority > 5) $alerts[] = ['type' => 'danger', 'message' => 'Priority must be between 1 and 5.'];
@@ -61,8 +87,8 @@ function devTaskCreate(PDO $pdo, array $data, array $file, array $user, array &$
     if ($alerts) return null;
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by) VALUES (:title,:priority,'open',:user)");
-        $stmt->execute([':title'=>$title, ':priority'=>$priority, ':user'=>(int)$user['id']]);
+        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by, next_action_by) VALUES (:title,:priority,'open',:user,:next_action_by)");
+        $stmt->execute([':title'=>$title, ':priority'=>$priority, ':user'=>(int)$user['id'], ':next_action_by'=>$nextActionBy]);
         $id = (int)$pdo->lastInsertId();
         $stmt = $pdo->prepare('INSERT INTO dev_task_messages (task_id,user_id,author_name,message,image_filename) VALUES (:task,:user,:author,:message,:image)');
         $stmt->execute([':task'=>$id, ':user'=>(int)$user['id'], ':author'=>devTaskAuthorName($user), ':message'=>$message, ':image'=>$image]);
