@@ -13,6 +13,7 @@ if (!$pages) {
 }
 $events = fetchEvents($pdo, true);
 $faqs = fetchFaqs($pdo);
+$advertising = fetchAdvertising($pdo, true);
 $navTree = buildNavTree($pages);
 $counts = contentCounts($pages, $events, $faqs);
 
@@ -137,6 +138,9 @@ function event_url(array $event): string
             transform: translateY(-3px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
         }
+        .page-advertising { display: grid; gap: 0.8rem; }
+        .page-advertising-item { display: block; border-radius: 12px; overflow: hidden; background: #fff; }
+        .page-advertising-item img { display: block; width: 100%; height: auto; max-height: 110px; object-fit: contain; }
         .announcement-bar {
             background: var(--green-strong);
             color: #fff;
@@ -256,7 +260,7 @@ function event_url(array $event): string
     <main class="py-5">
         <div class="container">
             <div class="row g-4 align-items-start mb-5">
-                <div class="col-lg-5">
+                <div class="col-lg-4">
                     <section class="mb-4" id="about-us">
                         <div class="section-title mb-3">About us</div>
                         <div class="card-soft p-4">
@@ -274,7 +278,7 @@ function event_url(array $event): string
                     </section>
                 </div>
 
-                <div class="col-lg-7">
+                <div class="col-lg-6">
                     <section class="card-soft p-4 bg-white" aria-labelledby="next-events-heading">
                         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
                             <div class="section-title mb-0" id="next-events-heading">Next events</div>
@@ -350,6 +354,21 @@ function event_url(array $event): string
                         <?php endif; ?>
                     </section>
                 </div>
+
+                <aside class="col-lg-2" aria-label="Promotions">
+                    <?php if ($advertising): ?>
+                        <div class="page-advertising">
+                            <?php foreach ($advertising as $advert): ?>
+                                <?php if (empty($advert['image'])) continue; ?>
+                                <?php $advertImage = image_upload_public_path('advertising', 'sm', (string)$advert['image']); ?>
+                                <?php $advertTarget = ($advert['link_target'] ?? '_blank') === '_self' ? '_self' : '_blank'; ?>
+                                <?php if (!empty($advert['url'])): ?><a class="page-advertising-item card-soft" href="<?php echo h($advert['url']); ?>" target="<?php echo h($advertTarget); ?>"<?php echo $advertTarget === '_blank' ? ' rel="noopener sponsored"' : ''; ?>><?php else: ?><div class="page-advertising-item card-soft"><?php endif; ?>
+                                    <img src="<?php echo h($advertImage); ?>" alt="<?php echo h($advert['name']); ?>" title="<?php echo h($advert['title'] ?: $advert['name']); ?>" loading="lazy">
+                                <?php if (!empty($advert['url'])): ?></a><?php else: ?></div><?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </aside>
             </div>
         </div>
     </main>
