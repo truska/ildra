@@ -94,3 +94,53 @@ function mediaBatchUpload(?PDO $pdo, array $batch, array $files, array $sizes, a
     }
     return count($results);
 }
+
+function mediaBatchDeleteFiles(array $batch, array $image): void
+{
+    $section = image_upload_section((string)($batch['section'] ?? 'content'));
+    $filename = basename((string)($image['filename'] ?? ''));
+    if ($filename === '') return;
+    foreach (array_filter(explode(',', (string)($image['available_sizes'] ?? ''))) as $size) {
+        $path = __DIR__ . '/filestore/images/' . $section . '/' . image_upload_slug($size) . '/' . $filename;
+        if (is_file($path)) @unlink($path);
+    }
+}
+
+function mediaBatchDeleteImage(?PDO $pdo, array $batch, int $imageId): bool
+{
+    if (!$pdo || $imageId <= 0 || empty($batch['id'])) return false;
+    $stmt = $pdo->prepare('SELECT * FROM media_batch_images WHERE id=:id AND batch_id=:batch LIMIT 1');
+    $stmt->execute([':id'=>$imageId, ':batch'=>(int)$batch['id']]);
+    $image = $stmt->fetch();
+    if (!$image) return false;
+    $delete = $pdo->prepare('DELETE FROM media_batch_images WHERE id=:id AND batch_id=:batch');
+    $delete->execute([':id'=>$imageId, ':batch'=>(int)$batch['id']]);
+    if ($delete->rowCount() < 1) return false;
+    mediaBatchDeleteFiles($batch, $image);
+    return true;
+}
+
+function mediaBatchReplaceImage(?PDO $pdo, array $batch, int $imageId, array $file, array $sizes, array &$errors): bool
+{
+    if (!$pdo || $imageId <= 0 || empty($batch['id'])) return false;
+    $stmt = $pdo->prepare('SELECT * FROM media_batch_images WHERE id=:id AND batch_id=:batch LIMIT 1');
+    $stmt->execute([':id'=>$imageId, ':batch'=>(int)$batch['id']]);
+    $oldImage = $stmt->fetch();
+    if (!$oldImage) return false;
+    $error = null;
+    $result = image_upload_one($file, ['section'=>$batch['section'], 'sizes'=>$sizes], $error);
+    if (!$result) {
+        $errors[] = $error ?: 'Unable to replace image.';
+        return false;
+    }
+    try {
+        $update = $pdo->prepare('UPDATE media_batch_images SET filename=:filename,original_filename=:original,available_sizes=:sizes,updated_at=NOW() WHERE id=:id AND batch_id=:batch');
+        $update->execute([':filename'=>$result['filename'], ':original'=>(string)($file['name'] ?? $result['filename']), ':sizes'=>implode(',', array_keys($result['sizes'])), ':id'=>$imageId, ':batch'=>(int)$batch['id']]);
+    } catch (PDOException $e) {
+        mediaBatchDeleteFiles($batch, ['filename'=>$result['filename'], 'available_sizes'=>implode(',', array_keys($result['sizes']))]);
+        $errors[] = 'Unable to save the replacement image.';
+        return false;
+    }
+    mediaBatchDeleteFiles($batch, $oldImage);
+    return true;
+}

@@ -19,7 +19,7 @@ $counts = contentCounts($pages, $events, $faqs);
 
 $aboutIldra = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-ildra'));
 $aboutEndurance = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-endurance'));
-$eventsByDate = array_slice($events, 0, 3);
+$eventsByDate = array_slice($events, 0, 5);
 $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
 $isLoggedIn = !empty($currentUser);
 
@@ -260,18 +260,18 @@ function event_url(array $event): string
     <main class="py-5">
         <div class="container">
             <div class="row g-4 align-items-start mb-5">
-                <div class="col-lg-4">
+                <div class="col-lg-6">
                     <section class="mb-4" id="about-us">
-                        <div class="section-title mb-3">About us</div>
                         <div class="card-soft p-4">
+                            <div class="section-title mb-3">About us</div>
                             <h3 class="fw-bold mb-3"><?php echo h($siteSettings['welcome_title']); ?></h3>
                             <p class="mb-0"><?php echo nl2br(h($siteSettings['welcome_body'])); ?></p>
                         </div>
                     </section>
 
                     <section id="contact">
-                        <div class="section-title mb-3">Contact us</div>
                         <div class="card-soft p-4">
+                            <div class="section-title mb-3">Contact us</div>
                             <p class="mb-3">Have a question about rides, membership or volunteering? Drop us a line and we will connect you with the right committee.</p>
                             <a href="mailto:info@ildra.example" class="btn cta-btn">Email ILDRA</a>
                         </div>
@@ -279,12 +279,14 @@ function event_url(array $event): string
                 </div>
 
                 <div class="col-lg-6">
+                    <div class="row g-4 align-items-start">
+                <div class="col-md-8">
                     <section class="card-soft p-4 bg-white" aria-labelledby="next-events-heading">
                         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
-                            <div class="section-title mb-0" id="next-events-heading">Next events</div>
+                            <div class="section-title mb-0" id="next-events-heading">Next Ride</div>
                             <a class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
                         </div>
-                        <?php foreach ($eventsByDate as $event): ?>
+                        <?php foreach (array_slice($eventsByDate, 0, 1) as $event): ?>
                             <?php
                             $eventDate = $event['event_date'] ?? '';
                             $endDate = $event['end_date'] ?? '';
@@ -355,7 +357,7 @@ function event_url(array $event): string
                     </section>
                 </div>
 
-                <aside class="col-lg-2" aria-label="Promotions">
+                <aside class="col-md-4" aria-label="Promotions">
                     <?php if ($advertising): ?>
                         <div class="page-advertising">
                             <?php foreach ($advertising as $advert): ?>
@@ -369,6 +371,56 @@ function event_url(array $event): string
                         </div>
                     <?php endif; ?>
                 </aside>
+                    </div>
+
+            <?php $followingEvents = array_slice($eventsByDate, 1, 4); ?>
+            <?php if ($followingEvents): ?>
+                <section class="card-soft p-4 bg-white mt-4" aria-labelledby="following-rides-heading">
+                    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                        <div class="section-title mb-0" id="following-rides-heading">Following Rides</div>
+                        <a class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
+                    </div>
+                    <div class="row row-cols-1 row-cols-lg-2 g-4">
+                        <?php foreach ($followingEvents as $event): ?>
+                            <?php
+                            $eventDate = $event['event_date'] ?? '';
+                            $endDate = $event['end_date'] ?? '';
+                            $dateRange = h(format_display_date($eventDate, 'Date TBC'));
+                            if ($eventDate && $endDate && $endDate !== $eventDate) {
+                                $dateRange .= ' to ' . h(format_display_date($endDate, 'Date TBC'));
+                            }
+                            $entryOpenAt = $event['entry_open_at'] ?? null;
+                            $entryCloseAt = $event['entry_close_at'] ?? null;
+                            if (!$entryOpenAt && $eventDate) $entryOpenAt = date('Y-m-d 00:00:00', strtotime($eventDate . ' -1 month'));
+                            if (!$entryCloseAt && $eventDate) $entryCloseAt = date('Y-m-d 23:59:59', strtotime($eventDate . ' -1 week'));
+                            $now = new DateTimeImmutable('now');
+                            $entryOpenDt = $entryOpenAt ? new DateTimeImmutable((string)$entryOpenAt) : null;
+                            $entryCloseDt = $entryCloseAt ? new DateTimeImmutable((string)$entryCloseAt) : null;
+                            if ($entryOpenDt && $now < $entryOpenDt) {
+                                $entryStatusClass = 'not-open'; $entryStatusLabel = 'Entries Not Open'; $entryStatusDate = $entryOpenDt->format('d M Y');
+                            } elseif ($entryCloseDt && $now > $entryCloseDt) {
+                                $entryStatusClass = 'closed'; $entryStatusLabel = 'Entries Closed'; $entryStatusDate = '';
+                            } elseif ($entryCloseDt && $entryCloseDt->getTimestamp() - $now->getTimestamp() < 3 * 86400) {
+                                $entryStatusClass = 'closing'; $entryStatusLabel = 'Entries Closing Soon'; $entryStatusDate = $entryCloseDt->format('d M Y');
+                            } else {
+                                $entryStatusClass = 'open'; $entryStatusLabel = 'Entries Close'; $entryStatusDate = $entryCloseDt ? $entryCloseDt->format('d M Y') : '';
+                            }
+                            $classNames = $pdo ? class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)($event['id'] ?? 0))) : [];
+                            if (!$classNames) $classNames = class_names_from_classes_offered($event['classes_offered'] ?? '');
+                            ?>
+                            <div class="col">
+                                <a class="event-row rounded-3 p-3 h-100" href="<?php echo h(event_url($event)); ?>">
+                                    <div class="d-flex justify-content-between align-items-start gap-3">
+                                        <div><div class="small text-muted"><?php echo $dateRange; ?></div><div class="fw-bold"><?php echo h($event['title']); ?></div><?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h($event['venue']); ?></div><?php endif; ?><?php if ($classNames): ?><div class="text-muted small">Classes: <?php echo h(implode(', ', $classNames)); ?></div><?php endif; ?></div>
+                                        <span class="entry-status entry-status-<?php echo h($entryStatusClass); ?>"><span><?php echo h($entryStatusLabel); ?></span><?php if ($entryStatusDate !== ''): ?><span><?php echo h($entryStatusDate); ?></span><?php endif; ?></span>
+                                    </div>
+                                </a>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+            <?php endif; ?>
+                </div>
             </div>
         </div>
     </main>

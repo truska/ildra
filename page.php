@@ -612,10 +612,6 @@ if (!$renderPage) {
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
-                    <div class="card-soft p-3 mt-3">
-                        <div class="fw-bold mb-2">Back to home</div>
-                        <a class="btn btn-outline-success w-100" href="<?php echo h($basePath); ?>/">ILDRA Home</a>
-                    </div>
                 </div><?php endif; ?>
             </div>
             <?php if ($pageElements): ?>
