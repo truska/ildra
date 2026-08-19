@@ -1,0 +1,2 @@
+ALTER TABLE news_articles
+    ADD COLUMN IF NOT EXISTS results_html MEDIUMTEXT DEFAULT NULL AFTER body_html;

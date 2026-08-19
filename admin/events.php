@@ -13,7 +13,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage events.'];
     } elseif ($action === 'delete_event') {
         $eventId = (int)($_POST['event_id'] ?? 0);
-        if ($eventId > 0 && deleteEvent($pdo, $eventId, $alerts)) {
+        $eventToDelete = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
+        $eventLastDate = $eventToDelete
+            ? (string)($eventToDelete['end_date'] ?: ($eventToDelete['event_date'] ?? ''))
+            : '';
+        if ($eventToDelete && $eventLastDate !== '' && $eventLastDate < date('Y-m-d')) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Past events cannot be deleted from this page.'];
+        } elseif ($eventId > 0 && deleteEvent($pdo, $eventId, $alerts)) {
             $successMessage = 'Event deleted.';
         }
     }
@@ -23,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($successMessage) {
         $_SESSION['flash_success'] = $successMessage;
     }
-    header('Location: events.php');
+    header('Location: events.php?view=' . rawurlencode((string)($_POST['view'] ?? 'future')));
     exit;
 }
 
@@ -82,6 +88,7 @@ $events=array_values(array_filter($events,static function(array $event)use($filt
     return true;
 }));
 $today = date('Y-m-d');
+$activeView = (($_GET['view'] ?? 'future') === 'past') ? 'past' : 'future';
 $sortKey = $_GET['sort'] ?? 'start';
 $sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
 $allowedSortKeys = ['start', 'end', 'title', 'venue', 'status', 'type', 'entries', 'organiser'];
@@ -89,8 +96,9 @@ $hasExplicitSort = array_key_exists('sort', $_GET) || array_key_exists('dir', $_
 $upcoming = [];
 $past = [];
 foreach ($events as $ev) {
-    $date = $ev['event_date'] ?? '';
-    if ($date && $date >= $today) {
+    // Multi-day rides remain current until their final day has passed.
+    $date = (string)($ev['end_date'] ?: ($ev['event_date'] ?? ''));
+    if ($date === '' || $date >= $today) {
         $upcoming[] = $ev;
     } else {
         $past[] = $ev;
@@ -296,10 +304,6 @@ admin_layout_start('Events', 'events');
         <h5 class="mb-0">Events</h5>
     </div>
     <div class="admin-page-actions">
-        <a class="btn btn-outline-primary has-icon" href="#past-rides">
-            <i class="fa-solid fa-clock-rotate-left btn-icon"></i>
-            <span class="btn-label">Past Rides (<?php echo count($past); ?>)</span>
-        </a>
         <a class="btn btn-success has-icon" href="event_edit.php">
             <i class="fa-solid fa-calendar-plus btn-icon"></i>
             <span class="btn-label">Add New Event</span>
@@ -307,17 +311,31 @@ admin_layout_start('Events', 'events');
     </div>
 </div>
 
+<ul class="nav nav-tabs mb-3" aria-label="Event date range">
+    <li class="nav-item">
+        <a class="nav-link <?php echo $activeView === 'future' ? 'active' : ''; ?>" href="?<?php echo h(http_build_query(array_merge($_GET, ['view' => 'future']))); ?>">
+            Current &amp; Future <span class="badge text-bg-light ms-1"><?php echo count($upcoming); ?></span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link <?php echo $activeView === 'past' ? 'active' : ''; ?>" href="?<?php echo h(http_build_query(array_merge($_GET, ['view' => 'past']))); ?>">
+            Past <span class="badge text-bg-light ms-1"><?php echo count($past); ?></span>
+        </a>
+    </li>
+</ul>
+
 <form method="get" id="event-filter-form" class="card-soft px-3 py-2 mb-3">
+    <input type="hidden" name="view" value="<?php echo h($activeView); ?>">
     <div class="d-flex flex-wrap align-items-end gap-2">
         <div><label class="form-label small mb-1">From</label><input class="form-control form-control-sm" type="date" name="date_from" value="<?php echo h($filterValues['date_from']); ?>"></div>
         <div><label class="form-label small mb-1">To</label><input class="form-control form-control-sm" type="date" name="date_to" value="<?php echo h($filterValues['date_to']); ?>"></div>
-        <button class="btn btn-sm btn-outline-secondary">Filter dates</button><a class="btn btn-sm btn-link" href="events.php">Clear all</a>
+        <button class="btn btn-sm btn-outline-secondary">Filter dates</button><a class="btn btn-sm btn-link" href="events.php?view=<?php echo h($activeView); ?>">Clear all</a>
     </div>
 </form>
 
-<div class="card-soft p-3">
+<div class="card-soft p-3 <?php echo $activeView === 'future' ? '' : 'd-none'; ?>">
     <div class="mb-2">
-        <h6 class="mb-1">Current and Upcoming Rides</h6>
+        <h6 class="mb-1">Current and Future Rides</h6>
         <div class="small text-muted">Ascending by start date.</div>
     </div>
     <div class="table-responsive">
@@ -388,11 +406,11 @@ admin_layout_start('Events', 'events');
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">
                                     <i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span>
                                 </a>
-                                <?php $reportId=(int)($rideReportsByEvent[(int)$event['id']]['id']??0); ?><a class="btn btn-sm btn-outline-primary has-icon" href="<?php echo $reportId?'news_edit.php?id='.$reportId:'news_edit.php?type=ride_report&amp;event_id='.(int)$event['id']; ?>"><i class="fa-solid fa-newspaper btn-icon"></i><span class="btn-label"><?php echo $reportId?'Edit Report':'Add Report'; ?></span></a>
                             <?php if ($isAdmin): ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
                                     <input type="hidden" name="action" value="delete_event">
                                     <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">
+                                    <input type="hidden" name="view" value="future">
                                     <button class="btn btn-sm btn-outline-danger has-icon"><i class="fa-solid fa-trash btn-icon"></i><span class="btn-label">Delete</span></button>
                                 </form>
                             <?php endif; ?>
@@ -406,9 +424,9 @@ admin_layout_start('Events', 'events');
             </tbody>
         </table>
     </div>
-</div><div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary" type="submit" form="event-filter-form">Apply table filters</button> <a class="btn btn-sm btn-link" href="events.php">Clear</a></div></div>
+</div><div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary" type="submit" form="event-filter-form">Apply table filters</button> <a class="btn btn-sm btn-link" href="events.php?view=<?php echo h($activeView); ?>">Clear</a></div>
 
-    <div class="card-soft p-3 mt-3" id="past-rides">
+    <div class="card-soft p-3 <?php echo $activeView === 'past' ? '' : 'd-none'; ?>" id="past-rides">
         <div class="mb-2">
             <h6 class="mb-1">Past Rides</h6>
             <div class="small text-muted">Past rides, most recent first. Add or edit each ride report from the action row.</div>
@@ -481,19 +499,12 @@ admin_layout_start('Events', 'events');
                                         <i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span>
                                     </a>
                                     <?php $reportId=(int)($rideReportsByEvent[(int)$event['id']]['id']??0); ?><a class="btn btn-sm btn-outline-primary has-icon" href="<?php echo $reportId?'news_edit.php?id='.$reportId:'news_edit.php?type=ride_report&amp;event_id='.(int)$event['id']; ?>"><i class="fa-solid fa-newspaper btn-icon"></i><span class="btn-label"><?php echo $reportId?'Edit Report':'Add Report'; ?></span></a>
-                                <?php if ($isAdmin): ?>
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
-                                        <input type="hidden" name="action" value="delete_event">
-                                        <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">
-                                        <button class="btn btn-sm btn-outline-danger has-icon"><i class="fa-solid fa-trash btn-icon"></i><span class="btn-label">Delete</span></button>
-                                    </form>
-                                <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$past): ?>
-                        <tr><td colspan="9" class="text-muted">No past rides match the current filters. <a href="events.php">Clear filters</a></td></tr>
+                        <tr><td colspan="9" class="text-muted">No past rides match the current filters. <a href="events.php?view=past">Clear filters</a></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

@@ -25,6 +25,17 @@ filestore/images/page-images/
 filestore/images/page-elements/
 filestore/files/library/
 
+filestore/images/news/original/*
+!filestore/images/news/original/.gitkeep
+filestore/images/news/lg/*
+!filestore/images/news/lg/.gitkeep
+filestore/images/news/md/*
+!filestore/images/news/md/.gitkeep
+filestore/images/news/sm/*
+!filestore/images/news/sm/.gitkeep
+filestore/images/news/xs/*
+!filestore/images/news/xs/.gitkeep
+
 filestore/images/banners/originals/*
 !filestore/images/banners/originals/.gitkeep
 filestore/images/banners/lg/*

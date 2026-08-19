@@ -257,6 +257,12 @@ foreach ($pageElements as &$pageElement) {
 unset($pageElement);
 foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'past_events_calendar') continue;
+    $publishedRideReportsByEvent = [];
+    foreach (fetchNewsArticles($pdo, true) as $publishedArticle) {
+        if (($publishedArticle['article_type'] ?? 'news') === 'ride_report' && !empty($publishedArticle['event_id'])) {
+            $publishedRideReportsByEvent[(int)$publishedArticle['event_id']] = $publishedArticle;
+        }
+    }
     $pastCalendarEvents = array_values(array_filter(fetchEvents($pdo, false), static function (array $event): bool {
         $eventDate = trim((string)($event['event_date'] ?? ''));
         return strtolower((string)($event['status'] ?? '')) === 'published'
@@ -275,25 +281,27 @@ foreach ($pageElements as &$pageElement) {
             $dateLabel = date('jS M Y', strtotime($eventDate));
             $endDate = (string)($event['end_date'] ?? '');
             if ($endDate && $endDate !== $eventDate) $dateLabel .= ' to ' . date('jS M Y', strtotime($endDate));
-            $eventUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title']));
+            $rideReport = $publishedRideReportsByEvent[(int)$event['id']] ?? null;
+            $reportUrl = $rideReport ? $basePath . '/ride-reports/' . (int)$event['id'] . '-' . rawurlencode((string)$rideReport['slug']) : '';
             $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
             if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');
             ?>
-            <a class="d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
-                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                    <div>
+            <div class="d-block border rounded-3 p-3 mb-2 shadow-sm">
+                <div class="row g-3 align-items-start">
+                    <div class="col-12 col-lg-5">
                         <div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div>
                         <div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div>
                         <?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?>
+                    </div>
+                    <div class="col-12 col-lg-4">
                         <?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?>
                         <?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h((string)$event['description']); ?></div><?php endif; ?>
                     </div>
-                    <div class="d-flex flex-column align-items-md-end gap-2">
-                        <span class="btn btn-sm btn-outline-success">Ride Report</span>
-                        <span class="btn btn-sm btn-outline-success">Ride Results</span>
+                    <div class="col-12 col-lg-3 d-flex justify-content-lg-end">
+                        <?php if ($rideReport): ?><a class="btn btn-sm btn-outline-success" href="<?php echo h($reportUrl); ?>">Ride Report and Results</a><?php endif; ?>
                     </div>
                 </div>
-            </a>
+            </div>
         <?php endforeach; ?><?php else: ?><div class="alert alert-info mb-0">No past events are published.</div><?php endif; ?>
     </div>
     <?php $pageElement['body_html'] = (string)($pageElement['body_html'] ?? '') . (string)ob_get_clean();

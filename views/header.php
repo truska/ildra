@@ -109,7 +109,6 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
         </div>
     </div>
 <?php endif; ?>
-<?php include __DIR__ . '/sql_errors_bar.php'; ?>
 <header class="site-header<?php echo $headerIsHome ? ' site-header-home' : ' site-header-inner'; ?>"<?php echo $headerBannerUrl !== '' ? ' style="--site-header-image:url(\'' . h($headerBannerUrl) . '\')"' : ''; ?>>
     <div class="site-header-banner">
         <div class="container header-banner-inner">

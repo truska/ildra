@@ -1865,6 +1865,7 @@ function ensureNewsTables(?PDO $pdo): void
         slug VARCHAR(180) NOT NULL UNIQUE,
         subheading TEXT DEFAULT NULL,
         body_html MEDIUMTEXT DEFAULT NULL,
+        results_html MEDIUMTEXT DEFAULT NULL,
         is_published TINYINT(1) NOT NULL DEFAULT 0,
         published_at DATETIME DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1877,6 +1878,9 @@ function ensureNewsTables(?PDO $pdo): void
     }
     if (!table_column_exists($pdo, 'news_articles', 'event_id')) {
         $pdo->exec("ALTER TABLE news_articles ADD COLUMN event_id INT UNSIGNED NULL DEFAULT NULL AFTER article_type, ADD INDEX idx_news_event (event_id, article_type)");
+    }
+    if (!table_column_exists($pdo, 'news_articles', 'results_html')) {
+        $pdo->exec("ALTER TABLE news_articles ADD COLUMN results_html MEDIUMTEXT DEFAULT NULL AFTER body_html");
     }
     if (!table_index_exists($pdo, 'news_articles', 'uniq_ride_report_event')) {
         try {
@@ -1915,6 +1919,18 @@ function fetchNewsArticle(?PDO $pdo, int $id): ?array
     if (!$pdo || $id <= 0) return null;
     ensureNewsTables($pdo);
     $stmt=$pdo->prepare('SELECT * FROM news_articles WHERE id=:id LIMIT 1');$stmt->execute([':id'=>$id]);return $stmt->fetch()?:null;
+}
+
+function fetchRideReportByEvent(?PDO $pdo, int $eventId, bool $publishedOnly = true): ?array
+{
+    if (!$pdo || $eventId <= 0) return null;
+    ensureNewsTables($pdo);
+    $sql = "SELECT * FROM news_articles WHERE event_id=:event_id AND article_type='ride_report'";
+    if ($publishedOnly) $sql .= ' AND is_published=1 AND (published_at IS NULL OR published_at<=NOW())';
+    $sql .= ' ORDER BY id DESC LIMIT 1';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':event_id' => $eventId]);
+    return $stmt->fetch() ?: null;
 }
 
 function fetchNewsSections(?PDO $pdo, int $newsId, bool $webOnly=false): array
