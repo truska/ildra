@@ -14,6 +14,7 @@ $basePath = $basePath === '' ? '' : $basePath;
 $eventTypes = fetchEventTypes($pdo);
 $venues = fetchVenues($pdo);
 $eligibleOrganisers = fetchEligibleEventOrganisers($pdo);
+$eventSettings = getSiteSettings($pdo);
 $existingTypeId = is_array($event) ? (int)($event['event_type_id'] ?? 0) : 0;
 $existingTypeName = is_array($event) ? (string)($event['event_type_name'] ?? '') : '';
 $defaultEventType = findEventType($eventTypes, $existingTypeId, $existingTypeName);
@@ -101,8 +102,8 @@ $event = $event ?? [
     'title' => '',
     'event_date' => '',
     'end_date' => '',
-    'start_time' => '09:00',
-    'end_time' => '13:00',
+    'start_time' => (string)$eventSettings['event_default_start_time'],
+    'end_time' => (string)$eventSettings['event_default_end_time'],
     'venue' => '',
     'venue_id' => 0,
     'organiser' => '',
@@ -141,15 +142,17 @@ $nonMemberEntryOpenDate = $nonMemberEntryOpenAt ? date('Y-m-d', strtotime((strin
 $nonMemberEntryOpenTime = $nonMemberEntryOpenAt ? date('H:i', strtotime((string)$nonMemberEntryOpenAt)) : '';
 $entryCloseDate = $entryCloseAt ? date('Y-m-d', strtotime((string)$entryCloseAt)) : '';
 $entryCloseTime = $entryCloseAt ? date('H:i', strtotime((string)$entryCloseAt)) : '';
-$entryOpenDefaultDate = $event['event_date'] ? date('Y-m-d', strtotime($event['event_date'] . ' -1 month')) : '';
-$nonMemberEntryOpenDefaultDate = $entryOpenDefaultDate ? date('Y-m-d', strtotime($entryOpenDefaultDate . ' +1 week')) : '';
-$entryCloseDefaultDate = $event['event_date'] ? date('Y-m-d', strtotime($event['event_date'] . ' -1 week')) : '';
+$scheduleDefaults = $event['event_date'] ? event_date_defaults((string)$event['event_date'], $eventSettings) : null;
+$entryOpenDefaultDate = (string)($scheduleDefaults['entry_open_date'] ?? '');
+$nonMemberEntryOpenDefaultDate = (string)($scheduleDefaults['non_member_entry_open_date'] ?? '');
+$entryCloseDefaultDate = (string)($scheduleDefaults['entry_close_date'] ?? '');
 $displayOpenDate = $entryOpenDate ?: $entryOpenDefaultDate;
-$displayNonMemberOpenDate = $nonMemberEntryOpenDate ?: ($entryOpenDate ? date('Y-m-d', strtotime($entryOpenDate . ' +1 week')) : $nonMemberEntryOpenDefaultDate);
+$displayNonMemberOpenDate = $nonMemberEntryOpenDate ?: $nonMemberEntryOpenDefaultDate;
 $displayCloseDate = $entryCloseDate ?: $entryCloseDefaultDate;
-$displayOpenTime = $entryOpenTime ?: '00:00';
-$displayNonMemberOpenTime = $nonMemberEntryOpenTime ?: ($entryOpenTime ?: '00:00');
-$displayCloseTime = $entryCloseTime ?: '23:59';
+$displayOpenTime = $entryOpenTime ?: (string)$eventSettings['event_member_open_time'];
+$displayNonMemberOpenTime = $nonMemberEntryOpenTime ?: (string)$eventSettings['event_non_member_open_time'];
+$displayCloseTime = $entryCloseTime ?: (string)$eventSettings['event_entry_close_time'];
+$weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Pricing schemes + per-event pricing rows (Option A: classes live inside schemes, events get a copy)
 ensurePricingSchemeTables($pdo);
@@ -384,7 +387,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 <div class="col-md-3">
                     <label class="form-label">Members open date</label>
                     <input type="date" name="entry_open_date" class="form-control" value="<?php echo h($displayOpenDate); ?>">
-                    <div class="small text-muted mt-1" id="openDateHint">Defaults to 1 month before start.</div>
+                    <div class="small text-muted mt-1" id="openDateHint">Defaults to <?php echo (int)$eventSettings['event_member_open_weeks']; ?> weeks / previous <?php echo h($weekdayNames[(int)$eventSettings['event_member_open_weekday']]); ?>.</div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Members open time</label>
@@ -393,7 +396,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 <div class="col-md-3">
                     <label class="form-label">Non-members open date</label>
                     <input type="date" name="non_member_entry_open_date" class="form-control" value="<?php echo h($displayNonMemberOpenDate); ?>">
-                    <div class="small text-muted mt-1" id="nonMemberOpenDateHint">Defaults to 1 week after members open.</div>
+                    <div class="small text-muted mt-1" id="nonMemberOpenDateHint">Defaults to <?php echo (int)$eventSettings['event_non_member_open_weeks']; ?> weeks / previous <?php echo h($weekdayNames[(int)$eventSettings['event_non_member_open_weekday']]); ?>.</div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Non-members open time</label>
@@ -404,7 +407,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 <div class="col-md-3">
                     <label class="form-label">Entries close date</label>
                     <input type="date" name="entry_close_date" class="form-control" value="<?php echo h($displayCloseDate); ?>">
-                    <div class="small text-muted mt-1" id="closeDateHint">Defaults to 1 week before start.</div>
+                    <div class="small text-muted mt-1" id="closeDateHint">Defaults to the previous <?php echo h($weekdayNames[(int)$eventSettings['event_entry_close_weekday']]); ?>.</div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Entries close time</label>
@@ -564,6 +567,20 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         const openTime = document.querySelector('input[name="entry_open_time"]');
         const nonMemberOpenTime = document.querySelector('input[name="non_member_entry_open_time"]');
         const closeTime = document.querySelector('input[name="entry_close_time"]');
+        const eventDefaults = <?php echo json_encode([
+            'startTime' => (string)$eventSettings['event_default_start_time'],
+            'endDays' => (int)$eventSettings['event_default_end_days'],
+            'endTime' => (string)$eventSettings['event_default_end_time'],
+            'memberOpenWeeks' => (int)$eventSettings['event_member_open_weeks'],
+            'memberOpenWeekday' => (int)$eventSettings['event_member_open_weekday'],
+            'memberOpenTime' => (string)$eventSettings['event_member_open_time'],
+            'nonMemberOpenWeeks' => (int)$eventSettings['event_non_member_open_weeks'],
+            'nonMemberOpenWeekday' => (int)$eventSettings['event_non_member_open_weekday'],
+            'nonMemberOpenTime' => (string)$eventSettings['event_non_member_open_time'],
+            'closeWeeks' => (int)$eventSettings['event_entry_close_weeks'],
+            'closeWeekday' => (int)$eventSettings['event_entry_close_weekday'],
+            'closeTime' => (string)$eventSettings['event_entry_close_time'],
+        ], JSON_UNESCAPED_SLASHES); ?>;
         if (venueSelect && venueNameInput) {
             let lastAutoTitle = '';
             const syncVenueName = () => {
@@ -591,22 +608,15 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             dt.setDate(dt.getDate() + days);
             return formatDate(dt);
         };
-        const fridayFourWeeksBefore = (d) => {
-            const copy = new Date(d);
-            copy.setDate(copy.getDate() - 28);
-            const day = copy.getDay(); // 0=Sun ... 5=Fri
-            const diff = (5 - day + 7) % 7; // days to move forward to Friday of that week
-            copy.setDate(copy.getDate() + diff);
-            return copy;
-        };
-        const thursdayBefore = (d) => {
-            const copy = new Date(d);
-            let guard = 0;
-            while (copy.getDay() !== 4 && guard < 7) { // 4 = Thu
-                copy.setDate(copy.getDate() - 1);
-                guard += 1;
-            }
-            return copy;
+        const previousWeekday = (dateStr, weekday, weeks) => {
+            if (!dateStr) return '';
+            const dt = new Date(dateStr + 'T12:00:00');
+            if (Number.isNaN(dt.getTime())) return '';
+            let daysBack = (dt.getDay() - weekday + 7) % 7;
+            if (daysBack === 0) daysBack = 7;
+            daysBack += Math.max(0, weeks - 1) * 7;
+            dt.setDate(dt.getDate() - daysBack);
+            return formatDate(dt);
         };
         const applyNewEventDefaults = () => {
             if (!isNewEvent || !startDate || !startDate.value) {
@@ -617,33 +627,31 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 return;
             }
             if (endDate && !endDate.value) {
-                endDate.value = startDate.value;
+                endDate.value = plusDays(startDate.value, eventDefaults.endDays);
             }
             if (startTime && !startTime.value) {
-                startTime.value = '09:00';
+                startTime.value = eventDefaults.startTime;
             }
             if (endTime && !endTime.value) {
-                endTime.value = '13:00';
+                endTime.value = eventDefaults.endTime;
             }
             if (openDate && !openDate.value) {
-                const open = fridayFourWeeksBefore(start);
-                openDate.value = formatDate(open);
+                openDate.value = previousWeekday(startDate.value, eventDefaults.memberOpenWeekday, eventDefaults.memberOpenWeeks);
             }
             if (openTime && (!openTime.value || openTime.value === '00:00')) {
-                openTime.value = '18:00';
+                openTime.value = eventDefaults.memberOpenTime;
             }
-            if (nonMemberOpenDate && !nonMemberOpenDate.value && openDate && openDate.value) {
-                nonMemberOpenDate.value = plusDays(openDate.value, 7);
+            if (nonMemberOpenDate && !nonMemberOpenDate.value) {
+                nonMemberOpenDate.value = previousWeekday(startDate.value, eventDefaults.nonMemberOpenWeekday, eventDefaults.nonMemberOpenWeeks);
             }
             if (nonMemberOpenTime && (!nonMemberOpenTime.value || nonMemberOpenTime.value === '00:00')) {
-                nonMemberOpenTime.value = openTime && openTime.value ? openTime.value : '18:00';
+                nonMemberOpenTime.value = eventDefaults.nonMemberOpenTime;
             }
             if (closeDate && !closeDate.value) {
-                const close = thursdayBefore(start);
-                closeDate.value = formatDate(close);
+                closeDate.value = previousWeekday(startDate.value, eventDefaults.closeWeekday, eventDefaults.closeWeeks);
             }
             if (closeTime && !closeTime.value) {
-                closeTime.value = '23:59';
+                closeTime.value = eventDefaults.closeTime;
             }
         };
         if (startDate) {
@@ -666,24 +674,23 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         const updateHints = () => {
             const startVal = startDate?.value;
             if (openHint && openDate) {
-                openHint.textContent = describeDiff(openDate.value, startVal, 'Defaults to 1 month before start.');
+                openHint.textContent = describeDiff(openDate.value, startVal, 'Calculated from the managed member opening rule.');
             }
             if (nonMemberOpenHint && nonMemberOpenDate) {
-                const defaultLabel = openDate?.value ? 'Defaults to 1 week after members open.' : 'Defaults to 1 week after members open.';
-                nonMemberOpenHint.textContent = describeDiff(nonMemberOpenDate.value, startVal, defaultLabel);
+                nonMemberOpenHint.textContent = describeDiff(nonMemberOpenDate.value, startVal, 'Calculated from the managed non-member opening rule.');
             }
             if (closeHint && closeDate) {
-                closeHint.textContent = describeDiff(closeDate.value, startVal, 'Defaults to 1 week before start.');
+                closeHint.textContent = describeDiff(closeDate.value, startVal, 'Calculated from the managed closing rule.');
             }
         };
 
         if (openDate) {
             const syncNonMemberOpen = () => {
                 if (nonMemberOpenDate && openDate.value && !nonMemberOpenDate.value) {
-                    nonMemberOpenDate.value = plusDays(openDate.value, 7);
+                    nonMemberOpenDate.value = startDate?.value ? previousWeekday(startDate.value, eventDefaults.nonMemberOpenWeekday, eventDefaults.nonMemberOpenWeeks) : '';
                 }
                 if (nonMemberOpenTime && (!nonMemberOpenTime.value || nonMemberOpenTime.value === '00:00')) {
-                    nonMemberOpenTime.value = openTime?.value || '18:00';
+                    nonMemberOpenTime.value = eventDefaults.nonMemberOpenTime;
                 }
             };
             openDate.addEventListener('change', syncNonMemberOpen);

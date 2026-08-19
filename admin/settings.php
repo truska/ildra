@@ -46,27 +46,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $siteSettings = array_merge($siteSettings, $payload);
         $companySocials = $postedSocials;
         $companyAffiliates = $postedAffiliates;
-    } else {
+    } elseif ($settingsSection === 'events') {
         $minutes = max(0, (int)($_POST['basket_timeout_minutes'] ?? 0));
         $seconds = max(0, (int)($_POST['basket_timeout_seconds'] ?? 0));
         $totalSeconds = max(1, ($minutes * 60) + $seconds);
+        $payload = [
+            'basket_timeout_seconds' => $totalSeconds,
+            'event_default_start_time' => trim((string)($_POST['event_default_start_time'] ?? '')),
+            'event_default_end_days' => max(0, (int)($_POST['event_default_end_days'] ?? 0)),
+            'event_default_end_time' => trim((string)($_POST['event_default_end_time'] ?? '')),
+            'event_member_open_weeks' => max(0, (int)($_POST['event_member_open_weeks'] ?? 0)),
+            'event_member_open_weekday' => max(0, min(6, (int)($_POST['event_member_open_weekday'] ?? 5))),
+            'event_member_open_time' => trim((string)($_POST['event_member_open_time'] ?? '')),
+            'event_non_member_open_weeks' => max(0, (int)($_POST['event_non_member_open_weeks'] ?? 0)),
+            'event_non_member_open_weekday' => max(0, min(6, (int)($_POST['event_non_member_open_weekday'] ?? 5))),
+            'event_non_member_open_time' => trim((string)($_POST['event_non_member_open_time'] ?? '')),
+            'event_entry_close_weeks' => max(0, (int)($_POST['event_entry_close_weeks'] ?? 0)),
+            'event_entry_close_weekday' => max(0, min(6, (int)($_POST['event_entry_close_weekday'] ?? 4))),
+            'event_entry_close_time' => trim((string)($_POST['event_entry_close_time'] ?? '')),
+        ];
+        if (saveSiteSettings($pdo, $payload, $alerts)) {
+            $_SESSION['flash_success'] = 'Event settings saved.';
+            header('Location: settings.php?tab=events');
+            exit;
+        }
+        $siteSettings = array_merge($siteSettings, $payload);
+    } else {
         $rememberDays = max(0, (int)($_POST['remember_me_days'] ?? 30));
         $rememberTtlSeconds = $rememberDays === 0 ? 0 : ($rememberDays * 86400);
         $manualAssetId = max(0, (int)($_POST['admin_manual_asset_id'] ?? 0));
         $authAppLoginEnabled = !empty($_POST['auth_app_login_enabled']) ? '1' : '0';
 
         $payload = [
-            'basket_timeout_seconds' => $totalSeconds,
             'remember_me_ttl_seconds' => $rememberTtlSeconds,
             'admin_manual_asset_id' => (string)$manualAssetId,
             'auth_app_login_enabled' => $authAppLoginEnabled,
         ];
         if (saveSiteSettings($pdo, $payload, $alerts)) {
             $_SESSION['flash_success'] = 'Global settings saved.';
-            header('Location: settings.php');
+            header('Location: settings.php?tab=global');
             exit;
         }
-        $siteSettings['basket_timeout_seconds'] = $totalSeconds;
         $siteSettings['remember_me_ttl_seconds'] = $rememberTtlSeconds;
         $siteSettings['auth_app_login_enabled'] = $authAppLoginEnabled;
     }
@@ -82,20 +102,100 @@ $manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), stat
     return ($asset['asset_type'] ?? '') === 'pdf' && empty($asset['archived']);
 }));
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
-$activeSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'global')) === 'company' ? 'company' : 'global';
+$requestedSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'company'));
+$activeSettingsTab = in_array($requestedSettingsTab, ['company', 'events', 'global'], true) ? $requestedSettingsTab : 'company';
 
 admin_layout_start('Settings', 'settings');
 ?>
 <div class="card-soft p-4">
     <ul class="nav nav-tabs mb-4" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?php echo $activeSettingsTab === 'global' ? 'active' : ''; ?>" id="global-tab" data-bs-toggle="tab" data-bs-target="#global-settings" type="button" role="tab" aria-controls="global-settings" aria-selected="<?php echo $activeSettingsTab === 'global' ? 'true' : 'false'; ?>">Global</button>
+            <button class="nav-link <?php echo $activeSettingsTab === 'company' ? 'active' : ''; ?>" id="company-tab" data-bs-toggle="tab" data-bs-target="#company-settings" type="button" role="tab" aria-controls="company-settings" aria-selected="<?php echo $activeSettingsTab === 'company' ? 'true' : 'false'; ?>">Company</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?php echo $activeSettingsTab === 'company' ? 'active' : ''; ?>" id="company-tab" data-bs-toggle="tab" data-bs-target="#company-settings" type="button" role="tab" aria-controls="company-settings" aria-selected="<?php echo $activeSettingsTab === 'company' ? 'true' : 'false'; ?>">Company</button>
+            <button class="nav-link <?php echo $activeSettingsTab === 'events' ? 'active' : ''; ?>" id="events-tab" data-bs-toggle="tab" data-bs-target="#event-settings" type="button" role="tab" aria-controls="event-settings" aria-selected="<?php echo $activeSettingsTab === 'events' ? 'true' : 'false'; ?>">Events</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?php echo $activeSettingsTab === 'global' ? 'active' : ''; ?>" id="global-tab" data-bs-toggle="tab" data-bs-target="#global-settings" type="button" role="tab" aria-controls="global-settings" aria-selected="<?php echo $activeSettingsTab === 'global' ? 'true' : 'false'; ?>">Global</button>
         </li>
     </ul>
     <div class="tab-content">
+    <div class="tab-pane fade <?php echo $activeSettingsTab === 'events' ? 'show active' : ''; ?>" id="event-settings" role="tabpanel" aria-labelledby="events-tab" tabindex="0">
+        <h3 class="h5 fw-bold mb-1">Event defaults</h3>
+        <p class="text-muted small mb-3">Applied when a new event is given a start date. Existing events keep their saved dates and times.</p>
+        <div class="card-soft p-3">
+            <form method="POST" class="row g-3">
+                <input type="hidden" name="settings_section" value="events">
+                <div class="col-12">
+                    <label class="form-label fw-semibold mb-2">Basket timeout</label>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span>Time before basket is cleared:</span>
+                        <input type="number" min="0" class="form-control" style="max-width:110px" name="basket_timeout_minutes" value="<?php echo h($timeoutMinutes); ?>">
+                        <span class="text-muted">minutes</span>
+                        <input type="number" min="0" max="59" class="form-control" style="max-width:110px" name="basket_timeout_seconds" value="<?php echo h($timeoutRemainder); ?>">
+                        <span class="text-muted">seconds</span>
+                    </div>
+                </div>
+                <div class="col-12"><hr class="my-1"><h4 class="h6 fw-bold mb-1">Date and time defaults</h4><p class="form-text mb-0">Weeks select the numbered previous occurrence of the weekday: 2 / Friday is the second previous Friday. Use 0 for the immediately previous weekday.</p></div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_default_start_time">Event start time</label>
+                    <input type="time" class="form-control" id="event_default_start_time" name="event_default_start_time" required value="<?php echo h((string)$siteSettings['event_default_start_time']); ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_default_end_days">Event end date</label>
+                    <div class="input-group"><input type="number" min="0" max="365" class="form-control" id="event_default_end_days" name="event_default_end_days" required value="<?php echo (int)$siteSettings['event_default_end_days']; ?>"><span class="input-group-text">days after start</span></div>
+                    <div class="form-text">Use 0 for a one-day event.</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_default_end_time">Event end time</label>
+                    <input type="time" class="form-control" id="event_default_end_time" name="event_default_end_time" required value="<?php echo h((string)$siteSettings['event_default_end_time']); ?>">
+                </div>
+                <?php $weekdayOptions = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']; ?>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_member_open_weekday">Member entries open on a</label>
+                    <select class="form-select" id="event_member_open_weekday" name="event_member_open_weekday"><?php foreach ($weekdayOptions as $weekdayValue => $weekdayLabel): ?><option value="<?php echo $weekdayValue; ?>" <?php echo (int)$siteSettings['event_member_open_weekday'] === $weekdayValue ? 'selected' : ''; ?>><?php echo h($weekdayLabel); ?></option><?php endforeach; ?></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_member_open_weeks">Weeks before start date</label>
+                    <input type="number" min="0" max="52" class="form-control" id="event_member_open_weeks" name="event_member_open_weeks" required value="<?php echo (int)$siteSettings['event_member_open_weeks']; ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_member_open_time">Time</label>
+                    <input type="time" class="form-control" id="event_member_open_time" name="event_member_open_time" required value="<?php echo h((string)$siteSettings['event_member_open_time']); ?>">
+                </div>
+                <div class="w-100"></div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_non_member_open_weekday">Non-member entries open on a</label>
+                    <select class="form-select" id="event_non_member_open_weekday" name="event_non_member_open_weekday"><?php foreach ($weekdayOptions as $weekdayValue => $weekdayLabel): ?><option value="<?php echo $weekdayValue; ?>" <?php echo (int)$siteSettings['event_non_member_open_weekday'] === $weekdayValue ? 'selected' : ''; ?>><?php echo h($weekdayLabel); ?></option><?php endforeach; ?></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_non_member_open_weeks">Weeks before start date</label>
+                    <input type="number" min="0" max="52" class="form-control" id="event_non_member_open_weeks" name="event_non_member_open_weeks" required value="<?php echo (int)$siteSettings['event_non_member_open_weeks']; ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_non_member_open_time">Time</label>
+                    <input type="time" class="form-control" id="event_non_member_open_time" name="event_non_member_open_time" required value="<?php echo h((string)$siteSettings['event_non_member_open_time']); ?>">
+                </div>
+                <div class="w-100"></div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_entry_close_weekday">Entries close on a</label>
+                    <select class="form-select" id="event_entry_close_weekday" name="event_entry_close_weekday"><?php foreach ($weekdayOptions as $weekdayValue => $weekdayLabel): ?><option value="<?php echo $weekdayValue; ?>" <?php echo (int)$siteSettings['event_entry_close_weekday'] === $weekdayValue ? 'selected' : ''; ?>><?php echo h($weekdayLabel); ?></option><?php endforeach; ?></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_entry_close_weeks">Weeks before start date</label>
+                    <input type="number" min="0" max="52" class="form-control" id="event_entry_close_weeks" name="event_entry_close_weeks" required value="<?php echo (int)$siteSettings['event_entry_close_weeks']; ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_entry_close_time">Time</label>
+                    <input type="time" class="form-control" id="event_entry_close_time" name="event_entry_close_time" required value="<?php echo h((string)$siteSettings['event_entry_close_time']); ?>">
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-success">Save event settings</button>
+                    <a class="btn btn-outline-secondary" href="index.php">Back to dashboard</a>
+                </div>
+            </form>
+        </div>
+    </div>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'global' ? 'show active' : ''; ?>" id="global-settings" role="tabpanel" aria-labelledby="global-tab" tabindex="0">
     <div class="row g-4">
         <div class="col-12">
@@ -104,16 +204,6 @@ admin_layout_start('Settings', 'settings');
             <div class="card-soft p-3">
                 <form method="POST" class="row g-3 align-items-end">
                     <input type="hidden" name="settings_section" value="global">
-                    <div class="col-12">
-                        <label class="form-label fw-semibold mb-2">Basket timeout</label>
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span class="fw-semibold">Time before basket is cleared:</span>
-                            <input type="number" min="0" class="form-control" style="max-width: 110px;" name="basket_timeout_minutes" value="<?php echo h($timeoutMinutes); ?>">
-                            <span class="text-muted">minutes</span>
-                            <input type="number" min="0" max="59" class="form-control" style="max-width: 110px;" name="basket_timeout_seconds" value="<?php echo h($timeoutRemainder); ?>">
-                            <span class="text-muted">seconds</span>
-                        </div>
-                    </div>
                     <div class="col-12">
                         <label class="form-label fw-semibold mb-2">Remember me</label>
                         <div class="d-flex flex-wrap align-items-center gap-2">

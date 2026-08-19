@@ -88,6 +88,18 @@ function defaultSiteSettings(): array
         'sponsor_image_url' => 'https://placehold.co/640x140/216c22/ffffff?text=Sponsor+Banner',
         'background_image_url' => 'https://placehold.co/1600x900/eff7ec/216c22?text=Endurance+Riding+Ireland',
         'basket_timeout_seconds' => 900, // default 15 minutes
+        'event_default_start_time' => '09:00',
+        'event_default_end_days' => 0,
+        'event_default_end_time' => '13:00',
+        'event_member_open_weeks' => 3,
+        'event_member_open_weekday' => 5,
+        'event_member_open_time' => '18:00',
+        'event_non_member_open_weeks' => 2,
+        'event_non_member_open_weekday' => 5,
+        'event_non_member_open_time' => '18:00',
+        'event_entry_close_weeks' => 0,
+        'event_entry_close_weekday' => 4,
+        'event_entry_close_time' => '23:59',
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days
         'admin_manual_filename' => '',
@@ -210,6 +222,21 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
     }
     $settings['remember_me_ttl_seconds'] = $rememberTtl;
     $settings['auth_app_login_enabled'] = !empty($settings['auth_app_login_enabled']) && (string)$settings['auth_app_login_enabled'] !== '0' ? '1' : '0';
+
+    foreach (['event_default_end_days'] as $dayKey) {
+        $settings[$dayKey] = max(0, min(365, (int)($settings[$dayKey] ?? 0)));
+    }
+    foreach (['event_member_open_weeks', 'event_non_member_open_weeks', 'event_entry_close_weeks'] as $weekKey) {
+        $settings[$weekKey] = max(0, min(52, (int)($settings[$weekKey] ?? 0)));
+    }
+    foreach (['event_member_open_weekday', 'event_non_member_open_weekday', 'event_entry_close_weekday'] as $weekdayKey) {
+        $settings[$weekdayKey] = max(0, min(6, (int)($settings[$weekdayKey] ?? 0)));
+    }
+    foreach (['event_default_start_time', 'event_default_end_time', 'event_member_open_time', 'event_non_member_open_time', 'event_entry_close_time'] as $timeKey) {
+        if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string)($settings[$timeKey] ?? ''))) {
+            $settings[$timeKey] = (string)defaultSiteSettings()[$timeKey];
+        }
+    }
 
     try {
         ensureSiteSettingsTable($pdo);
@@ -4863,7 +4890,7 @@ function ensureEntryWindowColumns(?PDO $pdo): void
     }
 }
 
-function event_duplicate_date_defaults(string $eventDate): ?array
+function event_date_defaults(string $eventDate, array $settings): ?array
 {
     $eventDate = trim($eventDate);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $eventDate)) {
@@ -4876,30 +4903,40 @@ function event_duplicate_date_defaults(string $eventDate): ?array
         return null;
     }
 
-    $open = $start->modify('-28 days');
-    while ((int)$open->format('w') !== 5) {
-        $open = $open->modify('+1 day');
-    }
-
-    $close = $start;
-    $guard = 0;
-    while ((int)$close->format('w') !== 4 && $guard < 7) {
-        $close = $close->modify('-1 day');
-        $guard++;
-    }
+    $defaults = array_merge(defaultSiteSettings(), $settings);
+    $endDays = max(0, min(365, (int)$defaults['event_default_end_days']));
+    $previousWeekday = static function (DateTimeImmutable $date, int $weekday, int $weeks): DateTimeImmutable {
+        $weekday = max(0, min(6, $weekday));
+        $currentWeekday = (int)$date->format('w');
+        $daysBack = ($currentWeekday - $weekday + 7) % 7;
+        if ($daysBack === 0) {
+            $daysBack = 7;
+        }
+        $extraWeeks = max(0, $weeks - 1);
+        return $date->modify('-' . ($daysBack + ($extraWeeks * 7)) . ' days');
+    };
+    $end = $start->modify('+' . $endDays . ' days');
+    $open = $previousWeekday($start, (int)$defaults['event_member_open_weekday'], (int)$defaults['event_member_open_weeks']);
+    $nonMemberOpen = $previousWeekday($start, (int)$defaults['event_non_member_open_weekday'], (int)$defaults['event_non_member_open_weeks']);
+    $close = $previousWeekday($start, (int)$defaults['event_entry_close_weekday'], (int)$defaults['event_entry_close_weeks']);
 
     return [
         'event_date' => $start->format('Y-m-d'),
-        'end_date' => $start->format('Y-m-d'),
-        'start_time' => '09:00',
-        'end_time' => '13:00',
+        'end_date' => $end->format('Y-m-d'),
+        'start_time' => (string)$defaults['event_default_start_time'],
+        'end_time' => (string)$defaults['event_default_end_time'],
         'entry_open_date' => $open->format('Y-m-d'),
-        'entry_open_time' => '18:00',
-        'non_member_entry_open_date' => $open->modify('+7 days')->format('Y-m-d'),
-        'non_member_entry_open_time' => '18:00',
+        'entry_open_time' => (string)$defaults['event_member_open_time'],
+        'non_member_entry_open_date' => $nonMemberOpen->format('Y-m-d'),
+        'non_member_entry_open_time' => (string)$defaults['event_non_member_open_time'],
         'entry_close_date' => $close->format('Y-m-d'),
-        'entry_close_time' => '23:59',
+        'entry_close_time' => (string)$defaults['event_entry_close_time'],
     ];
+}
+
+function event_duplicate_date_defaults(string $eventDate, array $settings = []): ?array
+{
+    return event_date_defaults($eventDate, $settings);
 }
 
 function buildDuplicatedEventPricingRows(?PDO $pdo, array $sourceEvent): array
@@ -4995,7 +5032,7 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
         return false;
     }
 
-    $dateDefaults = event_duplicate_date_defaults($rideDate);
+    $dateDefaults = event_duplicate_date_defaults($rideDate, getSiteSettings($pdo));
     if (!$dateDefaults) {
         $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid ride date.'];
         return false;
@@ -5260,30 +5297,21 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     if (!in_array($status, ['draft', 'published'], true)) {
         $status = 'draft';
     }
-    if ($endDate === '' && $eventDate !== '') {
-        $endDate = $eventDate;
+    $dateDefaults = event_date_defaults($eventDate, getSiteSettings($pdo));
+    if ($dateDefaults) {
+        $endDate = $endDate !== '' ? $endDate : $dateDefaults['end_date'];
+        $startTime = $startTime !== '' ? $startTime : $dateDefaults['start_time'];
+        $endTime = $endTime !== '' ? $endTime : $dateDefaults['end_time'];
+        $entryOpenDate = $entryOpenDate !== '' ? $entryOpenDate : $dateDefaults['entry_open_date'];
+        $entryOpenTime = $entryOpenTime !== '' ? $entryOpenTime : $dateDefaults['entry_open_time'];
+        $nonMemberEntryOpenDate = $nonMemberEntryOpenDate !== '' ? $nonMemberEntryOpenDate : $dateDefaults['non_member_entry_open_date'];
+        $nonMemberEntryOpenTime = $nonMemberEntryOpenTime !== '' ? $nonMemberEntryOpenTime : $dateDefaults['non_member_entry_open_time'];
+        $entryCloseDate = $entryCloseDate !== '' ? $entryCloseDate : $dateDefaults['entry_close_date'];
+        $entryCloseTime = $entryCloseTime !== '' ? $entryCloseTime : $dateDefaults['entry_close_time'];
     }
-    if ($startTime === '') {
-        $startTime = '09:00';
-    }
-    if ($endTime === '') {
-        $endTime = '13:00';
-    }
-    if ($eventDate !== '') {
-        if ($entryOpenDate === '') {
-            $entryOpenDate = date('Y-m-d', strtotime($eventDate . ' -1 month'));
-        }
-        if ($nonMemberEntryOpenDate === '') {
-            $baseOpenDate = $entryOpenDate !== '' ? $entryOpenDate : date('Y-m-d', strtotime($eventDate . ' -1 month'));
-            $nonMemberEntryOpenDate = date('Y-m-d', strtotime($baseOpenDate . ' +1 week'));
-        }
-        if ($entryCloseDate === '') {
-            $entryCloseDate = date('Y-m-d', strtotime($eventDate . ' -1 week'));
-        }
-    }
-    $entryOpenAt = $entryOpenDate !== '' ? trim($entryOpenDate . ' ' . ($entryOpenTime !== '' ? $entryOpenTime : '00:00')) : null;
-    $nonMemberEntryOpenAt = $nonMemberEntryOpenDate !== '' ? trim($nonMemberEntryOpenDate . ' ' . ($nonMemberEntryOpenTime !== '' ? $nonMemberEntryOpenTime : ($entryOpenTime !== '' ? $entryOpenTime : '00:00'))) : null;
-    $entryCloseAt = $entryCloseDate !== '' ? trim($entryCloseDate . ' ' . ($entryCloseTime !== '' ? $entryCloseTime : '23:59')) : null;
+    $entryOpenAt = $entryOpenDate !== '' ? trim($entryOpenDate . ' ' . $entryOpenTime) : null;
+    $nonMemberEntryOpenAt = $nonMemberEntryOpenDate !== '' ? trim($nonMemberEntryOpenDate . ' ' . $nonMemberEntryOpenTime) : null;
+    $entryCloseAt = $entryCloseDate !== '' ? trim($entryCloseDate . ' ' . $entryCloseTime) : null;
     $capacityEnabled = !empty($data['capacity_enabled']) ? 1 : 0;
     $capacityLimit = (int)($data['capacity_limit'] ?? 50);
     if ($capacityLimit < 1) {
