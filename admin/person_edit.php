@@ -11,6 +11,9 @@ if (!in_array($currentRole, ['superadmin', 'admin'], true)) {
 
 ensureMembershipTables($pdo);
 $personId = max(0, (int)($_GET['id'] ?? $_POST['person_id'] ?? 0));
+$peopleReturnUrl = (string)($_SESSION['admin_list_returns']['people'] ?? 'people.php');
+if (!preg_match('/^people\.php(?:\?[^#]*)?$/', $peopleReturnUrl)) $peopleReturnUrl = 'people.php';
+$peopleReturnWithRow = $peopleReturnUrl . ($personId > 0 ? '#person-' . $personId : '');
 $person = null;
 if ($pdo && $personId > 0) {
     $stmt = $pdo->prepare("SELECT p.*, u.email AS owner_email FROM people p LEFT JOIN users u ON u.id = p.owner_user_id WHERE p.id = :id LIMIT 1");
@@ -19,7 +22,7 @@ if ($pdo && $personId > 0) {
 }
 if (!$person) {
     $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Person not found.']];
-    header('Location: people.php');
+    header('Location: ' . $peopleReturnUrl);
     exit;
 }
 
@@ -56,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':id' => $personId,
             ]);
             $_SESSION['flash_success'] = 'Person updated.';
-            header('Location: people.php');
+            header('Location: ' . $peopleReturnWithRow);
             exit;
         } catch (PDOException $e) {
             $alerts[] = ['type' => 'danger', 'message' => 'Could not update this person. Check that the member number is not already in use.'];
@@ -69,7 +72,7 @@ admin_layout_start('Edit person', 'people');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div><div class="small text-muted">People</div><h5 class="mb-0">Edit person</h5></div>
-    <a class="btn btn-outline-secondary" href="people.php">Back to people</a>
+    <a class="btn btn-outline-secondary" href="<?php echo h($peopleReturnWithRow); ?>">Back to people</a>
 </div>
 <div class="card-soft p-4">
     <form method="post" class="row g-3">
@@ -86,7 +89,7 @@ admin_layout_start('Edit person', 'people');
         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Emergency contact</label><input class="form-control" name="emergency_contact_name" value="<?php echo h((string)($person['emergency_contact_name'] ?? '')); ?>"></div>
         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Emergency phone</label><input class="form-control" name="emergency_contact_phone" value="<?php echo h((string)($person['emergency_contact_phone'] ?? '')); ?>"></div>
         <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="personArchived" name="is_archived" value="1" <?php echo !empty($person['is_archived']) ? 'checked' : ''; ?>><label class="form-check-label" for="personArchived">Archived</label></div></div>
-        <div class="col-12"><div class="small text-muted mb-3">Owned by: <?php echo h((string)($person['owner_email'] ?? 'Unknown user')); ?></div><button class="btn btn-success">Save changes</button> <a class="btn btn-outline-secondary" href="people.php">Cancel</a></div>
+        <div class="col-12"><div class="small text-muted mb-3">Owned by: <?php echo h((string)($person['owner_email'] ?? 'Unknown user')); ?></div><button class="btn btn-success">Save changes</button> <a class="btn btn-outline-secondary" href="<?php echo h($peopleReturnWithRow); ?>">Cancel</a></div>
     </form>
 </div>
 <?php admin_layout_end(); ?>

@@ -5,6 +5,9 @@ require __DIR__ . '/_bootstrap.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $eventId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$eventsReturnUrl = (string)($_SESSION['admin_list_returns']['events'] ?? 'events.php');
+if (!preg_match('/^events\.php(?:\?[^#]*)?$/', $eventsReturnUrl)) $eventsReturnUrl = 'events.php';
+$eventsReturnWithRow = $eventsReturnUrl . ($eventId > 0 ? '#event-' . $eventId : '');
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
@@ -270,7 +273,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             <?php $viewUrl = $siteBase . '/events/' . $eventId . '-' . slugify((string)($event['title'] ?? 'event')); ?>
             <a class="btn btn-outline-success has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View event</span></a>
         <?php endif; ?>
-        <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to list</span></a>
+        <a class="btn btn-outline-secondary has-icon" href="<?php echo h($eventsReturnWithRow); ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to list</span></a>
     </div>
 </div>
 

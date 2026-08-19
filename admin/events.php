@@ -6,6 +6,12 @@ require_once __DIR__ . '/table_sort.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $siteBase = $siteBase ?? '';
+$eventsReturnUrl = (string)($_SESSION['admin_list_returns']['events'] ?? 'events.php');
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $eventsQuery = http_build_query($_GET);
+    $eventsReturnUrl = 'events.php' . ($eventsQuery !== '' ? '?' . $eventsQuery : '');
+    $_SESSION['admin_list_returns']['events'] = $eventsReturnUrl;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -29,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($successMessage) {
         $_SESSION['flash_success'] = $successMessage;
     }
-    header('Location: events.php?view=' . rawurlencode((string)($_POST['view'] ?? 'future')));
+    header('Location: ' . $eventsReturnUrl);
     exit;
 }
 
@@ -356,7 +362,7 @@ admin_layout_start('Events', 'events');
 	            </thead>
             <tbody>
                 <?php foreach ($upcoming as $event): ?>
-                    <tr>
+                    <tr id="event-<?php echo (int)$event['id']; ?>">
                         <td><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></td>
                         <td class="col-end"><?php echo h(format_display_date($event['end_date'] ?? null, '')); ?></td>
                         <td><?php echo h($event['title']); ?></td>
@@ -448,7 +454,7 @@ admin_layout_start('Events', 'events');
 	            </thead>
                 <tbody>
                     <?php foreach ($past as $event): ?>
-                        <tr>
+                        <tr id="event-<?php echo (int)$event['id']; ?>">
                             <td><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></td>
                             <td class="col-end"><?php echo h(format_display_date($event['end_date'] ?? null, '')); ?></td>
                             <td><?php echo h($event['title']); ?></td>

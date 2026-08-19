@@ -12,6 +12,12 @@ if (!$canManagePeople) {
 }
 
 ensureMembershipTables($pdo);
+$peopleReturnUrl = (string)($_SESSION['admin_list_returns']['people'] ?? 'people.php');
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $peopleQuery = http_build_query($_GET);
+    $peopleReturnUrl = 'people.php' . ($peopleQuery !== '' ? '?' . $peopleQuery : '');
+    $_SESSION['admin_list_returns']['people'] = $peopleReturnUrl;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_person_id'])) {
     $personId = max(0, (int)$_POST['archive_person_id']);
@@ -21,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_person_id']))
             $archive->execute([':id' => $personId]);
             if ($archive->rowCount() > 0) {
                 $_SESSION['flash_success'] = 'Person archived.';
-                header('Location: people.php');
+                header('Location: ' . $peopleReturnUrl . '#person-' . $personId);
                 exit;
             }
             $alerts[] = ['type' => 'warning', 'message' => 'Person not found or already archived.'];
@@ -93,7 +99,7 @@ admin_layout_start('People', 'people');
                 $dob = $row['dob'] ? format_display_date((string)$row['dob'], '—') : '—';
                 $status = !empty($row['is_archived']) ? 'Archived' : 'Active';
                 ?>
-                <tr>
+                <tr id="person-<?php echo (int)$row['id']; ?>">
                     <td class="fw-semibold"><?php echo h($name); ?></td>
                     <td class="text-muted small"><?php echo h($memberNumber); ?></td>
                     <td class="text-muted small"><?php echo h($dob); ?></td>

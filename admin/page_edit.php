@@ -5,6 +5,9 @@ require __DIR__ . '/_bootstrap.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $pageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$pagesReturnUrl = (string)($_SESSION['admin_list_returns']['pages'] ?? 'pages.php');
+if (!preg_match('/^pages\.php(?:\?[^#]*)?$/', $pagesReturnUrl)) $pagesReturnUrl = 'pages.php';
+$pagesReturnWithRow = $pagesReturnUrl . ($pageId > 0 ? '#page-' . $pageId : '');
 $page = $pageId ? fetchPageById($pdo, $pageId) : null;
 $destinationPages = array_values(array_filter(fetchPages($pdo, true), static fn(array $candidate): bool =>
     (int)($candidate['id'] ?? 0) !== $pageId && empty($candidate['destination_page_id'])
@@ -19,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (savePage($pdo, $_POST, $alerts)) {
             $successMessage = 'Page saved.';
             $_SESSION['flash_success'] = $successMessage;
-            header('Location: pages.php');
+            header('Location: ' . $pagesReturnWithRow);
             exit;
         }
     }
@@ -52,7 +55,7 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
         <h5 class="mb-0"><?php echo $pageId ? h($page['title']) : 'New Page'; ?></h5>
     </div>
     <div>
-        <a class="btn btn-outline-secondary" href="pages.php">Back to list</a>
+        <a class="btn btn-outline-secondary" href="<?php echo h($pagesReturnWithRow); ?>">Back to list</a>
         <?php if ($pageId): ?><a class="btn btn-success" href="page_images.php?page_id=<?php echo $pageId; ?>">Manage Images</a><?php endif; ?>
         <?php if ($pageId): ?><a class="btn btn-success" href="page_elements.php?page_id=<?php echo $pageId; ?>">Content Sections</a><?php endif; ?>
     </div>
@@ -156,7 +159,7 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
         </div>
         <div class="mt-3 d-flex gap-2">
             <button class="btn btn-success">Save</button>
-            <a class="btn btn-outline-secondary" href="pages.php">Cancel</a>
+            <a class="btn btn-outline-secondary" href="<?php echo h($pagesReturnWithRow); ?>">Cancel</a>
         </div>
         <?php if (!$pageId): ?><div class="form-text mt-2">Save the page first, then use Manage Images to add one or more images.</div><?php endif; ?>
     </form>

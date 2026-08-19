@@ -6,6 +6,12 @@ require_once __DIR__ . '/table_sort.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $siteBase = $siteBase ?? '';
+$pagesReturnUrl = (string)($_SESSION['admin_list_returns']['pages'] ?? 'pages.php');
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $pagesQuery = http_build_query($_GET);
+    $pagesReturnUrl = 'pages.php' . ($pagesQuery !== '' ? '?' . $pagesQuery : '');
+    $_SESSION['admin_list_returns']['pages'] = $pagesReturnUrl;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -33,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($successMessage) {
         $_SESSION['flash_success'] = $successMessage;
     }
-    header('Location: pages.php');
+    header('Location: ' . $pagesReturnUrl);
     exit;
 }
 
@@ -101,7 +107,7 @@ admin_layout_start('Pages', 'pages');
 			</thead>
             <tbody>
                 <?php foreach ($pages as $page): ?>
-                    <tr>
+                    <tr id="page-<?php echo (int)$page['id']; ?>">
                         <td><?php echo h($page['title']); ?></td>
                         <td><?php echo h(NAV_GROUPS[$page['nav_group']] ?? $page['nav_group']); ?></td>
                         <td class="text-muted small"><?php echo h($page['slug']); ?></td>
