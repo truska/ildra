@@ -124,7 +124,7 @@ admin_layout_start('People', 'people');
         </table>
     </div>
     <?php echo admin_table_pagination($table); ?>
-    <div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="people.php">Clear</a></div>
+    <div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-secondary" href="people.php">Clear all</a></div>
 </form></div>
 
 <?php

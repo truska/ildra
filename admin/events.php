@@ -287,6 +287,12 @@ admin_layout_start('Events', 'events');
     }
     .action-buttons .btn { white-space: nowrap; }
     .action-buttons form { margin: 0; }
+    .event-view-tabs { border-bottom: 2px solid #d7dfd5; gap: .35rem; }
+    .event-view-tabs .nav-link { border: 1px solid #cbd5c9; border-bottom: 0; background: #eef2ed; color: #405443; font-weight: 700; }
+    .event-view-tabs .nav-link:hover { background: #e1e9df; color: #183d20; }
+    .event-view-tabs .nav-link.future-tab.active { background: #198754; border-color: #198754; color: #fff; }
+    .event-view-tabs .nav-link.past-tab.active { background: #495057; border-color: #495057; color: #fff; }
+    .event-view-tabs .nav-link.active .badge { background: #fff !important; color: #26352a !important; }
     @media (max-width: 767.98px) {
         th.col-end,
         td.col-end,
@@ -317,14 +323,14 @@ admin_layout_start('Events', 'events');
     </div>
 </div>
 
-<ul class="nav nav-tabs mb-3" aria-label="Event date range">
+<ul class="nav nav-tabs event-view-tabs mb-3" aria-label="Event date range">
     <li class="nav-item">
-        <a class="nav-link <?php echo $activeView === 'future' ? 'active' : ''; ?>" href="?<?php echo h(http_build_query(array_merge($_GET, ['view' => 'future']))); ?>">
+        <a class="nav-link future-tab <?php echo $activeView === 'future' ? 'active' : ''; ?>" href="?<?php echo h(http_build_query(array_merge($_GET, ['view' => 'future']))); ?>">
             Current &amp; Future <span class="badge text-bg-light ms-1"><?php echo count($upcoming); ?></span>
         </a>
     </li>
     <li class="nav-item">
-        <a class="nav-link <?php echo $activeView === 'past' ? 'active' : ''; ?>" href="?<?php echo h(http_build_query(array_merge($_GET, ['view' => 'past']))); ?>">
+        <a class="nav-link past-tab <?php echo $activeView === 'past' ? 'active' : ''; ?>" href="?<?php echo h(http_build_query(array_merge($_GET, ['view' => 'past']))); ?>">
             Past <span class="badge text-bg-light ms-1"><?php echo count($past); ?></span>
         </a>
     </li>
@@ -335,7 +341,7 @@ admin_layout_start('Events', 'events');
     <div class="d-flex flex-wrap align-items-end gap-2">
         <div><label class="form-label small mb-1">From</label><input class="form-control form-control-sm" type="date" name="date_from" value="<?php echo h($filterValues['date_from']); ?>"></div>
         <div><label class="form-label small mb-1">To</label><input class="form-control form-control-sm" type="date" name="date_to" value="<?php echo h($filterValues['date_to']); ?>"></div>
-        <button class="btn btn-sm btn-outline-secondary">Filter dates</button><a class="btn btn-sm btn-link" href="events.php?view=<?php echo h($activeView); ?>">Clear all</a>
+        <button class="btn btn-sm btn-outline-secondary">Filter dates</button><a class="btn btn-sm btn-secondary" href="events.php?view=<?php echo h($activeView); ?>">Clear all</a>
     </div>
 </form>
 
@@ -430,7 +436,7 @@ admin_layout_start('Events', 'events');
             </tbody>
         </table>
     </div>
-</div><div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary" type="submit" form="event-filter-form">Apply table filters</button> <a class="btn btn-sm btn-link" href="events.php?view=<?php echo h($activeView); ?>">Clear</a></div>
+</div><div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary" type="submit" form="event-filter-form">Apply table filters</button> <a class="btn btn-sm btn-secondary" href="events.php?view=<?php echo h($activeView); ?>">Clear all</a></div>
 
     <div class="card-soft p-3 <?php echo $activeView === 'past' ? '' : 'd-none'; ?>" id="past-rides">
         <div class="mb-2">
@@ -510,7 +516,7 @@ admin_layout_start('Events', 'events');
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$past): ?>
-                        <tr><td colspan="9" class="text-muted">No past rides match the current filters. <a href="events.php?view=past">Clear filters</a></td></tr>
+                        <tr><td colspan="9" class="text-muted">No past rides match the current filters. <a class="btn btn-sm btn-secondary ms-2" href="events.php?view=past">Clear filters</a></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
