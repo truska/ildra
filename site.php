@@ -380,7 +380,7 @@ function event_url(array $event): string
                         <div class="section-title mb-0" id="following-rides-heading">Following Rides</div>
                         <a class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
                     </div>
-                    <div class="row row-cols-1 row-cols-lg-2 g-4">
+                    <div class="row row-cols-1 g-3">
                         <?php foreach ($followingEvents as $event): ?>
                             <?php
                             $eventDate = $event['event_date'] ?? '';
