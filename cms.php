@@ -1866,6 +1866,7 @@ function ensureNewsTables(?PDO $pdo): void
         subheading TEXT DEFAULT NULL,
         body_html MEDIUMTEXT DEFAULT NULL,
         results_html MEDIUMTEXT DEFAULT NULL,
+        facebook_gallery_url VARCHAR(1000) DEFAULT NULL,
         is_published TINYINT(1) NOT NULL DEFAULT 0,
         published_at DATETIME DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1881,6 +1882,9 @@ function ensureNewsTables(?PDO $pdo): void
     }
     if (!table_column_exists($pdo, 'news_articles', 'results_html')) {
         $pdo->exec("ALTER TABLE news_articles ADD COLUMN results_html MEDIUMTEXT DEFAULT NULL AFTER body_html");
+    }
+    if (!table_column_exists($pdo, 'news_articles', 'facebook_gallery_url')) {
+        $pdo->exec("ALTER TABLE news_articles ADD COLUMN facebook_gallery_url VARCHAR(1000) DEFAULT NULL AFTER results_html");
     }
     if (!table_index_exists($pdo, 'news_articles', 'uniq_ride_report_event')) {
         try {

@@ -23,6 +23,8 @@ if (!$event || !$report || (strtolower((string)($event['status'] ?? '')) !== 'pu
 $eventPricingRows = $event ? fetchEventPricingRows($pdo, $eventId) : [];
 $galleryBatch = $report ? mediaBatchFind($pdo, 'news_images', 'news_article', (int)$report['id']) : null;
 $galleryImages = $galleryBatch ? mediaBatchImages($pdo, (int)$galleryBatch['id']) : [];
+$facebookGalleryUrl = $report ? trim((string)($report['facebook_gallery_url'] ?? '')) : '';
+$facebookEmbedUrl = $facebookGalleryUrl !== '' ? 'https://www.facebook.com/plugins/post.php?href=' . rawurlencode($facebookGalleryUrl) . '&show_text=true&width=750' : '';
 $classesList = class_names_from_pricing_rows($eventPricingRows);
 if (!$classesList && $event) $classesList = class_names_from_classes_offered($event['classes_offered'] ?? '');
 $capacityLimit = (int)($event['capacity_limit'] ?? 0);
@@ -65,6 +67,7 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
         .report-lightbox.open{display:grid}.report-lightbox figure{margin:0;text-align:center;max-width:100%;max-height:100%}.report-lightbox img{display:block;max-width:90vw;max-height:78vh;object-fit:contain;margin:auto}
         .report-lightbox figcaption{max-width:850px;margin:.75rem auto 0}.report-lightbox-caption{color:rgba(255,255,255,.82)}
         .report-lightbox-close,.report-lightbox-nav{position:absolute;border:0;color:#fff;background:rgba(255,255,255,.12)}.report-lightbox-close{right:1rem;top:.75rem;background:none;font-size:2.5rem}.report-lightbox-nav{top:50%;transform:translateY(-50%);width:3.25rem;height:3.25rem;border-radius:50%;font-size:2rem}.report-lightbox-prev{left:1rem}.report-lightbox-next{right:1rem}
+        .facebook-gallery-frame{display:block;width:100%;max-width:750px;height:720px;margin:0 auto;border:0;border-radius:12px;background:#f0f2f5}.facebook-gallery-link{background:#1877f2;border-color:#1877f2}.facebook-gallery-link:hover{background:#1264cf;border-color:#1264cf}
         @media(max-width:991.98px){.report-gallery-stage{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:220px repeat(2,120px)}.report-gallery-stage .report-gallery-thumb:first-child{grid-column:1/-1;grid-row:auto}}
         @media(max-width:767.98px){.report-gallery-shell{padding:1.25rem}.report-gallery-stage{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:210px repeat(3,105px)}.report-gallery-stage .report-gallery-thumb:first-child{grid-column:1/-1}.report-lightbox{padding:4rem .75rem 1rem}.report-lightbox-nav{top:auto;bottom:1rem}.report-lightbox-prev{left:calc(50% - 4rem)}.report-lightbox-next{right:calc(50% - 4rem)}}
     </style>
@@ -108,6 +111,13 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
         <button type="button" class="report-lightbox-nav report-lightbox-next" aria-label="Next image">&#8250;</button>
     </div>
     <script type="application/json" id="report-gallery-data"><?php echo json_encode(array_map(static function(array $image) use ($galleryBatch,$galleryDefaultCaption): array { return ['src'=>mediaBatchImageUrl($galleryBatch,$image,'original'),'alt'=>(string)($image['alt_text']?:$image['title']?:$galleryDefaultCaption),'caption'=>(string)($image['caption']?:$image['title']?:$galleryDefaultCaption)]; }, $galleryImages), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?></script>
+    <?php endif; ?>
+    <?php if ($facebookGalleryUrl !== ''): ?>
+    <section class="card-soft p-4 mt-4" aria-labelledby="facebook-gallery-heading">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3"><div><h2 class="h3 mb-1" id="facebook-gallery-heading">Facebook Gallery</h2><div class="text-muted small">More photographs from this ride on Facebook.</div></div><a class="btn btn-primary facebook-gallery-link" href="<?php echo h($facebookGalleryUrl); ?>" target="_blank" rel="noopener noreferrer">Open Facebook Gallery</a></div>
+        <iframe class="facebook-gallery-frame" src="<?php echo h($facebookEmbedUrl); ?>" title="Facebook gallery for <?php echo h((string)$event['title']); ?>" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowfullscreen></iframe>
+        <div class="small text-muted text-center mt-2">If Facebook does not display the album here, use “Open Facebook Gallery” above.</div>
+    </section>
     <?php endif; ?>
     <?php else: ?><div class="alert alert-info">This ride report could not be found.</div><?php endif; ?>
 </div></main>
