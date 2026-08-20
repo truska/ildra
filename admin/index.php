@@ -241,9 +241,9 @@ admin_layout_start('Dashboard', 'dashboard');
             </a>
         </div>
         <div class="col-md-4">
-            <a class="card-soft p-3 h-100 d-block text-decoration-none text-reset border-0" href="<?php echo h($adminBase); ?>/hero.php">
-                <div class="fw-bold mb-1">Hero & Welcome</div>
-                <div class="text-muted small">Update homepage messaging</div>
+            <a class="card-soft p-3 h-100 d-block text-decoration-none text-reset border-0" href="<?php echo h($adminBase); ?>/settings.php?tab=home">
+                <div class="fw-bold mb-1">Home Page Settings</div>
+                <div class="text-muted small">Update the homepage heading and banner timing</div>
             </a>
         </div>
     </div>

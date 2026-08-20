@@ -541,7 +541,7 @@ if (!$renderPage) {
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
 <body>
-    <?php include __DIR__ . '/views/header.php'; ?>
+    <?php $headerPage = $renderPage; include __DIR__ . '/views/header.php'; ?>
 
     <header class="py-3" style="background: #f5f7ef; border-bottom: 1px solid rgba(0,0,0,0.05);">
         <div class="container">

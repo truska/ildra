@@ -9,6 +9,7 @@ $pagesReturnUrl = (string)($_SESSION['admin_list_returns']['pages'] ?? 'pages.ph
 if (!preg_match('/^pages\.php(?:\?[^#]*)?$/', $pagesReturnUrl)) $pagesReturnUrl = 'pages.php';
 $pagesReturnWithRow = $pagesReturnUrl . ($pageId > 0 ? '#page-' . $pageId : '');
 $page = $pageId ? fetchPageById($pdo, $pageId) : null;
+$isHomePage = $page && (string)($page['slug'] ?? '') === 'home';
 $destinationPages = array_values(array_filter(fetchPages($pdo, true), static fn(array $candidate): bool =>
     (int)($candidate['id'] ?? 0) !== $pageId && empty($candidate['destination_page_id'])
 ));
@@ -56,8 +57,9 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
     </div>
     <div>
         <a class="btn btn-outline-secondary" href="<?php echo h($pagesReturnWithRow); ?>">Back to list</a>
-        <?php if ($pageId): ?><a class="btn btn-success" href="page_images.php?page_id=<?php echo $pageId; ?>">Manage Images</a><?php endif; ?>
-        <?php if ($pageId): ?><a class="btn btn-success" href="page_elements.php?page_id=<?php echo $pageId; ?>">Content Sections</a><?php endif; ?>
+        <?php if ($pageId): ?><a class="btn btn-success" href="banner_images.php?page_id=<?php echo $pageId; ?>">Banner Images</a><?php endif; ?>
+        <?php if ($pageId && !$isHomePage): ?><a class="btn btn-success" href="page_images.php?page_id=<?php echo $pageId; ?>">Manage Images</a><?php endif; ?>
+        <?php if ($pageId && !$isHomePage): ?><a class="btn btn-success" href="page_elements.php?page_id=<?php echo $pageId; ?>">Content Sections</a><?php endif; ?>
     </div>
 </div>
 
@@ -72,8 +74,9 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
             </div>
             <div class="col-md-4">
                 <label class="form-label">Slug</label>
-                <input type="text" name="slug" class="form-control" required value="<?php echo h($page['slug']); ?>">
+                <input type="text" name="slug" class="form-control" required value="<?php echo h($page['slug']); ?>" <?php echo $isHomePage ? 'readonly' : ''; ?>>
             </div>
+            <?php if (!$isHomePage): ?>
             <div class="col-md-4">
                 <label class="form-label">Menu group</label>
                 <select name="nav_group" class="form-select">
@@ -96,7 +99,13 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
                 </select>
                 <div class="form-text">Optional menu alias: this menu item opens the selected page, so its content stays in one place. The slug above must still be unique.</div>
             </div>
-            <div class="col-md-4 d-flex align-items-end gap-4">
+            <?php else: ?>
+                <input type="hidden" name="nav_group" value="home">
+                <input type="hidden" name="display_order" value="0">
+                <input type="hidden" name="destination_page_id" value="">
+                <input type="hidden" name="is_published" value="1">
+            <?php endif; ?>
+            <?php if (!$isHomePage): ?><div class="col-md-4 d-flex align-items-end gap-4">
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="is_published" id="published" <?php echo ($page['is_published'] ?? 0) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="published">Published</label>
@@ -109,11 +118,13 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
                     <input class="form-check-input" type="checkbox" name="menu_divider_below" id="menu-divider-below" <?php echo ($page['menu_divider_below'] ?? 0) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="menu-divider-below">Divider below in dropdown menu</label>
                 </div>
-            </div>
+            </div><?php endif; ?>
+            <?php if (!$isHomePage): ?>
             <div class="col-12">
                 <label class="form-label">Excerpt</label>
                 <textarea name="excerpt" class="form-control" rows="2"><?php echo h($page['excerpt']); ?></textarea>
             </div>
+            <?php else: ?><input type="hidden" name="excerpt" value=""><?php endif; ?>
             <div class="col-12">
                 <label class="form-label d-flex justify-content-between align-items-center">
                     <span>Body</span>

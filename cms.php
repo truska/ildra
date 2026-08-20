@@ -83,6 +83,9 @@ function defaultSiteSettings(): array
         'hero_tagline' => 'Home for Endurance Riding in Ireland',
         'hero_cta_label' => 'JOIN',
         'hero_cta_url' => '/memberships',
+        'home_established_text' => 'Established in 1990',
+        'home_heading_text' => 'Endurance Riding Ireland',
+        'home_carousel_interval_seconds' => 6,
         'welcome_title' => 'Welcome to ILDRA',
         'welcome_body' => "The Irish Long Distance Riding Association (1990) runs rides across Ireland for members and newcomers. Distances range from pleasure rides through competitive trail rides for experienced horses and riders.",
         'sponsor_image_url' => 'https://placehold.co/640x140/216c22/ffffff?text=Sponsor+Banner',
@@ -526,7 +529,6 @@ function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
         ");
         ensurePageButtonColumns($pdo);
         ensurePageDestinationColumn($pdo);
-
         $sql = "SELECT pages.*, destination.slug AS destination_slug
                 FROM pages
                 LEFT JOIN pages AS destination
@@ -570,10 +572,30 @@ function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
             $pages = $stmt->fetchAll();
         }
 
+        ensureHomePage($pdo);
+        $stmt->execute($params);
+        $pages = $stmt->fetchAll();
+
         return $pages;
     } catch (PDOException $e) {
         return defaultPages();
     }
+}
+
+/** Ensure the homepage copy has a first-class Page record without replacing an editor's content. */
+function ensureHomePage(PDO $pdo): void
+{
+    $exists = $pdo->query("SELECT id FROM pages WHERE slug = 'home' LIMIT 1")->fetchColumn();
+    if ($exists) return;
+
+    $settings = getSiteSettings($pdo);
+    $stmt = $pdo->prepare("INSERT INTO pages
+        (title, slug, nav_group, excerpt, body_html, is_published, display_order, created_at, updated_at)
+        VALUES (:title, 'home', 'home', '', :body, 1, 0, NOW(), NOW())");
+    $stmt->execute([
+        ':title' => trim((string)($settings['welcome_title'] ?? '')) ?: 'Welcome to ILDRA',
+        ':body' => trim((string)($settings['welcome_body'] ?? '')),
+    ]);
 }
 
 function fetchPageById(?PDO $pdo, int $id): ?array
@@ -5623,6 +5645,9 @@ function buildNavTree(array $pages): array
     }
 
     foreach ($pages as $page) {
+        if ((string)($page['slug'] ?? '') === 'home') {
+            continue;
+        }
         $group = $page['nav_group'] ?? 'home';
         if ($group === 'not-on-menu') {
             continue;

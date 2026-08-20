@@ -12,7 +12,25 @@ $companyLogoAssets = array_values(array_filter(fetchAssetLibrary($pdo, true), st
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $settingsSection = (string)($_POST['settings_section'] ?? 'global');
-    if ($settingsSection === 'company') {
+    if ($settingsSection === 'home') {
+        $payload = [
+            'hero_title' => trim((string)($_POST['hero_title'] ?? '')),
+            'hero_subtitle' => trim((string)($_POST['hero_subtitle'] ?? '')),
+            'hero_tagline' => trim((string)($_POST['hero_tagline'] ?? '')),
+            'hero_cta_label' => trim((string)($_POST['hero_cta_label'] ?? '')),
+            'hero_cta_url' => trim((string)($_POST['hero_cta_url'] ?? '')),
+            'home_established_text' => trim((string)($_POST['home_established_text'] ?? '')),
+            'home_heading_text' => trim((string)($_POST['home_heading_text'] ?? '')),
+            'sponsor_image_url' => trim((string)($_POST['sponsor_image_url'] ?? '')),
+            'home_carousel_interval_seconds' => max(2, min(60, (int)($_POST['home_carousel_interval_seconds'] ?? 6))),
+        ];
+        if (saveSiteSettings($pdo, $payload, $alerts)) {
+            $_SESSION['flash_success'] = 'Home page settings saved.';
+            header('Location: settings.php?tab=home');
+            exit;
+        }
+        $siteSettings = array_merge($siteSettings, $payload);
+    } elseif ($settingsSection === 'company') {
         $payload = [
             'company_name' => trim((string)($_POST['company_name'] ?? '')),
             'company_short_name' => trim((string)($_POST['company_short_name'] ?? '')),
@@ -103,12 +121,15 @@ $manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), stat
 }));
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 $requestedSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'company'));
-$activeSettingsTab = in_array($requestedSettingsTab, ['company', 'events', 'global'], true) ? $requestedSettingsTab : 'company';
+$activeSettingsTab = in_array($requestedSettingsTab, ['company', 'home', 'events', 'global'], true) ? $requestedSettingsTab : 'company';
 
 admin_layout_start('Settings', 'settings');
 ?>
 <div class="card-soft p-4">
     <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?php echo $activeSettingsTab === 'home' ? 'active' : ''; ?>" id="home-tab" data-bs-toggle="tab" data-bs-target="#home-settings" type="button" role="tab" aria-controls="home-settings" aria-selected="<?php echo $activeSettingsTab === 'home' ? 'true' : 'false'; ?>">Home Page</button>
+        </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'company' ? 'active' : ''; ?>" id="company-tab" data-bs-toggle="tab" data-bs-target="#company-settings" type="button" role="tab" aria-controls="company-settings" aria-selected="<?php echo $activeSettingsTab === 'company' ? 'true' : 'false'; ?>">Company</button>
         </li>
@@ -120,6 +141,25 @@ admin_layout_start('Settings', 'settings');
         </li>
     </ul>
     <div class="tab-content">
+    <div class="tab-pane fade <?php echo $activeSettingsTab === 'home' ? 'show active' : ''; ?>" id="home-settings" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
+        <h3 class="h5 fw-bold mb-1">Home page heading</h3>
+        <p class="text-muted small mb-3">Controls the site identity and the green heading strip. The welcome copy and its call to action are edited on the Home Page in Pages.</p>
+        <div class="card-soft p-3">
+            <form method="POST" class="row g-3">
+                <input type="hidden" name="settings_section" value="home">
+                <div class="col-md-6"><label class="form-label fw-semibold" for="hero_title">Site name</label><input class="form-control" id="hero_title" name="hero_title" value="<?php echo h((string)$siteSettings['hero_title']); ?>"></div>
+                <div class="col-md-6"><label class="form-label fw-semibold" for="hero_subtitle">Inside-page eyebrow</label><input class="form-control" id="hero_subtitle" name="hero_subtitle" value="<?php echo h((string)$siteSettings['hero_subtitle']); ?>"></div>
+                <div class="col-md-6"><label class="form-label fw-semibold" for="home_established_text">Established text</label><input class="form-control" id="home_established_text" name="home_established_text" value="<?php echo h((string)$siteSettings['home_established_text']); ?>"></div>
+                <div class="col-md-6"><label class="form-label fw-semibold" for="home_heading_text">Heading</label><input class="form-control" id="home_heading_text" name="home_heading_text" value="<?php echo h((string)$siteSettings['home_heading_text']); ?>"></div>
+                <div class="col-md-6"><label class="form-label fw-semibold" for="hero_tagline">Tagline</label><input class="form-control" id="hero_tagline" name="hero_tagline" value="<?php echo h((string)$siteSettings['hero_tagline']); ?>"></div>
+                <div class="col-md-3"><label class="form-label fw-semibold" for="hero_cta_label">Heading button label</label><input class="form-control" id="hero_cta_label" name="hero_cta_label" value="<?php echo h((string)$siteSettings['hero_cta_label']); ?>"></div>
+                <div class="col-md-9"><label class="form-label fw-semibold" for="hero_cta_url">Heading button destination</label><input class="form-control" id="hero_cta_url" name="hero_cta_url" value="<?php echo h((string)$siteSettings['hero_cta_url']); ?>"></div>
+                <div class="col-md-6"><label class="form-label fw-semibold" for="sponsor_image_url">Site logo URL</label><input class="form-control" id="sponsor_image_url" name="sponsor_image_url" value="<?php echo h((string)$siteSettings['sponsor_image_url']); ?>"></div>
+                <div class="col-md-6"><label class="form-label fw-semibold" for="home_carousel_interval_seconds">Banner slide interval</label><div class="input-group"><input type="number" min="2" max="60" class="form-control" id="home_carousel_interval_seconds" name="home_carousel_interval_seconds" value="<?php echo (int)$siteSettings['home_carousel_interval_seconds']; ?>"><span class="input-group-text">seconds</span></div></div>
+                <div class="col-12"><button class="btn btn-success">Save home page settings</button></div>
+            </form>
+        </div>
+    </div>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'events' ? 'show active' : ''; ?>" id="event-settings" role="tabpanel" aria-labelledby="events-tab" tabindex="0">
         <h3 class="h5 fw-bold mb-1">Event defaults</h3>
         <p class="text-muted small mb-3">Applied when a new event is given a start date. Existing events keep their saved dates and times.</p>
@@ -230,6 +270,15 @@ admin_layout_start('Settings', 'settings');
                                 <?php endforeach; ?>
                             </select>
                             <span class="text-muted small">PDFs are managed in Document &amp; Image Library.</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <hr>
+                        <h4 class="h6 fw-bold">Default site banners</h4>
+                        <p class="text-muted small">Used when a page has no banner of its own. The inside banner is displayed at a shallower, letterbox ratio.</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a class="btn btn-outline-success" href="banner_images.php?scope=home">Manage Default Home Banner</a>
+                            <a class="btn btn-outline-success" href="banner_images.php?scope=inside">Manage Default Inside Banner</a>
                         </div>
                     </div>
                     <div class="col-12 d-flex gap-2">

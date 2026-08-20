@@ -15,6 +15,10 @@ $events = fetchEvents($pdo, true);
 $faqs = fetchFaqs($pdo);
 $advertising = fetchAdvertising($pdo, true);
 $navTree = buildNavTree($pages);
+$homePage = null;
+foreach ($pages as $candidatePage) {
+    if ((string)($candidatePage['slug'] ?? '') === 'home') { $homePage = $candidatePage; break; }
+}
 $counts = contentCounts($pages, $events, $faqs);
 
 $aboutIldra = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-ildra'));
@@ -229,7 +233,7 @@ function event_url(array $event): string
 </head>
 <body>
     <header class="hero">
-        <?php $headerIsHome = true; include __DIR__ . '/views/header.php'; ?>
+        <?php $headerIsHome = true; $headerPage = $homePage; include __DIR__ . '/views/header.php'; ?>
     </header>
 
     <section class="announcement-bar" aria-labelledby="home-announcement-title">
@@ -264,8 +268,18 @@ function event_url(array $event): string
                     <section class="mb-4" id="about-us">
                         <div class="card-soft p-4">
                             <div class="section-title mb-3">About us</div>
-                            <h3 class="fw-bold mb-3"><?php echo h($siteSettings['welcome_title']); ?></h3>
-                            <p class="mb-0"><?php echo nl2br(h($siteSettings['welcome_body'])); ?></p>
+                            <h3 class="fw-bold mb-3"><?php echo h((string)($homePage['title'] ?? $siteSettings['welcome_title'])); ?></h3>
+                            <div class="page-body"><?php echo (string)($homePage['body_html'] ?? nl2br(h($siteSettings['welcome_body']))); ?></div>
+                            <?php
+                            $homeButtonUrl = trim((string)($homePage['button_url'] ?? ''));
+                            if ($homeButtonUrl === '' && !empty($homePage['button_asset_id'])) {
+                                $homeButtonAsset = fetchAssetLibraryById($pdo, (int)$homePage['button_asset_id']);
+                                if ($homeButtonAsset && empty($homeButtonAsset['archived'])) $homeButtonUrl = assetLibraryPublicUrl($homeButtonAsset);
+                            }
+                            ?>
+                            <?php if (!empty($homePage['button_name']) && $homeButtonUrl !== ''): ?>
+                                <a class="btn button2 mt-3" href="<?php echo h($homeButtonUrl); ?>" title="<?php echo h((string)($homePage['button_title'] ?? '')); ?>" target="<?php echo ($homePage['button_target'] ?? '_self') === '_blank' ? '_blank' : '_self'; ?>"<?php echo ($homePage['button_target'] ?? '_self') === '_blank' ? ' rel="noopener"' : ''; ?>><?php echo h((string)$homePage['button_name']); ?></a>
+                            <?php endif; ?>
                         </div>
                     </section>
 

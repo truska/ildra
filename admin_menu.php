@@ -25,7 +25,6 @@ function defaultAdminMenuItems(): array
         ['awards', 'Awards', 'awards.php', 'fa-solid fa-trophy'],
         ['people', 'People', 'people.php', 'fa-solid fa-address-book'],
         ['horses', 'Horses', 'horses.php', 'fa-solid fa-horse'],
-        ['hero', 'Site Hero & Welcome', 'hero.php', 'fa-solid fa-panorama'],
         ['users', 'Users', 'users.php', 'fa-solid fa-users-gear'],
         ['settings', 'Settings', 'settings.php', 'fa-solid fa-gear'],
         ['menu', 'Menu', 'menu.php', 'fa-solid fa-bars'],
@@ -101,6 +100,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
         $iconUpdate->execute([':icon'=>$item['icon_class'], ':menu_key'=>$item['menu_key']]);
     }
     $pdo->exec("UPDATE admin_menu_items SET parent_id = NULL, label = 'Account Help', href = 'account_intros.php' WHERE menu_key = 'help_accounts'");
+    $pdo->exec("UPDATE admin_menu_items SET is_active = 0 WHERE menu_key = 'hero'");
 }
 
 function fetchAdminMenuItems(?PDO $pdo, bool $activeOnly = true): array
