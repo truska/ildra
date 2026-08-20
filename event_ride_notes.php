@@ -6,7 +6,7 @@ function ensureRideNotesTables(?PDO $pdo): void
     if (!$pdo) return;
     $pdo->exec("CREATE TABLE IF NOT EXISTS event_ride_notes (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, event_id INT UNSIGNED NOT NULL,
-        status ENUM('draft','complete') NOT NULL DEFAULT 'draft', intro_html MEDIUMTEXT NULL,
+        status ENUM('draft','published','hidden') NOT NULL DEFAULT 'draft', intro_html MEDIUMTEXT NULL,
         ride_notes_html MEDIUMTEXT NULL, ctr_notes_html MEDIUMTEXT NULL,
         pdf_filename VARCHAR(255) NULL, pdf_original_filename VARCHAR(255) NULL,
         completed_by INT UNSIGNED NULL, completed_at DATETIME NULL,
@@ -16,6 +16,11 @@ function ensureRideNotesTables(?PDO $pdo): void
     foreach (['pdf_filename'=>'VARCHAR(255) NULL AFTER ctr_notes_html','pdf_original_filename'=>'VARCHAR(255) NULL AFTER pdf_filename'] as $column=>$definition) {
         try { $pdo->exec("ALTER TABLE event_ride_notes ADD COLUMN IF NOT EXISTS {$column} {$definition}"); } catch (Throwable $e) { }
     }
+    try {
+        $pdo->exec("ALTER TABLE event_ride_notes MODIFY COLUMN status ENUM('draft','complete','published','hidden') NOT NULL DEFAULT 'draft'");
+        $pdo->exec("UPDATE event_ride_notes SET status = 'published' WHERE status = 'complete'");
+        $pdo->exec("ALTER TABLE event_ride_notes MODIFY COLUMN status ENUM('draft','published','hidden') NOT NULL DEFAULT 'draft'");
+    } catch (Throwable $e) { }
 }
 
 function rideNotesDefaultSettings(array $settings): array
@@ -31,9 +36,9 @@ function fetchRideNotes(?PDO $pdo, int $eventId): ?array
 
 function saveRideNotes(PDO $pdo, int $eventId, array $data, int $userId): bool
 {
-    ensureRideNotesTables($pdo); $status=in_array((string)($data['status']??''),['draft','complete'],true)?(string)$data['status']:'draft';
+    ensureRideNotesTables($pdo); $status=in_array((string)($data['status']??''),['draft','published','hidden'],true)?(string)$data['status']:'draft';
     $stmt=$pdo->prepare("INSERT INTO event_ride_notes (event_id,status,intro_html,ride_notes_html,ctr_notes_html,completed_by,completed_at) VALUES (:event_id,:status,:intro,:ride,:ctr,:completed_by,:completed_at) ON DUPLICATE KEY UPDATE status=VALUES(status),intro_html=VALUES(intro_html),ride_notes_html=VALUES(ride_notes_html),ctr_notes_html=VALUES(ctr_notes_html),completed_by=VALUES(completed_by),completed_at=VALUES(completed_at)");
-    return $stmt->execute([':event_id'=>$eventId,':status'=>$status,':intro'=>trim((string)($data['intro_html']??''))?:null,':ride'=>trim((string)($data['ride_notes_html']??''))?:null,':ctr'=>trim((string)($data['ctr_notes_html']??''))?:null,':completed_by'=>$status==='complete'?$userId:null,':completed_at'=>$status==='complete'?date('Y-m-d H:i:s'):null]);
+    return $stmt->execute([':event_id'=>$eventId,':status'=>$status,':intro'=>trim((string)($data['intro_html']??''))?:null,':ride'=>trim((string)($data['ride_notes_html']??''))?:null,':ctr'=>trim((string)($data['ctr_notes_html']??''))?:null,':completed_by'=>$status==='published'?$userId:null,':completed_at'=>$status==='published'?date('Y-m-d H:i:s'):null]);
 }
 
 function rideNotesPublicUrl(string $siteBase, int $eventId): string { return rtrim($siteBase, '/') . '/ride_notes.php?event_id=' . $eventId; }

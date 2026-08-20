@@ -9,7 +9,7 @@ $event = fetchEventById($pdo, $eventId);
 $notes = fetchRideNotes($pdo, $eventId);
 $role = strtolower((string)($currentUser['role'] ?? ''));
 $preview = !empty($_GET['preview']) && in_array($role, ['superadmin', 'admin', 'organiser'], true);
-if (!$event || !$notes || (($notes['status'] ?? 'draft') !== 'complete' && !$preview)) { http_response_code(404); $event = null; }
+if (!$event || !$notes || (($notes['status'] ?? 'draft') !== 'published' && !$preview)) { http_response_code(404); $event = null; }
 $rideBatch = $event ? mediaBatchFind($pdo, 'ride_notes_images', 'event', $eventId) : null;
 $rideImages = $rideBatch ? mediaBatchImages($pdo, (int)$rideBatch['id']) : [];
 if ($rideImages) $notes['ride_notes_html'] = '<div style="display:flex;align-items:flex-start;gap:24px"><div style="flex:0 0 38%;min-width:220px"><img src="'.h(mediaBatchImageUrl($rideBatch,$rideImages[0],'md')).'" style="display:block;width:100%;height:auto;border-radius:8px" alt="'.h($rideImages[0]['alt_text']??'Ride Notes image').'" /></div><div style="flex:1;min-width:0">'.($notes['ride_notes_html']??'').'</div></div>';

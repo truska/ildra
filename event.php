@@ -10,6 +10,8 @@ $siteBase = $basePath ?: '';
 
 $eventId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $event = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
+$publishedRideNotes = $event ? fetchRideNotes($pdo, $eventId) : null;
+$showRideNotesLink = ($publishedRideNotes['status'] ?? '') === 'published';
 $basket = $_SESSION['basket'] ?? [];
 
 $siteSettings = getSiteSettings($pdo);
@@ -631,7 +633,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         <div class="text-white-50">We could not find that event.</div>
                     <?php endif; ?>
                 </div>
-                <a class="btn btn-outline-light btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                <div class="d-flex flex-column align-items-end gap-2">
+                    <a class="btn btn-outline-light btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                    <?php if ($showRideNotesLink): ?><a class="btn btn-light btn-sm text-success" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
+                </div>
             </div>
         </div>
     </header>
@@ -673,7 +678,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         <div class="meta-chip">
                             <span class="fw-bold"><?php echo h($event['title']); ?></span>
                         </div>
-                        <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                        <div class="d-flex flex-column align-items-end gap-2">
+                            <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                            <?php if ($showRideNotesLink): ?><a class="btn btn-outline-success btn-sm" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
+                        </div>
                     </div>
                     <?php if (!empty($event['description'])): ?>
                         <p class="mb-3"><?php echo h($event['description']); ?></p>
