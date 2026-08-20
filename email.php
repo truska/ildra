@@ -643,9 +643,15 @@ function parseEmailList(string $raw): array
     return array_values(array_unique($out));
 }
 
-function buildMimeMessage(string $subject, string $fromName, string $fromEmail, string $toEmail, array $ccEmails, array $replyToEmails, string $htmlBody, string $textBody, string $returnPath = '', array $extraHeaders = []): array
+function buildMimeMessage(string $subject, string $fromName, string $fromEmail, string $toEmail, array $ccEmails, array $replyToEmails, string $htmlBody, string $textBody, string $returnPath = '', array $extraHeaders = [], array $attachments = []): array
 {
     $boundary = 'b_' . bin2hex(random_bytes(12));
+    $mixedBoundary = 'm_' . bin2hex(random_bytes(12));
+    $validAttachments = [];
+    foreach ($attachments as $attachment) {
+        $path = (string)($attachment['path'] ?? '');
+        if ($path !== '' && is_file($path) && is_readable($path)) $validAttachments[] = $attachment;
+    }
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
 
     $fromHeader = $fromName !== ''
@@ -674,11 +680,16 @@ function buildMimeMessage(string $subject, string $fromName, string $fromEmail, 
         $headers[] = $name . ': ' . $value;
     }
     $headers[] = 'MIME-Version: 1.0';
-    $headers[] = "Content-Type: multipart/alternative; boundary=\"{$boundary}\"";
+    $headers[] = $validAttachments ? "Content-Type: multipart/mixed; boundary=\"{$mixedBoundary}\"" : "Content-Type: multipart/alternative; boundary=\"{$boundary}\"";
 
     $bodyLines = [];
     $bodyLines[] = "This is a multi-part message in MIME format.";
     $bodyLines[] = "";
+    if ($validAttachments) {
+        $bodyLines[] = "--{$mixedBoundary}";
+        $bodyLines[] = "Content-Type: multipart/alternative; boundary=\"{$boundary}\"";
+        $bodyLines[] = "";
+    }
 
     // text/plain
     $bodyLines[] = "--{$boundary}";
@@ -698,6 +709,23 @@ function buildMimeMessage(string $subject, string $fromName, string $fromEmail, 
 
     $bodyLines[] = "--{$boundary}--";
     $bodyLines[] = "";
+    if ($validAttachments) {
+        foreach ($validAttachments as $attachment) {
+            $filename = basename((string)($attachment['filename'] ?? 'attachment.pdf'));
+            $filename = preg_replace('/[\r\n\"]/','', $filename) ?: 'attachment.pdf';
+            $mime = trim((string)($attachment['mime_type'] ?? 'application/octet-stream')) ?: 'application/octet-stream';
+            $contents = @file_get_contents((string)$attachment['path']);
+            if ($contents === false) continue;
+            $bodyLines[] = "--{$mixedBoundary}";
+            $bodyLines[] = "Content-Type: {$mime}; name=\"{$filename}\"";
+            $bodyLines[] = 'Content-Transfer-Encoding: base64';
+            $bodyLines[] = "Content-Disposition: attachment; filename=\"{$filename}\"";
+            $bodyLines[] = '';
+            $bodyLines[] = chunk_split(base64_encode($contents), 76, "\r\n");
+        }
+        $bodyLines[] = "--{$mixedBoundary}--";
+        $bodyLines[] = '';
+    }
 
     return [
         'subject' => $encodedSubject,
@@ -739,7 +767,7 @@ function smtp_send_command($fp, string $cmd, array $okCodes, string $context): s
     return $resp;
 }
 
-function smtp_send_mail(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = []): void
+function smtp_send_mail(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = [], array $attachments = []): void
 {
     $host = (string)($settings['email_smtp_host'] ?? '');
     $port = (int)($settings['email_smtp_port'] ?? 587);
@@ -789,7 +817,7 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
 
     $replyTo = trim((string)($settings['email_reply_to'] ?? ''));
     $replyToEmails = $replyTo !== '' ? parseEmailList($replyTo) : [];
-    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath, $extraHeaders);
+    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath, $extraHeaders, $attachments);
 
     $data = $mime['headers'] . "\r\n" .
         "Subject: " . $mime['subject'] . "\r\n" .
@@ -806,12 +834,12 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
     fclose($fp);
 }
 
-function php_mail_send(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = []): void
+function php_mail_send(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = [], array $attachments = []): void
 {
     $replyTo = trim((string)($settings['email_reply_to'] ?? ''));
     $returnPath = $envelopeFrom;
     $replyToEmails = $replyTo !== '' ? parseEmailList($replyTo) : [];
-    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath, $extraHeaders);
+    $mime = buildMimeMessage($subject, $fromName, $fromEmail, $toEmail, $ccEmails, $replyToEmails, $htmlBody, $textBody, $returnPath, $extraHeaders, $attachments);
 
     $params = '';
     if ($envelopeFrom !== '' && filter_var($envelopeFrom, FILTER_VALIDATE_EMAIL)) {
@@ -830,7 +858,7 @@ function php_mail_send(array $settings, string $fromEmail, string $fromName, str
 /**
  * Sends and logs an email. Never throws.
  */
-function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $htmlBody, string $textBody, array $meta = []): bool
+function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $htmlBody, string $textBody, array $meta = [], array $attachments = []): bool
 {
     if (!$pdo) {
         return false;
@@ -890,6 +918,7 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
     $meta['site_code'] = $siteCode;
     $meta['bounce_token'] = $bounceToken;
     $meta['envelope_sender'] = $envelopeFrom;
+    $meta['attachments'] = array_values(array_filter(array_map(static fn($a) => basename((string)($a['filename'] ?? '')), $attachments)));
     $meta['delivery_debug'] = emailDebugSnapshot($settings, $meta);
 
     $logRow = [
@@ -934,9 +963,9 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
         ];
 
         if ($provider === 'smtp') {
-            smtp_send_mail($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders);
+            smtp_send_mail($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders, $attachments);
         } else {
-            php_mail_send($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders);
+            php_mail_send($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders, $attachments);
         }
 
         $logRow['status'] = 'sent';
