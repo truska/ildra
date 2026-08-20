@@ -545,7 +545,7 @@ if (!$renderPage) {
 
     <header class="py-3" style="background: #f5f7ef; border-bottom: 1px solid rgba(0,0,0,0.05);">
         <div class="container">
-            <?php if (!$isMenuOverview): ?><p class="mb-1 text-uppercase small fw-bold text-muted"><?php echo h($siteSettings['hero_subtitle']); ?></p><?php endif; ?>
+            <?php if (!$isMenuOverview): ?><div class="mb-1" style="height:1.5rem" aria-hidden="true"></div><?php endif; ?>
             <h1 class="fw-bold mb-1" style="color: var(--text-main);"><?php echo $renderPage ? h($isMenuOverview ? $menuOverviewTitle : $renderPage['title']) : 'Page not found'; ?></h1>
             <?php if ($renderPage && !$isMenuOverview): ?>
                 <div class="text-muted"><?php echo h($renderPage['excerpt'] ?? ''); ?></div>
