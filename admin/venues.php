@@ -145,17 +145,23 @@ admin_layout_start('Venues', 'venues');
                 </div>
                 <div class="col-12">
                     <label class="form-label">Directions</label>
-                    <textarea name="directions" rows="3" class="form-control"><?php echo h((string)($v['directions'] ?? '')); ?></textarea>
+                    <textarea name="directions" rows="5" class="form-control wysiwyg-field"><?php echo h((string)($v['directions'] ?? '')); ?></textarea>
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Notes</label>
-                    <textarea name="notes" rows="3" class="form-control"><?php echo h((string)($v['notes'] ?? '')); ?></textarea>
-                    <div class="small text-muted mt-1">Internal notes or description for this venue.</div>
+                    <label class="form-label">Venue Detail</label>
+                    <textarea name="notes" rows="5" class="form-control wysiwyg-field"><?php echo h((string)($v['notes'] ?? '')); ?></textarea>
+                    <div class="small text-muted mt-1">Notes or description for this venue to appear in Rider Notes.</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Information</label>
+                    <textarea name="internal_notes_html" rows="6" class="form-control wysiwyg-field"><?php echo h((string)($v['internal_notes_html'] ?? '')); ?></textarea>
+                    <div class="small text-muted mt-1">Internal Contact and other Venue information for Ride Organisers ONLY</div>
                 </div>
             </div>
             <div class="d-flex gap-2 mt-4">
                 <button class="btn btn-success" type="submit">Save venue</button>
                 <a class="btn btn-outline-secondary" href="venues.php">Cancel</a>
+                <?php if (!empty($v['id'])): ?><a class="btn btn-outline-primary" href="venue_images.php?venue_id=<?php echo (int)$v['id']; ?>">Venue images</a><?php endif; ?>
             </div>
         </form>
         <?php if (!empty($v['id'])): ?>
@@ -168,5 +174,6 @@ admin_layout_start('Venues', 'venues');
     </div>
 <?php endif; ?>
 
+<?php if ($showEditor): render_tinymce_bootstrap(); ?><script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script><?php endif; ?>
 <?php
 admin_layout_end();

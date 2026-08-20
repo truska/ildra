@@ -278,6 +278,9 @@ admin_layout_start('Events', 'events');
         padding-top: 0;
         border-top: 0;
     }
+    .event-summary-row td {
+        border-bottom: 0;
+    }
     .action-buttons {
         display: flex;
         flex-wrap: wrap;
@@ -368,7 +371,7 @@ admin_layout_start('Events', 'events');
 	            </thead>
             <tbody>
                 <?php foreach ($upcoming as $event): ?>
-                    <tr id="event-<?php echo (int)$event['id']; ?>">
+                    <tr id="event-<?php echo (int)$event['id']; ?>" class="event-summary-row">
                         <td><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></td>
                         <td class="col-end"><?php echo h(format_display_date($event['end_date'] ?? null, '')); ?></td>
                         <td><?php echo h($event['title']); ?></td>
@@ -418,6 +421,9 @@ admin_layout_start('Events', 'events');
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">
                                     <i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span>
                                 </a>
+                                <a class="btn btn-sm btn-outline-secondary has-icon" href="ride_notes.php?event_id=<?php echo (int)$event['id']; ?>">
+                                    <i class="fa-solid fa-note-sticky btn-icon"></i><span class="btn-label">Ride Notes</span>
+                                </a>
                             <?php if ($isAdmin): ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
                                     <input type="hidden" name="action" value="delete_event">
@@ -460,7 +466,7 @@ admin_layout_start('Events', 'events');
 	            </thead>
                 <tbody>
                     <?php foreach ($past as $event): ?>
-                        <tr id="event-<?php echo (int)$event['id']; ?>">
+                        <tr id="event-<?php echo (int)$event['id']; ?>" class="event-summary-row">
                             <td><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></td>
                             <td class="col-end"><?php echo h(format_display_date($event['end_date'] ?? null, '')); ?></td>
                             <td><?php echo h($event['title']); ?></td>

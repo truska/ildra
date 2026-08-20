@@ -2029,6 +2029,9 @@ function ensureVenuesTable(?PDO $pdo): void
         if (!table_column_exists($pdo, 'venues', 'notes')) {
             $pdo->exec("ALTER TABLE venues ADD COLUMN notes LONGTEXT NULL");
         }
+        if (!table_column_exists($pdo, 'venues', 'internal_notes_html')) {
+            $pdo->exec("ALTER TABLE venues ADD COLUMN internal_notes_html LONGTEXT NULL AFTER notes");
+        }
     } catch (PDOException $e) {
         // ignore; callers will handle errors
     }
@@ -2086,6 +2089,7 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
     $googleUrl = trim((string)($data['google_url'] ?? ''));
     $directions = trim((string)($data['directions'] ?? ''));
     $notes = trim((string)($data['notes'] ?? ''));
+    $internalNotes = trim((string)($data['internal_notes_html'] ?? ''));
 
     if ($name === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Venue name is required.'];
@@ -2099,13 +2103,14 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
     $googleUrl = $googleUrl !== '' ? mb_substr($googleUrl, 0, 128) : null;
     $directions = $directions !== '' ? $directions : null;
     $notes = $notes !== '' ? $notes : null;
+    $internalNotes = $internalNotes !== '' ? $internalNotes : null;
 
     try {
         if ($id > 0) {
             $stmt = $pdo->prepare("
                 UPDATE venues
                 SET name = :name, address = :address, postcode = :postcode, google_url = :google_url,
-                    directions = :directions, notes = :notes, updated_at = NOW()
+                    directions = :directions, notes = :notes, internal_notes_html = :internal_notes, updated_at = NOW()
                 WHERE id = :id
             ");
             $stmt->execute([
@@ -2115,14 +2120,15 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
                 ':google_url' => $googleUrl,
                 ':directions' => $directions,
                 ':notes' => $notes,
+                ':internal_notes' => $internalNotes,
                 ':id' => $id,
             ]);
             return $id;
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO venues (name, address, postcode, google_url, directions, notes, created_at, updated_at)
-            VALUES (:name, :address, :postcode, :google_url, :directions, :notes, NOW(), NOW())
+            INSERT INTO venues (name, address, postcode, google_url, directions, notes, internal_notes_html, created_at, updated_at)
+            VALUES (:name, :address, :postcode, :google_url, :directions, :notes, :internal_notes, NOW(), NOW())
         ");
         $stmt->execute([
             ':name' => $name,
@@ -2131,6 +2137,7 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
             ':google_url' => $googleUrl,
             ':directions' => $directions,
             ':notes' => $notes,
+            ':internal_notes' => $internalNotes,
         ]);
         return (int)$pdo->lastInsertId();
     } catch (PDOException $e) {

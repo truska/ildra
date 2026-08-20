@@ -1,0 +1,49 @@
+<?php
+declare(strict_types=1);
+
+function ensureRideNotesTables(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS event_ride_notes (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, event_id INT UNSIGNED NOT NULL,
+        status ENUM('draft','complete') NOT NULL DEFAULT 'draft', intro_html MEDIUMTEXT NULL,
+        ride_notes_html MEDIUMTEXT NULL, ctr_notes_html MEDIUMTEXT NULL,
+        completed_by INT UNSIGNED NULL, completed_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_event_ride_notes_event (event_id), INDEX idx_event_ride_notes_status (status)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+}
+
+function rideNotesDefaultSettings(array $settings): array
+{
+    return ['intro_html'=>(string)($settings['ride_notes_email_intro_html'] ?? '<p>Important information for your upcoming ride is now available.</p>'), 'signature_html'=>(string)($settings['ride_notes_email_signature_html'] ?? ''), 'header_image_url'=>trim((string)($settings['ride_notes_email_header_image_url'] ?? ''))];
+}
+
+function fetchRideNotes(?PDO $pdo, int $eventId): ?array
+{
+    if (!$pdo || $eventId <= 0) return null;
+    ensureRideNotesTables($pdo); $stmt=$pdo->prepare('SELECT * FROM event_ride_notes WHERE event_id=:event_id LIMIT 1'); $stmt->execute([':event_id'=>$eventId]); return $stmt->fetch() ?: null;
+}
+
+function saveRideNotes(PDO $pdo, int $eventId, array $data, int $userId): bool
+{
+    ensureRideNotesTables($pdo); $status=in_array((string)($data['status']??''),['draft','complete'],true)?(string)$data['status']:'draft';
+    $stmt=$pdo->prepare("INSERT INTO event_ride_notes (event_id,status,intro_html,ride_notes_html,ctr_notes_html,completed_by,completed_at) VALUES (:event_id,:status,:intro,:ride,:ctr,:completed_by,:completed_at) ON DUPLICATE KEY UPDATE status=VALUES(status),intro_html=VALUES(intro_html),ride_notes_html=VALUES(ride_notes_html),ctr_notes_html=VALUES(ctr_notes_html),completed_by=VALUES(completed_by),completed_at=VALUES(completed_at)");
+    return $stmt->execute([':event_id'=>$eventId,':status'=>$status,':intro'=>trim((string)($data['intro_html']??''))?:null,':ride'=>trim((string)($data['ride_notes_html']??''))?:null,':ctr'=>trim((string)($data['ctr_notes_html']??''))?:null,':completed_by'=>$status==='complete'?$userId:null,':completed_at'=>$status==='complete'?date('Y-m-d H:i:s'):null]);
+}
+
+function rideNotesPublicUrl(string $siteBase, int $eventId): string
+{
+    return rtrim($siteBase, '/') . '/ride_notes.php?event_id=' . $eventId;
+}
+
+function rideNotesEmailPayload(array $event, array $notes, array $siteSettings, array $emailSettings, string $siteBase): array
+{
+    $defaults=rideNotesDefaultSettings($siteSettings); $intro=trim((string)($notes['intro_html']??'')) ?: $defaults['intro_html']; $path=rideNotesPublicUrl($siteBase,(int)$event['id']); $configuredBase=rtrim(trim((string)($siteSettings['company_website_url'] ?? '')),'/'); $scheme=(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http'; $host=(string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''); $url=$configuredBase!==''?$configuredBase.$path:($host!==''?$scheme.'://'.$host.$path:$path); $title=(string)($event['title']??'your upcoming ride'); $date=format_display_date($event['event_date']??null,''); $headerImage=$defaults['header_image_url']; $brandName=trim((string)($siteSettings['hero_title'] ?? email_brand_name($siteSettings,$emailSettings)));
+    if ($headerImage !== '') $header='<div style="margin:0 0 18px;"><img src="'.h($headerImage).'" alt="'.h($brandName).'" style="display:block;max-width:160px;max-height:90px;width:auto;height:auto;"></div>';
+    else { $logo=email_brand_logo_url($siteSettings); $header='<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 18px;"><tr><td style="padding-right:14px;color:#146118;font-size:25px;line-height:1.15;font-weight:800;">'.h($brandName).'</td>'.($logo!==''?'<td><img src="'.h($logo).'" alt="'.h($brandName).'" style="display:block;max-width:90px;max-height:60px;width:auto;height:auto;"></td>':'').'</tr></table>'; }
+    $fullUrl='<p style="margin:16px 0 0;color:#476146;font-size:12px;line-height:1.45;word-break:break-all;">If the button does not work, copy and paste this link into your browser:<br><a href="'.h($url).'" style="color:#146118;">'.h($url).'</a></p>';
+    $inner=$header.'<h2 style="margin:0 0 12px;color:#0c2a12;">Ride Notes</h2><p style="margin:0 0 16px;"><strong>'.h($title.($date?' — '.$date:'')).'</strong></p>'.$intro.'<div style="margin-top:20px;">'.email_cta_button_html($url,'View Ride Notes').'</div>'.$fullUrl.(trim($defaults['signature_html'])!==''?'<div style="margin-top:20px;">'.$defaults['signature_html'].'</div>':'');
+    $text="Ride Notes\n\n{$title}".($date?" — {$date}":'')."\n\n".trim(strip_tags($intro))."\n\nView Ride Notes: {$url}";
+    return ['subject'=>subject_with_prefix($emailSettings,'Ride Notes: '.$title),'html'=>wrap_user_email_html($siteSettings,$emailSettings,$inner),'text'=>wrap_user_email_text($siteSettings,$emailSettings,$text)];
+}

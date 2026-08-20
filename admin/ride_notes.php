@@ -1,0 +1,56 @@
+<?php
+declare(strict_types=1);
+require __DIR__ . '/_bootstrap.php';
+
+$eventId = max(0, (int)($_GET['event_id'] ?? $_POST['event_id'] ?? 0));
+$event = fetchEventById($pdo, $eventId);
+if (!$event) { http_response_code(404); $alerts[]=['type'=>'danger','message'=>'Event not found.']; admin_layout_start('Ride Notes','events'); admin_layout_end(); exit; }
+ensureRideNotesTables($pdo);
+if (empty($_SESSION['ride_notes_csrf'])) $_SESSION['ride_notes_csrf'] = bin2hex(random_bytes(24));
+$csrf = (string)$_SESSION['ride_notes_csrf'];
+$siteSettings = getSiteSettings($pdo);
+$notes = fetchRideNotes($pdo, $eventId) ?: ['status'=>'draft','intro_html'=>'','ride_notes_html'=>'','ctr_notes_html'=>''];
+$batch = mediaBatchGetOrCreate($pdo, 'ride_notes_images', 'event', $eventId, 'Ride Notes images: '.(string)$event['title'], 'ride-notes');
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $postMax = trim((string)ini_get('post_max_size'));
+    $postMaxBytes = (int)$postMax;
+    if (preg_match('/^([0-9]+)\s*([KMG])?$/i', $postMax, $matches)) {
+        $postMaxBytes = (int)$matches[1] * match (strtoupper((string)($matches[2] ?? ''))) { 'G' => 1024 * 1024 * 1024, 'M' => 1024 * 1024, 'K' => 1024, default => 1 };
+    }
+    if ($postMaxBytes > 0 && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $postMaxBytes) {
+        $alerts[]=['type'=>'danger','message'=>'The upload is too large for the server (maximum '.h($postMax).'). Please reduce the image size and try again.'];
+    } elseif (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
+        $alerts[]=['type'=>'danger','message'=>'Your session token expired. Please try again.'];
+    } else {
+        $action=(string)($_POST['action'] ?? '');
+        if ($action === 'save') {
+            if (saveRideNotes($pdo, $eventId, $_POST, (int)$currentUser['id'])) {
+                $_SESSION['flash_success']='Ride Notes saved.'; header('Location: ride_notes.php?event_id='.$eventId); exit;
+            }
+            $alerts[]=['type'=>'danger','message'=>'Ride Notes could not be saved.'];
+        } elseif ($action === 'upload_images') {
+            $errors=[]; $count=mediaBatchUpload($pdo, $batch, $_FILES['images'] ?? [], ['original'=>null,'lg'=>1400,'md'=>800,'sm'=>400,'xs'=>180], $errors);
+            foreach($errors as $error) $alerts[]=['type'=>'danger','message'=>$error];
+            if ($count) { $_SESSION['flash_success']=$count.($count===1?' image uploaded.':' images uploaded.'); header('Location: ride_notes.php?event_id='.$eventId); exit; }
+        } elseif ($action === 'send_test') {
+            $recipients = parseEmailList((string)($_POST['test_recipients'] ?? ''));
+            if (($notes['status'] ?? 'draft') !== 'complete') $alerts[]=['type'=>'warning','message'=>'Mark the Ride Notes complete before sending a full email test. Use Preview while they are still a draft.'];
+            elseif (!$recipients) $alerts[]=['type'=>'danger','message'=>'Enter one or more valid test email addresses.'];
+            else {
+                $emailSettings=getEmailSettings($pdo); $payload=rideNotesEmailPayload($event, $notes, $siteSettings, $emailSettings, $siteBase);
+                $sent=0; foreach($recipients as $recipient) if(send_logged_email($pdo,$recipient,$payload['subject'],$payload['html'],$payload['text'],['kind'=>'ride_notes_test','event_id'=>$eventId,'admin_user_id'=>(int)$currentUser['id']])) $sent++;
+                $alerts[]=['type'=>$sent===count($recipients)?'success':'warning','message'=>$sent.' of '.count($recipients).' test email'.(count($recipients)===1?' was':'s were').' sent. Check Email logs for details.'];
+            }
+        }
+    }
+    $notes = array_merge($notes, $_POST);
+}
+$images = $batch ? mediaBatchImages($pdo,(int)$batch['id']) : [];
+$defaultIntro=rideNotesDefaultSettings($siteSettings)['intro_html'];
+admin_layout_start('Ride Notes','events');
+?>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><div class="small text-muted"><?php echo h(format_display_date($event['event_date']??null,'')); ?></div><h5 class="mb-0">Ride Notes — <?php echo h($event['title']); ?></h5></div><div class="d-flex gap-2"><a class="btn btn-outline-primary" target="_blank" rel="noopener" href="../ride_notes.php?event_id=<?php echo $eventId; ?>&amp;preview=1">Preview</a><a class="btn btn-outline-secondary" href="events.php?view=future">Back to events</a></div></div>
+<div class="card-soft p-4 mb-4"><form method="post"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="save"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"><div class="row g-3"><div class="col-md-3"><label class="form-label">Status</label><select class="form-select" name="status"><option value="draft" <?php echo $notes['status']==='draft'?'selected':''; ?>>Draft</option><option value="complete" <?php echo $notes['status']==='complete'?'selected':''; ?>>Complete</option></select><div class="form-text">Completing makes the page available to signed-in users. Bulk sending remains disabled.</div></div><div class="col-12"><label class="form-label">Email intro text</label><textarea class="form-control wysiwyg-field" rows="5" name="intro_html"><?php echo h($notes['intro_html'] ?: $defaultIntro); ?></textarea><div class="form-text">Overrides the default Ride Notes email intro in Settings.</div></div><div class="col-12"><label class="form-label">Ride Notes</label><textarea class="form-control wysiwyg-field" rows="10" name="ride_notes_html"><?php echo h($notes['ride_notes_html']); ?></textarea></div><div class="col-12"><label class="form-label">CTR Notes</label><textarea class="form-control wysiwyg-field" rows="8" name="ctr_notes_html"><?php echo h($notes['ctr_notes_html']); ?></textarea></div><div class="col-12"><button class="btn btn-success">Save Ride Notes</button></div></div></form></div>
+<div class="row g-4"><div class="col-lg-7"><div class="card-soft p-4 h-100"><h6>Images</h6><form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="upload_images"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"><input class="form-control" type="file" name="images[]" accept="image/jpeg,image/png,image/gif,image/webp" multiple required><div class="form-text">Bulk upload JPG, PNG, GIF or WebP images.</div><button class="btn btn-outline-success mt-3">Upload images</button></form><?php if($images): ?><div class="d-flex flex-wrap gap-2 mt-3"><?php foreach($images as $image): ?><img class="rounded border" style="width:120px;height:90px;object-fit:cover" src="<?php echo h(mediaBatchImageUrl($batch,$image,'sm')); ?>" alt="<?php echo h($image['alt_text']??''); ?>"><?php endforeach; ?></div><?php endif; ?></div></div><div class="col-lg-5"><div class="card-soft p-4 h-100"><h6>Test send</h6><p class="small text-muted">Sends this Ride Notes email only to the addresses below. Live entry-recipient sending is not enabled yet.</p><form method="post"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="send_test"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"><label class="form-label" for="test-recipients">Test recipients</label><input class="form-control" id="test-recipients" name="test_recipients" value="<?php echo h((string)($_POST['test_recipients'] ?? $currentUser['email'] ?? '')); ?>" placeholder="name@example.com, second@example.com"><div class="form-text">Separate two or more addresses with commas.</div><button class="btn btn-outline-primary mt-3">Send test email</button></form></div></div></div>
+<?php render_tinymce_bootstrap(); ?><script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script><?php admin_layout_end();

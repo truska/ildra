@@ -64,6 +64,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $siteSettings = array_merge($siteSettings, $payload);
         $companySocials = $postedSocials;
         $companyAffiliates = $postedAffiliates;
+    } elseif ($settingsSection === 'ride_notes_email') {
+        $payload = [
+            'ride_notes_email_intro_html' => trim((string)($_POST['ride_notes_email_intro_html'] ?? '')),
+            'ride_notes_email_signature_html' => trim((string)($_POST['ride_notes_email_signature_html'] ?? '')),
+            'ride_notes_email_header_image_url' => trim((string)($_POST['ride_notes_email_header_image_url'] ?? '')),
+        ];
+        if (saveSiteSettings($pdo, $payload, $alerts)) {
+            $_SESSION['flash_success'] = 'Ride Notes email settings saved.';
+            header('Location: settings.php?tab=ride_notes_email');
+            exit;
+        }
+        $siteSettings = array_merge($siteSettings, $payload);
     } elseif ($settingsSection === 'events') {
         $minutes = max(0, (int)($_POST['basket_timeout_minutes'] ?? 0));
         $seconds = max(0, (int)($_POST['basket_timeout_seconds'] ?? 0));
@@ -121,7 +133,7 @@ $manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), stat
 }));
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 $requestedSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'company'));
-$activeSettingsTab = in_array($requestedSettingsTab, ['company', 'home', 'events', 'global'], true) ? $requestedSettingsTab : 'company';
+$activeSettingsTab = in_array($requestedSettingsTab, ['company', 'home', 'events', 'ride_notes_email', 'global'], true) ? $requestedSettingsTab : 'company';
 
 admin_layout_start('Settings', 'settings');
 ?>
@@ -135,6 +147,9 @@ admin_layout_start('Settings', 'settings');
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'events' ? 'active' : ''; ?>" id="events-tab" data-bs-toggle="tab" data-bs-target="#event-settings" type="button" role="tab" aria-controls="event-settings" aria-selected="<?php echo $activeSettingsTab === 'events' ? 'true' : 'false'; ?>">Events</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link <?php echo $activeSettingsTab === 'ride_notes_email' ? 'active' : ''; ?>" id="ride-notes-email-tab" data-bs-toggle="tab" data-bs-target="#ride-notes-email-settings" type="button" role="tab" aria-controls="ride-notes-email-settings" aria-selected="<?php echo $activeSettingsTab === 'ride_notes_email' ? 'true' : 'false'; ?>">Ride Notes Email</button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'global' ? 'active' : ''; ?>" id="global-tab" data-bs-toggle="tab" data-bs-target="#global-settings" type="button" role="tab" aria-controls="global-settings" aria-selected="<?php echo $activeSettingsTab === 'global' ? 'true' : 'false'; ?>">Global</button>
@@ -235,6 +250,16 @@ admin_layout_start('Settings', 'settings');
                 </div>
             </form>
         </div>
+    </div>
+    <div class="tab-pane fade <?php echo $activeSettingsTab === 'ride_notes_email' ? 'show active' : ''; ?>" id="ride-notes-email-settings" role="tabpanel" aria-labelledby="ride-notes-email-tab" tabindex="0">
+        <h3 class="h5 fw-bold mb-1">Ride Notes email</h3>
+        <p class="text-muted small mb-3">These defaults are used for new Ride Notes emails. Each event can override the intro text.</p>
+        <div class="card-soft p-3"><form method="post" class="row g-3"><input type="hidden" name="settings_section" value="ride_notes_email">
+            <div class="col-12"><label class="form-label fw-semibold">Default intro text</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_intro_html"><?php echo h((string)($siteSettings['ride_notes_email_intro_html'] ?? '<p>Important information for your upcoming ride is now available.</p>')); ?></textarea></div>
+            <div class="col-12"><label class="form-label fw-semibold">Header image URL</label><input class="form-control" type="url" name="ride_notes_email_header_image_url" value="<?php echo h((string)($siteSettings['ride_notes_email_header_image_url'] ?? '')); ?>" placeholder="https://…"><div class="form-text">Leave blank to use the site email logo.</div></div>
+            <div class="col-12"><label class="form-label fw-semibold">Signature block</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_signature_html"><?php echo h((string)($siteSettings['ride_notes_email_signature_html'] ?? '')); ?></textarea><div class="form-text">The normal site email signature and logo are also added automatically.</div></div>
+            <div class="col-12"><button class="btn btn-success">Save Ride Notes email settings</button></div>
+        </form></div>
     </div>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'global' ? 'show active' : ''; ?>" id="global-settings" role="tabpanel" aria-labelledby="global-tab" tabindex="0">
     <div class="row g-4">
@@ -482,5 +507,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+<?php render_tinymce_bootstrap(); ?>
+<script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script>
 <?php
 admin_layout_end();

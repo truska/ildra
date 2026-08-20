@@ -9,8 +9,12 @@ function h($value): string
 function render_wysiwyg(string $value): string
 {
     // Allow a small set of safe tags for admin-authored rich text.
-    $allowed = '<p><br><br/><strong><b><em><i><u><ul><ol><li><a><span>';
-    return strip_tags($value, $allowed);
+    $allowed = '<p><br><br/><strong><b><em><i><u><ul><ol><li><a><span><div><img>';
+    $html = strip_tags($value, $allowed);
+    if (basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) === 'ride_notes.php') {
+        $html = '<style>.main-img,.thumb{border-radius:8px}@media (min-width:768px){main .card .row.g-4 > .col-md-5{order:2}}</style>' . $html;
+    }
+    return $html;
 }
 
 function tinymce_api_key(): string
