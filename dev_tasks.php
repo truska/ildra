@@ -8,7 +8,7 @@ function ensureDevTaskTables(?PDO $pdo): void
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
         priority TINYINT UNSIGNED NOT NULL DEFAULT 3,
-        status ENUM('open','completed','closed') NOT NULL DEFAULT 'open',
+        status ENUM('open','completed','future','closed') NOT NULL DEFAULT 'open',
         created_by INT UNSIGNED NOT NULL,
         next_action_by INT UNSIGNED DEFAULT NULL,
         closed_by INT UNSIGNED DEFAULT NULL,
@@ -20,8 +20,8 @@ function ensureDevTaskTables(?PDO $pdo): void
         INDEX idx_dev_tasks_next_action_by (next_action_by)
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $statusColumn = $pdo->query("SHOW COLUMNS FROM dev_tasks LIKE 'status'")->fetch() ?: [];
-    if (!str_contains(strtolower((string)($statusColumn['Type'] ?? '')), 'completed')) {
-        $pdo->exec("ALTER TABLE dev_tasks MODIFY COLUMN status ENUM('open','completed','closed') NOT NULL DEFAULT 'open'");
+    if (!str_contains(strtolower((string)($statusColumn['Type'] ?? '')), 'future')) {
+        $pdo->exec("ALTER TABLE dev_tasks MODIFY COLUMN status ENUM('open','completed','future','closed') NOT NULL DEFAULT 'open'");
     }
     $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS next_action_by INT UNSIGNED DEFAULT NULL AFTER created_by");
     $pdo->exec("CREATE TABLE IF NOT EXISTS dev_task_messages (
