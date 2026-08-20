@@ -228,6 +228,11 @@ function event_url(array $event): string
                 align-items: stretch;
             }
         }
+        @media (max-width: 575.98px) {
+            .page-advertising { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .home-promotions-column { order: 1; }
+            .home-next-ride-column { order: 2; }
+        }
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -294,7 +299,7 @@ function event_url(array $event): string
 
                 <div class="col-lg-6">
                     <div class="row g-4 align-items-start">
-                <div class="col-md-8">
+                <div class="col-md-8 home-next-ride-column">
                     <section class="card-soft p-4 bg-white" aria-labelledby="next-events-heading">
                         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
                             <div class="section-title mb-0" id="next-events-heading">Next Ride</div>
@@ -371,7 +376,7 @@ function event_url(array $event): string
                     </section>
                 </div>
 
-                <aside class="col-md-4" aria-label="Promotions">
+                <aside class="col-md-4 home-promotions-column" aria-label="Promotions">
                     <?php if ($advertising): ?>
                         <div class="page-advertising">
                             <?php foreach ($advertising as $advert): ?>

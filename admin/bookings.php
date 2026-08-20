@@ -301,7 +301,7 @@ admin_layout_start('Bookings', 'bookings');
                         <td class="small col-contact">
                             <div><?php echo h((string)($contactParts[0] ?? '')); ?><?php if (!empty($contactParts[1])): ?><br><?php echo h((string)$contactParts[1]); ?><?php endif; ?></div>
                         </td>
-                        <td class="small col-event-name fw-semibold text-dark"><?php echo h($eventNames !== '' ? $eventNames : '—'); ?></td>
+                        <td class="small col-event-name fw-semibold text-dark"><?php echo $eventNames !== '' ? str_replace(' | ', '<br>', h($eventNames)) : '—'; ?></td>
                         <td class="col-description text-muted description-lines"><?php echo $description !== '' ? nl2br(h($description)) : '—'; ?></td>
                         <td class="small"><div class="fw-semibold text-dark"><?php echo $itemCount; ?></div></td>
                         <td class="small"><?php echo h($total); ?></td>

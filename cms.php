@@ -2582,6 +2582,29 @@ function membership_status_for_row(array $row): string
     return $statusRaw;
 }
 
+/** Shared state for annual products that renew from 1 December. */
+function annual_renewal_state(int $latestYear, string $itemLabel, string $buyLabel, string $renewLabel, ?DateTimeImmutable $today = null, string $currentLabel = ''): array
+{
+    $today = $today ?? new DateTimeImmutable('today');
+    $currentYear = (int)$today->format('Y');
+    $renewalOpens = new DateTimeImmutable($currentYear . '-12-01');
+    $renewalIsOpen = $today >= $renewalOpens;
+    $requiredYear = $renewalIsOpen ? $currentYear + 1 : $currentYear;
+
+    if ($latestYear <= 0) {
+        return ['class'=>'text-danger','icon'=>'fa-solid fa-circle-xmark','label'=>'No ' . strtolower($itemLabel),'title'=>'No ' . strtolower($itemLabel) . ' has been purchased','action_label'=>$buyLabel,'action_enabled'=>true,'action_title'=>$buyLabel];
+    }
+
+    $status = $latestYear < $requiredYear
+        ? ['class'=>'text-warning','icon'=>'fa-solid fa-triangle-exclamation','label'=>'Renewal due','title'=>$itemLabel . ' renewal is due for ' . $requiredYear]
+        : ['class'=>'text-success','icon'=>'fa-solid fa-circle-check','label'=>'Valid','title'=>$itemLabel . ' valid for ' . $latestYear];
+    $actionEnabled = $latestYear < $currentYear || ($latestYear === $currentYear && $renewalIsOpen);
+    $status['action_label'] = $actionEnabled ? $renewLabel : ($currentLabel !== '' ? $currentLabel : $renewLabel);
+    $status['action_enabled'] = $actionEnabled;
+    $status['action_title'] = $actionEnabled ? $renewLabel : 'Already valid for ' . $latestYear . '. Renewal opens on 1 December.';
+    return $status;
+}
+
 function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
 {
     if (!$pdo) {

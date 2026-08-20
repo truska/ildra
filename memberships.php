@@ -27,6 +27,7 @@ $members = $isLoggedIn ? array_values(array_filter(
     fetchMembersForUser($pdo, (int)($currentUser['id'] ?? 0)),
     static fn(array $member): bool => empty($member['is_linked'])
 )) : [];
+$preselectedMemberId = max(0, (int)($_GET['member_id'] ?? 0));
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_membership') {
     if (!$isLoggedIn) {
@@ -77,10 +78,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $membershipYear = null;
         $starts = trim((string)($membership['membership_starts'] ?? ''));
         $ends = trim((string)($membership['membership_ends'] ?? ''));
-        if ($starts !== '' && preg_match('/^(\\d{4})-\\d{2}-\\d{2}$/', $starts, $m1)) {
-            $membershipYear = (int)$m1[1];
-        } elseif ($ends !== '' && preg_match('/^(\\d{4})-\\d{2}-\\d{2}$/', $ends, $m2)) {
+        if ($ends !== '' && preg_match('/^(\\d{4})-\\d{2}-\\d{2}$/', $ends, $m2)) {
             $membershipYear = (int)$m2[1];
+        } elseif ($starts !== '' && preg_match('/^(\\d{4})-\\d{2}-\\d{2}$/', $starts, $m1)) {
+            $membershipYear = (int)$m1[1];
         } else {
             $membershipYear = (int)date('Y');
         }
@@ -104,7 +105,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                   AND status <> 'expired'
                   AND (
                         (starts_at IS NOT NULL AND YEAR(starts_at) = :yr)
-                     OR (starts_at IS NULL AND ends_at IS NOT NULL AND YEAR(ends_at) = :yr)
+                     OR (ends_at IS NOT NULL AND YEAR(ends_at) = :yr)
                      OR (starts_at IS NULL AND ends_at IS NULL AND purchased_at IS NOT NULL AND YEAR(purchased_at) = :yr)
                   )
                 LIMIT 1
@@ -294,7 +295,7 @@ $navItemEventsUrl = $basePath . '/events';
 	                                                <div class="col-12 col-md-6">
 	                                                    <label class="form-label small mb-1">Membership for</label>
 	                                                    <select class="form-select form-select-sm js-member-select person-type-select" name="member_id" required>
-	                                                        <option value="" selected disabled>Select a member…</option>
+	                                                        <option value="" <?php echo $preselectedMemberId <= 0 ? 'selected' : ''; ?> disabled>Select a member…</option>
 	                                                        <?php if ($members): ?>
 	                                                            <optgroup label="Existing members">
 	                                                                <?php foreach ($members as $member): ?>
@@ -304,7 +305,7 @@ $navItemEventsUrl = $basePath . '/events';
                                                                         $personType = personRecordType($member, $currentUser ?? []);
 	                                                                    $optionLabel = personRecordTypeMarker($personType) . ' ' . ($number !== '' ? ($number . ' · ' . $nameLabel) : $nameLabel);
 	                                                                    ?>
-	                                                                    <option value="<?php echo (int)($member['id'] ?? 0); ?>">
+	                                                                    <option value="<?php echo (int)($member['id'] ?? 0); ?>" <?php echo $preselectedMemberId === (int)($member['id'] ?? 0) ? 'selected' : ''; ?>>
 	                                                                        <?php echo h($optionLabel !== '' ? $optionLabel : ('Member #' . (int)($member['id'] ?? 0))); ?>
 	                                                                    </option>
 	                                                                <?php endforeach; ?>

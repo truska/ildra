@@ -506,6 +506,66 @@ $accountIntroAutoOpen = false;
         }
         .stat-pill .small { color: #23492a; }
         .quick-actions .btn { min-width: 130px; }
+        .account-stat-label-phone { display: none; }
+        @media (max-width: 575.98px) {
+            .account-summary-layout {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: start !important;
+                gap: 0.6rem !important;
+            }
+            .account-summary-identity {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 0.55rem !important;
+                min-width: 0;
+                width: 100%;
+            }
+            .account-summary-layout .account-member-metrics {
+                display: grid;
+                grid-template-columns: minmax(135px, 1fr) minmax(0, 1fr);
+                align-items: stretch;
+                gap: 0.5rem;
+                width: 100%;
+            }
+            .account-summary-layout .account-member-metrics > .border { min-width: 0 !important; }
+            .account-mobile-stats {
+                display: grid;
+                grid-template-rows: repeat(2, minmax(0, 1fr));
+                gap: 0.35rem;
+            }
+            .account-mobile-stats .stat-pill {
+                display: flex;
+                align-items: baseline;
+                justify-content: center;
+                gap: 0.3rem;
+                padding: 0.35rem 0.45rem;
+            }
+            .account-summary-actions {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.4rem !important;
+                width: 100%;
+            }
+            .account-summary-actions .btn {
+                width: 100%;
+                padding: 0.4rem 0.3rem;
+                font-size: 0.78rem;
+            }
+            .account-stats,
+            .account-stats-divider { display: none !important; }
+            .account-stat-label-full { display: none; }
+            .account-stat-label-phone { display: inline; }
+        }
+        .account-mobile-stats { display: none; }
+        @media (max-width: 575.98px) {
+            .account-mobile-stats { display: grid; }
+            .account-bookings-table th,
+            .account-bookings-table td {
+                white-space: nowrap;
+                padding: 0.3rem;
+            }
+        }
         .table thead th { font-size: 0.85rem; letter-spacing: 0.01em; }
         .table td, .table th { vertical-align: middle; }
         .small-link {
@@ -670,27 +730,16 @@ $accountIntroAutoOpen = false;
 	                    <div class="col-12">
 	                        <div class="card-soft <?php echo $isAccountManagementView ? 'p-3' : 'p-4'; ?>">
 	                            <?php if ($isAccountManagementView): ?>
-	                                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-2">
-	                                    <div class="d-flex align-items-center gap-2">
-	                                        <h2 class="h4 fw-bold mb-0"><?php echo h($accountSectionTitle); ?></h2>
-                                        </div>
-	                                    <div class="d-flex flex-wrap gap-2 align-items-center">
-	                                        <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/account">Account</a>
-	                                        <a class="btn btn-sm <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
-	                                        <a class="btn btn-sm <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
-	                                        <a class="btn btn-sm <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
-	                                        <?php if ($canViewAdmin): ?><a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a><?php endif; ?>
-	                                        <a class="btn btn-sm btn-outline-danger" href="<?php echo h($basePath); ?>/account?logout=1">Logout</a>
-	                                    </div>
-	                                </div>
+	                                <h2 class="h4 fw-bold mb-3"><?php echo h($accountSectionTitle); ?></h2>
 	                            <?php endif; ?>
-	                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
-	                                <div class="d-flex flex-wrap align-items-center gap-3">
+	                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 account-summary-layout">
+	                                <div class="d-flex flex-wrap align-items-center gap-3 account-summary-identity">
 	                                    <div>
 	                                    <div class="text-uppercase small text-muted">Signed in as</div>
-	                                    <div class="fw-bold <?php echo $isAccountManagementView ? 'h5 mb-0' : 'h3 mb-1'; ?>"><?php echo h($accountName); ?></div>
-	                                    <?php if (!$isAccountManagementView): ?><div class="text-muted small"><?php echo h($currentUser['email'] ?? ''); ?></div><?php endif; ?>
+	                                    <div class="fw-bold h3 mb-1"><?php echo h($accountName); ?></div>
+	                                    <div class="text-muted small"><?php echo h($currentUser['email'] ?? ''); ?></div>
 	                                    </div>
+	                                    <div class="account-member-metrics">
 	                                    <?php if ($loggedInMembershipNumber !== ''): ?>
 	                                        <div class="border rounded-3 px-3 py-2 bg-light text-center" style="min-width:135px;">
 	                                            <div class="text-uppercase text-muted" style="font-size:.68rem;line-height:1.1;">Membership Number</div>
@@ -702,40 +751,42 @@ $accountIntroAutoOpen = false;
 	                                            <div class="fw-bold lh-sm mt-1">NOT A MEMBER</div>
 	                                        </div>
 	                                    <?php endif; ?>
+	                                        <div class="account-mobile-stats">
+	                                            <div class="stat-pill"><div class="fw-bold"><?php echo $basketCount; ?></div><div class="small text-uppercase">Basket</div></div>
+	                                            <div class="stat-pill"><div class="fw-bold"><?php echo '£' . number_format((float)$userCreditBalance, 2); ?></div><div class="small text-uppercase">Credit</div></div>
+	                                        </div>
+	                                    </div>
 	                                </div>
-	                                <?php if (!$isAccountManagementView): ?><div class="d-flex flex-wrap gap-2 align-items-center">
+	                                <div class="d-flex flex-wrap gap-2 align-items-center account-summary-actions">
 	                                    <a class="btn <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
 	                                    <a class="btn <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
 	                                    <a class="btn <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
 	                                    <?php if ($canViewAdmin): ?>
 	                                        <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a>
 	                                    <?php endif; ?>
-	                                    <a class="btn btn-outline-danger" href="<?php echo h($basePath); ?>/account?logout=1">Logout</a>
-	                                </div><?php endif; ?>
+	                                </div>
 	                            </div>
 
-	                            <?php if (!$isAccountManagementView): ?>
-	                            <div class="divider"></div>
+	                            <div class="divider account-stats-divider"></div>
 
-	                            <div class="d-flex flex-wrap gap-2">
-	                                <div class="stat-pill">
+	                            <div class="d-flex flex-wrap gap-2 account-stats">
+	                                <div class="stat-pill account-stat-memberships">
 	                                    <div class="fw-bold"><?php echo $activeMembershipCount; ?></div>
 	                                    <div class="small text-uppercase">Active memberships</div>
 	                                </div>
-	                                <div class="stat-pill">
+	                                <div class="stat-pill account-stat-basket">
 	                                    <div class="fw-bold"><?php echo $basketCount; ?></div>
-	                                    <div class="small text-uppercase">Basket items</div>
+	                                    <div class="small text-uppercase"><span class="account-stat-label-full">Basket items</span><span class="account-stat-label-phone">Basket</span></div>
 	                                </div>
-	                                <div class="stat-pill">
+	                                <div class="stat-pill account-stat-bookings">
 	                                    <div class="fw-bold"><?php echo $userBookingCount; ?></div>
 	                                    <div class="small text-uppercase">Bookings</div>
 	                                </div>
-		                                <div class="stat-pill">
+		                                <div class="stat-pill account-stat-credit">
 		                                    <div class="fw-bold"><?php echo '£' . number_format((float)$userCreditBalance, 2); ?></div>
-		                                    <div class="small text-uppercase">Credit balance</div>
+		                                    <div class="small text-uppercase"><span class="account-stat-label-full">Credit balance</span><span class="account-stat-label-phone">Credit</span></div>
 		                                </div>
 		                            </div>
-	                            <?php endif; ?>
 		                        </div>
 
                                 <?php if ($incomingShareRequests): ?>
@@ -899,6 +950,21 @@ $accountIntroAutoOpen = false;
                                 $peopleAll = fetchMembersForUser($pdo, $userId, true);
                                 $activePeople = array_values(array_filter($peopleAll, static fn(array $p): bool => (int)($p['is_archived'] ?? 0) === 0));
                                 $archivedPeople = array_values(array_filter($peopleAll, static fn(array $p): bool => (int)($p['is_archived'] ?? 0) === 1));
+                                $personMembershipYears = [];
+                                foreach (fetchMemberships($pdo) as $membershipPurchase) {
+                                    $membershipPersonId = (int)($membershipPurchase['member_id'] ?? 0);
+                                    $membershipDate = null;
+                                    foreach (['ends_at', 'starts_at', 'purchased_at'] as $membershipDateField) {
+                                        if (trim((string)($membershipPurchase[$membershipDateField] ?? '')) !== '') {
+                                            $membershipDate = $membershipPurchase[$membershipDateField];
+                                            break;
+                                        }
+                                    }
+                                    $membershipYear = $membershipDate ? (int)date('Y', strtotime((string)$membershipDate)) : 0;
+                                    if ($membershipPersonId > 0 && $membershipYear > ($personMembershipYears[$membershipPersonId] ?? 0)) {
+                                        $personMembershipYears[$membershipPersonId] = $membershipYear;
+                                    }
+                                }
                                 $editPersonId = (int)($_GET['person_id'] ?? 0);
                                 $editPerson = $editPersonId > 0 ? fetchPersonForUserById($pdo, $userId, $editPersonId) : null;
                                 if ($editPerson && !empty($editPerson['is_linked'])) {
@@ -924,7 +990,7 @@ $accountIntroAutoOpen = false;
                                                 <tr>
                                                     <th>Name</th>
                                                     <th>Member #</th>
-                                                    <th>DOB</th>
+                                                    <th>Membership</th>
                                                     <th>Email</th>
                                                     <th>Phone</th>
                                                     <th>Postcode</th>
@@ -936,7 +1002,10 @@ $accountIntroAutoOpen = false;
                                                     <tr><td colspan="7" class="text-muted small">No people yet.</td></tr>
                                                 <?php endif; ?>
 	                                                <?php foreach ($activePeople as $p): ?>
-                                                        <?php $personType = personRecordType($p, $currentUser ?? []); ?>
+                                                        <?php
+                                                        $personType = personRecordType($p, $currentUser ?? []);
+                                                        $membershipState = annual_renewal_state((int)($personMembershipYears[(int)$p['id']] ?? 0), 'Membership', 'Buy Membership', 'Renew', null, 'Current Member');
+                                                        ?>
 	                                                    <tr>
 	                                                        <td class="fw-semibold">
                                                                 <span class="person-type-icon me-1" title="<?php echo h(ucfirst($personType)); ?>" aria-label="<?php echo h(ucfirst($personType)); ?>">
@@ -945,9 +1014,9 @@ $accountIntroAutoOpen = false;
                                                                 <?php echo h(trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? ''))); ?>
                                                             </td>
 	                                                        <td class="text-muted small"><?php echo $p['member_number'] ? (int)$p['member_number'] : '—'; ?></td>
-	                                                        <td class="text-muted small"><?php echo h(format_display_date($p['dob'] ?? null, '—')); ?></td>
-	                                                        <td class="text-muted small"><?php echo h($p['email'] ?? '—'); ?></td>
-	                                                        <td class="text-muted small"><?php echo h($p['phone'] ?? '—'); ?></td>
+	                                                        <td class="small"><span class="<?php echo h($membershipState['class']); ?> d-inline-flex align-items-center" title="<?php echo h($membershipState['title']); ?>"><i class="<?php echo h($membershipState['icon']); ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo h($membershipState['label']); ?></span></span></td>
+	                                                        <td class="text-muted small"><?php $personEmail=trim((string)($p['email']??'')); echo $personEmail!==''?'<a href="mailto:'.h($personEmail).'">'.h($personEmail).'</a>':'—'; ?></td>
+	                                                        <td class="text-muted small"><?php $personPhone=trim((string)($p['phone']??''));$personTel=preg_replace('/[^0-9+]/','',$personPhone)?:'';echo $personPhone!==''&&$personTel!==''?'<a href="tel:'.h($personTel).'">'.h($personPhone).'</a>':'—'; ?></td>
 	                                                        <td class="text-muted small text-uppercase"><?php echo h($p['postcode'] ?? '—'); ?></td>
 	                                                        <td class="text-end">
                                                                 <?php if (!empty($p['is_linked'])): ?>
@@ -958,6 +1027,11 @@ $accountIntroAutoOpen = false;
                                                                         <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked person from your account?');">Remove link</button>
                                                                     </form>
                                                                 <?php else: ?>
+                                                                    <?php if (!empty($membershipState['action_enabled'])): ?>
+                                                                        <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships?member_id=<?php echo (int)$p['id']; ?>"><?php echo h($membershipState['action_label']); ?></a>
+                                                                    <?php else: ?>
+                                                                        <button class="btn btn-sm btn-outline-success" type="button" disabled title="<?php echo h($membershipState['action_title']); ?>"><?php echo h($membershipState['action_label']); ?></button>
+                                                                    <?php endif; ?>
                                                                     <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=people&person_id=<?php echo (int)$p['id']; ?>">Edit</a>
                                                                     <form method="post" class="d-inline">
                                                                         <input type="hidden" name="action" value="archive_person">
@@ -981,7 +1055,7 @@ $accountIntroAutoOpen = false;
                                                     <tr>
                                                         <th>Name</th>
                                                         <th>Member #</th>
-                                                        <th>DOB</th>
+                                                        <th>Membership</th>
                                                         <th>Email</th>
                                                         <th>Phone</th>
                                                         <th>Postcode</th>
@@ -989,7 +1063,7 @@ $accountIntroAutoOpen = false;
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($archivedPeople as $p): ?>
-                                                        <?php $personType = personRecordType($p, $currentUser ?? []); ?>
+                                                        <?php $personType = personRecordType($p, $currentUser ?? []); $archivedMembershipState = annual_renewal_state((int)($personMembershipYears[(int)$p['id']] ?? 0), 'Membership', 'Buy Membership', 'Renew', null, 'Current Member'); ?>
                                                         <tr class="text-muted">
                                                             <td>
                                                                 <span class="person-type-icon me-1" title="<?php echo h(ucfirst($personType)); ?>" aria-label="<?php echo h(ucfirst($personType)); ?>">
@@ -998,9 +1072,9 @@ $accountIntroAutoOpen = false;
                                                                 <?php echo h(trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? ''))); ?>
                                                             </td>
                                                             <td class="small"><?php echo $p['member_number'] ? (int)$p['member_number'] : '—'; ?></td>
-                                                            <td class="small"><?php echo h(format_display_date($p['dob'] ?? null, '—')); ?></td>
-                                                            <td class="small"><?php echo h($p['email'] ?? '—'); ?></td>
-                                                            <td class="small"><?php echo h($p['phone'] ?? '—'); ?></td>
+                                                            <td class="small"><span class="<?php echo h($archivedMembershipState['class']); ?>" title="<?php echo h($archivedMembershipState['title']); ?>"><i class="<?php echo h($archivedMembershipState['icon']); ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo h($archivedMembershipState['label']); ?></span></span></td>
+                                                            <td class="small"><?php $personEmail=trim((string)($p['email']??'')); echo $personEmail!==''?'<a href="mailto:'.h($personEmail).'">'.h($personEmail).'</a>':'—'; ?></td>
+                                                            <td class="small"><?php $personPhone=trim((string)($p['phone']??''));$personTel=preg_replace('/[^0-9+]/','',$personPhone)?:'';echo $personPhone!==''&&$personTel!==''?'<a href="tel:'.h($personTel).'">'.h($personPhone).'</a>':'—'; ?></td>
                                                             <td class="small text-uppercase"><?php echo h($p['postcode'] ?? '—'); ?></td>
                                                         </tr>
                                                     <?php endforeach; ?>
@@ -1299,17 +1373,6 @@ $accountIntroAutoOpen = false;
                                         $horseRegisteredYear[$registeredHorseId] = $registeredYear;
                                     }
                                 }
-                                $currentLogbookYear = (int)date('Y');
-                                $renewalLogbookYear = (int)date('n') === 12 ? $currentLogbookYear + 1 : $currentLogbookYear;
-                                $horseLogbookStatus = static function (int $latestYear) use ($renewalLogbookYear): array {
-                                    if ($latestYear <= 0) {
-                                        return ['class'=>'text-danger', 'icon'=>'fa-solid fa-circle-xmark', 'label'=>'No logbook', 'title'=>'No logbook has been purchased'];
-                                    }
-                                    if ($latestYear < $renewalLogbookYear) {
-                                        return ['class'=>'text-warning', 'icon'=>'fa-solid fa-triangle-exclamation', 'label'=>'Renewal due', 'title'=>'Logbook renewal is due for ' . $renewalLogbookYear];
-                                    }
-                                    return ['class'=>'text-success', 'icon'=>'fa-solid fa-circle-check', 'label'=>'Valid', 'title'=>'Logbook valid for ' . $latestYear];
-                                };
                                 ?>
 
 	                                <div class="card-soft p-4 mt-4">
@@ -1344,10 +1407,8 @@ $accountIntroAutoOpen = false;
 	                                                <?php foreach ($activeHorses as $h): ?>
                                                     <?php
                                                     $horseRegistrationYear = (int)($horseRegisteredYear[(int)$h['id']] ?? 0);
-                                                    $logbookStatus = $horseLogbookStatus($horseRegistrationYear);
-                                                    $horseRegisteredThisYear = $horseRegistrationYear >= (int)date('Y');
-                                                    $horseLogbookActionEnabled = !$horseRegisteredThisYear
-                                                        || ((int)date('n') === 12 && $horseRegistrationYear === (int)date('Y'));
+                                                    $logbookStatus = annual_renewal_state($horseRegistrationYear, 'Logbook', 'Register / Renew', 'Register / Renew');
+                                                    $horseLogbookActionEnabled = !empty($logbookStatus['action_enabled']);
                                                     ?>
                                                     <tr>
                                                         <td class="fw-semibold">
@@ -1381,7 +1442,7 @@ $accountIntroAutoOpen = false;
                                                                         <input type="hidden" name="action" value="add_logbook">
                                                                         <input type="hidden" name="logbook_type_id" value="<?php echo (int)($logbookType['id'] ?? 0); ?>">
                                                                         <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
-                                                                        <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo $horseLogbookActionEnabled ? 'Register or renew this horse logbook' : 'Already registered for ' . $horseRegistrationYear . '. Renewal opens in December.'; ?>">Register / Renew</button>
+                                                                        <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo h($logbookStatus['action_title']); ?>">Register / Renew</button>
                                                                     </form>
                                                                 <?php endif; ?>
                                                                 <form method="post" class="d-inline">
@@ -1415,7 +1476,7 @@ $accountIntroAutoOpen = false;
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($archivedHorses as $h): ?>
-                                                        <?php $archivedLogbookStatus = $horseLogbookStatus((int)($horseRegisteredYear[(int)$h['id']] ?? 0)); ?>
+                                                        <?php $archivedLogbookStatus = annual_renewal_state((int)($horseRegisteredYear[(int)$h['id']] ?? 0), 'Logbook', 'Register / Renew', 'Register / Renew'); ?>
                                                         <tr class="text-muted">
                                                             <td><?php echo h($h['name'] ?? ''); ?></td>
                                                             <td class="small"><?php echo h($h['year_of_birth'] ?? '—'); ?></td>
@@ -1706,18 +1767,37 @@ $accountIntroAutoOpen = false;
 	                                <div class="text-muted small">No bookings yet. Start by exploring upcoming events.</div>
 	                            <?php else: ?>
 	                                <div class="table-responsive">
-	                                    <table class="table table-sm align-middle">
+	                                    <table class="table table-sm align-middle account-bookings-table">
 	                                        <thead class="table-light">
 	                                            <tr>
 	                                                <th>Booking</th>
-	                                                <th>Entries</th>
+	                                                <th><span class="d-none d-sm-inline">Items</span><span class="d-sm-none">#</span></th>
+	                                                <th class="d-none d-md-table-cell">Purchase</th>
 	                                                <th>Total</th>
 	                                                <th>Placed</th>
 	                                            </tr>
 	                                        </thead>
 	                                        <tbody>
 	                                            <?php foreach ($recentBookings as $booking): ?>
-	                                                <?php $bookingRef = $booking['booking_ref'] ?? $booking['id'] ?? ''; ?>
+	                                                <?php
+	                                                $bookingRef = $booking['booking_ref'] ?? $booking['id'] ?? '';
+	                                                $placedAt = trim((string)($booking['created_at'] ?? ''));
+	                                                $placedTimestamp = $placedAt !== '' ? strtotime($placedAt) : false;
+	                                                $placedPhone = $placedTimestamp !== false ? date('d M y', $placedTimestamp) : '—';
+	                                                $purchaseLabels = [];
+	                                                foreach ($booking['items'] ?? [] as $bookingItem) {
+	                                                    $bookingType = strtolower((string)($bookingItem['booking_type'] ?? 'ride'));
+	                                                    if ($bookingType === 'horse_logbook') {
+	                                                        $purchaseLabel = 'Logbook';
+	                                                    } elseif ($bookingType === 'membership') {
+	                                                        $purchaseLabel = 'Membership';
+	                                                    } else {
+	                                                        $purchaseLabel = trim((string)($bookingItem['event_title'] ?? $bookingItem['event_name'] ?? ''));
+	                                                        if ($purchaseLabel === '') $purchaseLabel = 'Event entry';
+	                                                    }
+	                                                    if (!in_array($purchaseLabel, $purchaseLabels, true)) $purchaseLabels[] = $purchaseLabel;
+	                                                }
+	                                                ?>
 	                                                <tr>
 	                                                    <td class="small fw-semibold">
 	                                                        <?php if ($bookingRef !== ''): ?>
@@ -1729,8 +1809,13 @@ $accountIntroAutoOpen = false;
 	                                                        <?php endif; ?>
 	                                                    </td>
 	                                                    <td><?php echo count($booking['items'] ?? []); ?></td>
+	                                                    <td class="d-none d-md-table-cell small text-muted">
+	                                                        <?php if ($purchaseLabels): ?>
+	                                                            <?php foreach ($purchaseLabels as $purchaseLabel): ?><div><?php echo h($purchaseLabel); ?></div><?php endforeach; ?>
+	                                                        <?php else: ?>—<?php endif; ?>
+	                                                    </td>
 	                                                    <td><?php echo isset($booking['total']) ? '£' . number_format((float)$booking['total'], 2) : '—'; ?></td>
-	                                                    <td class="text-muted small"><?php echo h(format_display_datetime($booking['created_at'] ?? null, '—')); ?></td>
+	                                                    <td class="text-muted small"><span class="d-none d-sm-inline"><?php echo h(format_display_date($booking['created_at'] ?? null, '—')); ?></span><span class="d-sm-none"><?php echo h($placedPhone); ?></span></td>
 	                                                </tr>
 	                                            <?php endforeach; ?>
 	                                        </tbody>

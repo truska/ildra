@@ -7,6 +7,7 @@ foreach ($headerBasket as $headerBasketItem) {
     $headerBasketTotal += price_to_number($headerBasketItem['price'] ?? 0);
 }
 $siteSettings = $siteSettings ?? ($siteSettingsBootstrap ?? defaultSiteSettings());
+$headerShortName = trim((string)($siteSettings['company_short_name'] ?? $siteSettings['hero_title'] ?? 'ILDRA'));
 $headerLogoUrl = trim((string)($siteSettings['sponsor_image_url'] ?? ''));
 $hasHeaderLogo = $headerLogoUrl !== '';
 $brandClass = $hasHeaderLogo ? 'brand-logo-only' : '';
@@ -163,13 +164,19 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                     <div class="home-intro-title"><?php echo h((string)($siteSettings['home_heading_text'] ?? 'Endurance Riding Ireland')); ?></div>
                     <div class="home-intro-tagline"><?php echo h((string)($siteSettings['hero_tagline'] ?? 'Home for Endurance Riding in Ireland')); ?></div>
                 </div>
-                <a class="btn button1 home-intro-join" href="<?php echo h((string)($siteSettings['hero_cta_url'] ?? '/memberships')); ?>"><?php echo h((string)($siteSettings['hero_cta_label'] ?? 'JOIN')); ?></a>
+                <div class="home-intro-actions navbar-dark">
+                    <a class="btn button1 home-intro-join" href="<?php echo h((string)($siteSettings['hero_cta_url'] ?? '/memberships')); ?>"><?php echo h((string)($siteSettings['hero_cta_label'] ?? 'JOIN')); ?></a>
+                    <button class="navbar-toggler home-mobile-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
             </div>
         </div>
     <?php endif; ?>
     <nav class="navbar navbar-expand-lg navbar-dark bg-success bg-gradient py-0">
         <div class="container nav-shell">
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+        <?php if (!$headerIsHome): ?><div class="mobile-nav-short-name"><?php echo h($headerShortName); ?></div><?php endif; ?>
+        <button class="navbar-toggler main-navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="mainNav">

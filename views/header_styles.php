@@ -208,6 +208,7 @@ a:visited {
     z-index: 20;
 }
 .nav-shell { gap: 1rem; }
+.mobile-nav-short-name { display: none; }
 .home-banner-identity {
     position: absolute;
     left: 50%;
@@ -242,6 +243,8 @@ a:visited {
 .home-intro-title { margin-top: .3rem; font-size: clamp(1.9rem, 4vw, 3.6rem); line-height: 1.12; font-weight: 500; }
 .home-intro-tagline { margin-top: .35rem; font-size: clamp(.95rem, 1.6vw, 1.22rem); font-weight: 400; }
 .home-intro-join { flex: 0 0 auto; min-width: 180px; margin-top: 4px; padding: .7rem 1.5rem; font-size: 1.05rem; }
+.home-intro-actions { display: flex; flex-direction: column; align-items: stretch; gap: .55rem; }
+.home-mobile-toggler { display: none; align-self: flex-end; }
 .navbar {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
@@ -573,10 +576,44 @@ body.show-page-hero .page-hero {
         padding-right: 10px;
         font-size: 0.78rem;
     }
-    .home-banner-identity { bottom: 18%; padding: 8px 14px 10px; font-size: 3rem; }
+    .site-header-home .home-banner-identity { display: none; }
+    .site-header-home .header-help-btn { display: none; }
     .home-intro-inner { min-height: 0; gap: 1rem; padding-top: 16px; padding-bottom: 16px; }
     .home-intro-title { font-size: 1.65rem; }
     .home-intro-tagline { font-size: .9rem; }
     .home-intro-join { min-width: 92px; padding: .55rem .8rem; font-size: .9rem; }
+    .site-header-home .home-mobile-toggler {
+        display: block;
+        margin: 0 .35rem 0 0;
+        padding: .5rem .65rem;
+        border-color: rgba(255,255,255,.8);
+    }
+    .site-header-home .home-mobile-toggler .navbar-toggler-icon {
+        width: 1.75rem;
+        height: 1.75rem;
+        filter: brightness(0) invert(1);
+    }
+    .site-header-home > .navbar > .nav-shell > .navbar-toggler { display: none; }
+    .site-header-home > .navbar { min-height: 0; }
+    .site-header-inner .nav-shell {
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+    .site-header-inner .mobile-nav-short-name {
+        display: block;
+        flex: 1 1 auto;
+        color: #fff;
+        font-size: 1.2rem;
+        font-weight: 800;
+        line-height: 1.2;
+        text-align: center;
+        padding-left: 3rem;
+    }
+    .site-header-inner .main-navbar-toggler {
+        flex: 0 0 auto;
+        margin-left: auto;
+        margin-right: .35rem;
+    }
 }
 </style>
