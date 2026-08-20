@@ -12,9 +12,21 @@ $hasHeaderLogo = $headerLogoUrl !== '';
 $brandClass = $hasHeaderLogo ? 'brand-logo-only' : '';
 $logoAlt = trim((string)($siteSettings['hero_title'] ?? 'ILDRA'));
 $headerIsHome = isset($headerIsHome) ? (bool)$headerIsHome : false;
-$headerBatch = mediaBatchGetOrCreate($pdo ?? null, 'site_header', 'site', 0, 'Site header banners', 'banners');
+$headerPage = isset($headerPage) && is_array($headerPage) ? $headerPage : null;
+$headerBatch = $headerPage ? mediaBatchFind($pdo ?? null, 'page_banner', 'page', (int)($headerPage['id'] ?? 0)) : null;
 $headerBatchImages = $headerBatch ? mediaBatchImages($pdo ?? null, (int)$headerBatch['id']) : [];
+if (!$headerBatchImages) {
+    $fallbackPurpose = $headerIsHome ? 'default_home_banner' : 'default_inside_banner';
+    $headerBatch = mediaBatchFind($pdo ?? null, $fallbackPurpose, 'site', 0);
+    $headerBatchImages = $headerBatch ? mediaBatchImages($pdo ?? null, (int)$headerBatch['id']) : [];
+}
+// Preserve the pre-existing shared banner until the new defaults have been populated.
+if (!$headerBatchImages) {
+    $headerBatch = mediaBatchFind($pdo ?? null, 'site_header', 'site', 0);
+    $headerBatchImages = $headerBatch ? mediaBatchImages($pdo ?? null, (int)$headerBatch['id']) : [];
+}
 $headerBannerUrl = ($headerBatch && $headerBatchImages) ? mediaBatchImageUrl($headerBatch, $headerBatchImages[0], 'lg') : '';
+$headerCarouselImages = $headerIsHome ? $headerBatchImages : array_slice($headerBatchImages, 0, 1);
 if (!function_exists('page_url')) {
     function page_url(array $page): string
     {
@@ -110,7 +122,19 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
     </div>
 <?php endif; ?>
 <header class="site-header<?php echo $headerIsHome ? ' site-header-home' : ' site-header-inner'; ?>"<?php echo $headerBannerUrl !== '' ? ' style="--site-header-image:url(\'' . h($headerBannerUrl) . '\')"' : ''; ?>>
-    <div class="site-header-banner">
+    <div class="site-header-banner<?php echo count($headerCarouselImages) > 1 ? ' has-banner-carousel' : ''; ?>" data-banner-carousel data-interval="<?php echo max(2, (int)($siteSettings['home_carousel_interval_seconds'] ?? 6)) * 1000; ?>">
+        <?php if ($headerBatch && $headerCarouselImages): ?><div class="site-header-slides" aria-hidden="true">
+            <?php foreach ($headerCarouselImages as $bannerIndex => $bannerImage): ?><div class="site-header-slide<?php echo $bannerIndex === 0 ? ' is-active' : ''; ?>" style="background-image:url('<?php echo h(mediaBatchImageUrl($headerBatch, $bannerImage, 'lg')); ?>')"></div><?php endforeach; ?>
+        </div><?php endif; ?>
+        <?php if ($headerIsHome && count($headerCarouselImages) > 1): ?>
+            <div class="site-header-carousel-nav" aria-label="Homepage banner navigation">
+                <button type="button" class="site-header-carousel-arrow" data-banner-prev aria-label="Previous banner">&#8249;</button>
+                <div class="site-header-carousel-dots">
+                    <?php foreach ($headerCarouselImages as $bannerIndex => $_bannerImage): ?><button type="button" class="site-header-carousel-dot<?php echo $bannerIndex === 0 ? ' is-active' : ''; ?>" data-banner-index="<?php echo $bannerIndex; ?>" aria-label="Show banner <?php echo $bannerIndex + 1; ?>" aria-current="<?php echo $bannerIndex === 0 ? 'true' : 'false'; ?>"></button><?php endforeach; ?>
+                </div>
+                <button type="button" class="site-header-carousel-arrow" data-banner-next aria-label="Next banner">&#8250;</button>
+            </div>
+        <?php endif; ?>
         <div class="container header-banner-inner">
         <a class="navbar-brand brand-block fw-bold <?php echo h($brandClass); ?>" href="<?php echo h($basePath); ?>/">
             <div class="logo-badge fs-2">
@@ -135,9 +159,9 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
         <div class="home-intro-bar">
             <div class="container home-intro-inner">
                 <div class="home-intro-copy">
-                    <div class="home-intro-established">Established in 1990</div>
-                    <div class="home-intro-title">Endurance Riding Ireland</div>
-                    <div class="home-intro-tagline">Home for Endurance Riding in Ireland</div>
+                    <div class="home-intro-established"><?php echo h((string)($siteSettings['home_established_text'] ?? 'Established in 1990')); ?></div>
+                    <div class="home-intro-title"><?php echo h((string)($siteSettings['home_heading_text'] ?? 'Endurance Riding Ireland')); ?></div>
+                    <div class="home-intro-tagline"><?php echo h((string)($siteSettings['hero_tagline'] ?? 'Home for Endurance Riding in Ireland')); ?></div>
                 </div>
                 <a class="btn button1 home-intro-join" href="<?php echo h((string)($siteSettings['hero_cta_url'] ?? '/memberships')); ?>"><?php echo h((string)($siteSettings['hero_cta_label'] ?? 'JOIN')); ?></a>
             </div>
@@ -243,3 +267,41 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
         });
     })();
 </script>
+<?php if ($headerIsHome && count($headerCarouselImages) > 1): ?>
+<script>
+(() => {
+    const carousel = document.querySelector('[data-banner-carousel]');
+    if (!carousel || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const slides = Array.from(carousel.querySelectorAll('.site-header-slide'));
+    if (slides.length < 2) return;
+    const dots = Array.from(carousel.querySelectorAll('[data-banner-index]'));
+    const previous = carousel.querySelector('[data-banner-prev]');
+    const next = carousel.querySelector('[data-banner-next]');
+    let current = 0;
+    let timer = 0;
+    const interval = Math.max(2000, Number(carousel.dataset.interval) || 6000);
+    const show = index => {
+        slides[current].classList.remove('is-active');
+        dots[current]?.classList.remove('is-active');
+        dots[current]?.setAttribute('aria-current', 'false');
+        current = (index + slides.length) % slides.length;
+        slides[current].classList.add('is-active');
+        dots[current]?.classList.add('is-active');
+        dots[current]?.setAttribute('aria-current', 'true');
+    };
+    const stop = () => { window.clearTimeout(timer); timer = 0; };
+    const start = () => { stop(); timer = window.setTimeout(function advance() {
+        show(current + 1);
+        timer = window.setTimeout(advance, interval);
+    }, interval); };
+    previous?.addEventListener('click', () => { show(current - 1); start(); });
+    next?.addEventListener('click', () => { show(current + 1); start(); });
+    dots.forEach(dot => dot.addEventListener('click', () => { show(Number(dot.dataset.bannerIndex)); start(); }));
+    carousel.addEventListener('mouseenter', stop);
+    carousel.addEventListener('mouseleave', start);
+    carousel.addEventListener('focusin', stop);
+    carousel.addEventListener('focusout', start);
+    start();
+})();
+</script>
+<?php endif; ?>

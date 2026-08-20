@@ -164,9 +164,22 @@ a:visited {
     z-index: 2;
     overflow: visible;
 }
+.site-header-slides { position:absolute; inset:0; overflow:hidden; z-index:0; }
+.site-header-slide { position:absolute; inset:0; background-position:center; background-repeat:no-repeat; background-size:cover; opacity:0; transform:translateX(-4%); transition:opacity .7s ease,transform .7s ease; }
+.site-header-slide.is-active { opacity:1; transform:translateX(0); }
+.site-header-banner.has-banner-carousel { background-image:none; }
+.site-header-banner.has-banner-carousel .header-banner-inner { position:relative; z-index:2; }
+.site-header-carousel-nav { position:absolute; z-index:4; left:50%; bottom:12px; transform:translateX(-50%); display:flex; align-items:center; gap:10px; padding:5px 9px; border-radius:999px; background:rgba(12,42,18,.58); }
+.site-header-carousel-arrow { width:32px; height:32px; border:1px solid rgba(255,255,255,.65); border-radius:50%; padding:0; background:rgba(0,0,0,.18); color:#fff; font-size:1.7rem; line-height:25px; }
+.site-header-carousel-dots { display:flex; align-items:center; gap:7px; }
+.site-header-carousel-dot { width:10px; height:10px; border:1px solid #fff; border-radius:50%; padding:0; background:transparent; }
+.site-header-carousel-dot.is-active { background:#fff; }
 .site-header .navbar { position: relative; z-index: 1; }
-.site-header-home .site-header-banner { min-height: 220px; }
+.site-header-home .site-header-banner { min-height: 320px; }
+@media (prefers-reduced-motion: reduce) { .site-header-slide { transition:none; transform:none; } }
 .header-banner-inner {
+    position: relative;
+    z-index: 2;
     min-height: inherit;
     display: flex;
     align-items: flex-start;
@@ -537,7 +550,7 @@ body.show-page-hero .page-hero {
         font-weight: 600;
     }
     .nav-submenu .dropdown-divider { background-color: rgba(255,255,255,0.75); }
-    .site-header-home .site-header-banner { min-height: 210px; }
+    .site-header-home .site-header-banner { min-height: 260px; }
     .home-intro-inner { min-height: 150px; }
 }
 
