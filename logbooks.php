@@ -103,8 +103,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 'membership_name' => $logbookType['name'],
                 'event_title' => 'Horse logbook: ' . ($horseName !== '' ? $horseName : 'Horse'),
                 'class_label' => 'Horse logbook ' . $logbookYear,
-                'rider_name' => $horseName,
-                'horse_name' => $horseName,
                 'price' => $logbookType['cost'] ?? '0',
             ];
             $basket[] = $entry;

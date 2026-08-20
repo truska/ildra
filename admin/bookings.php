@@ -23,8 +23,6 @@ foreach ($allEvents as $ev) {
     $eventsByType[$slug][] = $ev;
 }
 
-$sortKey = $_GET['sort'] ?? 'placed';
-$sortDir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 $filterType = strtolower(trim((string)($_GET['type'] ?? 'all')));
 $filterEventId = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
 if ($filterType === '') {
@@ -80,69 +78,48 @@ function booking_matches_event(array $booking, int $eventId): bool
     return false;
 }
 
-function booking_type_label(array $item, array $labelMap): string
-{
-    $slug = booking_type_slug($item);
-    if (isset($labelMap[$slug])) {
-        return $labelMap[$slug];
-    }
-    if (!empty($item['booking_type_label'])) {
-        return (string)$item['booking_type_label'];
-    }
-    $raw = $item['booking_type'] ?? ($item['event_type_name'] ?? $slug);
-    return ucfirst((string)$raw);
-}
-
 function booking_description(array $booking): string
 {
     $descriptions = [];
     foreach ($booking['items'] ?? [] as $item) {
         $meta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
-        $title = trim((string)($item['event_title'] ?? $item['event_name'] ?? 'Entry'));
         $details = [];
-        foreach (['rider_name' => 'Rider', 'horse_name' => 'Horse', 'class_label' => 'Class'] as $key => $label) {
-            $value = trim((string)($meta[$key] ?? $item[$key] ?? ''));
-            if ($value !== '') {
-                $details[] = $label . ': ' . $value;
+        $type = booking_type_slug($item);
+        if ($type === 'horse_logbook') {
+            $horseName = trim((string)($meta['horse_name'] ?? $item['horse_name'] ?? ''));
+            if ($horseName !== '') $details[] = 'Horse: ' . $horseName;
+        } elseif ($type === 'membership') {
+            $memberName = trim((string)($meta['member_name'] ?? $item['member_name'] ?? ''));
+            if ($memberName !== '') $details[] = 'Member: ' . $memberName;
+        } else {
+            foreach (['rider_name' => 'Rider', 'horse_name' => 'Horse', 'class_label' => 'Class'] as $key => $label) {
+                $value = trim((string)($meta[$key] ?? $item[$key] ?? ''));
+                if ($value !== '') $details[] = $label . ': ' . $value;
             }
         }
-        $descriptions[] = $title . ($details ? ' — ' . implode(' · ', $details) : '');
+        $details[] = 'Value: ' . format_price($item['price'] ?? 0);
+        if ($details) $descriptions[] = implode("\n", $details);
     }
-    return implode(' | ', $descriptions);
+    return implode("\n", $descriptions);
 }
 
 function booking_event_names(array $booking): string
 {
     $names = [];
     foreach ($booking['items'] ?? [] as $item) {
-        $name = trim((string)($item['event_title'] ?? $item['event_name'] ?? ''));
+        $type = booking_type_slug($item);
+        if ($type === 'horse_logbook') {
+            $name = 'Horse Logbook';
+        } elseif ($type === 'membership') {
+            $name = 'Membership';
+        } else {
+            $name = trim((string)($item['event_title'] ?? $item['event_name'] ?? ''));
+        }
         if ($name !== '' && !in_array($name, $names, true)) {
             $names[] = $name;
         }
     }
     return implode(' | ', $names);
-}
-
-function booking_sort_value(array $booking, string $key)
-{
-    switch ($key) {
-        case 'id':
-            return (string)($booking['booking_ref'] ?? $booking['id'] ?? '');
-        case 'placed':
-            return $booking['created_at'] ? strtotime((string)$booking['created_at']) : 0;
-        case 'contact':
-            return strtolower(trim((string)($booking['contact_name'] ?? $booking['contact_email'] ?? '')));
-        case 'entries':
-            return count($booking['items'] ?? []);
-        case 'total':
-            return (float)($booking['total'] ?? 0);
-        case 'user':
-            $userId = $booking['user_id'] ?? '';
-            $email = $booking['contact_email'] ?? '';
-            return strtolower(trim(($userId !== '' ? (string)$userId . ' ' : '') . $email));
-        default:
-            return (string)($booking['created_at'] ?? '');
-    }
 }
 
 $typeCounts = [];
@@ -164,16 +141,34 @@ foreach ($eventTypeLabels as $slug => $label) {
 
 $bookings = array_values(array_filter($bookings, fn($booking) => booking_matches_type($booking, $filterType) && booking_matches_event($booking, $filterEventId)));
 
-usort($bookings, function ($a, $b) use ($sortKey, $sortDir) {
-    $va = booking_sort_value($a, $sortKey);
-    $vb = booking_sort_value($b, $sortKey);
-    if ($va == $vb) {
-        return 0;
-    }
-    return $sortDir === 'asc' ? ($va <=> $vb) : ($vb <=> $va);
-});
-
-$showingCount = $filterType === 'all' ? count($bookings) : count($eventsByType[$filterType] ?? []);
+$userOptions = [];
+$transactionTypeOptions = [];
+foreach ($bookings as $booking) {
+    $email = trim((string)($booking['contact_email'] ?? ''));
+    if ($email !== '') $userOptions[$email] = $email;
+    $transactionType = booking_event_names($booking);
+    if ($transactionType !== '') $transactionTypeOptions[$transactionType] = $transactionType;
+}
+natcasesort($userOptions);
+natcasesort($transactionTypeOptions);
+$filterForm = 'booking-filter-form';
+$tableColumns = [
+    'id' => ['label'=>'Ref','sortable'=>true,'filter'=>'text','placeholder'=>'Search ref','form'=>$filterForm,'value'=>static fn(array $r):string=>(string)($r['booking_ref']??$r['id']??'')],
+    'placed' => ['label'=>'Ordered','sortable'=>true,'filter'=>'text','placeholder'=>'Search ordered','form'=>$filterForm,'value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):int=>!empty($r['created_at'])?(int)strtotime((string)$r['created_at']):0,'compare'=>'number'],
+    'contact' => ['label'=>'Contact','sortable'=>true,'filter'=>'text','placeholder'=>'Search contact','form'=>$filterForm,'value'=>static fn(array $r):string=>(string)($r['contact_name']??'')],
+    'event_name' => ['label'=>'Type','sortable'=>false,'filter'=>'select','form'=>$filterForm,'options'=>$transactionTypeOptions,'value'=>static fn(array $r):string=>booking_event_names($r)],
+    'description' => ['label'=>'Description','sortable'=>false,'filter'=>'text','placeholder'=>'Search description','form'=>$filterForm,'value'=>static fn(array $r):string=>booking_description($r)],
+    'entries' => ['label'=>'Trans #','sortable'=>true,'filter'=>'text','placeholder'=>'Search count','form'=>$filterForm,'value'=>static fn(array $r):string=>(string)count($r['items']??[]),'sort_value'=>static fn(array $r):int=>count($r['items']??[]),'compare'=>'number'],
+    'total' => ['label'=>'Total','sortable'=>true,'filter'=>'text','placeholder'=>'Search total','form'=>$filterForm,'value'=>static fn(array $r):string=>format_price($r['total']??0),'sort_value'=>static fn(array $r):float=>(float)($r['total']??0),'compare'=>'number'],
+    'user' => ['label'=>'User','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>$userOptions,'value'=>static fn(array $r):string=>(string)($r['contact_email']??'')],
+    'actions' => ['label'=>'Actions'],
+];
+$table = admin_table_prepare($bookings, $tableColumns, 'placed', 'desc');
+$bookings = $table['rows'];
+$filters = $table['filters'];
+$sortKey = $table['sort_key'];
+$sortDir = $table['sort_dir'];
+$showingCount = (int)$table['pagination']['total'];
 
 admin_layout_start('Bookings', 'bookings');
 ?>
@@ -189,40 +184,32 @@ admin_layout_start('Bookings', 'bookings');
             border-top: 2px solid #e0e5dd;
         }
         #bookingsTable tr.booking-row td {
-            padding-top: 0.9rem;
-            padding-bottom: 0.9rem;
-            border-bottom: 0 !important; /* no line between booking header and entries */
+            padding-top: 0.3rem;
+            padding-bottom: 0.3rem;
         }
-        #bookingsTable tr.event-row td {
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
-            border-top: none;
+        #bookingsTable .description-lines {
+            font-size: 0.78rem;
+            line-height: 1.25;
+            min-width: 18rem;
+            width: 30%;
         }
-        #bookingsTable tr.event-row td,
-        #bookingsTable tr.event-row:first-of-type td {
-            border-top: 0 !important;
-            border-bottom: 0 !important;
+        #bookingsTable .col-contact {
+            width: 7rem;
+            min-width: 7rem;
+            line-height: 1.2;
         }
-    </style>
-    <style>
-        /* Make child event rows feel subordinate to the booking summary */
-        #bookingsTable .event-row td {
-            font-size: 0.95rem;
-            color: #444;
-            background-color: transparent;
-            border-left: 0;
-            padding-left: 0;
+        #bookingsTable .col-ref {
+            white-space: nowrap;
         }
-        #bookingsTable .event-row .event-cell {
-            padding-left: 1.5rem;
+        #bookingsTable .booking-actions {
+            vertical-align: top;
+            text-align: left;
+            white-space: nowrap;
+            padding-top: 0.45rem;
         }
-        #bookingsTable .event-row .event-title {
-            font-weight: 600;
-            color: #212529;
-            margin-right: 0.35rem;
-        }
-        #bookingsTable .event-row .event-details {
-            color: #6c757d;
+        #bookingsTable .booking-actions .btn-group-mobile {
+            justify-content: flex-start;
+            margin-bottom: 0.3rem;
         }
         @media (max-width: 767.98px) {
             #bookingsTable th.col-contact,
@@ -234,9 +221,6 @@ admin_layout_start('Bookings', 'bookings');
             #bookingsTable th.col-user,
             #bookingsTable td.col-user {
                 display: none;
-            }
-            #bookingsTable .event-row .event-cell {
-                padding-left: 0.75rem;
             }
         }
     </style>
@@ -266,22 +250,37 @@ admin_layout_start('Bookings', 'bookings');
         </div>
     </div>
 
-<?php if (!$bookings): ?>
-    <div class="alert alert-info mb-0">No bookings to show<?php echo $filterType !== 'all' ? ' for this type.' : '.'; ?></div>
-<?php else: ?>
+<form method="get" id="<?php echo h($filterForm); ?>" class="mb-2 text-end">
+    <?php if ($filterType !== 'all'): ?><input type="hidden" name="type" value="<?php echo h($filterType); ?>"><?php endif; ?>
+    <?php if ($filterEventId > 0): ?><input type="hidden" name="event_id" value="<?php echo $filterEventId; ?>"><?php endif; ?>
+    <button class="btn btn-sm btn-outline-secondary">Filter</button>
+    <a class="btn btn-sm btn-link" href="bookings.php<?php echo $filterType !== 'all' || $filterEventId > 0 ? '?' . h(http_build_query(array_filter(['type'=>$filterType !== 'all' ? $filterType : null, 'event_id'=>$filterEventId > 0 ? $filterEventId : null]))) : ''; ?>">Clear</a>
+</form>
+    <?php echo admin_table_pagination($table); ?>
     <div class="table-responsive">
-        <table class="table table-sm align-middle" id="bookingsTable">
+        <table class="table table-sm table-striped align-middle" id="bookingsTable">
             <thead class="table-light">
                 <tr>
-                    <th><?php echo admin_sort_link('id', 'Booking ref', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('placed', 'Placed', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th class="col-contact"><?php echo admin_sort_link('contact', 'Contact', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th class="col-event-name">Event Name</th>
-                    <th class="col-description">Description</th>
-                    <th><?php echo admin_sort_link('entries', 'Events', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th><?php echo admin_sort_link('total', 'Total', (string)$sortKey, (string)$sortDir); ?></th>
-                    <th class="col-user"><?php echo admin_sort_link('user', 'User', (string)$sortKey, (string)$sortDir); ?></th>
+                    <th class="col-ref"><?php echo admin_table_heading('id', $tableColumns['id'], $sortKey, $sortDir); ?></th>
+                    <th><?php echo admin_table_heading('placed', $tableColumns['placed'], $sortKey, $sortDir); ?></th>
+                    <th class="col-contact"><?php echo admin_table_heading('contact', $tableColumns['contact'], $sortKey, $sortDir); ?></th>
+                    <th class="col-event-name"><?php echo admin_table_heading('event_name', $tableColumns['event_name'], $sortKey, $sortDir); ?></th>
+                    <th class="col-description"><?php echo admin_table_heading('description', $tableColumns['description'], $sortKey, $sortDir); ?></th>
+                    <th><?php echo admin_table_heading('entries', $tableColumns['entries'], $sortKey, $sortDir); ?></th>
+                    <th><?php echo admin_table_heading('total', $tableColumns['total'], $sortKey, $sortDir); ?></th>
+                    <th class="col-user"><?php echo admin_table_heading('user', $tableColumns['user'], $sortKey, $sortDir); ?></th>
                     <th class="text-end">Actions</th>
+                </tr>
+                <tr class="admin-table-filter-row">
+                    <th class="col-ref"><?php echo admin_table_filter('id', $tableColumns['id'], $filters); ?></th>
+                    <th><?php echo admin_table_filter('placed', $tableColumns['placed'], $filters); ?></th>
+                    <th class="col-contact"><?php echo admin_table_filter('contact', $tableColumns['contact'], $filters); ?></th>
+                    <th class="col-event-name"><?php echo admin_table_filter('event_name', $tableColumns['event_name'], $filters); ?></th>
+                    <th class="col-description"><?php echo admin_table_filter('description', $tableColumns['description'], $filters); ?></th>
+                    <th><?php echo admin_table_filter('entries', $tableColumns['entries'], $filters); ?></th>
+                    <th><?php echo admin_table_filter('total', $tableColumns['total'], $filters); ?></th>
+                    <th class="col-user"><?php echo admin_table_filter('user', $tableColumns['user'], $filters); ?></th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -293,70 +292,46 @@ admin_layout_start('Bookings', 'bookings');
                         $bookingRef = $booking['booking_ref'] ?? $booking['id'] ?? '';
                         $eventNames = booking_event_names($booking);
                         $description = booking_description($booking);
+                        $contactName = trim((string)($booking['contact_name'] ?? ''));
+                        $contactParts = preg_split('/\s+/', $contactName, 2) ?: [];
                     ?>
                     <tr class="booking-row">
-                        <td class="small fw-semibold text-muted text-dark"><?php echo h($bookingRef); ?></td>
+                        <td class="small fw-semibold text-muted text-dark col-ref"><?php echo h($bookingRef); ?></td>
                         <td class="small"><?php echo h(format_display_datetime($booking['created_at'] ?? null, '')); ?></td>
                         <td class="small col-contact">
-                            <div><?php echo h($booking['contact_name'] ?? ''); ?></div>
+                            <div><?php echo h((string)($contactParts[0] ?? '')); ?><?php if (!empty($contactParts[1])): ?><br><?php echo h((string)$contactParts[1]); ?><?php endif; ?></div>
                         </td>
                         <td class="small col-event-name fw-semibold text-dark"><?php echo h($eventNames !== '' ? $eventNames : '—'); ?></td>
-                        <td class="small col-description text-muted"><?php echo h($description !== '' ? $description : '—'); ?></td>
-                        <td class="small"><div class="fw-semibold text-dark mb-1"><?php echo $itemCount; ?> event<?php echo $itemCount === 1 ? '' : 's'; ?></div></td>
+                        <td class="col-description text-muted description-lines"><?php echo $description !== '' ? nl2br(h($description)) : '—'; ?></td>
+                        <td class="small"><div class="fw-semibold text-dark"><?php echo $itemCount; ?></div></td>
                         <td class="small"><?php echo h($total); ?></td>
                         <td class="small col-user">
                             <?php echo h($booking['contact_email'] ?? ''); ?>
                         </td>
-                        <td></td>
-                    </tr>
-                    <?php foreach ($items as $item): ?>
-                        <?php
-                            $eventTitle = trim((string)($item['event_title'] ?? $item['event_name'] ?? 'Event'));
-                            $eventTypeLabel = booking_type_label($item, $eventTypeLabels);
-                            $eventPrice = format_price($item['price'] ?? 0);
-                            $quickFields = $item['quick_view_fields'] ?? [];
-                            $meta = $item['metadata'] ?? [];
-                            $detailParts = [];
-                            foreach ($quickFields as $fieldKey) {
-                                $value = $meta[$fieldKey] ?? ($item[$fieldKey] ?? '');
-                                if ($value === '' || $value === null) {
-                                    continue;
-                                }
-                                $label = ucwords(str_replace('_', ' ', (string)$fieldKey));
-                                $detailParts[] = $label . ': ' . $value;
-                            }
-                            $detailText = implode(' · ', $detailParts);
-                            $itemId = (int)($item['id'] ?? 0);
-                            $eventId = (int)($item['event_id'] ?? 0);
-                            $entryUrl = $itemId > 0 ? ('entry_item.php?item_id=' . $itemId . ($eventId > 0 ? '&event_id=' . $eventId : '')) : '';
-                            $entryEditUrl = $itemId > 0 ? ('entry_item.php?item_id=' . $itemId . '&mode=edit' . ($eventId > 0 ? '&event_id=' . $eventId : '')) : '';
-                        ?>
-                        <tr class="event-row">
-                            <td></td>
-                            <td class="event-cell" colspan="7">
-                                <span class="event-title"><?php echo h($eventTitle); ?></span>
-                                <span class="event-details">
-                                    · <?php echo h($eventTypeLabel); ?> · <?php echo h($eventPrice); ?>
-                                    <?php if ($detailText !== ''): ?>
-                                        · <?php echo h($detailText); ?>
-                                    <?php endif; ?>
-                                </span>
-                            </td>
-                            <td class="text-end">
+                        <td class="booking-actions">
+                            <?php foreach ($items as $actionItem): ?>
+                                <?php
+                                    $actionItemId = (int)($actionItem['id'] ?? 0);
+                                    $actionEventId = (int)($actionItem['event_id'] ?? 0);
+                                    $entryUrl = $actionItemId > 0 ? ('entry_item.php?item_id=' . $actionItemId . ($actionEventId > 0 ? '&event_id=' . $actionEventId : '')) : '';
+                                    $entryEditUrl = $actionItemId > 0 ? ('entry_item.php?item_id=' . $actionItemId . '&mode=edit' . ($actionEventId > 0 ? '&event_id=' . $actionEventId : '')) : '';
+                                ?>
                                 <?php if ($entryUrl !== ''): ?>
-                                    <div class="btn-group-mobile justify-content-end">
+                                    <div class="btn-group-mobile">
                                         <a class="btn btn-sm btn-outline-secondary has-icon" href="<?php echo h($entryUrl); ?>"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span></a>
                                         <a class="btn btn-sm btn-outline-success has-icon" href="<?php echo h($entryEditUrl); ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a>
                                     </div>
                                 <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
+                            <?php endforeach; ?>
+                        </td>
+                    </tr>
                 <?php endforeach; ?>
+                <?php if (!$bookings): ?>
+                    <tr><td colspan="9" class="text-muted">No bookings match the selected filters.</td></tr>
+                <?php endif; ?>
             </tbody>
         </table>
     </div>
-<?php endif; ?>
 </div>
 <?php
 admin_layout_end();

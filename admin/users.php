@@ -17,7 +17,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage users.'];
     } else {
         $action = $_POST['action'] ?? '';
-        if ($action === 'update_user') {
+        if ($action === 'update_details') {
+            $userId = (int)($_POST['user_id'] ?? 0);
+            $firstName = trim((string)($_POST['first_name'] ?? ''));
+            $lastName = trim((string)($_POST['last_name'] ?? ''));
+            $email = strtolower(trim((string)($_POST['email'] ?? '')));
+
+            if ($userId <= 0) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Invalid user.'];
+            }
+            if ($firstName === '' || $lastName === '') {
+                $alerts[] = ['type' => 'danger', 'message' => 'Enter the user\'s first and last name.'];
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];
+            }
+
+            if (!$alerts) {
+                try {
+                    $duplicate = $pdo->prepare('SELECT id FROM users WHERE email = :email AND id <> :id LIMIT 1');
+                    $duplicate->execute([':email' => $email, ':id' => $userId]);
+                    if ($duplicate->fetch()) {
+                        $alerts[] = ['type' => 'danger', 'message' => 'That email address is already in use.'];
+                    } else {
+                        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, updated_at = NOW() WHERE id = :id LIMIT 1');
+                        $update->execute([
+                            ':first_name' => $firstName,
+                            ':last_name' => $lastName,
+                            ':email' => $email,
+                            ':id' => $userId,
+                        ]);
+                        if ((int)($currentUser['id'] ?? 0) === $userId && isset($_SESSION['user'])) {
+                            $_SESSION['user']['first_name'] = $firstName;
+                            $_SESSION['user']['last_name'] = $lastName;
+                            $_SESSION['user']['email'] = $email;
+                        }
+                        $successMessage = 'User details updated.';
+                    }
+                } catch (PDOException $e) {
+                    $alerts[] = ['type' => 'danger', 'message' => 'Could not update the user details.'];
+                }
+            }
+        } elseif ($action === 'update_user') {
             $userId = (int)($_POST['user_id'] ?? 0);
             $role = $_POST['role'] ?? '';
             $level = (int)($_POST['level'] ?? 0);
@@ -120,7 +161,14 @@ admin_layout_start('Users', 'users');
                     $lastLogin = $userRow['last_login_at'] ? h($userRow['last_login_at']) : '—';
                     ?>
                     <tr>
-                        <td><?php echo h($fullName); ?></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo (int)$userRow['id']; ?>">
+                                    Edit details
+                                </button>
+                                <span><?php echo h($fullName); ?></span>
+                            </div>
+                        </td>
                         <td><?php echo admin_table_value($userRow['email'] ?? '', 'email'); ?></td>
                         <td>
                             <form class="d-flex gap-2 align-items-center" method="POST">
@@ -165,5 +213,42 @@ admin_layout_start('Users', 'users');
         </table>
     </div>
 </div>
+<?php foreach ($allUsers as $userRow): ?>
+<div class="modal fade" id="editUserModal<?php echo (int)$userRow['id']; ?>" tabindex="-1" aria-labelledby="editUserModalLabel<?php echo (int)$userRow['id']; ?>" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editUserModalLabel<?php echo (int)$userRow['id']; ?>">Edit user details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="update_details">
+                    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold">First name</label>
+                            <input class="form-control" name="first_name" value="<?php echo h((string)($userRow['first_name'] ?? '')); ?>" required>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label fw-semibold">Last name</label>
+                            <input class="form-control" name="last_name" value="<?php echo h((string)($userRow['last_name'] ?? '')); ?>" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Login email</label>
+                            <input type="email" class="form-control" name="email" value="<?php echo h((string)($userRow['email'] ?? '')); ?>" autocomplete="email" required>
+                            <div class="form-text">This is the email address the user signs in with.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success">Save details</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endforeach; ?>
 <?php
 admin_layout_end();
