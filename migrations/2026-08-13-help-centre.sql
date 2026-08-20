@@ -1,0 +1,28 @@
+CREATE TABLE IF NOT EXISTS help_groups (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    description VARCHAR(255) DEFAULT NULL,
+    path_patterns TEXT NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS help_articles (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    summary TEXT DEFAULT NULL,
+    body_html MEDIUMTEXT NOT NULL,
+    keywords VARCHAR(500) DEFAULT NULL,
+    group_id INT UNSIGNED DEFAULT NULL,
+    is_global TINYINT(1) NOT NULL DEFAULT 0,
+    min_user_level INT NOT NULL DEFAULT 0,
+    max_user_level INT DEFAULT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    is_published TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_help_group (group_id, is_published, display_order),
+    CONSTRAINT fk_help_article_group FOREIGN KEY (group_id) REFERENCES help_groups(id) ON DELETE SET NULL
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

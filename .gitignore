@@ -72,3 +72,5 @@ node_modules/
 # OS cruft
 .DS_Store
 Thumbs.db
+# Runtime uploads and generated media are environment-specific.
+/filestore/
