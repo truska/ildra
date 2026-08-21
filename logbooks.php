@@ -20,7 +20,7 @@ if (!$isLoggedIn) {
     header('Location: ' . $basePath . '/account');
     exit;
 }
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 $basketCount = count($basket);
 $horses = $isLoggedIn ? array_values(array_filter(
     fetchHorsesForUser($pdo, (int)($currentUser['id'] ?? 0)),

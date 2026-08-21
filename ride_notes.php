@@ -8,7 +8,7 @@ if (!$currentUser) { header('Location: /account'); exit; }
 $event = fetchEventById($pdo, $eventId);
 $notes = fetchRideNotes($pdo, $eventId);
 $role = strtolower((string)($currentUser['role'] ?? ''));
-$preview = !empty($_GET['preview']) && in_array($role, ['superadmin', 'admin', 'organiser'], true);
+$preview = !empty($_GET['preview']) && in_array($role, ['superadmin', 'admin', 'manager', 'organiser'], true);
 if (!$event || !$notes || (($notes['status'] ?? 'draft') !== 'published' && !$preview)) { http_response_code(404); $event = null; }
 $rideBatch = $event ? mediaBatchFind($pdo, 'ride_notes_images', 'event', $eventId) : null;
 $rideImages = $rideBatch ? mediaBatchImages($pdo, (int)$rideBatch['id']) : [];

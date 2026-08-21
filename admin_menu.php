@@ -50,9 +50,9 @@ function defaultAdminMenuItems(): array
 function adminMenuFixedRoles(string $key): array
 {
     if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
-        return ['superadmin', 'admin'];
+        return ['superadmin', 'admin', 'manager'];
     }
-    return ['superadmin', 'admin', 'organiser'];
+    return ['superadmin', 'admin', 'manager', 'organiser'];
 }
 
 function ensureAdminMenuTable(?PDO $pdo): void
@@ -70,7 +70,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
             parent_id INT UNSIGNED DEFAULT NULL,
             display_order INT NOT NULL DEFAULT 0,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
-            required_roles VARCHAR(100) NOT NULL DEFAULT 'superadmin,admin,organiser',
+            required_roles VARCHAR(100) NOT NULL DEFAULT 'superadmin,admin,manager,organiser',
             is_system TINYINT(1) NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -128,7 +128,7 @@ function adminMenuRoleAllowed(array $item, string $role): bool
     $allowed = !empty($item['is_system'])
         ? adminMenuFixedRoles($key)
         : array_values(array_filter(array_map('trim', explode(',', strtolower((string)($item['required_roles'] ?? ''))))));
-    return in_array($role, $allowed ?: ['superadmin', 'admin', 'organiser'], true);
+    return in_array($role, $allowed ?: ['superadmin', 'admin', 'manager', 'organiser'], true);
 }
 
 function buildAdminMenuTree(array $items, string $role): array
@@ -194,7 +194,7 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     $parentId = max(0, (int)($data['parent_id'] ?? 0));
     $displayOrder = (int)($data['display_order'] ?? 0);
     $isActive = !empty($data['is_active']) ? 1 : 0;
-    $roles = array_values(array_intersect(['superadmin', 'admin', 'organiser'], (array)($data['required_roles'] ?? [])));
+    $roles = array_values(array_intersect(['superadmin', 'admin', 'manager', 'organiser'], (array)($data['required_roles'] ?? [])));
 
     if ($label === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Menu label is required.'];

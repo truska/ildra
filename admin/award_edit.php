@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
-if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin'], true)) { header('Location:index.php'); exit; }
+if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin','manager'], true)) { header('Location:index.php'); exit; }
 ensureAwardsTables($pdo);$id=(int)($_GET['id']??0);$award=null;foreach(fetchAwards($pdo) as $row)if((int)$row['id']===$id)$award=$row;$award=$award?:['id'=>0,'name'=>'','description_html'=>'','image_asset_id'=>0,'display_order'=>100,'is_published'=>1,'is_archived'=>0];$assets=fetchAssetLibrary($pdo,true);
 if($_SERVER['REQUEST_METHOD']==='POST'){$name=trim((string)($_POST['name']??''));if($name==='')$alerts[]=['type'=>'danger','message'=>'Award name is required.'];if(!$alerts){$data=[':name'=>$name,':description'=>trim((string)($_POST['description_html']??''))?:null,':asset'=>(int)($_POST['image_asset_id']??0)?:null,':order'=>(int)($_POST['display_order']??100),':published'=>!empty($_POST['is_published'])?1:0,':archived'=>!empty($_POST['is_archived'])?1:0];if($id){$data[':id']=$id;$sql='UPDATE award_catalog SET name=:name,description_html=:description,image_asset_id=:asset,display_order=:order,is_published=:published,is_archived=:archived WHERE id=:id';}else $sql='INSERT INTO award_catalog(name,description_html,image_asset_id,display_order,is_published,is_archived) VALUES(:name,:description,:asset,:order,:published,:archived)';$pdo->prepare($sql)->execute($data);$_SESSION['flash_success']='Award saved.';header('Location:awards.php');exit;}$award=array_merge($award,$_POST);}
 admin_layout_start($id?'Edit Award':'Add Award','awards');

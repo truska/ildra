@@ -5,7 +5,7 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $roleKey = strtolower((string)($currentUser['role'] ?? ''));
-if (!in_array($roleKey, ['superadmin', 'admin'], true)) {
+if (!in_array($roleKey, ['superadmin', 'admin', 'manager'], true)) {
     header('Location: ' . $adminBase . '/index.php');
     exit;
 }
@@ -46,7 +46,7 @@ $editItem = $editId > 0 ? ($itemsById[$editId] ?? null) : ($isCreate ? [
     'parent_id' => null,
     'display_order' => count($items) * 10 + 10,
     'is_active' => 1,
-    'required_roles' => 'superadmin,admin,organiser',
+    'required_roles' => 'superadmin,admin,manager,organiser',
     'is_system' => 0,
 ] : null);
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && $alerts) {
@@ -194,7 +194,7 @@ admin_layout_start('Menu', 'menu');
                     </div>
                     <div class="col-12">
                         <div class="form-label fw-semibold">Visible to roles</div>
-                        <?php foreach (['superadmin' => 'Superadmin', 'admin' => 'Admin', 'organiser' => 'Organiser'] as $role => $label): ?>
+                        <?php foreach (['superadmin' => 'Superadmin', 'admin' => 'Admin', 'manager' => 'Manager', 'organiser' => 'Organiser'] as $role => $label): ?>
                             <div class="form-check form-check-inline">
                                 <input class="form-check-input" type="checkbox" name="required_roles[]" value="<?php echo h($role); ?>" id="menu-role-<?php echo h($role); ?>" <?php echo in_array($role, $editRoles, true) ? 'checked' : ''; ?> <?php echo !empty($editItem['is_system']) ? 'disabled' : ''; ?>>
                                 <label class="form-check-label" for="menu-role-<?php echo h($role); ?>"><?php echo h($label); ?></label>

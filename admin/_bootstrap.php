@@ -20,7 +20,7 @@ if (!empty($_SESSION['act_as_original_user'])) {
     exit;
 }
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canAccessAdmin = in_array($currentRole, ['superadmin', 'admin', 'organiser'], true);
+$canAccessAdmin = in_array($currentRole, ['superadmin', 'admin', 'manager', 'organiser'], true);
 if (!$canAccessAdmin) {
     header('Location: ../index.php');
     exit;

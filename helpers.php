@@ -284,6 +284,7 @@ function roleToLevel(string $role): int
     return match ($role) {
         'superadmin' => 6,
         'admin' => 5,
+        'manager' => 4,
         'organiser' => 3,
         'user' => 1,
         default => 0,

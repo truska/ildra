@@ -6,7 +6,7 @@ require_once __DIR__ . '/table_sort.php';
 require_once __DIR__ . '/../bookings_store.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageFinance = in_array($currentRole, ['superadmin', 'admin'], true);
+$canManageFinance = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
 if (!$canManageFinance) {
     header('Location: index.php');
     exit;

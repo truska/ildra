@@ -21,7 +21,7 @@ if (!$isLoggedIn) {
     header('Location: ' . $membershipAccessUrl);
     exit;
 }
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 $basketCount = count($basket);
 $members = $isLoggedIn ? array_values(array_filter(
     fetchMembersForUser($pdo, (int)($currentUser['id'] ?? 0)),

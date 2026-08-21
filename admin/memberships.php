@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
-$canAdmin = in_array(($currentUser['role'] ?? ''), ['superadmin', 'admin'], true);
+$canAdmin = in_array(($currentUser['role'] ?? ''), ['superadmin', 'admin', 'manager'], true);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';

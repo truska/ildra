@@ -11,7 +11,7 @@ $siteSettings = getSiteSettings($pdo);
 $pages = fetchPages($pdo, true) ?: defaultPages();
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 $report = $event ? fetchRideReportByEvent($pdo, $eventId, !$canViewAdmin) : null;
 
 if (!$event || !$report || (strtolower((string)($event['status'] ?? '')) !== 'published' && !$canViewAdmin)) {

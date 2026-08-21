@@ -41,7 +41,7 @@ function devTaskAssignableUsers(?PDO $pdo): array
     if (!$pdo) return [];
     $stmt = $pdo->query("SELECT u.id,u.first_name,u.last_name,u.email
         FROM users u JOIN roles r ON r.id=u.role_id
-        WHERE LOWER(r.name) IN ('superadmin','admin','organiser')
+        WHERE LOWER(r.name) IN ('superadmin','admin','manager','organiser')
         ORDER BY COALESCE(NULLIF(u.first_name,''),u.email),u.last_name,u.email");
     return $stmt->fetchAll() ?: [];
 }
@@ -51,7 +51,7 @@ function devTaskAssigneeId(PDO $pdo, mixed $value, array &$alerts): ?int
     $id = max(0, (int)$value);
     if ($id === 0) return null;
     $stmt = $pdo->prepare("SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id
-        WHERE u.id=:id AND LOWER(r.name) IN ('superadmin','admin','organiser') LIMIT 1");
+        WHERE u.id=:id AND LOWER(r.name) IN ('superadmin','admin','manager','organiser') LIMIT 1");
     $stmt->execute([':id'=>$id]);
     if ($stmt->fetchColumn()) return $id;
     $alerts[] = ['type'=>'danger', 'message'=>'Please select a valid Next action by user.'];

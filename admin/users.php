@@ -6,7 +6,7 @@ require_once __DIR__ . '/table_sort.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageUsers = in_array($currentRole, ['superadmin', 'admin'], true);
+$canManageUsers = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
 if (!$canManageUsers) {
     header('Location: index.php');
     exit;
@@ -126,7 +126,7 @@ $filterForm='user-filter-form';
 $tableColumns=[
     'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name','form'=>$filterForm,'value'=>static fn(array $r):string=>trim((string)($r['first_name']??'').' '.(string)($r['last_name']??''))],
     'email'=>['label'=>'Email','sortable'=>true,'filter'=>'text','placeholder'=>'Search email','form'=>$filterForm,'data_type'=>'email'],
-    'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['superadmin'=>'SuperAdmin','admin'=>'Admin','organiser'=>'Organiser','user'=>'User']],
+    'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['superadmin'=>'SuperAdmin','admin'=>'Admin','manager'=>'Manager','organiser'=>'Organiser','user'=>'User']],
     'last_login'=>['label'=>'Last login','field'=>'last_login_at','sortable'=>true,'filter'=>'text','placeholder'=>'Search last login','form'=>$filterForm],
     'actions'=>['label'=>'Actions'],
 ];
@@ -177,6 +177,7 @@ admin_layout_start('Users', 'users');
                                 <select name="role" class="form-select form-select-sm" style="width: 180px;">
                                     <option value="superadmin" <?php echo ($userRow['role'] === 'superadmin') ? 'selected' : ''; ?>>SuperAdmin</option>
                                     <option value="admin" <?php echo ($userRow['role'] === 'admin') ? 'selected' : ''; ?>>Admin</option>
+                                    <option value="manager" <?php echo ($userRow['role'] === 'manager') ? 'selected' : ''; ?>>Manager</option>
                                     <option value="organiser" <?php echo ($userRow['role'] === 'organiser') ? 'selected' : ''; ?>>Organiser</option>
                                     <option value="user" <?php echo ($userRow['role'] === 'user') ? 'selected' : ''; ?>>User</option>
                                 </select>

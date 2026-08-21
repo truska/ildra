@@ -5,7 +5,7 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../finance.php';
 require_once __DIR__ . '/../bookings_store.php';
 
-$isAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$isAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 if (!$isAdmin) {
     header('Location: index.php');
     exit;

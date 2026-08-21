@@ -5,7 +5,7 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageHorses = in_array($currentRole, ['superadmin', 'admin'], true);
+$canManageHorses = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
 if (!$canManageHorses) {
     header('Location: index.php');
     exit;

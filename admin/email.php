@@ -6,7 +6,7 @@ require_once __DIR__ . '/table_sort.php';
 
 // Email admin is admin+ only (nav hides it, but enforce here too).
 $roleKey = strtolower((string)($currentUser['role'] ?? ''));
-if (!in_array($roleKey, ['superadmin', 'admin'], true)) {
+if (!in_array($roleKey, ['superadmin', 'admin', 'manager'], true)) {
     header('Location: ' . $adminBase . '/index.php');
     exit;
 }

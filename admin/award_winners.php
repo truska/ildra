@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
-if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin'], true)) { header('Location:index.php'); exit; }
+if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin','manager'], true)) { header('Location:index.php'); exit; }
 ensureAwardsTables($pdo);
 $awardId = (int)($_GET['award_id'] ?? 0); $award = null;
 foreach (fetchAwards($pdo) as $row) if ((int)$row['id'] === $awardId) $award = $row;

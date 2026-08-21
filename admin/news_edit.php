@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
-if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin','organiser'], true)) { header('Location:index.php'); exit; }
+if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin','manager','organiser'], true)) { header('Location:index.php'); exit; }
 ensureNewsTables($pdo);
 $eventsReturnUrl=(string)($_SESSION['admin_list_returns']['events']??'events.php?view=past');if(!preg_match('/^events\.php(?:\?[^#]*)?$/',$eventsReturnUrl))$eventsReturnUrl='events.php?view=past';
 $id=max(0,(int)($_GET['id']??$_POST['id']??0));$article=$id?fetchNewsArticle($pdo,$id):null;

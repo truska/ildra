@@ -5448,7 +5448,7 @@ function fetchEligibleEventOrganisers(?PDO $pdo): array
             SELECT u.id, u.email, u.first_name, u.last_name, r.name AS role, r.level AS level
             FROM users u
             JOIN roles r ON r.id = u.role_id
-            WHERE LOWER(r.name) IN ('organiser', 'admin', 'superadmin')
+            WHERE LOWER(r.name) IN ('organiser', 'manager', 'admin', 'superadmin')
             ORDER BY COALESCE(NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), u.email) ASC, u.id ASC
         ");
         return $stmt->fetchAll() ?: [];
@@ -5468,7 +5468,7 @@ function fetchEligibleEventOrganiserById(?PDO $pdo, int $userId): ?array
             FROM users u
             JOIN roles r ON r.id = u.role_id
             WHERE u.id = :id
-              AND LOWER(r.name) IN ('organiser', 'admin', 'superadmin')
+              AND LOWER(r.name) IN ('organiser', 'manager', 'admin', 'superadmin')
             LIMIT 1
         ");
         $stmt->execute([':id' => $userId]);

@@ -21,7 +21,7 @@ if (!$pages) {
 }
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 $basketCount = count($basket);
 $people = $isLoggedIn ? fetchMembersForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];
 $horses = $isLoggedIn ? fetchHorsesForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];

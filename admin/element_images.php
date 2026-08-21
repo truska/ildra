@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/_bootstrap.php';
-if(!in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin'],true)){header('Location:index.php');exit;}
+if(!in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin','manager'],true)){header('Location:index.php');exit;}
 $elementId=max(0,(int)($_GET['element_id']??$_POST['element_id']??0));$element=fetchPageContentElement($pdo,$elementId);$page=$element?fetchPageById($pdo,(int)$element['page_id']):null;
 if(!$element||!$page){$_SESSION['flash_alerts']=[['type'=>'danger','message'=>'Content section not found.']];header('Location:pages.php');exit;}
 $batch=mediaBatchGetOrCreate($pdo,'content_element_images','page_content_element',$elementId,'Images for '.$element['name'],'page-elements');

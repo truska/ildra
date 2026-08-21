@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
-if(!in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin'],true)){header('Location: index.php');exit;}
+if(!in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin','manager'],true)){header('Location: index.php');exit;}
 $id=(int)($_GET['id']??$_POST['article_id']??0);
 $article=$id?fetchHelpArticle($pdo,$id):null;
 if(($_SERVER['REQUEST_METHOD']??'')==='POST' && saveHelpArticle($pdo,$_POST,$alerts)){$_SESSION['flash_success']='Help article saved.';header('Location: help.php');exit;}

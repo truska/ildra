@@ -24,7 +24,7 @@ $counts = contentCounts($pages, $events, $faqs);
 $aboutIldra = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-ildra'));
 $aboutEndurance = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-endurance'));
 $eventsByDate = array_slice($events, 0, 5);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 $isLoggedIn = !empty($currentUser);
 
 function page_url(array $page): string

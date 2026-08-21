@@ -70,7 +70,7 @@ foreach (NAV_GROUPS as $groupKey => $_groupLabel) {
     }
 }
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 $pageFromList = null;
 if ($pathSlug !== '') {
     foreach ($pages as $candidate) {

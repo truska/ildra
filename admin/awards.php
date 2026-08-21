@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php'; require_once __DIR__ . '/table_sort.php';
-if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin'], true)) { header('Location:index.php'); exit; }
+if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin','manager'], true)) { header('Location:index.php'); exit; }
 ensureAwardsTables($pdo);
 $defaultAwardYear = (int)($_SESSION['awards_last_winner_year'] ?? ((int)date('Y') - 1));
 if (isset($_GET['winners_for'])) {

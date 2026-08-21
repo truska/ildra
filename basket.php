@@ -15,7 +15,7 @@ if (!$pages) {
 }
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'organiser'], true);
+$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
 $basketCount = count($basket);
 $configuredTimeout = isset($siteSettings['basket_timeout_seconds']) ? (int)$siteSettings['basket_timeout_seconds'] : (15 * 60);
 $basketExpirySeconds = max(300, $configuredTimeout);

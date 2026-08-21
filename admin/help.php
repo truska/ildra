@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
-$isAdmin=in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin'],true);
+$isAdmin=in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin','manager'],true);
 if(!$isAdmin){header('Location: index.php');exit;}
 ensureHelpTables($pdo);
 if(($_SERVER['REQUEST_METHOD']??'')==='POST'){
