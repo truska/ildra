@@ -273,16 +273,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                     if (!$logbookType) {
                         continue;
                     }
-                    $startsAt = $year . '-01-01';
-                    $endsAt = $year . '-12-31';
                     saveHorseLogbookPurchase($pdo, [
                         'purchased_by_user_id' => (int)$userId,
                         'horse_id' => $horseId,
                         'logbook_type_id' => $typeId,
+                        'valid_year' => $year,
                         'amount' => $basketItem['price'] ?? '0',
                         'status' => 'active',
-                        'starts_at' => $startsAt,
-                        'ends_at' => $endsAt,
                     ], $alerts);
                 }
             }

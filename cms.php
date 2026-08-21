@@ -4249,19 +4249,18 @@ function ensureHorseLogbookTables(?PDO $pdo): void
             purchased_by_user_id INT UNSIGNED DEFAULT NULL,
             horse_id INT UNSIGNED NOT NULL,
             logbook_type_id INT UNSIGNED NOT NULL,
+            valid_year SMALLINT UNSIGNED NOT NULL,
             amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             status VARCHAR(20) NOT NULL DEFAULT 'active',
-            starts_at DATE DEFAULT NULL,
-            ends_at DATE DEFAULT NULL,
             purchased_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX (purchased_by_user_id),
             INDEX (horse_id),
             INDEX (logbook_type_id),
+            INDEX (valid_year),
             INDEX (status),
-            INDEX (starts_at),
-            INDEX (ends_at)
+            UNIQUE KEY uniq_horse_logbook_year (horse_id, valid_year)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     // Seed a default logbook type if none exists.
@@ -4318,27 +4317,12 @@ function calc_logbook_status(array $row): string
 {
     $status = strtolower((string)($row['status'] ?? 'active'));
     $status = in_array($status, ['active', 'pending', 'expired'], true) ? $status : 'active';
-    $startsAt = $row['starts_at'] ?? null;
-    $endsAt = $row['ends_at'] ?? null;
-    if ($startsAt !== null || $endsAt !== null) {
-        try {
-            $today = new DateTimeImmutable('today');
-            if ($startsAt) {
-                $startDt = new DateTimeImmutable((string)$startsAt);
-                if ($today < $startDt) {
-                    return 'pending';
-                }
-            }
-            if ($endsAt) {
-                $endDt = new DateTimeImmutable((string)$endsAt);
-                if ($today > $endDt) {
-                    return 'expired';
-                }
-            }
-            return 'active';
-        } catch (Throwable $e) {
-            return $status;
-        }
+    $validYear = (int)($row['valid_year'] ?? 0);
+    if ($validYear > 0) {
+        $currentYear = (int)date('Y');
+        if ($validYear < $currentYear) return 'expired';
+        if ($validYear > $currentYear) return 'pending';
+        return 'active';
     }
     return $status;
 }
@@ -4352,13 +4336,12 @@ function saveHorseLogbookPurchase(?PDO $pdo, array $data, array &$alerts): bool
     $purchasedByUserId = isset($data['purchased_by_user_id']) ? (int)$data['purchased_by_user_id'] : null;
     $horseId = isset($data['horse_id']) ? (int)$data['horse_id'] : 0;
     $typeId = isset($data['logbook_type_id']) ? (int)$data['logbook_type_id'] : 0;
+    $validYear = (int)($data['valid_year'] ?? 0);
     $amount = trim((string)($data['amount'] ?? '0'));
     $status = $data['status'] ?? 'active';
-    $startsAt = trim((string)($data['starts_at'] ?? ''));
-    $endsAt = trim((string)($data['ends_at'] ?? ''));
 
-    if ($horseId <= 0 || $typeId <= 0) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Horse and logbook type are required.'];
+    if ($horseId <= 0 || $typeId <= 0 || $validYear < 2000 || $validYear > 2100) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Horse, logbook type and year are required.'];
         return false;
     }
     if (!in_array($status, ['active', 'expired', 'pending'], true)) {
@@ -4367,18 +4350,23 @@ function saveHorseLogbookPurchase(?PDO $pdo, array $data, array &$alerts): bool
 
     try {
         ensureHorseLogbookTables($pdo);
+        $duplicate = $pdo->prepare("SELECT 1 FROM horse_logbook_purchases WHERE horse_id = :horse_id AND valid_year = :valid_year LIMIT 1");
+        $duplicate->execute([':horse_id' => $horseId, ':valid_year' => $validYear]);
+        if ($duplicate->fetchColumn()) {
+            $alerts[] = ['type' => 'warning', 'message' => 'That horse already has a logbook for this year.'];
+            return false;
+        }
         $stmt = $pdo->prepare("
-            INSERT INTO horse_logbook_purchases (purchased_by_user_id, horse_id, logbook_type_id, amount, status, starts_at, ends_at, purchased_at, created_at, updated_at)
-            VALUES (:puid, :hid, :tid, :amount, :status, :starts_at, :ends_at, NOW(), NOW(), NOW())
+            INSERT INTO horse_logbook_purchases (purchased_by_user_id, horse_id, logbook_type_id, valid_year, amount, status, purchased_at, created_at, updated_at)
+            VALUES (:puid, :hid, :tid, :valid_year, :amount, :status, NOW(), NOW(), NOW())
         ");
         $stmt->execute([
             ':puid' => $purchasedByUserId ?: null,
             ':hid' => $horseId,
             ':tid' => $typeId,
+            ':valid_year' => $validYear,
             ':amount' => $amount,
             ':status' => $status,
-            ':starts_at' => $startsAt ?: null,
-            ':ends_at' => $endsAt ?: null,
         ]);
         return true;
     } catch (PDOException $e) {
@@ -4395,7 +4383,7 @@ function fetchHorseLogbooksForUser(?PDO $pdo, int $ownerUserId): array
     ensureHorseLogbookTables($pdo);
     $stmt = $pdo->prepare("
         SELECT hlp.*, h.name AS horse_name, h.owner_user_id, h.is_archived,
-               hlt.name AS logbook_name, hlt.valid_year
+               hlt.name AS logbook_name
         FROM horse_logbook_purchases hlp
         JOIN horses h ON h.id = hlp.horse_id
         LEFT JOIN horse_logbook_types hlt ON hlt.id = hlp.logbook_type_id
@@ -4420,12 +4408,7 @@ function horse_has_logbook_for_year(?PDO $pdo, int $horseId, int $year): bool
         SELECT 1
         FROM horse_logbook_purchases
         WHERE horse_id = :hid
-          AND status <> 'expired'
-          AND (
-                (starts_at IS NOT NULL AND YEAR(starts_at) = :yr)
-             OR (starts_at IS NULL AND ends_at IS NOT NULL AND YEAR(ends_at) = :yr)
-             OR (starts_at IS NULL AND ends_at IS NULL AND purchased_at IS NOT NULL AND YEAR(purchased_at) = :yr)
-          )
+          AND valid_year = :yr
         LIMIT 1
     ");
     $stmt->execute([':hid' => $horseId, ':yr' => $year]);

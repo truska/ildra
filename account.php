@@ -754,6 +754,45 @@ $accountIntroAutoOpen = false;
                 line-height: 1.15;
                 white-space: normal;
             }
+            .horse-breed-column,
+            .horse-colour-column,
+            .horse-sex-column,
+            .horse-actions-column { display: none; }
+            .account-horses-table th,
+            .account-horses-table td {
+                padding-left: 0.25rem;
+                padding-right: 0.25rem;
+            }
+            .horse-data-row > td { border-bottom: 0; }
+            .horse-mobile-actions-cell {
+                padding: 0.25rem 0.3rem 0.75rem !important;
+                border-bottom-color: #c5c9c5 !important;
+            }
+            .horse-mobile-actions {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 0.35rem;
+            }
+            .horse-mobile-actions > *,
+            .horse-mobile-actions .btn {
+                width: 100%;
+                min-width: 0;
+            }
+            .horse-mobile-actions > form {
+                display: flex;
+                height: 100%;
+            }
+            .horse-mobile-actions .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 2.5rem;
+                height: 100%;
+                padding: 0.4rem 0.2rem;
+                font-size: 0.75rem;
+                line-height: 1.15;
+                white-space: normal;
+            }
             .js-account-detail-row { cursor: pointer; }
             .membership-status-cell,
             .membership-status-heading { width: 1%; padding-left: 0.3rem !important; padding-right: 0.3rem !important; text-align: center; }
@@ -1474,9 +1513,6 @@ $accountIntroAutoOpen = false;
                                 foreach ($logbooks as $horseLogbook) {
                                     $registeredHorseId = (int)($horseLogbook['horse_id'] ?? 0);
                                     $registeredYear = (int)($horseLogbook['valid_year'] ?? 0);
-                                    if ($registeredYear <= 0 && !empty($horseLogbook['starts_at'])) {
-                                        $registeredYear = (int)date('Y', strtotime((string)$horseLogbook['starts_at']));
-                                    }
                                     if ($registeredHorseId > 0 && $registeredYear > ($horseRegisteredYear[$registeredHorseId] ?? 0)) {
                                         $horseRegisteredYear[$registeredHorseId] = $registeredYear;
                                     }
@@ -1495,17 +1531,17 @@ $accountIntroAutoOpen = false;
                                             </div>
 	                                    </div>
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle">
+                                        <table class="table table-sm align-middle account-horses-table">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Name</th>
                                                     <th>Year</th>
-                                                    <th>Breed</th>
-                                                    <th>Colour</th>
+                                                    <th class="horse-breed-column">Breed</th>
+                                                    <th class="horse-colour-column">Colour</th>
                                                     <th>Qualification</th>
-                                                    <th>Sex</th>
+                                                    <th class="horse-sex-column">Sex</th>
                                                     <th>Logbook</th>
-                                                    <th class="text-end">Actions</th>
+                                                    <th class="text-end horse-actions-column">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1518,23 +1554,23 @@ $accountIntroAutoOpen = false;
                                                     $logbookStatus = annual_renewal_state($horseRegistrationYear, 'Logbook', 'Register / Renew', 'Register / Renew');
                                                     $horseLogbookActionEnabled = !empty($logbookStatus['action_enabled']);
                                                     ?>
-                                                    <tr>
+                                                    <tr class="horse-data-row">
                                                         <td class="fw-semibold">
                                                             <?php echo h($h['name'] ?? ''); ?>
                                                             <?php if (!empty($h['is_linked'])): ?><span class="linked-badge ms-1">link</span><?php endif; ?>
                                                         </td>
                                                         <td class="text-muted small"><?php echo h($h['year_of_birth'] ?? '—'); ?></td>
-                                                        <td class="text-muted small"><?php echo h($h['breed'] ?? '—'); ?></td>
-                                                        <td class="text-muted small"><?php echo h($h['colour'] ?? '—'); ?></td>
+                                                        <td class="text-muted small horse-breed-column"><?php echo h($h['breed'] ?? '—'); ?></td>
+                                                        <td class="text-muted small horse-colour-column"><?php echo h($h['colour'] ?? '—'); ?></td>
                                                         <td class="text-muted small"><?php echo h($horseQualificationLookup[(int)($h['qualification_id'] ?? 0)] ?? '—'); ?></td>
-                                                        <td class="text-muted small"><?php echo h($h['sex'] ?? '—'); ?></td>
+                                                        <td class="text-muted small horse-sex-column"><?php echo h($h['sex'] ?? '—'); ?></td>
                                                         <td class="small">
                                                             <span class="<?php echo h($logbookStatus['class']); ?> d-inline-flex align-items-center gap-1" title="<?php echo h($logbookStatus['title']); ?>">
                                                                 <i class="<?php echo h($logbookStatus['icon']); ?>" aria-hidden="true"></i>
                                                                 <span class="visually-hidden"><?php echo h($logbookStatus['label']); ?></span>
                                                             </span>
                                                         </td>
-                                                        <td class="text-end">
+                                                        <td class="text-end horse-actions-column">
                                                             <?php if (!empty($h['is_linked'])): ?>
                                                                 <form method="post" class="d-inline">
                                                                     <input type="hidden" name="action" value="unlink_shared_record">
@@ -1561,6 +1597,36 @@ $accountIntroAutoOpen = false;
                                                             <?php endif; ?>
                                                         </td>
                                                     </tr>
+                                                    <tr class="d-md-none">
+                                                        <td colspan="8" class="horse-mobile-actions-cell">
+                                                            <div class="horse-mobile-actions">
+                                                                <?php if (!empty($h['is_linked'])): ?>
+                                                                    <form method="post">
+                                                                        <input type="hidden" name="action" value="unlink_shared_record">
+                                                                        <input type="hidden" name="entity_type" value="horse">
+                                                                        <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
+                                                                        <input type="hidden" name="entity_id" value="<?php echo (int)$h['id']; ?>">
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked horse from your account?');">Remove link</button>
+                                                                    </form>
+                                                                <?php else: ?>
+                                                                    <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=horses&amp;horse_id=<?php echo (int)$h['id']; ?>">Edit</a>
+                                                                    <?php if ($logbookType): ?>
+                                                                        <form method="post">
+                                                                            <input type="hidden" name="action" value="add_logbook">
+                                                                            <input type="hidden" name="logbook_type_id" value="<?php echo (int)($logbookType['id'] ?? 0); ?>">
+                                                                            <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
+                                                                            <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo h($logbookStatus['action_title']); ?>">Register / Renew</button>
+                                                                        </form>
+                                                                    <?php endif; ?>
+                                                                    <form method="post">
+                                                                        <input type="hidden" name="action" value="archive_horse">
+                                                                        <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Archive this horse?');">Archive</button>
+                                                                    </form>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
                                         </table>
@@ -1570,15 +1636,15 @@ $accountIntroAutoOpen = false;
                                         <div class="divider"></div>
                                         <div class="fw-bold mb-2">Archived</div>
                                         <div class="table-responsive">
-                                            <table class="table table-sm align-middle">
+                                            <table class="table table-sm align-middle account-horses-table">
                                                 <thead class="table-light">
                                                     <tr>
                                                         <th>Name</th>
                                                         <th>Year</th>
-                                                        <th>Breed</th>
-                                                        <th>Colour</th>
+                                                        <th class="horse-breed-column">Breed</th>
+                                                        <th class="horse-colour-column">Colour</th>
                                                         <th>Qualification</th>
-                                                        <th>Sex</th>
+                                                        <th class="horse-sex-column">Sex</th>
                                                         <th>Logbook</th>
                                                     </tr>
                                                 </thead>
@@ -1588,10 +1654,10 @@ $accountIntroAutoOpen = false;
                                                         <tr class="text-muted">
                                                             <td><?php echo h($h['name'] ?? ''); ?></td>
                                                             <td class="small"><?php echo h($h['year_of_birth'] ?? '—'); ?></td>
-                                                            <td class="small"><?php echo h($h['breed'] ?? '—'); ?></td>
-                                                            <td class="small"><?php echo h($h['colour'] ?? '—'); ?></td>
+                                                            <td class="small horse-breed-column"><?php echo h($h['breed'] ?? '—'); ?></td>
+                                                            <td class="small horse-colour-column"><?php echo h($h['colour'] ?? '—'); ?></td>
                                                             <td class="small"><?php echo h($horseQualificationLookup[(int)($h['qualification_id'] ?? 0)] ?? '—'); ?></td>
-                                                            <td class="small"><?php echo h($h['sex'] ?? '—'); ?></td>
+                                                            <td class="small horse-sex-column"><?php echo h($h['sex'] ?? '—'); ?></td>
                                                             <td class="small"><span class="<?php echo h($archivedLogbookStatus['class']); ?> d-inline-flex align-items-center" title="<?php echo h($archivedLogbookStatus['title']); ?>"><i class="<?php echo h($archivedLogbookStatus['icon']); ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo h($archivedLogbookStatus['label']); ?></span></span></td>
                                                         </tr>
                                                     <?php endforeach; ?>
@@ -1708,7 +1774,6 @@ $accountIntroAutoOpen = false;
                                                                 <th>Logbook</th>
                                                                 <th>Status</th>
                                                                 <th>Year</th>
-                                                                <th>Period</th>
                                                                 <th>Purchased</th>
                                                                 <th class="text-end">Amount</th>
                                                             </tr>
@@ -1720,10 +1785,6 @@ $accountIntroAutoOpen = false;
                                                                     <td class="small"><?php echo h($lb['logbook_name'] ?? 'Logbook'); ?></td>
                                                                     <td class="small text-capitalize"><?php echo h($lb['status'] ?? 'active'); ?></td>
                                                                     <td class="small"><?php echo h($lb['valid_year'] ?? '—'); ?></td>
-                                                                    <td class="text-muted small">
-                                                                        <div><?php echo h(format_display_date($lb['starts_at'] ?? null, '—')); ?></div>
-                                                                        <div><?php echo h(format_display_date($lb['ends_at'] ?? null, '—')); ?></div>
-                                                                    </td>
                                                                     <td class="text-muted small"><?php echo h(format_display_date($lb['purchased_at'] ?? null, '—')); ?></td>
                                                                     <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($lb['amount'] ?? 0), 2); ?></td>
                                                                 </tr>
@@ -1747,7 +1808,6 @@ $accountIntroAutoOpen = false;
                                                                 <th>Logbook</th>
                                                                 <th>Status</th>
                                                                 <th>Year</th>
-                                                                <th>Period</th>
                                                                 <th>Purchased</th>
                                                                 <th class="text-end">Amount</th>
                                                             </tr>
@@ -1759,10 +1819,6 @@ $accountIntroAutoOpen = false;
                                                                     <td class="small"><?php echo h($lb['logbook_name'] ?? 'Logbook'); ?></td>
                                                                     <td class="small text-capitalize"><?php echo h($lb['status'] ?? 'expired'); ?></td>
                                                                     <td class="small"><?php echo h($lb['valid_year'] ?? '—'); ?></td>
-                                                                    <td class="text-muted small">
-                                                                        <div><?php echo h(format_display_date($lb['starts_at'] ?? null, '—')); ?></div>
-                                                                        <div><?php echo h(format_display_date($lb['ends_at'] ?? null, '—')); ?></div>
-                                                                    </td>
                                                                     <td class="text-muted small"><?php echo h(format_display_date($lb['purchased_at'] ?? null, '—')); ?></td>
                                                                     <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($lb['amount'] ?? 0), 2); ?></td>
                                                                 </tr>

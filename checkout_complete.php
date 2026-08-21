@@ -111,8 +111,6 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                                 continue;
                             }
                             $logbookType = fetchHorseLogbookTypeById($pdo, $typeId);
-                            $startsAt = $year > 0 ? ($year . '-01-01') : null;
-                            $endsAt = $year > 0 ? ($year . '-12-31') : null;
                             if (!$logbookType) {
                                 continue;
                             }
@@ -120,10 +118,9 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                                 'purchased_by_user_id' => (int)($currentUser['id'] ?? 0),
                                 'horse_id' => $horseId,
                                 'logbook_type_id' => $typeId,
+                                'valid_year' => $year,
                                 'amount' => $basketItem['price'] ?? '0',
                                 'status' => 'active',
-                                'starts_at' => $startsAt,
-                                'ends_at' => $endsAt,
                             ], $alerts);
                         }
                     }
