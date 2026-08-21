@@ -537,7 +537,8 @@ if (!$renderPage) {
         .page-content-elements { margin-top:2rem; }
         .page-content-element { position:relative; margin-bottom:1.5rem; }
         .page-content-element .element-text { padding:1.5rem; }
-        .page-editor-tools { position:fixed; z-index:1050; top:10rem; right:.65rem; display:flex; flex-direction:column; gap:.4rem; }
+        .page-main-content { position:relative; }
+        .page-editor-main-tools { position:absolute; z-index:2; top:.65rem; right:.65rem; display:flex; gap:.4rem; }
         .page-editor-tool,
         .page-editor-section-tool { display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; border:1px solid rgba(20,97,24,.35); border-radius:999px; background:rgba(255,255,255,.94); color:var(--green); box-shadow:0 3px 10px rgba(0,0,0,.16); text-decoration:none; }
         .page-editor-tool:hover,
@@ -552,13 +553,6 @@ if (!$renderPage) {
 </head>
 <body>
     <?php $headerPage = $renderPage; include __DIR__ . '/views/header.php'; ?>
-
-    <?php if ($canEditPublicPages && $renderPage && !$isMenuOverview): ?>
-        <div class="page-editor-tools" aria-label="Page editing shortcuts">
-            <a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/page_edit.php?id=<?php echo (int)$renderPage['id']; ?>" target="_blank" rel="noopener" title="Edit page" aria-label="Edit page"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a>
-            <a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/page_elements.php?page_id=<?php echo (int)$renderPage['id']; ?>" target="_blank" rel="noopener" title="Manage page content" aria-label="Manage page content"><i class="fa-solid fa-list" aria-hidden="true"></i></a>
-        </div>
-    <?php endif; ?>
 
     <header class="py-3" style="background: #f5f7ef; border-bottom: 1px solid rgba(0,0,0,0.05);">
         <div class="container">
@@ -592,7 +586,13 @@ if (!$renderPage) {
                 </div>
                 <?php endif; ?>
                 <div class="<?php echo $isMenuOverview ? 'col-12' : ($pageImages ? 'col-lg-6' : 'col-lg-10'); ?>">
-                    <div class="card-soft p-4">
+                    <div class="card-soft p-4 page-main-content">
+                        <?php if ($canEditPublicPages && $renderPage && !$isMenuOverview): ?>
+                            <div class="page-editor-main-tools" aria-label="Page editing shortcuts">
+                                <a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/page_edit.php?id=<?php echo (int)$renderPage['id']; ?>" target="_blank" rel="noopener" title="Edit page" aria-label="Edit page"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a>
+                                <a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/page_elements.php?page_id=<?php echo (int)$renderPage['id']; ?>" target="_blank" rel="noopener" title="Manage page content" aria-label="Manage page content"><i class="fa-solid fa-list" aria-hidden="true"></i></a>
+                            </div>
+                        <?php endif; ?>
                         <?php if ($renderPage): ?>
                             <?php if (!$isMenuOverview): ?><div class="lead mb-3"><?php echo h($renderPage['excerpt'] ?? ''); ?></div><div class="page-body"><?php echo (string)($renderPage['body_html'] ?? ''); ?></div><?php endif; ?>
                             <?php echo $dynamicSections['after_body']; ?>
