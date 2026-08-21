@@ -496,6 +496,9 @@ $accountIntroAutoOpen = false;
             background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.08), transparent);
             margin: 1.25rem 0;
         }
+        .share-accept-divider {
+            background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.24), transparent);
+        }
         .stat-pill {
             display: flex;
             align-items: center;
@@ -889,7 +892,12 @@ $accountIntroAutoOpen = false;
 	                                <div class="d-flex flex-wrap gap-2 align-items-center account-summary-actions">
 	                                    <a class="btn <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
 	                                    <a class="btn <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
-	                                    <a class="btn <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">Shares</a>
+	                                    <a class="btn <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">
+                                            Shares
+                                            <?php if ($incomingShareRequests): ?>
+                                                <span class="badge rounded-pill text-bg-danger ms-1"><?php echo count($incomingShareRequests); ?><span class="visually-hidden"> pending share requests</span></span>
+                                            <?php endif; ?>
+                                        </a>
 	                                    <?php if ($canViewAdmin): ?>
 	                                        <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a>
 	                                    <?php endif; ?>
@@ -919,19 +927,21 @@ $accountIntroAutoOpen = false;
 		                        </div>
 
                                 <?php if ($incomingShareRequests): ?>
-                                <div class="card-soft p-4 mt-4" id="share-requests">
+                                <div class="card-soft p-4 mt-4 border border-danger-subtle bg-danger-subtle" id="share-requests">
                                     <div>
-                                        <div class="fw-bold">Shared with you</div>
-                                        <div class="text-muted small">Accept or decline pending share requests.</div>
+                                        <div class="fw-bold text-danger-emphasis">Shared with you</div>
+                                        <div class="text-muted small">Accept or decline pending share requests.<br>
+                                            Once accepted, you can use the shared person or horse when making ride entries.
+                                        </div>
                                     </div>
                                         <div class="divider"></div>
                                         <div class="table-responsive">
                                             <table class="table table-sm align-middle mb-0">
                                                 <thead class="table-light">
                                                     <tr>
-                                                        <th>Record</th>
+                                                        <th><span class="d-md-none">Person</span><span class="d-none d-md-inline">Record</span></th>
                                                         <th>Shared by</th>
-                                                        <th>Expires</th>
+                                                        <th class="d-none d-md-table-cell">Expires</th>
                                                         <th class="text-end">Actions</th>
                                                     </tr>
                                                 </thead>
@@ -944,9 +954,9 @@ $accountIntroAutoOpen = false;
                                                         }
                                                         ?>
                                                         <tr>
-                                                            <td class="fw-semibold"><?php echo h(ucfirst((string)$request['entity_type'])); ?>: <?php echo h((string)$request['entity_label']); ?></td>
+                                                            <td class="fw-semibold"><span class="d-none d-md-inline"><?php echo h(ucfirst((string)$request['entity_type'])); ?>: </span><?php echo h((string)$request['entity_label']); ?></td>
                                                             <td class="text-muted small"><?php echo h($creator); ?></td>
-                                                            <td class="text-muted small"><?php echo h(format_display_date($request['expires_at'] ?? null, '—')); ?></td>
+                                                            <td class="text-muted small d-none d-md-table-cell"><?php echo h(format_display_date($request['expires_at'] ?? null, '—')); ?></td>
                                                             <td class="text-end">
                                                                 <form method="post" class="d-inline">
                                                                     <input type="hidden" name="action" value="accept_share_request">
@@ -1314,85 +1324,63 @@ $accountIntroAutoOpen = false;
                                 $outgoingShares = fetchOutgoingSharesForUser($pdo, $userId);
                                 ?>
                                 <div class="card-soft p-4 mt-4" id="shares">
-                                    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3">
-                                        <div>
+                                    <div class="row g-4 align-items-start">
+                                        <div class="col-12 col-lg-6 order-2 order-lg-1">
                                             <div class="text-uppercase small text-muted">Shares</div>
-                                            <h4 class="fw-bold mb-1">Share for entries</h4>
-                                            <div class="text-muted small">Share a rider or horse as select-only for event entries.</div>
+                                            <h4 class="fw-bold mb-1">Share with another user.</h4>
+                                            <div class="text-muted small">Share a rider or horse to allow a friend to make entries on your behalf.<br>They cannot change your information or use any payment methods you have used.</div>
                                         </div>
-                                        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-start">
-                                        <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
-                                        <form method="post" class="d-flex flex-column flex-sm-row gap-2">
-                                            <input type="hidden" name="action" value="accept_share_code">
-                                            <input class="form-control" name="share_code" placeholder="Share code" style="min-width: 180px;">
-                                            <button class="btn btn-outline-success fw-bold" type="submit">Accept code</button>
-                                        </form>
+                                        <div class="col-12 col-lg-6 order-1 order-lg-2">
+                                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                                <div>
+                                                    <div class="text-uppercase small text-muted">Shared with you</div>
+                                                    <h4 class="fw-bold mb-1">Accept a share code.</h4>
+                                                </div>
+                                                <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
+                                            </div>
+                                            <div class="text-muted small mb-3">Enter a code someone has sent you to add their shared person or horse to your account.</div>
+                                            <form method="post" class="d-flex flex-column flex-sm-row gap-2">
+                                                <input type="hidden" name="action" value="accept_share_code">
+                                                <input class="form-control" name="share_code" placeholder="Share code" style="min-width: 180px;" required>
+                                                <button class="btn btn-outline-success fw-bold text-nowrap" type="submit">Accept code</button>
+                                            </form>
+                                            <div class="divider share-accept-divider mb-0"></div>
                                         </div>
-                                    </div>
-                                    <div class="divider"></div>
-                                    <div class="row g-4">
-                                        <div class="col-12 col-lg-6">
+                                        <div class="col-12 order-3">
                                             <div class="fw-bold mb-2">Create a share</div>
                                             <form method="post" class="row g-3">
-                                                <input type="hidden" name="action" value="create_share">
-                                                <div class="col-12">
-                                                    <label class="form-label fw-bold">Record</label>
-                                                    <select class="form-select" name="entity_ref" required>
-                                                        <option value="">Choose...</option>
-                                                        <?php if ($sharePeople): ?>
-                                                            <optgroup label="People">
-                                                                <?php foreach ($sharePeople as $person): ?>
-                                                                    <?php $label = trim((string)($person['first_name'] ?? '') . ' ' . (string)($person['last_name'] ?? '')) ?: ('Person #' . (int)$person['id']); ?>
-                                                                    <option value="person:<?php echo (int)$person['id']; ?>"><?php echo h($label); ?></option>
-                                                                <?php endforeach; ?>
-                                                            </optgroup>
-                                                        <?php endif; ?>
-                                                        <?php if ($shareHorses): ?>
-                                                            <optgroup label="Horses">
-                                                                <?php foreach ($shareHorses as $horse): ?>
-                                                                    <option value="horse:<?php echo (int)$horse['id']; ?>"><?php echo h((string)($horse['name'] ?? ('Horse #' . (int)$horse['id']))); ?></option>
-                                                                <?php endforeach; ?>
-                                                            </optgroup>
-                                                        <?php endif; ?>
-                                                    </select>
-                                                </div>
-                                                <div class="col-12">
-                                                    <label class="form-label fw-bold">Recipient email or member number</label>
-                                                    <input class="form-control" name="recipient" placeholder="name@example.com or member number" required>
-                                                </div>
-                                                <div class="col-12">
-                                                    <button class="btn btn-success fw-bold" type="submit">Send dashboard share</button>
-                                                </div>
-                                            </form>
+                                        <div class="col-12 col-lg-6">
+                                            <label class="form-label fw-bold">Person or horse</label>
+                                            <select class="form-select" name="entity_ref" required>
+                                                <option value="">Choose...</option>
+                                                <?php if ($sharePeople): ?>
+                                                    <optgroup label="People">
+                                                        <?php foreach ($sharePeople as $person): ?>
+                                                            <?php $label = trim((string)($person['first_name'] ?? '') . ' ' . (string)($person['last_name'] ?? '')) ?: ('Person #' . (int)$person['id']); ?>
+                                                            <option value="person:<?php echo (int)$person['id']; ?>"><?php echo h($label); ?></option>
+                                                        <?php endforeach; ?>
+                                                    </optgroup>
+                                                <?php endif; ?>
+                                                <?php if ($shareHorses): ?>
+                                                    <optgroup label="Horses">
+                                                        <?php foreach ($shareHorses as $horse): ?>
+                                                            <option value="horse:<?php echo (int)$horse['id']; ?>"><?php echo h((string)($horse['name'] ?? ('Horse #' . (int)$horse['id']))); ?></option>
+                                                        <?php endforeach; ?>
+                                                    </optgroup>
+                                                <?php endif; ?>
+                                            </select>
                                         </div>
                                         <div class="col-12 col-lg-6">
-                                            <div class="fw-bold mb-2">Create external code</div>
-                                            <form method="post" class="row g-3">
-                                                <input type="hidden" name="action" value="create_external_share_code">
-                                                <div class="col-12">
-                                                    <label class="form-label fw-bold">Record</label>
-                                                    <select class="form-select" name="entity_ref" required>
-                                                        <option value="">Choose...</option>
-                                                        <?php if ($sharePeople): ?>
-                                                            <optgroup label="People">
-                                                                <?php foreach ($sharePeople as $person): ?>
-                                                                    <?php $label = trim((string)($person['first_name'] ?? '') . ' ' . (string)($person['last_name'] ?? '')) ?: ('Person #' . (int)$person['id']); ?>
-                                                                    <option value="person:<?php echo (int)$person['id']; ?>"><?php echo h($label); ?></option>
-                                                                <?php endforeach; ?>
-                                                            </optgroup>
-                                                        <?php endif; ?>
-                                                        <?php if ($shareHorses): ?>
-                                                            <optgroup label="Horses">
-                                                                <?php foreach ($shareHorses as $horse): ?>
-                                                                    <option value="horse:<?php echo (int)$horse['id']; ?>"><?php echo h((string)($horse['name'] ?? ('Horse #' . (int)$horse['id']))); ?></option>
-                                                                <?php endforeach; ?>
-                                                            </optgroup>
-                                                        <?php endif; ?>
-                                                    </select>
-                                                </div>
-                                                <div class="col-12">
-                                                    <button class="btn btn-outline-success fw-bold" type="submit">Create code</button>
-                                                </div>
+                                            <label class="form-label fw-bold">Recipient <span class="fw-normal text-muted">(for an invite)</span></label>
+                                            <input class="form-control" name="recipient" placeholder="Email address or member number">
+                                        </div>
+                                        <div class="col-12 d-flex flex-column flex-sm-row gap-2">
+                                            <button class="btn btn-success fw-bold" type="submit" name="action" value="create_share">Send invite</button>
+                                            <button class="btn btn-outline-success fw-bold" type="submit" name="action" value="create_external_share_code">Create code</button>
+                                        </div>
+                                        <div class="col-12 text-muted small">
+                                            Send invite uses the recipient's dashboard when their account is recognised; otherwise it emails them a code. Create code lets you pass the code on yourself.
+                                        </div>
                                             </form>
                                         </div>
                                     </div>
