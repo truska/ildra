@@ -684,6 +684,14 @@ $accountIntroAutoOpen = false;
             font-family: "Manrope", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-weight: 400;
         }
+        .account-people-table .btn:disabled,
+        .account-people-table .btn.disabled {
+            background: #e5e7e9;
+            border-color: #e5e7e9;
+            color: #555b61;
+            opacity: 1;
+            box-shadow: none;
+        }
         .membership-status {
             display: inline-flex;
             align-items: center;
@@ -704,6 +712,48 @@ $accountIntroAutoOpen = false;
             .booking-reference-column,
             .booking-actions-column { display: none; }
             .booking-item-column { min-width: 8rem; white-space: normal !important; }
+            .account-people-table .person-type-icon,
+            .people-postcode-column,
+            .people-email-column,
+            .people-phone-column,
+            .people-actions-column { display: none; }
+            .account-people-table th,
+            .account-people-table td {
+                padding-left: 0.25rem;
+                padding-right: 0.25rem;
+            }
+            .people-membership-heading-full { display: none; }
+            .people-membership-heading-mobile { display: inline !important; }
+            .people-data-row > td { border-bottom: 0; }
+            .people-mobile-actions-cell {
+                padding: 0.25rem 0.3rem 0.75rem !important;
+                border-bottom-color: #c5c9c5 !important;
+            }
+            .people-mobile-actions {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 0.35rem;
+            }
+            .people-mobile-actions > *,
+            .people-mobile-actions .btn {
+                width: 100%;
+                min-width: 0;
+            }
+            .people-mobile-actions > form {
+                display: flex;
+                height: 100%;
+            }
+            .people-mobile-actions .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 2.5rem;
+                height: 100%;
+                padding: 0.4rem 0.2rem;
+                font-size: 0.75rem;
+                line-height: 1.15;
+                white-space: normal;
+            }
             .js-account-detail-row { cursor: pointer; }
             .membership-status-cell,
             .membership-status-heading { width: 1%; padding-left: 0.3rem !important; padding-right: 0.3rem !important; text-align: center; }
@@ -720,6 +770,7 @@ $accountIntroAutoOpen = false;
                 border: 0 !important;
             }
         }
+        .people-membership-heading-mobile { display: none; }
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -1016,16 +1067,16 @@ $accountIntroAutoOpen = false;
                                             </div>
 	                                    </div>
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle">
+                                        <table class="table table-sm align-middle account-people-table">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Name</th>
                                                     <th>Member #</th>
-                                                    <th>Membership</th>
-                                                    <th>Email</th>
-                                                    <th>Phone</th>
-                                                    <th>Postcode</th>
-                                                    <th class="text-end">Actions</th>
+                                                    <th><span class="people-membership-heading-full">Membership</span><span class="people-membership-heading-mobile">Mem</span></th>
+                                                    <th class="people-email-column">Email</th>
+                                                    <th class="people-phone-column">Phone</th>
+                                                    <th class="people-postcode-column">Postcode</th>
+                                                    <th class="text-end people-actions-column">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1037,7 +1088,7 @@ $accountIntroAutoOpen = false;
                                                         $personType = personRecordType($p, $currentUser ?? []);
                                                         $membershipState = annual_renewal_state((int)($personMembershipYears[(int)$p['id']] ?? 0), 'Membership', 'Buy Membership', 'Renew', null, 'Current Member');
                                                         ?>
-	                                                    <tr>
+	                                                    <tr class="people-data-row">
 	                                                        <td class="fw-semibold">
                                                                 <span class="person-type-icon me-1" title="<?php echo h(ucfirst($personType)); ?>" aria-label="<?php echo h(ucfirst($personType)); ?>">
                                                                     <i class="<?php echo h(personRecordTypeIcon($personType)); ?>" aria-hidden="true"></i>
@@ -1046,10 +1097,10 @@ $accountIntroAutoOpen = false;
                                                             </td>
 	                                                        <td class="text-muted small"><?php echo $p['member_number'] ? (int)$p['member_number'] : '—'; ?></td>
 	                                                        <td class="small"><span class="<?php echo h($membershipState['class']); ?> d-inline-flex align-items-center" title="<?php echo h($membershipState['title']); ?>"><i class="<?php echo h($membershipState['icon']); ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo h($membershipState['label']); ?></span></span></td>
-	                                                        <td class="text-muted small"><?php $personEmail=trim((string)($p['email']??'')); echo $personEmail!==''?'<a href="mailto:'.h($personEmail).'">'.h($personEmail).'</a>':'—'; ?></td>
-	                                                        <td class="text-muted small"><?php $personPhone=trim((string)($p['phone']??''));$personTel=preg_replace('/[^0-9+]/','',$personPhone)?:'';echo $personPhone!==''&&$personTel!==''?'<a href="tel:'.h($personTel).'">'.h($personPhone).'</a>':'—'; ?></td>
-	                                                        <td class="text-muted small text-uppercase"><?php echo h($p['postcode'] ?? '—'); ?></td>
-	                                                        <td class="text-end">
+	                                                        <td class="text-muted small people-email-column"><?php $personEmail=trim((string)($p['email']??'')); echo $personEmail!==''?'<a href="mailto:'.h($personEmail).'">'.h($personEmail).'</a>':'—'; ?></td>
+	                                                        <td class="text-muted small people-phone-column"><?php $personPhone=trim((string)($p['phone']??''));$personTel=preg_replace('/[^0-9+]/','',$personPhone)?:'';echo $personPhone!==''&&$personTel!==''?'<a href="tel:'.h($personTel).'">'.h($personPhone).'</a>':'—'; ?></td>
+	                                                        <td class="text-muted small text-uppercase people-postcode-column"><?php echo h($p['postcode'] ?? '—'); ?></td>
+	                                                        <td class="text-end people-actions-column">
                                                                 <?php if (!empty($p['is_linked'])): ?>
                                                                     <form method="post" class="d-inline">
                                                                         <input type="hidden" name="action" value="unlink_shared_record">
@@ -1072,6 +1123,32 @@ $accountIntroAutoOpen = false;
                                                                 <?php endif; ?>
                                                         </td>
                                                     </tr>
+                                                    <tr class="d-md-none">
+                                                        <td colspan="7" class="people-mobile-actions-cell">
+                                                            <div class="people-mobile-actions">
+                                                                <?php if (!empty($p['is_linked'])): ?>
+                                                                    <form method="post">
+                                                                        <input type="hidden" name="action" value="unlink_shared_record">
+                                                                        <input type="hidden" name="entity_type" value="person">
+                                                                        <input type="hidden" name="entity_id" value="<?php echo (int)$p['id']; ?>">
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked person from your account?');">Remove link</button>
+                                                                    </form>
+                                                                <?php else: ?>
+                                                                    <?php if (!empty($membershipState['action_enabled'])): ?>
+                                                                        <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships?member_id=<?php echo (int)$p['id']; ?>"><?php echo h($membershipState['action_label']); ?></a>
+                                                                    <?php else: ?>
+                                                                        <button class="btn btn-sm btn-outline-success" type="button" disabled title="<?php echo h($membershipState['action_title']); ?>"><?php echo h($membershipState['action_label']); ?></button>
+                                                                    <?php endif; ?>
+                                                                    <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=people&amp;person_id=<?php echo (int)$p['id']; ?>">Edit</a>
+                                                                    <form method="post">
+                                                                        <input type="hidden" name="action" value="archive_person">
+                                                                        <input type="hidden" name="person_id" value="<?php echo (int)$p['id']; ?>">
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Archive this person?');">Archive</button>
+                                                                    </form>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
                                         </table>
@@ -1081,15 +1158,15 @@ $accountIntroAutoOpen = false;
                                         <div class="divider"></div>
                                         <div class="fw-bold mb-2">Archived</div>
                                         <div class="table-responsive">
-                                            <table class="table table-sm align-middle">
+                                            <table class="table table-sm align-middle account-people-table">
                                                 <thead class="table-light">
                                                     <tr>
                                                         <th>Name</th>
                                                         <th>Member #</th>
-                                                        <th>Membership</th>
-                                                        <th>Email</th>
-                                                        <th>Phone</th>
-                                                        <th>Postcode</th>
+                                                        <th><span class="people-membership-heading-full">Membership</span><span class="people-membership-heading-mobile">Mem</span></th>
+                                                        <th class="people-email-column">Email</th>
+                                                        <th class="people-phone-column">Phone</th>
+                                                        <th class="people-postcode-column">Postcode</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1104,9 +1181,9 @@ $accountIntroAutoOpen = false;
                                                             </td>
                                                             <td class="small"><?php echo $p['member_number'] ? (int)$p['member_number'] : '—'; ?></td>
                                                             <td class="small"><span class="<?php echo h($archivedMembershipState['class']); ?>" title="<?php echo h($archivedMembershipState['title']); ?>"><i class="<?php echo h($archivedMembershipState['icon']); ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo h($archivedMembershipState['label']); ?></span></span></td>
-                                                            <td class="small"><?php $personEmail=trim((string)($p['email']??'')); echo $personEmail!==''?'<a href="mailto:'.h($personEmail).'">'.h($personEmail).'</a>':'—'; ?></td>
-                                                            <td class="small"><?php $personPhone=trim((string)($p['phone']??''));$personTel=preg_replace('/[^0-9+]/','',$personPhone)?:'';echo $personPhone!==''&&$personTel!==''?'<a href="tel:'.h($personTel).'">'.h($personPhone).'</a>':'—'; ?></td>
-                                                            <td class="small text-uppercase"><?php echo h($p['postcode'] ?? '—'); ?></td>
+                                                            <td class="small people-email-column"><?php $personEmail=trim((string)($p['email']??'')); echo $personEmail!==''?'<a href="mailto:'.h($personEmail).'">'.h($personEmail).'</a>':'—'; ?></td>
+                                                            <td class="small people-phone-column"><?php $personPhone=trim((string)($p['phone']??''));$personTel=preg_replace('/[^0-9+]/','',$personPhone)?:'';echo $personPhone!==''&&$personTel!==''?'<a href="tel:'.h($personTel).'">'.h($personPhone).'</a>':'—'; ?></td>
+                                                            <td class="small text-uppercase people-postcode-column"><?php echo h($p['postcode'] ?? '—'); ?></td>
                                                         </tr>
                                                     <?php endforeach; ?>
                                                 </tbody>
@@ -2150,6 +2227,14 @@ $accountIntroAutoOpen = false;
         const personEditorModalEl = document.getElementById('personEditorModal');
         if (personEditorModalEl) {
             new bootstrap.Modal(personEditorModalEl).show();
+            const clearPersonEditorUrl = () => {
+                const peoplePageUrl = new URL(window.location.href);
+                if (!peoplePageUrl.searchParams.has('person_id')) return;
+                peoplePageUrl.searchParams.delete('person_id');
+                window.history.replaceState({}, '', peoplePageUrl.pathname + peoplePageUrl.search + peoplePageUrl.hash);
+            };
+            clearPersonEditorUrl();
+            personEditorModalEl.addEventListener('hidden.bs.modal', clearPersonEditorUrl);
         }
         <?php endif; ?>
         <?php if ($accountView === 'horses' && (!empty($editHorse) || (($action ?? '') === 'save_horse' && !empty($alerts)))): ?>
