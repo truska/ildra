@@ -13,6 +13,11 @@ if (!in_array($roleKey, ['superadmin', 'admin', 'manager'], true)) {
 
 $view = (string)($_GET['view'] ?? 'log');
 if ($view === 'settings') {
+    if ($roleKey !== 'superadmin') {
+        $_SESSION['flash_alerts'] = [['type' => 'danger', 'message' => 'Live email settings are restricted to Superadmin users.']];
+        header('Location: ' . $adminBase . '/email.php');
+        exit;
+    }
     ensureEmailTables($pdo);
     $emailSettings = getEmailSettings($pdo);
     $siteSettings = getSiteSettings($pdo);
@@ -140,7 +145,7 @@ if ($view === 'settings') {
         }
     }
 
-    admin_layout_start('Email', 'email');
+    admin_layout_start('Live Email Settings', 'tech_email');
     ?>
     <style>
         .panel-soft {

@@ -28,6 +28,9 @@ function defaultAdminMenuItems(): array
         ['users', 'Users', 'users.php', 'fa-solid fa-users-gear'],
         ['settings', 'Settings', 'settings.php', 'fa-solid fa-gear'],
         ['menu', 'Menu', 'menu.php', 'fa-solid fa-bars'],
+        ['tech', 'Tech', 'tech.php', 'fa-solid fa-screwdriver-wrench'],
+        ['tech_email', 'Live Email Settings', 'email.php?view=settings', 'fa-solid fa-server'],
+        ['image_folders', 'Storage Folders', 'image_folders.php', 'fa-solid fa-folder-tree'],
     ];
     $out = [];
     foreach ($rows as $index => $row) {
@@ -49,6 +52,9 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
+    if (in_array($key, ['tech', 'tech_email', 'image_folders'], true)) {
+        return ['superadmin'];
+    }
     if (in_array($key, ['users', 'email', 'pricing_schemes', 'people', 'horses', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
         return ['superadmin', 'admin', 'manager'];
     }
@@ -101,6 +107,12 @@ function ensureAdminMenuTable(?PDO $pdo): void
     }
     $pdo->exec("UPDATE admin_menu_items SET parent_id = NULL, label = 'Account Help', href = 'account_intros.php' WHERE menu_key = 'help_accounts'");
     $pdo->exec("UPDATE admin_menu_items SET is_active = 0 WHERE menu_key = 'hero'");
+    $pdo->exec("
+        UPDATE admin_menu_items child
+        JOIN admin_menu_items tech ON tech.menu_key = 'tech'
+        SET child.parent_id = tech.id
+        WHERE child.menu_key IN ('tech_email', 'image_folders')
+    ");
 }
 
 function fetchAdminMenuItems(?PDO $pdo, bool $activeOnly = true): array
