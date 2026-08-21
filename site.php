@@ -20,6 +20,7 @@ foreach ($pages as $candidatePage) {
     if ((string)($candidatePage['slug'] ?? '') === 'home') { $homePage = $candidatePage; break; }
 }
 $counts = contentCounts($pages, $events, $faqs);
+$contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
 $aboutIldra = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-ildra'));
 $aboutEndurance = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-endurance'));
@@ -292,7 +293,9 @@ function event_url(array $event): string
                         <div class="card-soft p-4">
                             <div class="section-title mb-3">Contact us</div>
                             <p class="mb-3">Have a question about rides, membership or volunteering? Drop us a line and we will connect you with the right committee.</p>
-                            <a href="mailto:info@ildra.example" class="btn cta-btn">Email ILDRA</a>
+                            <?php if ($contactEmail !== ''): ?>
+                                <a href="mailto:<?php echo h($contactEmail); ?>" class="btn cta-btn">Email ILDRA</a>
+                            <?php endif; ?>
                         </div>
                     </section>
                 </div>

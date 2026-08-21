@@ -74,7 +74,7 @@ $footerEvents = array_slice(array_values($footerEvents), 0, 3);
 $footerIsLoggedIn = isset($isLoggedIn) ? (bool)$isLoggedIn : !empty($currentUser);
 $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
 $footerCompanyName = trim((string)($footerSettings['company_name'] ?? ''));
-$footerWebmasterEmail = trim((string)($footerSettings['company_webmaster_email'] ?? ''));
+$footerContactEmail = trim((string)($footerSettings['company_contact_email'] ?? ''));
 $footerSocials = fetchCompanySocials($pdo ?? null, true);
 $footerAffiliates = fetchCompanyAffiliates($pdo ?? null, true);
 $footerSocialIcons = [
@@ -149,9 +149,9 @@ $footerSocialIcons = [
                 <div class="site-footer-title mb-3">Contact</div>
                 <div class="site-footer-contact small">
                     <?php if ($footerCompanyName !== ''): ?><div class="site-footer-contact-name"><?php echo h($footerCompanyName); ?></div><?php endif; ?>
-                    <?php if ($footerWebmasterEmail !== ''): ?><a class="site-footer-contact-link" href="mailto:<?php echo h($footerWebmasterEmail); ?>">
+                    <?php if ($footerContactEmail !== ''): ?><a class="site-footer-contact-link" href="mailto:<?php echo h($footerContactEmail); ?>">
                         <i class="fa-solid fa-envelope" aria-hidden="true"></i>
-                        <span><?php echo h($footerWebmasterEmail); ?></span>
+                        <span><?php echo h($footerContactEmail); ?></span>
                     </a><?php endif; ?>
                     <?php foreach ($footerSocials as $footerSocial): ?>
                         <?php
