@@ -326,7 +326,7 @@ foreach ($pageElements as &$pageElement) {
                                 <span class="badge text-bg-success fs-6"><?php echo h(format_price($membershipType['cost'] ?? 0)); ?></span>
                             </div>
                             <?php if (trim((string)($membershipType['description'] ?? '')) !== ''): ?><div class="text-muted small mt-2"><?php echo h((string)$membershipType['description']); ?></div><?php endif; ?>
-                            <?php if (!empty($membershipType['membership_starts']) || !empty($membershipType['membership_ends'])): ?><div class="text-muted small mt-3"><strong>Membership period:</strong> <?php echo h(format_display_date($membershipType['membership_starts'] ?? null, '')); ?> — <?php echo h(format_display_date($membershipType['membership_ends'] ?? null, '')); ?></div><?php endif; ?>
+                            <?php if (!empty($membershipType['membership_year'])): ?><div class="text-muted small mt-3"><strong>Membership year:</strong> <?php echo (int)$membershipType['membership_year']; ?></div><?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -513,7 +513,7 @@ if (!$renderPage) {
             color: #476146;
             text-decoration: none;
         }
-        .page-advertising { display: grid; gap: 0.8rem; }
+        .page-advertising { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
         .page-advertising-item { display: block; border-radius: 12px; overflow: hidden; background: #fff; }
         .page-advertising-item img { display: block; width: 100%; height: auto; max-height: 110px; object-fit: contain; }
         .page-gallery-main { display:flex; width:100%; justify-content:center; border:0; padding:0; background:none; cursor:zoom-in; }

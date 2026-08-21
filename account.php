@@ -682,6 +682,38 @@ $accountIntroAutoOpen = false;
             font-family: "Manrope", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             font-weight: 400;
         }
+        .membership-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+        .membership-status-active { color: #198754; }
+        .membership-status-inactive { color: #dc3545; }
+        .account-detail-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); margin: 0; }
+        .account-detail-list dt,
+        .account-detail-list dd { margin: 0; padding: 0.7rem 0; border-bottom: 1px solid rgba(0, 0, 0, 0.08); }
+        .account-detail-list dt { padding-right: 1rem; color: var(--muted); font-size: 0.85rem; }
+        .account-detail-list dd { overflow-wrap: anywhere; font-weight: 700; }
+        @media (max-width: 767.98px) {
+            .membership-purchased-column { display: none; }
+            .membership-actions-column { display: none; }
+            .js-account-detail-row { cursor: pointer; }
+            .membership-status-cell,
+            .membership-status-heading { width: 1%; padding-left: 0.3rem !important; padding-right: 0.3rem !important; text-align: center; }
+            .membership-status-label,
+            .membership-status-heading-label {
+                position: absolute !important;
+                width: 1px !important;
+                height: 1px !important;
+                padding: 0 !important;
+                margin: -1px !important;
+                overflow: hidden !important;
+                clip: rect(0, 0, 0, 0) !important;
+                white-space: nowrap !important;
+                border: 0 !important;
+            }
+        }
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -953,14 +985,7 @@ $accountIntroAutoOpen = false;
                                 $personMembershipYears = [];
                                 foreach (fetchMemberships($pdo) as $membershipPurchase) {
                                     $membershipPersonId = (int)($membershipPurchase['member_id'] ?? 0);
-                                    $membershipDate = null;
-                                    foreach (['ends_at', 'starts_at', 'purchased_at'] as $membershipDateField) {
-                                        if (trim((string)($membershipPurchase[$membershipDateField] ?? '')) !== '') {
-                                            $membershipDate = $membershipPurchase[$membershipDateField];
-                                            break;
-                                        }
-                                    }
-                                    $membershipYear = $membershipDate ? (int)date('Y', strtotime((string)$membershipDate)) : 0;
+                                    $membershipYear = (int)($membershipPurchase['membership_year'] ?? 0);
                                     if ($membershipPersonId > 0 && $membershipYear > ($personMembershipYears[$membershipPersonId] ?? 0)) {
                                         $personMembershipYears[$membershipPersonId] = $membershipYear;
                                     }
@@ -1677,23 +1702,34 @@ $accountIntroAutoOpen = false;
 	                            $renderMembershipRows = static function (array $purchases): void {
 	                                foreach ($purchases as $purchase) {
 	                                    $memberLabel = trim((string)($purchase['member_name'] ?? ''));
-	                                    $memberNumber = (string)($purchase['member_number'] ?? '');
-	                                    if ($memberNumber !== '' && $memberLabel !== '') {
-	                                        $memberLabel = $memberNumber . ' · ' . $memberLabel;
-	                                    } elseif ($memberNumber !== '') {
-	                                        $memberLabel = $memberNumber;
-	                                    }
+	                                    $memberNumber = trim((string)($purchase['member_number'] ?? ''));
+	                                    $membershipStatus = trim((string)($purchase['status'] ?? 'active')) ?: 'active';
+	                                    $membershipIsActive = strtolower($membershipStatus) === 'active';
+	                                    $membershipDetails = [
+	                                        ['label' => 'Member', 'value' => $memberLabel !== '' ? $memberLabel : 'Not assigned'],
+	                                        ['label' => 'Membership number', 'value' => $memberNumber !== '' ? $memberNumber : '—'],
+	                                        ['label' => 'Membership', 'value' => (string)($purchase['membership_name'] ?? 'Membership')],
+	                                        ['label' => 'Membership year', 'value' => (string)(int)($purchase['membership_year'] ?? 0)],
+	                                        ['label' => 'Status', 'value' => ucfirst($membershipStatus)],
+	                                        ['label' => 'Purchased', 'value' => format_display_date($purchase['purchased_at'] ?? null, '—')],
+	                                        ['label' => 'Amount', 'value' => '£' . number_format((float)($purchase['amount'] ?? 0), 2)],
+	                                        ['label' => 'Reference', 'value' => '#' . (int)($purchase['id'] ?? 0)],
+	                                    ];
+	                                    $membershipDetailsJson = json_encode($membershipDetails, JSON_HEX_APOS | JSON_HEX_QUOT);
 	                                    ?>
-	                                    <tr>
+	                                    <tr class="js-account-detail-row" data-account-detail-title="Membership details" data-account-detail-items="<?php echo h((string)$membershipDetailsJson); ?>">
 	                                        <td class="small"><?php echo h($memberLabel !== '' ? $memberLabel : 'Not assigned'); ?></td>
+	                                        <td class="small"><?php echo h($memberNumber !== '' ? $memberNumber : '—'); ?></td>
 	                                        <td class="small fw-semibold"><?php echo h($purchase['membership_name'] ?? 'Membership'); ?></td>
-	                                        <td class="small text-capitalize"><?php echo h($purchase['status'] ?? 'active'); ?></td>
-	                                        <td class="text-muted small">
-	                                            <div><?php echo h(format_display_date($purchase['starts_at'] ?? null, '—')); ?></div>
-	                                            <div><?php echo h(format_display_date($purchase['ends_at'] ?? null, '—')); ?></div>
+	                                        <td class="membership-status-cell small text-capitalize">
+	                                            <span class="membership-status <?php echo $membershipIsActive ? 'membership-status-active' : 'membership-status-inactive'; ?>">
+	                                                <i class="fa-solid <?php echo $membershipIsActive ? 'fa-circle-check' : 'fa-circle-xmark'; ?>" aria-hidden="true"></i>
+	                                                <span class="membership-status-label"><?php echo h($membershipStatus); ?></span>
+	                                            </span>
 	                                        </td>
-	                                        <td class="text-muted small"><?php echo h(format_display_date($purchase['purchased_at'] ?? null, '—')); ?></td>
+	                                        <td class="membership-purchased-column text-muted small"><?php echo h(format_display_date($purchase['purchased_at'] ?? null, '—')); ?></td>
 	                                        <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($purchase['amount'] ?? 0), 2); ?></td>
+	                                        <td class="membership-actions-column text-end"><button class="btn btn-sm btn-outline-secondary" type="button" data-account-detail-open>View</button></td>
 	                                    </tr>
 	                                    <?php
 	                                }
@@ -1709,15 +1745,16 @@ $accountIntroAutoOpen = false;
 	                                        <div class="text-muted small">No active memberships.</div>
 	                                    <?php else: ?>
 	                                        <div class="table-responsive">
-	                                            <table class="table table-sm align-middle">
+	                                            <table class="table table-sm align-middle mb-0">
 	                                                <thead class="table-light">
 	                                                    <tr>
 	                                                        <th>Member</th>
+	                                                        <th>#</th>
 	                                                        <th>Membership</th>
-	                                                        <th>Status</th>
-	                                                        <th>Period</th>
-	                                                        <th>Purchased</th>
+	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
+	                                                        <th class="membership-purchased-column">Purchased</th>
 	                                                        <th class="text-end">Amount</th>
+	                                                        <th class="membership-actions-column text-end">Actions</th>
 	                                                    </tr>
 	                                                </thead>
 	                                                <tbody>
@@ -1725,6 +1762,7 @@ $accountIntroAutoOpen = false;
 	                                                </tbody>
 	                                            </table>
 	                                        </div>
+	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
 	                                    <?php endif; ?>
 	                                </div>
 
@@ -1736,15 +1774,16 @@ $accountIntroAutoOpen = false;
 	                                        <div class="text-muted small">No previous memberships.</div>
 	                                    <?php else: ?>
 	                                        <div class="table-responsive">
-	                                            <table class="table table-sm align-middle">
+	                                            <table class="table table-sm align-middle mb-0">
 	                                                <thead class="table-light">
 	                                                    <tr>
 	                                                        <th>Member</th>
+	                                                        <th>#</th>
 	                                                        <th>Membership</th>
-	                                                        <th>Status</th>
-	                                                        <th>Period</th>
-	                                                        <th>Purchased</th>
+	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
+	                                                        <th class="membership-purchased-column">Purchased</th>
 	                                                        <th class="text-end">Amount</th>
+	                                                        <th class="membership-actions-column text-end">Actions</th>
 	                                                    </tr>
 	                                                </thead>
 	                                                <tbody>
@@ -1752,6 +1791,7 @@ $accountIntroAutoOpen = false;
 	                                                </tbody>
 	                                            </table>
 	                                        </div>
+	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
 	                                    <?php endif; ?>
 	                                </div>
 	                            <?php endif; ?>
@@ -1839,6 +1879,23 @@ $accountIntroAutoOpen = false;
             <?php endif; ?>
         </div>
     </main>
+
+    <div class="modal fade" id="accountDetailModal" tabindex="-1" aria-labelledby="accountDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="accountDetailModalLabel">Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <dl class="account-detail-list" data-account-detail-list></dl>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <?php if ($promptPerson): ?>
         <div class="modal fade" id="personCompletionModal" tabindex="-1" aria-labelledby="personCompletionModalLabel" aria-hidden="true">
@@ -1982,6 +2039,41 @@ $accountIntroAutoOpen = false;
             dobInput.addEventListener('change', syncDobJunior);
             syncDobJunior();
         });
+
+        const accountDetailModalElement = document.getElementById('accountDetailModal');
+        if (accountDetailModalElement) {
+            const accountDetailModal = new bootstrap.Modal(accountDetailModalElement);
+            const accountDetailTitle = accountDetailModalElement.querySelector('.modal-title');
+            const accountDetailList = accountDetailModalElement.querySelector('[data-account-detail-list]');
+            const openAccountDetail = row => {
+                if (!row || !accountDetailList) return;
+                let items = [];
+                try { items = JSON.parse(row.dataset.accountDetailItems || '[]'); } catch (error) { return; }
+                accountDetailTitle.textContent = row.dataset.accountDetailTitle || 'Details';
+                accountDetailList.replaceChildren();
+                items.forEach(item => {
+                    const term = document.createElement('dt');
+                    const description = document.createElement('dd');
+                    term.textContent = item.label || '';
+                    description.textContent = item.value || '—';
+                    accountDetailList.append(term, description);
+                });
+                accountDetailModal.show();
+            };
+            document.querySelectorAll('[data-account-detail-open]').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.stopPropagation();
+                    openAccountDetail(button.closest('.js-account-detail-row'));
+                });
+            });
+            document.querySelectorAll('.js-account-detail-row').forEach(row => {
+                row.addEventListener('click', event => {
+                    if (!window.matchMedia('(max-width: 767.98px)').matches) return;
+                    if (event.target.closest('a, button, input, select, textarea, label')) return;
+                    openAccountDetail(row);
+                });
+            });
+        }
         <?php if ($accountView === 'people' && (!empty($editPerson) || (($action ?? '') === 'save_person' && !empty($alerts)))): ?>
         const personEditorModalEl = document.getElementById('personEditorModal');
         if (personEditorModalEl) {

@@ -44,15 +44,13 @@ $tableColumns = [
     'sale_window' => ['label'=>'Sale window', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
         'value'=>static fn(array $row): string => format_display_date($row['sale_starts'] ?? null, '') . ' ' . format_display_date($row['sale_ends'] ?? null, ''),
         'sort_value'=>static fn(array $row): string => (string)($row['sale_starts'] ?? '')],
-    'membership_window' => ['label'=>'Membership window', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
-        'value'=>static fn(array $row): string => format_display_date($row['membership_starts'] ?? null, '') . ' ' . format_display_date($row['membership_ends'] ?? null, ''),
-        'sort_value'=>static fn(array $row): string => (string)($row['membership_starts'] ?? '')],
+    'membership_year' => ['label'=>'Membership year', 'field'=>'membership_year', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm],
     'cost' => ['label'=>'Cost', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
         'value'=>static fn(array $row): string => number_format((float)($row['cost'] ?? 0), 2, '.', ''),
         'sort_value'=>static fn(array $row): float => (float)($row['cost'] ?? 0)],
     'status' => ['label'=>'Status', 'field'=>'status', 'sortable'=>true, 'filter'=>'select', 'options'=>$statusOptions, 'form'=>$filterForm],
 ];
-$table = admin_table_prepare($membershipTypes, $tableColumns, 'membership_window', 'desc');
+$table = admin_table_prepare($membershipTypes, $tableColumns, 'membership_year', 'desc');
 $membershipTypes = $table['rows'];
 
 $editId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -68,8 +66,7 @@ $formValues = $editingType ?: [
     'description' => '',
     'sale_starts' => '',
     'sale_ends' => '',
-    'membership_starts' => '',
-    'membership_ends' => '',
+    'membership_year' => (int)date('Y'),
     'cost' => '0.00',
     'type' => 'senior',
     'status' => 'draft',
@@ -238,10 +235,7 @@ admin_layout_start('Memberships', 'memberships');
                                 <div><?php echo h(format_display_date($type['sale_starts'] ?? null, '')); ?></div>
                                 <div><?php echo h(format_display_date($type['sale_ends'] ?? null, '')); ?></div>
                             </td>
-                            <td class="text-muted">
-                                <div><?php echo h(format_display_date($type['membership_starts'] ?? null, '')); ?></div>
-                                <div><?php echo h(format_display_date($type['membership_ends'] ?? null, '')); ?></div>
-                            </td>
+                            <td class="text-muted"><?php echo (int)($type['membership_year'] ?? 0); ?></td>
                             <td class="fw-semibold"><?php echo '£' . h(number_format((float)($type['cost'] ?? 0), 2)); ?></td>
                             <td>
                                 <span class="status-pill <?php echo (($type['status'] ?? '') === 'draft') ? 'draft' : ''; ?>">
@@ -258,8 +252,7 @@ admin_layout_start('Memberships', 'memberships');
                                         data-description="<?php echo h($type['description'] ?? ''); ?>"
                                         data-sale-starts="<?php echo h($type['sale_starts'] ?? ''); ?>"
                                         data-sale-ends="<?php echo h($type['sale_ends'] ?? ''); ?>"
-                                        data-membership-starts="<?php echo h($type['membership_starts'] ?? ''); ?>"
-                                        data-membership-ends="<?php echo h($type['membership_ends'] ?? ''); ?>"
+                                        data-membership-year="<?php echo (int)($type['membership_year'] ?? 0); ?>"
                                         data-cost="<?php echo h((string)($type['cost'] ?? '')); ?>"
                                         data-type="<?php echo h((string)($type['type'] ?? '')); ?>"
                                         data-status="<?php echo h((string)($type['status'] ?? 'draft')); ?>"
@@ -340,15 +333,11 @@ admin_layout_start('Memberships', 'memberships');
                         <input type="date" name="sale_ends" class="form-control" value="<?php echo h($formValues['sale_ends']); ?>">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Membership starts</label>
-                        <input type="date" name="membership_starts" class="form-control" value="<?php echo h($formValues['membership_starts']); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Membership ends</label>
-                        <input type="date" name="membership_ends" class="form-control" value="<?php echo h($formValues['membership_ends']); ?>">
+                        <label class="form-label">Membership year</label>
+                        <input type="number" min="2000" max="2100" name="membership_year" class="form-control" value="<?php echo (int)$formValues['membership_year']; ?>" required>
                     </div>
                 </div>
-                <div class="helper mt-1">Align sale window to checkout dates; membership window to benefit period.</div>
+                <div class="helper mt-1">The membership runs from 1 January to 31 December of this year. The sale window is independent.</div>
             </div>
 
             <div class="fieldset">
@@ -403,8 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: form.querySelector('textarea[name="description"]'),
         sale_starts: form.querySelector('input[name="sale_starts"]'),
         sale_ends: form.querySelector('input[name="sale_ends"]'),
-        membership_starts: form.querySelector('input[name="membership_starts"]'),
-        membership_ends: form.querySelector('input[name="membership_ends"]'),
+        membership_year: form.querySelector('input[name="membership_year"]'),
         cost: form.querySelector('input[name="cost"]'),
         type: form.querySelector('select[name="type"]'),
         status: statusSelect,
@@ -417,8 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: '',
         sale_starts: '',
         sale_ends: '',
-        membership_starts: '',
-        membership_ends: '',
+        membership_year: String(new Date().getFullYear()),
         cost: '0.00',
         type: 'senior',
         status: 'draft',
@@ -460,8 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.description.value = data.description || '';
         fields.sale_starts.value = data.sale_starts || '';
         fields.sale_ends.value = data.sale_ends || '';
-        fields.membership_starts.value = data.membership_starts || '';
-        fields.membership_ends.value = data.membership_ends || '';
+        fields.membership_year.value = data.membership_year || String(new Date().getFullYear());
         fields.cost.value = data.cost || '';
         fields.type.value = data.type || '';
         fields.status.value = data.status || 'draft';
@@ -495,8 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: fields.description.value || '',
         sale_starts: fields.sale_starts.value || '',
         sale_ends: fields.sale_ends.value || '',
-        membership_starts: fields.membership_starts.value || '',
-        membership_ends: fields.membership_ends.value || '',
+        membership_year: fields.membership_year.value || '',
         cost: fields.cost.value || '',
         type: fields.type.value || '',
         status: fields.status.value || 'draft',
@@ -517,8 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
             description: btn.dataset.description || '',
             sale_starts: btn.dataset.saleStarts || '',
             sale_ends: btn.dataset.saleEnds || '',
-            membership_starts: btn.dataset.membershipStarts || '',
-            membership_ends: btn.dataset.membershipEnds || '',
+            membership_year: btn.dataset.membershipYear || '',
             cost: btn.dataset.cost || '',
             type: safeType,
             status: btn.dataset.status || 'draft',

@@ -74,17 +74,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }
         }
 
-        // Derive membership year from the membership window (defaults to current year).
-        $membershipYear = null;
-        $starts = trim((string)($membership['membership_starts'] ?? ''));
-        $ends = trim((string)($membership['membership_ends'] ?? ''));
-        if ($ends !== '' && preg_match('/^(\\d{4})-\\d{2}-\\d{2}$/', $ends, $m2)) {
-            $membershipYear = (int)$m2[1];
-        } elseif ($starts !== '' && preg_match('/^(\\d{4})-\\d{2}-\\d{2}$/', $starts, $m1)) {
-            $membershipYear = (int)$m1[1];
-        } else {
-            $membershipYear = (int)date('Y');
-        }
+        $membershipYear = (int)($membership['membership_year'] ?? date('Y'));
 
         // Prevent duplicates in basket for the same member/year.
         foreach ($basket as $item) {
@@ -103,11 +93,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 FROM membership_purchases
                 WHERE member_id = :mid
                   AND status <> 'expired'
-                  AND (
-                        (starts_at IS NOT NULL AND YEAR(starts_at) = :yr)
-                     OR (ends_at IS NOT NULL AND YEAR(ends_at) = :yr)
-                     OR (starts_at IS NULL AND ends_at IS NULL AND purchased_at IS NOT NULL AND YEAR(purchased_at) = :yr)
-                  )
+                  AND membership_year = :yr
                 LIMIT 1
             ");
             $stmt->execute([':mid' => $memberId, ':yr' => $membershipYear]);
@@ -283,10 +269,7 @@ $navItemEventsUrl = $basePath . '/events';
 	                                    ?>
 	                                        <div class="text-muted small mb-2"><?php echo h($description); ?></div>
 	                                    <?php endif; ?>
-	                                    <div class="text-muted small mb-3">
-	                                        <span class="field-hint">Membership period:</span>
-	                                        <?php echo h(format_display_date($type['membership_starts'] ?? null, '')); ?> — <?php echo h(format_display_date($type['membership_ends'] ?? null, '')); ?>
-	                                    </div>
+	                                    <div class="text-muted small mb-3"><span class="field-hint">Membership year:</span> <?php echo (int)($type['membership_year'] ?? date('Y')); ?></div>
 	                                    <?php if ($isLoggedIn): ?>
 	                                        <form method="POST">
 	                                            <input type="hidden" name="action" value="add_membership">

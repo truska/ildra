@@ -258,10 +258,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                         'purchased_by_user_id' => (int)$userId,
                         'member_id' => $memberId,
                         'membership_type_id' => $typeId,
+                        'membership_year' => (int)($basketItem['membership_year'] ?? $membershipType['membership_year'] ?? 0),
                         'amount' => $basketItem['price'] ?? '0',
                         'status' => 'active',
-                        'starts_at' => $membershipType['membership_starts'] ?? null,
-                        'ends_at' => $membershipType['membership_ends'] ?? null,
                     ], $alerts);
                 } elseif ($bookingType === 'horse_logbook') {
                     $typeId = (int)($basketItem['logbook_type_id'] ?? 0);

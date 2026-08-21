@@ -24,8 +24,7 @@ function defaultMembershipTypes(): array
             'description' => 'Standard adult membership for the season.',
             'sale_starts' => date('Y-01-01'),
             'sale_ends' => date('Y-12-31'),
-            'membership_starts' => date('Y-01-15'),
-            'membership_ends' => date('Y-12-15'),
+            'membership_year' => (int)date('Y'),
             'cost' => '50.00',
             'type' => 'senior',
             'status' => 'published',
@@ -36,8 +35,7 @@ function defaultMembershipTypes(): array
             'description' => 'Under 18 membership.',
             'sale_starts' => date('Y-01-01'),
             'sale_ends' => date('Y-12-31'),
-            'membership_starts' => date('Y-01-15'),
-            'membership_ends' => date('Y-12-15'),
+            'membership_year' => (int)date('Y'),
             'cost' => '25.00',
             'type' => 'junior',
             'status' => 'published',
@@ -54,10 +52,9 @@ function defaultMemberships(): array
             'user_email' => 'member@example.com',
             'membership_type_id' => 501,
             'membership_name' => 'Adult Annual',
+            'membership_year' => (int)date('Y'),
             'status' => 'active',
             'amount' => '50.00',
-            'starts_at' => date('Y-01-15'),
-            'ends_at' => date('Y-12-15'),
             'purchased_at' => date('Y-m-d'),
         ],
         [
@@ -2343,7 +2340,7 @@ function fetchMembershipTypes(?PDO $pdo, bool $publishedOnly = false): array
         if ($publishedOnly) {
             $sql .= " WHERE status = 'published'";
         }
-        $sql .= " ORDER BY membership_ends DESC, sale_starts ASC";
+        $sql .= " ORDER BY membership_year DESC, sale_starts ASC";
         $stmt = $pdo->query($sql);
         return $stmt->fetchAll();
     } catch (PDOException $e) {
@@ -2385,14 +2382,13 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
     $description = trim((string)($data['description'] ?? ''));
     $saleStarts = trim((string)($data['sale_starts'] ?? ''));
     $saleEnds = trim((string)($data['sale_ends'] ?? ''));
-    $memberStarts = trim((string)($data['membership_starts'] ?? ''));
-    $memberEnds = trim((string)($data['membership_ends'] ?? ''));
+    $membershipYear = (int)($data['membership_year'] ?? 0);
     $cost = trim((string)($data['cost'] ?? '0'));
     $type = trim((string)($data['type'] ?? 'senior'));
     $status = $data['status'] ?? 'draft';
 
-    if ($name === '' || $cost === '') {
-        $alerts[] = ['type' => 'danger', 'message' => 'Name and cost are required.'];
+    if ($name === '' || $cost === '' || $membershipYear < 2000 || $membershipYear > 2100) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Name, membership year and cost are required.'];
         return false;
     }
     if (!in_array($status, ['draft', 'published'], true)) {
@@ -2413,8 +2409,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                     description = :description,
                     sale_starts = :sale_starts,
                     sale_ends = :sale_ends,
-                    membership_starts = :membership_starts,
-                    membership_ends = :membership_ends,
+                    membership_year = :membership_year,
                     cost = :cost,
                     type = :type,
                     status = :status,
@@ -2426,8 +2421,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                 ':description' => $description,
                 ':sale_starts' => $saleStarts ?: null,
                 ':sale_ends' => $saleEnds ?: null,
-                ':membership_starts' => $memberStarts ?: null,
-                ':membership_ends' => $memberEnds ?: null,
+                ':membership_year' => $membershipYear,
                 ':cost' => $cost,
                 ':type' => $type ?: 'standard',
                 ':status' => $status,
@@ -2435,16 +2429,15 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO membership_types (name, description, sale_starts, sale_ends, membership_starts, membership_ends, cost, type, status, created_at, updated_at)
-                VALUES (:name, :description, :sale_starts, :sale_ends, :membership_starts, :membership_ends, :cost, :type, :status, NOW(), NOW())
+                INSERT INTO membership_types (name, description, sale_starts, sale_ends, membership_year, cost, type, status, created_at, updated_at)
+                VALUES (:name, :description, :sale_starts, :sale_ends, :membership_year, :cost, :type, :status, NOW(), NOW())
             ");
             $stmt->execute([
                 ':name' => $name,
                 ':description' => $description,
                 ':sale_starts' => $saleStarts ?: null,
                 ':sale_ends' => $saleEnds ?: null,
-                ':membership_starts' => $memberStarts ?: null,
-                ':membership_ends' => $memberEnds ?: null,
+                ':membership_year' => $membershipYear,
                 ':cost' => $cost,
                 ':type' => $type ?: 'standard',
                 ':status' => $status,
@@ -2466,8 +2459,7 @@ function ensureMembershipTypesTable(PDO $pdo): void
             description TEXT,
             sale_starts DATE DEFAULT NULL,
             sale_ends DATE DEFAULT NULL,
-            membership_starts DATE DEFAULT NULL,
-            membership_ends DATE DEFAULT NULL,
+            membership_year SMALLINT UNSIGNED NOT NULL,
             cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 type VARCHAR(80) NOT NULL DEFAULT 'senior',
             status VARCHAR(20) NOT NULL DEFAULT 'draft',
@@ -2475,13 +2467,23 @@ function ensureMembershipTypesTable(PDO $pdo): void
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     ");
-    try {
-        $hasYear = $pdo->query("SHOW COLUMNS FROM membership_types LIKE 'membership_year'")->fetchColumn();
-        if ($hasYear) {
-            $pdo->exec("ALTER TABLE membership_types DROP COLUMN membership_year");
-        }
-    } catch (PDOException $e) {
-        // ignore
+    if (!table_column_exists($pdo, 'membership_types', 'membership_year')) {
+        $pdo->exec("ALTER TABLE membership_types ADD COLUMN membership_year SMALLINT UNSIGNED NULL AFTER sale_ends");
+    }
+    $hasStarts = table_column_exists($pdo, 'membership_types', 'membership_starts');
+    $hasEnds = table_column_exists($pdo, 'membership_types', 'membership_ends');
+    if ($hasStarts || $hasEnds) {
+        $dateSource = $hasEnds && $hasStarts
+            ? 'COALESCE(membership_ends, membership_starts, sale_ends)'
+            : ($hasEnds ? 'COALESCE(membership_ends, sale_ends)' : 'COALESCE(membership_starts, sale_ends)');
+        $pdo->exec("UPDATE membership_types SET membership_year = COALESCE(membership_year, YEAR($dateSource)) WHERE membership_year IS NULL");
+    }
+    $pdo->exec("UPDATE membership_types SET membership_year = COALESCE(membership_year, YEAR(sale_ends), YEAR(CURRENT_DATE)) WHERE membership_year IS NULL");
+    $pdo->exec("ALTER TABLE membership_types MODIFY membership_year SMALLINT UNSIGNED NOT NULL");
+    if ($hasStarts) $pdo->exec("ALTER TABLE membership_types DROP COLUMN membership_starts");
+    if ($hasEnds) $pdo->exec("ALTER TABLE membership_types DROP COLUMN membership_ends");
+    if (!table_index_on_column_exists($pdo, 'membership_types', 'membership_year') && table_index_count($pdo, 'membership_types') < 64) {
+        $pdo->exec("ALTER TABLE membership_types ADD INDEX idx_membership_types_year (membership_year)");
     }
 }
 
@@ -2515,9 +2517,8 @@ function fetchMemberships(?PDO $pdo): array
                 member_id INT UNSIGNED DEFAULT NULL,
                 membership_type_id INT UNSIGNED NOT NULL,
                 amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                membership_year SMALLINT UNSIGNED NOT NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'active',
-                starts_at DATE DEFAULT NULL,
-                ends_at DATE DEFAULT NULL,
                 purchased_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -2554,30 +2555,14 @@ function fetchMemberships(?PDO $pdo): array
 
 function membership_status_for_row(array $row): string
 {
-    $startsAt = trim((string)($row['starts_at'] ?? ''));
-    $endsAt = trim((string)($row['ends_at'] ?? ''));
+    $membershipYear = (int)($row['membership_year'] ?? 0);
     $statusRaw = strtolower(trim((string)($row['status'] ?? '')));
     $statusRaw = in_array($statusRaw, ['active', 'pending', 'expired'], true) ? $statusRaw : 'active';
-
-    if ($startsAt !== '' || $endsAt !== '') {
-        try {
-            $today = new DateTimeImmutable('today');
-            if ($startsAt !== '') {
-                $startDt = new DateTimeImmutable($startsAt);
-                if ($today < $startDt) {
-                    return 'pending';
-                }
-            }
-            if ($endsAt !== '') {
-                $endDt = new DateTimeImmutable($endsAt);
-                if ($today > $endDt) {
-                    return 'expired';
-                }
-            }
-            return 'active';
-        } catch (Exception $e) {
-            // Fall through to stored status on invalid dates.
-        }
+    if ($membershipYear > 0) {
+        $currentYear = (int)date('Y');
+        if ($membershipYear < $currentYear) return 'expired';
+        if ($membershipYear > $currentYear) return 'pending';
+        return 'active';
     }
     return $statusRaw;
 }
@@ -2616,12 +2601,11 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
     $purchasedByUserId = isset($data['purchased_by_user_id']) ? (int)$data['purchased_by_user_id'] : null;
     $memberId = isset($data['member_id']) ? (int)$data['member_id'] : null;
     $amount = trim((string)($data['amount'] ?? '0'));
-    $startsAt = trim((string)($data['starts_at'] ?? ''));
-    $endsAt = trim((string)($data['ends_at'] ?? ''));
+    $membershipYear = (int)($data['membership_year'] ?? 0);
     $status = $data['status'] ?? 'active';
 
-    if ($typeId <= 0) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Membership type is required.'];
+    if ($typeId <= 0 || $membershipYear < 2000 || $membershipYear > 2100) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Membership type and year are required.'];
         return false;
     }
     if (!in_array($status, ['active', 'expired', 'pending'], true)) {
@@ -2644,9 +2628,8 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
                 member_id INT UNSIGNED DEFAULT NULL,
                 membership_type_id INT UNSIGNED NOT NULL,
                 amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                membership_year SMALLINT UNSIGNED NOT NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'active',
-                starts_at DATE DEFAULT NULL,
-                ends_at DATE DEFAULT NULL,
                 purchased_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -2656,17 +2639,16 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
             )
         ");
         $stmt = $pdo->prepare("
-            INSERT INTO membership_purchases (purchased_by_user_id, member_id, membership_type_id, amount, status, starts_at, ends_at, purchased_at, created_at, updated_at)
-            VALUES (:purchased_by_user_id, :member_id, :membership_type_id, :amount, :status, :starts_at, :ends_at, NOW(), NOW(), NOW())
+            INSERT INTO membership_purchases (purchased_by_user_id, member_id, membership_type_id, membership_year, amount, status, purchased_at, created_at, updated_at)
+            VALUES (:purchased_by_user_id, :member_id, :membership_type_id, :membership_year, :amount, :status, NOW(), NOW(), NOW())
         ");
         $stmt->execute([
             ':purchased_by_user_id' => $purchasedByUserId ?: null,
             ':member_id' => $memberId ?: null,
             ':membership_type_id' => $typeId,
+            ':membership_year' => $membershipYear,
             ':amount' => $amount,
             ':status' => $status,
-            ':starts_at' => $startsAt ?: null,
-            ':ends_at' => $endsAt ?: null,
         ]);
         return true;
     } catch (PDOException $e) {
@@ -2678,6 +2660,7 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
 function ensureMembershipTables(PDO $pdo): void
 {
     ensureSiteSettingsTable($pdo);
+    ensureMembershipTypesTable($pdo);
     // People (previously called "members").
     // A person can exist without a membership number; numbers are assigned only once a membership exists.
     // Option B: rename table from `members` → `people` (with best-effort automatic migration).
@@ -2816,6 +2799,30 @@ function ensureMembershipTables(PDO $pdo): void
             $pdo->exec("ALTER TABLE membership_purchases ADD COLUMN member_id INT UNSIGNED DEFAULT NULL");
         } catch (PDOException $e) {
             // ignore
+        }
+    }
+    $hasMembershipPurchases = (bool)($pdo->query("SHOW TABLES LIKE 'membership_purchases'")->fetchColumn());
+    if ($hasMembershipPurchases && !table_column_exists($pdo, 'membership_purchases', 'membership_year')) {
+        $pdo->exec("ALTER TABLE membership_purchases ADD COLUMN membership_year SMALLINT UNSIGNED NULL AFTER membership_type_id");
+    }
+    if ($hasMembershipPurchases) {
+        $hasPurchaseStarts = table_column_exists($pdo, 'membership_purchases', 'starts_at');
+        $hasPurchaseEnds = table_column_exists($pdo, 'membership_purchases', 'ends_at');
+        $purchaseDateSource = $hasPurchaseEnds && $hasPurchaseStarts
+            ? 'COALESCE(mp.ends_at, mp.starts_at)'
+            : ($hasPurchaseEnds ? 'mp.ends_at' : ($hasPurchaseStarts ? 'mp.starts_at' : 'NULL'));
+        $pdo->exec("
+            UPDATE membership_purchases mp
+            LEFT JOIN membership_types mt ON mt.id = mp.membership_type_id
+            SET mp.membership_year = COALESCE(mp.membership_year, YEAR($purchaseDateSource), mt.membership_year, YEAR(mp.purchased_at))
+            WHERE mp.membership_year IS NULL
+        ");
+        $pdo->exec("UPDATE membership_purchases SET membership_year = YEAR(CURRENT_DATE) WHERE membership_year IS NULL");
+        $pdo->exec("ALTER TABLE membership_purchases MODIFY membership_year SMALLINT UNSIGNED NOT NULL");
+        if ($hasPurchaseStarts) $pdo->exec("ALTER TABLE membership_purchases DROP COLUMN starts_at");
+        if ($hasPurchaseEnds) $pdo->exec("ALTER TABLE membership_purchases DROP COLUMN ends_at");
+        if (!table_index_on_column_exists($pdo, 'membership_purchases', 'membership_year') && table_index_count($pdo, 'membership_purchases') < 64) {
+            $pdo->exec("ALTER TABLE membership_purchases ADD INDEX idx_membership_purchases_year (membership_year)");
         }
     }
     if (!table_index_on_column_exists($pdo, 'membership_purchases', 'purchased_by_user_id')) {

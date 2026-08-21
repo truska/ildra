@@ -116,18 +116,26 @@ $footerSocialIcons = [
     .site-footer-policy-links::before,
     .site-footer-policy-links a + a::before { content: '|'; padding: 0 0.65rem; color: rgba(255,255,255,0.55); }
     @media (max-width: 767.98px) {
+        .site-footer { padding-top: 2rem !important; }
+        .site-footer > .container > .row { --bs-gutter-y: 1.75rem; }
+        .site-footer-title { margin-bottom: 0.75rem !important; }
+        .site-footer-links--mobile-columns,
+        .site-footer-events,
+        .site-footer-affiliates { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1rem; }
+        .site-footer-affiliate { width: 100%; }
         .site-footer-copyright { display: block; }
         .site-footer-policy-links { display: flex; margin-top: 0.25rem; }
         .site-footer-policy-links::before { display: none; }
         .site-footer-policy-links a:first-child::before { display: none; }
+        .site-footer-account { width: 100%; justify-content: flex-end; text-align: right; }
     }
 </style>
 <footer class="site-footer pt-5 pb-3">
     <div class="container">
         <div class="row g-4">
-            <div class="col-6 col-lg-2">
+            <div class="col-12 col-lg-2">
                 <div class="site-footer-title mb-3">Main menu</div>
-                <ul class="site-footer-links small">
+                <ul class="site-footer-links site-footer-links--mobile-columns small">
                     <li><a href="<?php echo h($footerBasePath); ?>/">Home</a></li>
                     <?php foreach ($footerNavTree as $groupKey => $group): ?>
                         <?php if ($groupKey === 'home' || empty($group['pages'])) { continue; } ?>
@@ -178,9 +186,9 @@ $footerSocialIcons = [
                 <a class="btn button3 btn-sm fw-bold mt-3" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
             </div>
 
-            <div class="col-6 col-md-4 col-lg-2">
+            <div class="col-12 col-md-4 col-lg-2">
                 <div class="site-footer-title mb-3">Member services</div>
-                <ul class="site-footer-links small">
+                <ul class="site-footer-links site-footer-links--mobile-columns small">
                     <li><a href="<?php echo h($footerBasePath); ?>/memberships">Memberships</a></li>
                     <li><a href="<?php echo h($footerBasePath); ?>/logbooks">Horse logbooks</a></li>
                     <li><a href="<?php echo h($footerBasePath); ?>/bookings">Bookings</a></li>
@@ -220,7 +228,7 @@ $footerSocialIcons = [
                     </span>
                 <?php endif; ?>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="site-footer-account d-flex align-items-center gap-2">
                 <?php if ($footerCanViewAdmin): ?>
                     <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> View admin area</a>
                 <?php elseif (!$footerIsLoggedIn): ?>
