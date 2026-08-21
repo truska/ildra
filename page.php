@@ -513,7 +513,7 @@ if (!$renderPage) {
             color: #476146;
             text-decoration: none;
         }
-        .page-advertising { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+        .page-advertising { display: grid; gap: 0.8rem; }
         .page-advertising-item { display: block; border-radius: 12px; overflow: hidden; background: #fff; }
         .page-advertising-item img { display: block; width: 100%; height: auto; max-height: 110px; object-fit: contain; }
         .page-gallery-main { display:flex; width:100%; justify-content:center; border:0; padding:0; background:none; cursor:zoom-in; }
@@ -537,6 +537,7 @@ if (!$renderPage) {
         .page-content-element { margin-bottom:1.5rem; }
         .page-content-element .element-text { padding:1.5rem; }
         @media (max-width: 767.98px) { .page-lightbox { padding:1rem; } .page-lightbox-nav { width:2.5rem; height:2.5rem; } .page-lightbox-prev { left:.25rem; } .page-lightbox-next { right:.25rem; } }
+        @media (max-width: 575.98px) { .page-advertising { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
