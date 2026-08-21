@@ -73,12 +73,16 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
 </div>
 <form method="get" id="<?php echo h($filterForm); ?>"><input type="hidden" name="status" value="<?php echo h($filter); ?>"></form>
 <style>
-    .admin-data-table .dev-task-group > tr > * { border-top:0; }
-    .admin-data-table .dev-task-title-row > td { padding-bottom:.2rem; }
+    .dev-task-record-count { margin-left:70px; }
+    /* Each task deliberately occupies two table rows. Override Bootstrap's
+       per-row stripe so those two rows remain one readable visual group. */
+    .admin-data-table.table-striped > tbody.dev-task-group > tr > * { border-top:0; --bs-table-bg-type:transparent !important; }
+    .admin-data-table .dev-task-title-row > td { padding-bottom:.2rem; padding-left:70px; }
     .admin-data-table .dev-task-details-row > td { padding-top:.2rem; }
-    .admin-data-table .dev-task-group-striped > tr > * { background-color:rgba(0,0,0,.05) !important; }
+    .admin-data-table.table-striped > tbody.dev-task-group.dev-task-group-striped > tr > * { --bs-table-bg-type:rgba(0,0,0,.05) !important; }
+    @media (max-width: 575.98px) { .dev-task-record-count { margin-left:0; } .admin-data-table .dev-task-title-row > td { padding-left:.25rem; } }
 </style>
-<div class="card-soft p-3"><?php echo admin_table_record_count($table,'task','tasks'); ?><div class="table-responsive"><table class="table table-striped table-sm admin-data-table align-middle mb-0">
+<div class="card-soft p-3"><div class="dev-task-record-count"><?php echo admin_table_record_count($table,'task','tasks'); ?></div><div class="table-responsive"><table class="table table-striped table-sm admin-data-table align-middle mb-0">
 <thead class="table-light"><tr><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_heading($key,$column,$table['sort_key'],$table['sort_dir']); ?></th><?php endforeach; ?></tr>
 <tr class="admin-table-filter-row"><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_filter($key,$column,$table['filters']); ?></th><?php endforeach; ?></tr></thead>
 <?php foreach ($tasks as $taskIndex=>$task): $name=trim(($task['first_name']??'').' '.($task['last_name']??'')) ?: ($task['email']??'Unknown'); $assigneeName=trim(($task['assignee_first_name']??'').' '.($task['assignee_last_name']??'')) ?: ($task['assignee_email']??'Unassigned'); $updatedBy=trim(($task['updated_first_name']??'').' '.($task['updated_last_name']??'')) ?: ($task['updated_email']??'Not recorded'); ?>
