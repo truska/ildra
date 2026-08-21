@@ -71,6 +71,7 @@ foreach (NAV_GROUPS as $groupKey => $_groupLabel) {
 }
 $isLoggedIn = !empty($currentUser);
 $canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$canEditPublicPages = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin'], true);
 $pageFromList = null;
 if ($pathSlug !== '') {
     foreach ($pages as $candidate) {
@@ -534,8 +535,16 @@ if (!$renderPage) {
         .page-lightbox-prev { left:1rem; }
         .page-lightbox-next { right:1rem; }
         .page-content-elements { margin-top:2rem; }
-        .page-content-element { margin-bottom:1.5rem; }
+        .page-content-element { position:relative; margin-bottom:1.5rem; }
         .page-content-element .element-text { padding:1.5rem; }
+        .page-editor-tools { position:fixed; z-index:1050; top:10rem; right:.65rem; display:flex; flex-direction:column; gap:.4rem; }
+        .page-editor-tool,
+        .page-editor-section-tool { display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; border:1px solid rgba(20,97,24,.35); border-radius:999px; background:rgba(255,255,255,.94); color:var(--green); box-shadow:0 3px 10px rgba(0,0,0,.16); text-decoration:none; }
+        .page-editor-tool:hover,
+        .page-editor-tool:focus-visible,
+        .page-editor-section-tool:hover,
+        .page-editor-section-tool:focus-visible { background:var(--green); border-color:var(--green); color:#fff; }
+        .page-editor-section-tool { position:absolute; z-index:2; top:.65rem; right:.65rem; width:1.8rem; height:1.8rem; font-size:.8rem; }
         @media (max-width: 767.98px) { .page-lightbox { padding:1rem; } .page-lightbox-nav { width:2.5rem; height:2.5rem; } .page-lightbox-prev { left:.25rem; } .page-lightbox-next { right:.25rem; } }
         @media (max-width: 575.98px) { .page-advertising { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     </style>
@@ -543,6 +552,13 @@ if (!$renderPage) {
 </head>
 <body>
     <?php $headerPage = $renderPage; include __DIR__ . '/views/header.php'; ?>
+
+    <?php if ($canEditPublicPages && $renderPage && !$isMenuOverview): ?>
+        <div class="page-editor-tools" aria-label="Page editing shortcuts">
+            <a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/page_edit.php?id=<?php echo (int)$renderPage['id']; ?>" target="_blank" rel="noopener" title="Edit page" aria-label="Edit page"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a>
+            <a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/page_elements.php?page_id=<?php echo (int)$renderPage['id']; ?>" target="_blank" rel="noopener" title="Manage page content" aria-label="Manage page content"><i class="fa-solid fa-list" aria-hidden="true"></i></a>
+        </div>
+    <?php endif; ?>
 
     <header class="py-3" style="background: #f5f7ef; border-bottom: 1px solid rgba(0,0,0,0.05);">
         <div class="container">
@@ -626,6 +642,9 @@ if (!$renderPage) {
                     else{$side=$nextAutoSide;$nextAutoSide=$nextAutoSide==='left'?'right':'left';}
                 ?>
                 <section id="<?php echo h($element['anchor_slug'] ?: image_upload_slug($element['heading'] ?: $element['name'])); ?>" class="page-content-element card-soft overflow-hidden">
+                    <?php if ($canEditPublicPages): ?>
+                        <a class="page-editor-section-tool" href="<?php echo h($basePath); ?>/admin/page_elements.php?page_id=<?php echo (int)$renderPage['id']; ?>&amp;edit=<?php echo (int)$element['id']; ?>" target="_blank" rel="noopener" title="Edit this content section" aria-label="Edit this content section"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a>
+                    <?php endif; ?>
                     <div class="row g-0 align-items-start justify-content-center">
                         <?php if($hasElementImages): ?><div class="col-lg-4 <?php echo $side==='right'?'order-lg-2':''; ?>"><div class="p-3 page-gallery" data-page-gallery><?php $mainImage=$elementImages[0]; ?><button type="button" class="page-gallery-main" data-lightbox-src="<?php echo h(mediaBatchImageUrl($elementBatch,$mainImage,'original')); ?>"><img src="<?php echo h(mediaBatchImageUrl($elementBatch,$mainImage,'md')); ?>" alt="<?php echo h($mainImage['alt_text']?:$mainImage['title']?:$element['heading']); ?>"></button><div class="page-gallery-caption"><?php echo h($mainImage['caption']?:''); ?></div><?php if(count($elementImages)>1): ?><div class="page-gallery-thumbs"><?php foreach($elementImages as$i=>$image): ?><button type="button" class="page-gallery-thumb <?php echo $i===0?'active':''; ?>" data-md="<?php echo h(mediaBatchImageUrl($elementBatch,$image,'md')); ?>" data-full="<?php echo h(mediaBatchImageUrl($elementBatch,$image,'original')); ?>" data-alt="<?php echo h($image['alt_text']?:$image['title']?:$element['heading']); ?>" data-title="<?php echo h($image['title']?:''); ?>" data-caption="<?php echo h($image['caption']?:''); ?>"><img src="<?php echo h(mediaBatchImageUrl($elementBatch,$image,'xs')); ?>" alt=""></button><?php endforeach; ?></div><?php endif; ?></div></div><?php endif; ?>
                         <div class="<?php echo $hasElementImages?'col-lg-6':'col-lg-10'; ?> <?php echo $side==='right'?'order-lg-1':''; ?> element-text"><?php if(!empty($element['heading'])): ?><h2 class="h3 mb-3"><?php echo h($element['heading']); ?></h2><?php endif; ?><div class="page-body"><?php echo (string)$element['body_html']; ?></div></div>
