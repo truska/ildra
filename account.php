@@ -709,6 +709,7 @@ $accountIntroAutoOpen = false;
         @media (max-width: 767.98px) {
             .membership-purchased-column { display: none; }
             .membership-actions-column { display: none; }
+            .account-horse-logbooks-table .horse-logbook-purchased-column { display: none; }
             .booking-reference-column,
             .booking-actions-column { display: none; }
             .booking-item-column { min-width: 8rem; white-space: normal !important; }
@@ -1767,14 +1768,14 @@ $accountIntroAutoOpen = false;
                                                 <div class="text-muted small">No active logbooks.</div>
                                             <?php else: ?>
                                                 <div class="table-responsive">
-                                                    <table class="table table-sm align-middle">
+                                                    <table class="table table-sm align-middle account-horse-logbooks-table">
                                                         <thead class="table-light">
                                                             <tr>
                                                                 <th>Horse</th>
                                                                 <th>Logbook</th>
                                                                 <th>Status</th>
                                                                 <th>Year</th>
-                                                                <th>Purchased</th>
+                                                                <th class="horse-logbook-purchased-column">Purchased</th>
                                                                 <th class="text-end">Amount</th>
                                                             </tr>
                                                         </thead>
@@ -1785,7 +1786,7 @@ $accountIntroAutoOpen = false;
                                                                     <td class="small"><?php echo h($lb['logbook_name'] ?? 'Logbook'); ?></td>
                                                                     <td class="small text-capitalize"><?php echo h($lb['status'] ?? 'active'); ?></td>
                                                                     <td class="small"><?php echo h($lb['valid_year'] ?? '—'); ?></td>
-                                                                    <td class="text-muted small"><?php echo h(format_display_date($lb['purchased_at'] ?? null, '—')); ?></td>
+                                                                    <td class="text-muted small horse-logbook-purchased-column"><?php echo h(format_display_date($lb['purchased_at'] ?? null, '—')); ?></td>
                                                                     <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($lb['amount'] ?? 0), 2); ?></td>
                                                                 </tr>
                                                             <?php endforeach; ?>
@@ -1801,14 +1802,14 @@ $accountIntroAutoOpen = false;
                                                 <div class="text-muted small">No previous logbooks.</div>
                                             <?php else: ?>
                                                 <div class="table-responsive">
-                                                    <table class="table table-sm align-middle">
+                                                    <table class="table table-sm align-middle account-horse-logbooks-table">
                                                         <thead class="table-light">
                                                             <tr>
                                                                 <th>Horse</th>
                                                                 <th>Logbook</th>
                                                                 <th>Status</th>
                                                                 <th>Year</th>
-                                                                <th>Purchased</th>
+                                                                <th class="horse-logbook-purchased-column">Purchased</th>
                                                                 <th class="text-end">Amount</th>
                                                             </tr>
                                                         </thead>
@@ -1819,7 +1820,7 @@ $accountIntroAutoOpen = false;
                                                                     <td class="small"><?php echo h($lb['logbook_name'] ?? 'Logbook'); ?></td>
                                                                     <td class="small text-capitalize"><?php echo h($lb['status'] ?? 'expired'); ?></td>
                                                                     <td class="small"><?php echo h($lb['valid_year'] ?? '—'); ?></td>
-                                                                    <td class="text-muted small"><?php echo h(format_display_date($lb['purchased_at'] ?? null, '—')); ?></td>
+                                                                    <td class="text-muted small horse-logbook-purchased-column"><?php echo h(format_display_date($lb['purchased_at'] ?? null, '—')); ?></td>
                                                                     <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($lb['amount'] ?? 0), 2); ?></td>
                                                                 </tr>
                                                             <?php endforeach; ?>
