@@ -84,10 +84,12 @@ if ($isLoggedIn) {
     }
 }
 $userMembershipPurchases = [];
+$renewalMembershipTypes = [];
 if ($isLoggedIn) {
     $userMembershipPurchases = array_values(array_filter(fetchMemberships($pdo), static function (array $row) use ($userId): bool {
         return (int)($row['purchased_by_user_id'] ?? $row['user_id'] ?? 0) === (int)$userId;
     }));
+    $renewalMembershipTypes = fetchMembershipTypes($pdo, true);
 }
 $activeMembershipPurchases = [];
 $previousMembershipPurchases = [];
@@ -689,15 +691,19 @@ $accountIntroAutoOpen = false;
             white-space: nowrap;
         }
         .membership-status-active { color: #198754; }
+        .membership-status-renewed { color: #b26a00; }
         .membership-status-inactive { color: #dc3545; }
         .account-detail-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); margin: 0; }
         .account-detail-list dt,
         .account-detail-list dd { margin: 0; padding: 0.7rem 0; border-bottom: 1px solid rgba(0, 0, 0, 0.08); }
         .account-detail-list dt { padding-right: 1rem; color: var(--muted); font-size: 0.85rem; }
-        .account-detail-list dd { overflow-wrap: anywhere; font-weight: 700; }
+        .account-detail-list dd { overflow-wrap: anywhere; white-space: pre-line; font-weight: 700; }
         @media (max-width: 767.98px) {
             .membership-purchased-column { display: none; }
             .membership-actions-column { display: none; }
+            .booking-reference-column,
+            .booking-actions-column { display: none; }
+            .booking-item-column { min-width: 8rem; white-space: normal !important; }
             .js-account-detail-row { cursor: pointer; }
             .membership-status-cell,
             .membership-status-heading { width: 1%; padding-left: 0.3rem !important; padding-right: 0.3rem !important; text-align: center; }
@@ -1699,37 +1705,75 @@ $accountIntroAutoOpen = false;
 	                            </div>
 
 	                            <?php
-	                            $renderMembershipRows = static function (array $purchases): void {
+	                            $renderMembershipRows = static function (array $purchases, bool $isPrevious = false) use ($userMembershipPurchases, $renewalMembershipTypes, $basePath): void {
 	                                foreach ($purchases as $purchase) {
 	                                    $memberLabel = trim((string)($purchase['member_name'] ?? ''));
 	                                    $memberNumber = trim((string)($purchase['member_number'] ?? ''));
 	                                    $membershipStatus = trim((string)($purchase['status'] ?? 'active')) ?: 'active';
-	                                    $membershipIsActive = strtolower($membershipStatus) === 'active';
+	                                    $purchaseYear = (int)($purchase['membership_year'] ?? 0);
+	                                    $memberId = (int)($purchase['member_id'] ?? 0);
+	                                    $hasRenewed = $isPrevious && array_filter($userMembershipPurchases, static fn(array $candidate): bool =>
+	                                        (int)($candidate['member_id'] ?? 0) === $memberId
+	                                        && (int)($candidate['membership_year'] ?? 0) > $purchaseYear
+	                                    );
+	                                    $displayStatus = $hasRenewed ? 'Renewed' : ucfirst($membershipStatus);
+	                                    $membershipIsActive = !$isPrevious && strtolower($membershipStatus) === 'active';
+	                                    $statusClass = $hasRenewed ? 'membership-status-renewed' : ($membershipIsActive ? 'membership-status-active' : 'membership-status-inactive');
+	                                    $statusIcon = $hasRenewed ? 'fa-arrows-rotate' : ($membershipIsActive ? 'fa-circle-check' : 'fa-circle-xmark');
+	                                    $renewalState = annual_renewal_state($purchaseYear, 'Membership', 'Buy Membership', 'Renew', null, 'Current Member');
+	                                    $renewalActionEnabled = $isPrevious ? !$hasRenewed : !empty($renewalState['action_enabled']);
+	                                    $renewalType = null;
+	                                    if ($renewalActionEnabled) {
+	                                        $sourceNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($purchase['membership_name'] ?? ''))));
+	                                        $sourceTypeKey = strtolower(trim((string)($purchase['membership_type_key'] ?? '')));
+	                                        $fallbackTypes = [];
+	                                        foreach ($renewalMembershipTypes as $candidateType) {
+	                                            if ((int)($candidateType['membership_year'] ?? 0) <= $purchaseYear) continue;
+	                                            $candidateNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($candidateType['name'] ?? ''))));
+	                                            if ($sourceNameKey !== '' && $candidateNameKey === $sourceNameKey) {
+	                                                $renewalType = $candidateType;
+	                                                break;
+	                                            }
+	                                            if ($sourceTypeKey !== '' && strtolower((string)($candidateType['type'] ?? '')) === $sourceTypeKey) $fallbackTypes[] = $candidateType;
+	                                        }
+	                                        if (!$renewalType && count($fallbackTypes) === 1) $renewalType = $fallbackTypes[0];
+	                                    }
+	                                    $renewUrl = $renewalType
+	                                        ? $basePath . '/memberships?member_id=' . $memberId . '&membership_type_id=' . (int)$renewalType['id'] . '#membership-type-' . (int)$renewalType['id']
+	                                        : ($isPrevious && !$hasRenewed ? $basePath . '/memberships?member_id=' . $memberId : '');
+	                                    $renewDisabled = !$renewalActionEnabled || (!$isPrevious && $renewUrl === '');
+	                                    $renewTitle = $hasRenewed
+	                                        ? 'This membership has been renewed'
+	                                        : ($renewDisabled ? (string)($renewalState['action_title'] ?? 'Renewal is not available yet') : 'Renew membership');
 	                                    $membershipDetails = [
 	                                        ['label' => 'Member', 'value' => $memberLabel !== '' ? $memberLabel : 'Not assigned'],
 	                                        ['label' => 'Membership number', 'value' => $memberNumber !== '' ? $memberNumber : '—'],
 	                                        ['label' => 'Membership', 'value' => (string)($purchase['membership_name'] ?? 'Membership')],
 	                                        ['label' => 'Membership year', 'value' => (string)(int)($purchase['membership_year'] ?? 0)],
-	                                        ['label' => 'Status', 'value' => ucfirst($membershipStatus)],
+	                                        ['label' => 'Status', 'value' => $displayStatus],
 	                                        ['label' => 'Purchased', 'value' => format_display_date($purchase['purchased_at'] ?? null, '—')],
 	                                        ['label' => 'Amount', 'value' => '£' . number_format((float)($purchase['amount'] ?? 0), 2)],
 	                                        ['label' => 'Reference', 'value' => '#' . (int)($purchase['id'] ?? 0)],
 	                                    ];
 	                                    $membershipDetailsJson = json_encode($membershipDetails, JSON_HEX_APOS | JSON_HEX_QUOT);
 	                                    ?>
-	                                    <tr class="js-account-detail-row" data-account-detail-title="Membership details" data-account-detail-items="<?php echo h((string)$membershipDetailsJson); ?>">
+	                                    <tr class="js-account-detail-row" data-account-detail-title="Membership details" data-account-detail-items="<?php echo h((string)$membershipDetailsJson); ?>" data-account-detail-action-label="Renew" data-account-detail-action-url="<?php echo h($renewUrl); ?>" data-account-detail-action-disabled="<?php echo $renewDisabled ? '1' : '0'; ?>">
 	                                        <td class="small"><?php echo h($memberLabel !== '' ? $memberLabel : 'Not assigned'); ?></td>
 	                                        <td class="small"><?php echo h($memberNumber !== '' ? $memberNumber : '—'); ?></td>
 	                                        <td class="small fw-semibold"><?php echo h($purchase['membership_name'] ?? 'Membership'); ?></td>
 	                                        <td class="membership-status-cell small text-capitalize">
-	                                            <span class="membership-status <?php echo $membershipIsActive ? 'membership-status-active' : 'membership-status-inactive'; ?>">
-	                                                <i class="fa-solid <?php echo $membershipIsActive ? 'fa-circle-check' : 'fa-circle-xmark'; ?>" aria-hidden="true"></i>
-	                                                <span class="membership-status-label"><?php echo h($membershipStatus); ?></span>
+	                                            <span class="membership-status <?php echo h($statusClass); ?>">
+	                                                <i class="fa-solid <?php echo h($statusIcon); ?>" aria-hidden="true"></i>
+	                                                <span class="membership-status-label"><?php echo h($displayStatus); ?></span>
 	                                            </span>
 	                                        </td>
 	                                        <td class="membership-purchased-column text-muted small"><?php echo h(format_display_date($purchase['purchased_at'] ?? null, '—')); ?></td>
 	                                        <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($purchase['amount'] ?? 0), 2); ?></td>
-	                                        <td class="membership-actions-column text-end"><button class="btn btn-sm btn-outline-secondary" type="button" data-account-detail-open>View</button></td>
+	                                        <td class="membership-actions-column text-end text-nowrap">
+	                                            <?php if ($renewDisabled): ?><button class="btn btn-sm btn-secondary" type="button" disabled title="<?php echo h($renewTitle); ?>">Renew</button>
+	                                            <?php else: ?><a class="btn btn-sm btn-success" href="<?php echo h($renewUrl); ?>" title="<?php echo h($renewTitle); ?>">Renew</a><?php endif; ?>
+	                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-account-detail-open>View</button>
+	                                        </td>
 	                                    </tr>
 	                                    <?php
 	                                }
@@ -1787,7 +1831,7 @@ $accountIntroAutoOpen = false;
 	                                                    </tr>
 	                                                </thead>
 	                                                <tbody>
-	                                                    <?php $renderMembershipRows($previousMembershipPurchases); ?>
+	                                                    <?php $renderMembershipRows($previousMembershipPurchases, true); ?>
 	                                                </tbody>
 	                                            </table>
 	                                        </div>
@@ -1799,22 +1843,23 @@ $accountIntroAutoOpen = false;
 
 	                        <div class="card-soft p-4 mt-4">
 	                            <div class="d-flex justify-content-between align-items-center mb-3">
-	                                <div class="fw-bold">Bookings</div>
-	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/bookings">View all bookings</a>
+	                                <div class="fw-bold">Recent Purchases</div>
+	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/bookings">View all purchases</a>
 	                            </div>
 
 	                            <?php if (!$recentBookings): ?>
-	                                <div class="text-muted small">No bookings yet. Start by exploring upcoming events.</div>
+	                                <div class="text-muted small">No purchases yet. Start by exploring upcoming events.</div>
 	                            <?php else: ?>
 	                                <div class="table-responsive">
-	                                    <table class="table table-sm align-middle account-bookings-table">
+	                                    <table class="table table-sm align-middle account-bookings-table mb-0">
 	                                        <thead class="table-light">
 	                                            <tr>
-	                                                <th>Booking</th>
+	                                                <th class="booking-reference-column">Booking Ref</th>
 	                                                <th><span class="d-none d-sm-inline">Items</span><span class="d-sm-none">#</span></th>
-	                                                <th class="d-none d-md-table-cell">Purchase</th>
+	                                                <th class="booking-item-column">Item</th>
 	                                                <th>Total</th>
 	                                                <th>Placed</th>
+	                                                <th class="booking-actions-column text-end">Actions</th>
 	                                            </tr>
 	                                        </thead>
 	                                        <tbody>
@@ -1825,6 +1870,7 @@ $accountIntroAutoOpen = false;
 	                                                $placedTimestamp = $placedAt !== '' ? strtotime($placedAt) : false;
 	                                                $placedPhone = $placedTimestamp !== false ? date('d M y', $placedTimestamp) : '—';
 	                                                $purchaseLabels = [];
+	                                                $purchaseDetailLabels = [];
 	                                                foreach ($booking['items'] ?? [] as $bookingItem) {
 	                                                    $bookingType = strtolower((string)($bookingItem['booking_type'] ?? 'ride'));
 	                                                    if ($bookingType === 'horse_logbook') {
@@ -1836,31 +1882,39 @@ $accountIntroAutoOpen = false;
 	                                                        if ($purchaseLabel === '') $purchaseLabel = 'Event entry';
 	                                                    }
 	                                                    if (!in_array($purchaseLabel, $purchaseLabels, true)) $purchaseLabels[] = $purchaseLabel;
+	                                                    $purchaseDetailLabel = $purchaseLabel;
+	                                                    if (isset($bookingItem['price'])) $purchaseDetailLabel .= ' — £' . number_format((float)$bookingItem['price'], 2);
+	                                                    $purchaseDetailLabels[] = $purchaseDetailLabel;
 	                                                }
+	                                                $bookingDetails = [
+	                                                    ['label' => 'Booking reference', 'value' => $bookingRef !== '' ? '#' . $bookingRef : '—'],
+	                                                    ['label' => 'Items', 'value' => $purchaseDetailLabels ? implode("\n", $purchaseDetailLabels) : '—'],
+	                                                    ['label' => 'Item count', 'value' => (string)count($booking['items'] ?? [])],
+	                                                    ['label' => 'Total', 'value' => isset($booking['total']) ? '£' . number_format((float)$booking['total'], 2) : '—'],
+	                                                    ['label' => 'Placed', 'value' => format_display_date($booking['created_at'] ?? null, '—')],
+	                                                    ['label' => 'Contact', 'value' => trim((string)($booking['contact_name'] ?? '')) ?: '—'],
+	                                                    ['label' => 'Email', 'value' => trim((string)($booking['contact_email'] ?? '')) ?: '—'],
+	                                                    ['label' => 'Phone', 'value' => trim((string)($booking['contact_phone'] ?? '')) ?: '—'],
+	                                                ];
+	                                                $bookingDetailsJson = json_encode($bookingDetails, JSON_HEX_APOS | JSON_HEX_QUOT);
 	                                                ?>
-	                                                <tr>
-	                                                    <td class="small fw-semibold">
-	                                                        <?php if ($bookingRef !== ''): ?>
-	                                                            <a class="text-decoration-none small-link" href="<?php echo h($basePath); ?>/checkout/complete?id=<?php echo h($bookingRef); ?>">
-	                                                                #<?php echo h($bookingRef); ?>
-	                                                            </a>
-	                                                        <?php else: ?>
-	                                                            <span class="text-muted">—</span>
-	                                                        <?php endif; ?>
-	                                                    </td>
+	                                                <tr class="js-account-detail-row" data-account-detail-title="Purchase details" data-account-detail-items="<?php echo h((string)$bookingDetailsJson); ?>">
+	                                                    <td class="booking-reference-column small fw-semibold"><?php echo $bookingRef !== '' ? '#' . h($bookingRef) : '<span class="text-muted">—</span>'; ?></td>
 	                                                    <td><?php echo count($booking['items'] ?? []); ?></td>
-	                                                    <td class="d-none d-md-table-cell small text-muted">
+	                                                    <td class="booking-item-column small text-muted">
 	                                                        <?php if ($purchaseLabels): ?>
 	                                                            <?php foreach ($purchaseLabels as $purchaseLabel): ?><div><?php echo h($purchaseLabel); ?></div><?php endforeach; ?>
 	                                                        <?php else: ?>—<?php endif; ?>
 	                                                    </td>
 	                                                    <td><?php echo isset($booking['total']) ? '£' . number_format((float)$booking['total'], 2) : '—'; ?></td>
 	                                                    <td class="text-muted small"><span class="d-none d-sm-inline"><?php echo h(format_display_date($booking['created_at'] ?? null, '—')); ?></span><span class="d-sm-none"><?php echo h($placedPhone); ?></span></td>
+	                                                    <td class="booking-actions-column text-end"><button class="btn btn-sm btn-outline-secondary" type="button" data-account-detail-open>View</button></td>
 	                                                </tr>
 	                                            <?php endforeach; ?>
 	                                        </tbody>
 	                                    </table>
 	                                </div>
+	                                <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
 	                            <?php endif; ?>
 	                        </div>
                             <?php endif; ?>
@@ -1891,6 +1945,7 @@ $accountIntroAutoOpen = false;
                     <dl class="account-detail-list" data-account-detail-list></dl>
                 </div>
                 <div class="modal-footer">
+                    <a class="btn btn-success" href="#" data-account-detail-action hidden>Continue</a>
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
@@ -2045,11 +2100,25 @@ $accountIntroAutoOpen = false;
             const accountDetailModal = new bootstrap.Modal(accountDetailModalElement);
             const accountDetailTitle = accountDetailModalElement.querySelector('.modal-title');
             const accountDetailList = accountDetailModalElement.querySelector('[data-account-detail-list]');
+            const accountDetailAction = accountDetailModalElement.querySelector('[data-account-detail-action]');
             const openAccountDetail = row => {
                 if (!row || !accountDetailList) return;
                 let items = [];
                 try { items = JSON.parse(row.dataset.accountDetailItems || '[]'); } catch (error) { return; }
                 accountDetailTitle.textContent = row.dataset.accountDetailTitle || 'Details';
+                if (accountDetailAction) {
+                    const actionLabel = row.dataset.accountDetailActionLabel || '';
+                    const actionUrl = row.dataset.accountDetailActionUrl || '';
+                    const actionDisabled = row.dataset.accountDetailActionDisabled === '1';
+                    accountDetailAction.hidden = actionLabel === '';
+                    accountDetailAction.textContent = actionLabel || 'Continue';
+                    accountDetailAction.classList.toggle('disabled', actionDisabled);
+                    accountDetailAction.classList.toggle('btn-success', !actionDisabled);
+                    accountDetailAction.classList.toggle('btn-secondary', actionDisabled);
+                    accountDetailAction.setAttribute('aria-disabled', actionDisabled ? 'true' : 'false');
+                    if (actionUrl !== '' && !actionDisabled) accountDetailAction.href = actionUrl;
+                    else accountDetailAction.removeAttribute('href');
+                }
                 accountDetailList.replaceChildren();
                 items.forEach(item => {
                     const term = document.createElement('dt');

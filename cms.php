@@ -2531,6 +2531,7 @@ function fetchMemberships(?PDO $pdo): array
             SELECT
                 mp.*,
                 mt.name AS membership_name,
+                mt.type AS membership_type_key,
                 u.email AS user_email,
                 TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS user_name,
                 m.member_number AS member_number,

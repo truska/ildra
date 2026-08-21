@@ -28,6 +28,7 @@ $members = $isLoggedIn ? array_values(array_filter(
     static fn(array $member): bool => empty($member['is_linked'])
 )) : [];
 $preselectedMemberId = max(0, (int)($_GET['member_id'] ?? 0));
+$preselectedMembershipTypeId = max(0, (int)($_GET['membership_type_id'] ?? 0));
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_membership') {
     if (!$isLoggedIn) {
@@ -254,8 +255,9 @@ $navItemEventsUrl = $basePath . '/events';
                 <?php else: ?>
                     <div class="row g-3">
                         <?php foreach ($membershipTypes as $type): ?>
-                            <div class="col-12">
-	                                <div class="card-soft h-100 p-3">
+                            <?php $isPreselectedType = $preselectedMembershipTypeId === (int)$type['id']; ?>
+                            <div class="col-12" id="membership-type-<?php echo (int)$type['id']; ?>">
+	                                <div class="card-soft h-100 p-3<?php echo $isPreselectedType ? ' border border-success' : ''; ?>">
 	                                    <div class="d-flex justify-content-between align-items-start mb-2">
 	                                        <div>
 	                                            <div class="fw-bold"><?php echo h($type['name']); ?></div>
