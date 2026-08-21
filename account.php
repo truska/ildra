@@ -1750,8 +1750,8 @@ $accountIntroAutoOpen = false;
 	                                        ['label' => 'Membership number', 'value' => $memberNumber !== '' ? $memberNumber : '—'],
 	                                        ['label' => 'Membership', 'value' => (string)($purchase['membership_name'] ?? 'Membership')],
 	                                        ['label' => 'Membership year', 'value' => (string)(int)($purchase['membership_year'] ?? 0)],
-	                                        ['label' => 'Status', 'value' => $displayStatus],
-	                                        ['label' => 'Purchased', 'value' => format_display_date($purchase['purchased_at'] ?? null, '—')],
+                                        ['label' => 'Status', 'value' => $displayStatus],
+                                        ['label' => 'Purchase date', 'value' => format_display_date($purchase['purchased_at'] ?? null, '—')],
 	                                        ['label' => 'Amount', 'value' => '£' . number_format((float)($purchase['amount'] ?? 0), 2)],
 	                                        ['label' => 'Reference', 'value' => '#' . (int)($purchase['id'] ?? 0)],
 	                                    ];
@@ -1761,6 +1761,7 @@ $accountIntroAutoOpen = false;
 	                                        <td class="small"><?php echo h($memberLabel !== '' ? $memberLabel : 'Not assigned'); ?></td>
 	                                        <td class="small"><?php echo h($memberNumber !== '' ? $memberNumber : '—'); ?></td>
 	                                        <td class="small fw-semibold"><?php echo h($purchase['membership_name'] ?? 'Membership'); ?></td>
+	                                        <td class="small"><?php echo (int)($purchase['membership_year'] ?? 0); ?></td>
 	                                        <td class="membership-status-cell small text-capitalize">
 	                                            <span class="membership-status <?php echo h($statusClass); ?>">
 	                                                <i class="fa-solid <?php echo h($statusIcon); ?>" aria-hidden="true"></i>
@@ -1792,9 +1793,10 @@ $accountIntroAutoOpen = false;
 	                                            <table class="table table-sm align-middle mb-0">
 	                                                <thead class="table-light">
 	                                                    <tr>
-	                                                        <th>Member</th>
-	                                                        <th>#</th>
-	                                                        <th>Membership</th>
+                                                        <th>Member</th>
+                                                        <th>#</th>
+                                                        <th>Membership</th>
+                                                        <th>Year</th>
 	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
 	                                                        <th class="membership-purchased-column">Purchased</th>
 	                                                        <th class="text-end">Amount</th>
@@ -1821,9 +1823,10 @@ $accountIntroAutoOpen = false;
 	                                            <table class="table table-sm align-middle mb-0">
 	                                                <thead class="table-light">
 	                                                    <tr>
-	                                                        <th>Member</th>
-	                                                        <th>#</th>
-	                                                        <th>Membership</th>
+                                                        <th>Member</th>
+                                                        <th>#</th>
+                                                        <th>Membership</th>
+                                                        <th>Year</th>
 	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
 	                                                        <th class="membership-purchased-column">Purchased</th>
 	                                                        <th class="text-end">Amount</th>

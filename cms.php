@@ -2467,21 +2467,6 @@ function ensureMembershipTypesTable(PDO $pdo): void
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     ");
-    if (!table_column_exists($pdo, 'membership_types', 'membership_year')) {
-        $pdo->exec("ALTER TABLE membership_types ADD COLUMN membership_year SMALLINT UNSIGNED NULL AFTER sale_ends");
-    }
-    $hasStarts = table_column_exists($pdo, 'membership_types', 'membership_starts');
-    $hasEnds = table_column_exists($pdo, 'membership_types', 'membership_ends');
-    if ($hasStarts || $hasEnds) {
-        $dateSource = $hasEnds && $hasStarts
-            ? 'COALESCE(membership_ends, membership_starts, sale_ends)'
-            : ($hasEnds ? 'COALESCE(membership_ends, sale_ends)' : 'COALESCE(membership_starts, sale_ends)');
-        $pdo->exec("UPDATE membership_types SET membership_year = COALESCE(membership_year, YEAR($dateSource)) WHERE membership_year IS NULL");
-    }
-    $pdo->exec("UPDATE membership_types SET membership_year = COALESCE(membership_year, YEAR(sale_ends), YEAR(CURRENT_DATE)) WHERE membership_year IS NULL");
-    $pdo->exec("ALTER TABLE membership_types MODIFY membership_year SMALLINT UNSIGNED NOT NULL");
-    if ($hasStarts) $pdo->exec("ALTER TABLE membership_types DROP COLUMN membership_starts");
-    if ($hasEnds) $pdo->exec("ALTER TABLE membership_types DROP COLUMN membership_ends");
     if (!table_index_on_column_exists($pdo, 'membership_types', 'membership_year') && table_index_count($pdo, 'membership_types') < 64) {
         $pdo->exec("ALTER TABLE membership_types ADD INDEX idx_membership_types_year (membership_year)");
     }
@@ -2615,6 +2600,14 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
 
     try {
         ensureMembershipTables($pdo);
+        if ($memberId && $memberId > 0) {
+            $duplicate = $pdo->prepare("SELECT 1 FROM membership_purchases WHERE member_id = :member_id AND membership_year = :membership_year LIMIT 1");
+            $duplicate->execute([":member_id" => $memberId, ":membership_year" => $membershipYear]);
+            if ($duplicate->fetchColumn()) {
+                $alerts[] = ["type" => "warning", "message" => "That member already has a membership for this year."];
+                return false;
+            }
+        }
         if ($memberId && $memberId > 0) {
             // Assign membership number only once a membership purchase exists for this person.
             $assigned = assignMemberNumberIfNeeded($pdo, (int)$memberId, $alerts);
@@ -2802,26 +2795,7 @@ function ensureMembershipTables(PDO $pdo): void
             // ignore
         }
     }
-    $hasMembershipPurchases = (bool)($pdo->query("SHOW TABLES LIKE 'membership_purchases'")->fetchColumn());
-    if ($hasMembershipPurchases && !table_column_exists($pdo, 'membership_purchases', 'membership_year')) {
-        $pdo->exec("ALTER TABLE membership_purchases ADD COLUMN membership_year SMALLINT UNSIGNED NULL AFTER membership_type_id");
-    }
-    if ($hasMembershipPurchases) {
-        $hasPurchaseStarts = table_column_exists($pdo, 'membership_purchases', 'starts_at');
-        $hasPurchaseEnds = table_column_exists($pdo, 'membership_purchases', 'ends_at');
-        $purchaseDateSource = $hasPurchaseEnds && $hasPurchaseStarts
-            ? 'COALESCE(mp.ends_at, mp.starts_at)'
-            : ($hasPurchaseEnds ? 'mp.ends_at' : ($hasPurchaseStarts ? 'mp.starts_at' : 'NULL'));
-        $pdo->exec("
-            UPDATE membership_purchases mp
-            LEFT JOIN membership_types mt ON mt.id = mp.membership_type_id
-            SET mp.membership_year = COALESCE(mp.membership_year, YEAR($purchaseDateSource), mt.membership_year, YEAR(mp.purchased_at))
-            WHERE mp.membership_year IS NULL
-        ");
-        $pdo->exec("UPDATE membership_purchases SET membership_year = YEAR(CURRENT_DATE) WHERE membership_year IS NULL");
-        $pdo->exec("ALTER TABLE membership_purchases MODIFY membership_year SMALLINT UNSIGNED NOT NULL");
-        if ($hasPurchaseStarts) $pdo->exec("ALTER TABLE membership_purchases DROP COLUMN starts_at");
-        if ($hasPurchaseEnds) $pdo->exec("ALTER TABLE membership_purchases DROP COLUMN ends_at");
+    if ((bool)($pdo->query("SHOW TABLES LIKE 'membership_purchases'")->fetchColumn())) {
         if (!table_index_on_column_exists($pdo, 'membership_purchases', 'membership_year') && table_index_count($pdo, 'membership_purchases') < 64) {
             $pdo->exec("ALTER TABLE membership_purchases ADD INDEX idx_membership_purchases_year (membership_year)");
         }

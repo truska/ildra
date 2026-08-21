@@ -87,13 +87,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }
         }
 
-        // Prevent duplicates against existing purchases for the same year (active/pending).
+        // Prevent duplicates against existing purchases for the same member and year.
         if (!$alerts && $memberId > 0 && $pdo) {
             $stmt = $pdo->prepare("
                 SELECT 1
                 FROM membership_purchases
                 WHERE member_id = :mid
-                  AND status <> 'expired'
                   AND membership_year = :yr
                 LIMIT 1
             ");
