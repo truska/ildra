@@ -117,7 +117,7 @@ if (isset($allUsers) && is_array($allUsers)) {
             </div>
         </div>
     </div>
-    <?php if (($currentUser['role'] ?? '') === 'admin'): ?>
+    <?php if (in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager'], true)): ?>
         <div class="divider"></div>
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="fw-semibold">User management</div>
