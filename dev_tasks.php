@@ -10,6 +10,8 @@ function ensureDevTaskTables(?PDO $pdo): void
         priority TINYINT UNSIGNED NOT NULL DEFAULT 3,
         status ENUM('open','completed','future','closed') NOT NULL DEFAULT 'open',
         created_by INT UNSIGNED NOT NULL,
+        updated_by INT UNSIGNED DEFAULT NULL,
+        task_notes MEDIUMTEXT NOT NULL,
         next_action_by INT UNSIGNED DEFAULT NULL,
         closed_by INT UNSIGNED DEFAULT NULL,
         closed_at DATETIME DEFAULT NULL,
@@ -17,6 +19,7 @@ function ensureDevTaskTables(?PDO $pdo): void
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_dev_tasks_status_priority (status, priority, updated_at),
         INDEX idx_dev_tasks_created_by (created_by),
+        INDEX idx_dev_tasks_updated_by (updated_by),
         INDEX idx_dev_tasks_next_action_by (next_action_by)
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $statusColumn = $pdo->query("SHOW COLUMNS FROM dev_tasks LIKE 'status'")->fetch() ?: [];
@@ -24,6 +27,9 @@ function ensureDevTaskTables(?PDO $pdo): void
         $pdo->exec("ALTER TABLE dev_tasks MODIFY COLUMN status ENUM('open','completed','future','closed') NOT NULL DEFAULT 'open'");
     }
     $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS next_action_by INT UNSIGNED DEFAULT NULL AFTER created_by");
+    $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS updated_by INT UNSIGNED DEFAULT NULL AFTER created_by");
+    $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS task_notes MEDIUMTEXT NOT NULL AFTER updated_by");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dev_tasks_updated_by ON dev_tasks (updated_by)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS dev_task_messages (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         task_id INT UNSIGNED NOT NULL,
@@ -34,6 +40,14 @@ function ensureDevTaskTables(?PDO $pdo): void
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_dev_task_messages_task (task_id, created_at, id)
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("UPDATE dev_tasks t
+        LEFT JOIN dev_task_messages m ON m.id = (
+            SELECT m2.id FROM dev_task_messages m2
+            WHERE m2.task_id=t.id
+            ORDER BY m2.created_at DESC,m2.id DESC LIMIT 1
+        )
+        SET t.updated_by=COALESCE(m.user_id,t.created_by)
+        WHERE t.updated_by IS NULL");
 }
 
 function devTaskAssignableUsers(?PDO $pdo): array
@@ -91,7 +105,7 @@ function devTaskCreate(PDO $pdo, array $data, array $file, array $user, array &$
     if ($alerts) return null;
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by, next_action_by) VALUES (:title,:priority,'open',:user,:next_action_by)");
+        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by, updated_by, next_action_by) VALUES (:title,:priority,'open',:user,:user,:next_action_by)");
         $stmt->execute([':title'=>$title, ':priority'=>$priority, ':user'=>(int)$user['id'], ':next_action_by'=>$nextActionBy]);
         $id = (int)$pdo->lastInsertId();
         $stmt = $pdo->prepare('INSERT INTO dev_task_messages (task_id,user_id,author_name,message,image_filename) VALUES (:task,:user,:author,:message,:image)');
@@ -115,6 +129,13 @@ function devTaskAddMessage(PDO $pdo, int $taskId, string $message, array $file, 
     $stmt = $pdo->prepare('INSERT INTO dev_task_messages (task_id,user_id,author_name,message,image_filename) SELECT id,:user,:author,:message,:image FROM dev_tasks WHERE id=:task');
     $stmt->execute([':user'=>(int)$user['id'], ':author'=>devTaskAuthorName($user), ':message'=>$message, ':image'=>$image, ':task'=>$taskId]);
     if (!$stmt->rowCount()) { $alerts[]=['type'=>'danger','message'=>'Task not found.']; return false; }
-    $pdo->prepare('UPDATE dev_tasks SET updated_at=NOW() WHERE id=:id')->execute([':id'=>$taskId]);
+    $pdo->prepare('UPDATE dev_tasks SET updated_at=NOW(),updated_by=:user WHERE id=:id')->execute([':user'=>(int)$user['id'], ':id'=>$taskId]);
+    return true;
+}
+
+function devTaskSaveNotes(PDO $pdo, int $taskId, string $notes, array $user): bool
+{
+    $stmt = $pdo->prepare('UPDATE dev_tasks SET task_notes=:notes,updated_by=:user WHERE id=:id');
+    $stmt->execute([':notes'=>trim($notes), ':user'=>(int)$user['id'], ':id'=>$taskId]);
     return true;
 }

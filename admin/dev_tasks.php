@@ -16,10 +16,12 @@ if ($filter === 'open') {
 }
 $stmt = $pdo->prepare("SELECT t.*, u.first_name, u.last_name, u.email,
     au.first_name AS assignee_first_name,au.last_name AS assignee_last_name,au.email AS assignee_email,
+    uu.first_name AS updated_first_name,uu.last_name AS updated_last_name,uu.email AS updated_email,
     (SELECT COUNT(*) FROM dev_task_messages m WHERE m.task_id=t.id) AS message_count,
     (SELECT GROUP_CONCAT(CONCAT_WS(' ',m.author_name,m.message) SEPARATOR ' ') FROM dev_task_messages m WHERE m.task_id=t.id) AS conversation_search
     FROM dev_tasks t
     LEFT JOIN users u ON u.id=t.created_by
+    LEFT JOIN users uu ON uu.id=t.updated_by
     LEFT JOIN users au ON au.id=t.next_action_by $where
     ORDER BY CASE WHEN t.next_action_by IS NULL THEN 1 ELSE 0 END,
         COALESCE(NULLIF(TRIM(CONCAT_WS(' ',au.first_name,au.last_name)),''),au.email,''),
@@ -45,6 +47,7 @@ $tableColumns = [
     'task' => ['label'=>'Task','sortable'=>true,'filter'=>'text','placeholder'=>'Search task','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['title']],
     'next_action' => ['label'=>'Next action by','sortable'=>true,'filter'=>'select','options'=>$nextActionOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['next_action_by'] ?? 0),'sort_value'=>static fn(array $row):string=>empty($row['next_action_by'])?'1 Unassigned':'0 '.(trim(($row['assignee_first_name']??'').' '.($row['assignee_last_name']??'')) ?: ($row['assignee_email']??'Unknown'))],
     'raised_by' => ['label'=>'Raised by','sortable'=>true,'filter'=>'select','options'=>$raisedByOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['created_by'],'sort_value'=>static fn(array $row):string=>trim(($row['first_name']??'').' '.($row['last_name']??'')) ?: ($row['email']??'Unknown')],
+    'updated_by' => ['label'=>'Last edited by','sortable'=>true,'filter'=>'text','placeholder'=>'Search editor','form'=>$filterForm,'value'=>static fn(array $row):string=>trim(($row['updated_first_name']??'').' '.($row['updated_last_name']??'')) ?: ($row['updated_email']??''),'sort_value'=>static fn(array $row):string=>trim(($row['updated_first_name']??'').' '.($row['updated_last_name']??'')) ?: ($row['updated_email']??'')],
     'conversation' => ['label'=>'Conversation','sortable'=>true,'filter'=>'text','placeholder'=>'Search conversation','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['conversation_search']??''),'sort_value'=>static fn(array $row):int=>(int)$row['message_count'],'compare'=>'number'],
     'updated' => ['label'=>'Updated','sortable'=>true,'filter'=>'text','placeholder'=>'Search updated','form'=>$filterForm,'value'=>static fn(array $row):string=>date('j M Y, H:i',strtotime((string)$row['updated_at'])),'sort_value'=>static fn(array $row):string=>(string)$row['updated_at']],
     'task_status' => ['label'=>'Status','sortable'=>true,'filter'=>'select','options'=>$statusOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['status']],
@@ -69,20 +72,27 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
     <a class="btn btn-sm btn-outline-secondary" href="dev_tasks.php?status=<?php echo h($filter); ?>">Clear filters</a>
 </div>
 <form method="get" id="<?php echo h($filterForm); ?>"><input type="hidden" name="status" value="<?php echo h($filter); ?>"></form>
+<style>
+    .admin-data-table .dev-task-group > tr > * { border-top:0; }
+    .admin-data-table .dev-task-title-row > td { padding-bottom:.2rem; }
+    .admin-data-table .dev-task-details-row > td { padding-top:.2rem; }
+    .admin-data-table .dev-task-group-striped > tr > * { background-color:rgba(0,0,0,.05) !important; }
+</style>
 <div class="card-soft p-3"><?php echo admin_table_record_count($table,'task','tasks'); ?><div class="table-responsive"><table class="table table-striped table-sm admin-data-table align-middle mb-0">
 <thead class="table-light"><tr><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_heading($key,$column,$table['sort_key'],$table['sort_dir']); ?></th><?php endforeach; ?></tr>
 <tr class="admin-table-filter-row"><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_filter($key,$column,$table['filters']); ?></th><?php endforeach; ?></tr></thead>
-<tbody>
-<?php foreach ($tasks as $task): $name=trim(($task['first_name']??'').' '.($task['last_name']??'')) ?: ($task['email']??'Unknown'); $assigneeName=trim(($task['assignee_first_name']??'').' '.($task['assignee_last_name']??'')) ?: ($task['assignee_email']??'Unassigned'); ?>
-<tr>
+<?php foreach ($tasks as $taskIndex=>$task): $name=trim(($task['first_name']??'').' '.($task['last_name']??'')) ?: ($task['email']??'Unknown'); $assigneeName=trim(($task['assignee_first_name']??'').' '.($task['assignee_last_name']??'')) ?: ($task['assignee_email']??'Unassigned'); $updatedBy=trim(($task['updated_first_name']??'').' '.($task['updated_last_name']??'')) ?: ($task['updated_email']??'Not recorded'); ?>
+<tbody class="dev-task-group<?php echo $taskIndex % 2 === 0 ? ' dev-task-group-striped' : ''; ?>">
+<tr class="dev-task-title-row"><td colspan="8"><a class="fw-semibold text-decoration-none" href="dev_task.php?id=<?php echo (int)$task['id']; ?>"><?php echo h($task['title']); ?></a></td></tr>
+<tr class="dev-task-details-row">
     <td><span class="badge <?php echo (int)$task['priority']<=2?'text-bg-danger':((int)$task['priority']===3?'text-bg-warning':'text-bg-secondary'); ?>">P<?php echo (int)$task['priority']; ?></span></td>
-    <td><a class="fw-semibold text-decoration-none" href="dev_task.php?id=<?php echo (int)$task['id']; ?>"><?php echo h($task['title']); ?></a><div class="small text-muted">#<?php echo (int)$task['id']; ?> · <?php echo h(date('j M Y, H:i', strtotime($task['created_at']))); ?></div></td>
-    <td><?php echo h($assigneeName); ?></td>
-    <td><?php echo h($name); ?></td><td><?php echo (int)$task['message_count']; ?> message<?php echo (int)$task['message_count']===1?'':'s'; ?></td>
+    <td class="small text-muted">#<?php echo (int)$task['id']; ?> · <?php echo h(date('j M Y, H:i', strtotime($task['created_at']))); ?></td>
+    <td><?php echo h($assigneeName); ?></td><td><?php echo h($name); ?></td><td><?php echo h($updatedBy); ?></td>
+    <td><?php echo (int)$task['message_count']; ?> message<?php echo (int)$task['message_count']===1?'':'s'; ?></td>
     <td><?php echo h(date('j M Y, H:i', strtotime($task['updated_at']))); ?></td>
     <td><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?>"><?php echo ucfirst(h($task['status'])); ?></span></td>
-</tr>
+</tr></tbody>
 <?php endforeach; ?>
-<?php if (!$tasks): ?><tr><td colspan="7" class="text-muted py-4 text-center">No <?php echo h($filter==='all'?'':$filter); ?> tasks found.</td></tr><?php endif; ?>
-</tbody></table></div><?php echo admin_table_pagination($table); ?></div>
+<?php if (!$tasks): ?><tbody><tr><td colspan="8" class="text-muted py-4 text-center">No <?php echo h($filter==='all'?'':$filter); ?> tasks found.</td></tr></tbody><?php endif; ?>
+</table></div><?php echo admin_table_pagination($table); ?></div>
 <?php admin_layout_end(); ?>
