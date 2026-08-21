@@ -35,15 +35,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $folderName = image_upload_section($requestedName);
     $storageType = (string)($_POST['storage_type'] ?? 'images');
     $storageRoot = $storageRoots[$storageType] ?? null;
+    $sectionPath = $storageRoot === null ? null : $storageRoot . '/' . $folderName;
 
     if ($requestedName === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Enter a folder name.'];
     } elseif ($folderName === 'image' && strtolower($requestedName) !== 'image') {
         $alerts[] = ['type' => 'danger', 'message' => 'Enter a folder name containing letters or numbers.'];
-    } elseif ($storageRoot === null || !storageFolderIsWritable($storageRoot)) {
+    } elseif ($storageRoot === null) {
+        $alerts[] = ['type' => 'danger', 'message' => 'The selected filestore root is not writable by the CMS.'];
+    } elseif (is_dir($sectionPath) && !storageFolderIsWritable($sectionPath)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'The existing “' . $folderName . '” folder is not writable by the CMS.'];
+    } elseif (!is_dir($sectionPath) && !storageFolderIsWritable($storageRoot)) {
         $alerts[] = ['type' => 'danger', 'message' => 'The selected filestore root is not writable by the CMS.'];
     } else {
-        $sectionPath = $storageRoot . '/' . $folderName;
         $paths = $storageType === 'images'
             ? array_merge([$sectionPath], array_map(static fn(string $size): string => $sectionPath . '/' . $size, $sizes))
             : [$sectionPath];
