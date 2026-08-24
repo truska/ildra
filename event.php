@@ -267,6 +267,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $riderName = trim((string)($_POST['rider_name'] ?? ''));
         $contactEmail = trim((string)($_POST['contact_email'] ?? ''));
         $contactPhone = trim((string)($_POST['contact_phone'] ?? ''));
+        $emergencyContactName = trim((string)($_POST['emergency_contact_name'] ?? ''));
+        $emergencyContactPhone = trim((string)($_POST['emergency_contact_phone'] ?? ''));
         $accompanyingAdult = trim((string)($_POST['accompanying_adult'] ?? ''));
         $horseName = trim((string)($_POST['horse_name'] ?? ''));
         $personId = (int)($_POST['person_id'] ?? 0);
@@ -319,6 +321,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         }
         if ($personId <= 0 || $horseId <= 0 || $riderName === '' || $horseName === '' || $contactEmail === '') {
             $alerts[] = ['type' => 'danger', 'message' => 'Choose a rider and horse, and provide a contact email.'];
+        }
+        if ($emergencyContactName === '' || $emergencyContactPhone === '') {
+            $alerts[] = ['type' => 'danger', 'message' => 'Provide an emergency contact name and phone number for this ride.'];
         }
         if ($selectedClass && !empty($selectedClass['is_member_price'])) {
             if ($personId <= 0) {
@@ -408,6 +413,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 'rider_name' => $riderName,
                 'contact_email' => $contactEmail,
                 'contact_phone' => $contactPhone,
+                'emergency_contact_name' => $emergencyContactName,
+                'emergency_contact_phone' => $emergencyContactPhone,
                 'accompanying_adult' => $accompanyingAdult !== '' ? $accompanyingAdult : null,
                 'horse_name' => $horseName,
                 'person_id' => $personId ?: null,
@@ -913,7 +920,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                             </div>
                                             <div class="mb-0">
                                                 <label class="form-label" for="contactPhone">Phone <span class="text-muted">(optional)</span></label>
-                                                <input type="text" name="contact_phone" id="contactPhone" class="form-control" placeholder="+44..." data-prefill="person.phone">
+                                                <input type="text" name="contact_phone" id="contactPhone" class="form-control" placeholder="+44..." value="<?php echo h((string)($_POST['contact_phone'] ?? '')); ?>" data-prefill="person.phone">
+                                            </div>
+                                            <div class="row g-3 mt-1">
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label" for="emergencyContactName">Emergency contact name <span class="text-danger">*</span></label>
+                                                    <input type="text" name="emergency_contact_name" id="emergencyContactName" class="form-control" value="<?php echo h((string)($_POST['emergency_contact_name'] ?? '')); ?>" data-required="true" data-prefill="person.emergency_contact_name">
+                                                    <div class="validation-message small d-none" data-validation-for="emergency_contact_name">Please enter an emergency contact name.</div>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label" for="emergencyContactPhone">Emergency contact phone <span class="text-danger">*</span></label>
+                                                    <input type="text" name="emergency_contact_phone" id="emergencyContactPhone" class="form-control" value="<?php echo h((string)($_POST['emergency_contact_phone'] ?? '')); ?>" data-required="true" data-prefill="person.emergency_contact_phone">
+                                                    <div class="validation-message small d-none" data-validation-for="emergency_contact_phone">Please enter an emergency contact phone number.</div>
+                                                </div>
                                             </div>
                                         </div>
                                     <?php elseif ($type === 'component'): ?>
