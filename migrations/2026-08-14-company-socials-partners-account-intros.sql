@@ -6,7 +6,7 @@ INSERT IGNORE INTO site_settings (setting_key, setting_value, updated_at) VALUES
     ('company_name', 'Irish Long Distance Riding Association Ltd.', NOW()),
     ('company_short_name', 'ILDRA', NOW()),
     ('company_contact_email', '', NOW()),
-    ('company_webmaster_email', 'webmaster@enduranceridingirland.com', NOW()),
+    ('company_webmaster_email', '', NOW()),
     ('company_facebook_url', 'https://www.facebook.com/EnduranceRidingIreland', NOW()),
     ('company_website_url', 'https://enduranceridingireland.com', NOW()),
     ('company_address', '', NOW()),
