@@ -12,6 +12,9 @@ if($pdo&&preg_match('/^[a-f0-9]{40}$/',$token)){
             $first=empty($row['first_opened_at']);
             $pdo->prepare('UPDATE email_campaign_recipients SET first_opened_at=COALESCE(first_opened_at,NOW()),last_opened_at=NOW(),open_count=open_count+1 WHERE id=:id')->execute([':id'=>(int)$row['id']]);
             if($first)$pdo->prepare('UPDATE email_campaigns SET opened_count=opened_count+1 WHERE id=:id')->execute([':id'=>(int)$row['campaign_id']]);
+        }else{
+            $stmt=$pdo->prepare('SELECT id FROM email_campaign_limited_tests WHERE tracking_token=:token LIMIT 1 FOR UPDATE');$stmt->execute([':token'=>$token]);$limited=$stmt->fetch();
+            if($limited)$pdo->prepare('UPDATE email_campaign_limited_tests SET first_opened_at=COALESCE(first_opened_at,NOW()),last_opened_at=NOW(),open_count=open_count+1 WHERE id=:id')->execute([':id'=>(int)$limited['id']]);
         }
         $pdo->commit();
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();}

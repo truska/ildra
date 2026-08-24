@@ -702,9 +702,9 @@ function buildMimeMessage(string $subject, string $fromName, string $fromEmail, 
     // text/html
     $bodyLines[] = "--{$boundary}";
     $bodyLines[] = "Content-Type: text/html; charset=UTF-8";
-    $bodyLines[] = "Content-Transfer-Encoding: 8bit";
+    $bodyLines[] = "Content-Transfer-Encoding: base64";
     $bodyLines[] = "";
-    $bodyLines[] = $htmlBody;
+    $bodyLines[] = rtrim(chunk_split(base64_encode($htmlBody), 76, "\r\n"));
     $bodyLines[] = "";
 
     $bodyLines[] = "--{$boundary}--";
@@ -1007,24 +1007,23 @@ function email_brand_logo_url(array $siteSettings): string
 
 function email_cta_button_html(string $url, string $label): string
 {
-    return '<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse:separate;border-spacing:0;">'
-        . '<tr>'
-        . '<td width="150" align="center" valign="middle" bgcolor="#146118" style="width:150px;min-width:150px;background:#146118;border:1px solid #146118;border-radius:14px;mso-padding-alt:13px 18px 13px 18px;">'
-        . '<a href="' . h($url) . '" style="display:inline-block;width:150px;line-height:20px;padding:13px 0;color:#ffffff !important;text-decoration:none;font-weight:700;font-size:14px;text-align:center;border-radius:14px;background:#146118;box-sizing:border-box;">' . h($label) . '</a>'
-        . '</td>'
-        . '</tr>'
-        . '</table>';
+    return '<a href="' . h($url) . '" target="_blank" style="display:inline-block;padding:13px 20px;background:#146118;border:1px solid #146118;border-radius:6px;color:#ffffff !important;text-decoration:none;font-weight:700;font-size:14px;line-height:20px;text-align:center;">' . h($label) . '</a>';
 }
 
 function email_signature_html(array $siteSettings, array $emailSettings): string
 {
     $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
     $logoUrl = email_brand_logo_url($siteSettings);
-    $contactEmail = trim((string)($emailSettings['email_reply_to'] ?? ''));
+    $websiteUrl = trim((string)($siteSettings['company_website_url'] ?? ''));
+    $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
-    $contactHtml = $contactEmail !== ''
-        ? '<div style="margin-top:6px;color:#476146;font-size:13px;">' . h($contactEmail) . '</div>'
-        : '';
+    $contactLines = '';
+    if ($websiteUrl !== '') {
+        $contactLines .= '<div style="margin-top:6px;color:#476146;font-size:13px;">Web: <a href="' . h($websiteUrl) . '" style="color:#146118;">' . h($websiteUrl) . '</a></div>';
+    }
+    if ($contactEmail !== '') {
+        $contactLines .= '<div style="margin-top:4px;color:#476146;font-size:13px;">Email: <a href="mailto:' . h($contactEmail) . '" style="color:#146118;">' . h($contactEmail) . '</a></div>';
+    }
 
     $logoHtml = '';
     if ($logoUrl !== '') {
@@ -1033,7 +1032,7 @@ function email_signature_html(array $siteSettings, array $emailSettings): string
 
     return '<div style="margin-top:24px;padding-top:18px;border-top:1px solid rgba(20,97,24,0.12);background:#ffffff;">'
         . '<div style="font-weight:800;font-size:14px;color:#0c2a12;">' . h($brandName) . '</div>'
-        . $contactHtml
+        . $contactLines
         . $logoHtml
         . '</div>';
 }
@@ -1041,31 +1040,40 @@ function email_signature_html(array $siteSettings, array $emailSettings): string
 function email_signature_text(array $siteSettings, array $emailSettings): string
 {
     $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
-    $contactEmail = trim((string)($emailSettings['email_reply_to'] ?? ''));
+    $websiteUrl = trim((string)($siteSettings['company_website_url'] ?? ''));
+    $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
     $lines = [$brandName];
+    if ($websiteUrl !== '') {
+        $lines[] = 'Web: ' . $websiteUrl;
+    }
     if ($contactEmail !== '') {
-        $lines[] = $contactEmail;
+        $lines[] = 'Email: ' . $contactEmail;
     }
     return implode("\n", $lines);
 }
 
-function wrap_user_email_html(array $siteSettings, array $emailSettings, string $innerHtml): string
+function wrap_user_email_html(array $siteSettings, array $emailSettings, string $innerHtml, string $afterSignatureHtml = ''): string
 {
     return '<!doctype html><html><body style="margin:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#0c2a12;">'
         . '<div style="max-width:680px;margin:0 auto;padding:24px;">'
         . '<div style="padding:20px 20px 18px;border-radius:16px;background:#ffffff;border:0;box-shadow:none;">'
         . $innerHtml
         . email_signature_html($siteSettings, $emailSettings)
+        . $afterSignatureHtml
         . '</div>'
         . '</div>'
         . '</body></html>';
 }
 
-function wrap_user_email_text(array $siteSettings, array $emailSettings, string $innerText): string
+function wrap_user_email_text(array $siteSettings, array $emailSettings, string $innerText, string $afterSignatureText = ''): string
 {
     $innerText = rtrim($innerText);
-    return $innerText . "\n\n" . email_signature_text($siteSettings, $emailSettings) . "\n";
+    $wrapped = $innerText . "\n\n" . email_signature_text($siteSettings, $emailSettings);
+    if (trim($afterSignatureText) !== '') {
+        $wrapped .= "\n\n" . trim($afterSignatureText);
+    }
+    return $wrapped . "\n";
 }
 
 function render_booking_confirmation_email(array $order, array $siteSettings, array $emailSettings): array

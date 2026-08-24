@@ -9,10 +9,12 @@ function ensureEmailCampaignTables(?PDO $pdo): void
         'users' => [
             'general_email_opt_in' => 'TINYINT(1) NOT NULL DEFAULT 0',
             'ride_notice_opt_in' => 'TINYINT(1) NOT NULL DEFAULT 0',
+            'renewal_reminder_opt_in' => 'TINYINT(1) NOT NULL DEFAULT 1',
         ],
         'people' => [
             'general_email_opt_in' => 'TINYINT(1) NOT NULL DEFAULT 0',
             'ride_notice_opt_in' => 'TINYINT(1) NOT NULL DEFAULT 0',
+            'renewal_reminder_opt_in' => 'TINYINT(1) NOT NULL DEFAULT 1',
         ],
     ] as $table => $columns) {
         foreach ($columns as $column => $definition) {
@@ -22,15 +24,18 @@ function ensureEmailCampaignTables(?PDO $pdo): void
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS email_campaign_templates (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, template_key VARCHAR(80) NOT NULL UNIQUE,
-        name VARCHAR(160) NOT NULL, category ENUM('operational','general','ride_notice') NOT NULL DEFAULT 'general',
+        name VARCHAR(160) NOT NULL, category ENUM('operational','general','ride_notice','renewal_reminder') NOT NULL DEFAULT 'general',
+        renderer_key VARCHAR(80) NOT NULL DEFAULT 'freeform', audience_preset VARCHAR(80) NOT NULL DEFAULT 'all_users',
+        intro_html LONGTEXT NULL, outro_html LONGTEXT NULL,
         subject_template VARCHAR(255) NOT NULL, html_template LONGTEXT NOT NULL, text_template LONGTEXT NULL,
         is_system TINYINT(1) NOT NULL DEFAULT 0, is_active TINYINT(1) NOT NULL DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $pdo->exec("CREATE TABLE IF NOT EXISTS email_campaigns (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(180) NOT NULL, campaign_type VARCHAR(80) NOT NULL DEFAULT 'announcement',
-        category ENUM('operational','general','ride_notice') NOT NULL DEFAULT 'general', template_id INT UNSIGNED NULL,
+        category ENUM('operational','general','ride_notice','renewal_reminder') NOT NULL DEFAULT 'general', template_id INT UNSIGNED NULL,
         audience_preset VARCHAR(80) NOT NULL DEFAULT 'all_users', event_id INT UNSIGNED NULL, membership_year SMALLINT UNSIGNED NULL,
+        renderer_key VARCHAR(80) NOT NULL DEFAULT 'freeform', intro_html LONGTEXT NULL, outro_html LONGTEXT NULL,
         address_strategy ENUM('person_first','account_only','person_only') NOT NULL DEFAULT 'person_first', subject_template VARCHAR(255) NOT NULL,
         html_template LONGTEXT NOT NULL, text_template LONGTEXT NULL,
         status ENUM('draft','scheduled','sending','sent','paused','cancelled','failed') NOT NULL DEFAULT 'draft',
@@ -53,6 +58,27 @@ function ensureEmailCampaignTables(?PDO $pdo): void
         UNIQUE KEY uniq_campaign_email (campaign_id,email_normalized), UNIQUE KEY uniq_campaign_tracking (tracking_token),
         UNIQUE KEY uniq_campaign_unsubscribe (unsubscribe_token), INDEX idx_campaign_recipient_status (campaign_id,status)
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_campaign_limited_tests (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, campaign_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL,
+        person_id INT UNSIGNED NULL, email VARCHAR(255) NOT NULL, category ENUM('operational','general','ride_notice','renewal_reminder') NOT NULL,
+        merge_json LONGTEXT NOT NULL, tracking_token CHAR(40) NOT NULL, unsubscribe_token CHAR(40) NOT NULL,
+        status ENUM('sent','failed') NOT NULL DEFAULT 'failed', email_log_id INT UNSIGNED NULL, sent_at DATETIME NULL,
+        first_opened_at DATETIME NULL, last_opened_at DATETIME NULL, open_count INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_limited_tracking (tracking_token), UNIQUE KEY uniq_limited_unsubscribe (unsubscribe_token),
+        INDEX idx_limited_campaign (campaign_id), INDEX idx_limited_user (user_id)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    foreach (['email_campaign_templates','email_campaigns','email_campaign_limited_tests'] as $categoryTable) {
+        $column=$pdo->query("SHOW COLUMNS FROM {$categoryTable} LIKE 'category'")->fetch();
+        if($column&&strpos((string)$column['Type'],'renewal_reminder')===false){
+            $pdo->exec("ALTER TABLE {$categoryTable} MODIFY category ENUM('operational','general','ride_notice','renewal_reminder') NOT NULL DEFAULT 'general'");
+        }
+    }
+    foreach (['email_campaign_templates'=>['renderer_key'=>'VARCHAR(80) NOT NULL DEFAULT \'freeform\'','audience_preset'=>'VARCHAR(80) NOT NULL DEFAULT \'all_users\'','intro_html'=>'LONGTEXT NULL','outro_html'=>'LONGTEXT NULL'],'email_campaigns'=>['renderer_key'=>'VARCHAR(80) NOT NULL DEFAULT \'freeform\'','intro_html'=>'LONGTEXT NULL','outro_html'=>'LONGTEXT NULL']] as $table=>$columns) {
+        foreach($columns as $column=>$definition){if(!table_column_exists($pdo,$table,$column))$pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");}
+    }
+    $pdo->exec("UPDATE email_campaign_templates SET category='renewal_reminder' WHERE template_key IN ('membership_renewal','logbook_renewal')");
+    $pdo->exec("UPDATE email_campaign_templates SET renderer_key='membership_renewal',audience_preset='expired_members',intro_html=COALESCE(NULLIF(intro_html,''),'<p>Your membership is ready to renew.</p>'),outro_html=COALESCE(outro_html,'') WHERE template_key='membership_renewal'");
     $setting=$pdo->prepare("INSERT IGNORE INTO site_settings (setting_key,setting_value,updated_at) VALUES (:key,:value,NOW())");
     foreach(['campaign_live_sending_enabled'=>'0','campaign_default_batch_size'=>'25','campaign_public_base_url'=>''] as $key=>$value)$setting->execute([':key'=>$key,':value'=>$value]);
 }
@@ -77,12 +103,16 @@ function emailCampaignBaseUrl(array $settings): string
 {
     $configured = rtrim(trim((string)($settings['campaign_public_base_url'] ?? '')), '/');
     if ($configured !== '') return $configured;
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = preg_replace('/[^a-z0-9.:-]/i', '', (string)($_SERVER['HTTP_HOST'] ?? ''));
-    if($host===''&&function_exists('email_environment_config')){
+    $forwardedProto=strtolower(trim(explode(',',(string)($_SERVER['HTTP_X_FORWARDED_PROTO']??''))[0]));
+    $scheme=$forwardedProto==='https'||(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';
+    $forwardedHost=trim(explode(',',(string)($_SERVER['HTTP_X_FORWARDED_HOST']??''))[0]);
+    $host=preg_replace('/[^a-z0-9.:-]/i','',$forwardedHost!==''?$forwardedHost:(string)($_SERVER['HTTP_HOST']??''));
+    if(function_exists('email_environment_config')){
         $emailConfig=email_environment_config();$environment=(string)($emailConfig['environment']??'dev');
         $candidate=$environment==='live'?((array)($emailConfig['live_hosts']??[]))[0]??'':(string)($emailConfig['cli_host']??'');
-        $host=preg_replace('/[^a-z0-9.:-]/i','',(string)$candidate);
+        $candidate=preg_replace('/[^a-z0-9.-]/i','',(string)$candidate);
+        $hostWithoutPort=preg_replace('/:\d+$/','',$host);
+        if($candidate!==''&&($host===''||$hostWithoutPort===$candidate)){$host=$candidate;$scheme='https';}
     }
     return $host !== '' ? $scheme . '://' . $host : '';
 }
@@ -92,6 +122,29 @@ function emailCampaignMerge(string $template, array $values): string
     return preg_replace_callback('/\{\{\s*([a-z0-9_]+)\s*\}\}/i', static function (array $m) use ($values): string {
         return array_key_exists(strtolower($m[1]), $values) ? (string)$values[strtolower($m[1])] : '';
     }, $template) ?? $template;
+}
+
+function emailCampaignStructuredBody(array $campaign,array $merge): ?array
+{
+    if((string)($campaign['renderer_key']??'freeform')!=='membership_renewal')return null;
+    $name=trim((string)($merge['first_name']??''));$memberNumber=trim((string)($merge['member_number']??''));
+    $year=trim((string)($merge['membership_year']??''));$renewalUrl=trim((string)($merge['membership_url']??''));
+    $intro=emailCampaignMerge((string)($campaign['intro_html']??''),$merge);$outro=emailCampaignMerge((string)($campaign['outro_html']??''),$merge);
+    $html='<p>Dear '.h($name!==''?$name:'Member').',</p>'.$intro
+        .'<div style="margin:20px 0;padding:16px;border:1px solid #d7e3d6;background:#f7faf7;">'
+        .'<div style="font-weight:700;color:#0c2a12;">Membership renewal</div>'
+        .($memberNumber!==''?'<div style="margin-top:8px;">Membership number: <strong>'.h($memberNumber).'</strong></div>':'')
+        .($year!==''?'<div style="margin-top:4px;">Membership year: <strong>'.h($year).'</strong></div>':'')
+        .($renewalUrl!==''?'<div style="margin-top:14px;">'.email_cta_button_html($renewalUrl,'Renew Membership').'</div>'
+            .'<div style="height:16px;line-height:16px;font-size:1px;">&nbsp;</div>'
+            .'<div style="color:#476146;font-size:13px;line-height:1.5;text-align:left;">If the button does not open, copy and paste this address into your browser:<br><a href="'.h($renewalUrl).'" style="color:#146118;word-break:break-all;">'.h($renewalUrl).'</a></div>':'')
+        .'</div>'.$outro;
+    $text="Dear ".($name!==''?$name:'Member').",\n\n".trim(strip_tags($intro))."\n\nMembership renewal";
+    if($memberNumber!=='')$text.="\nMembership number: {$memberNumber}";
+    if($year!=='')$text.="\nMembership year: {$year}";
+    if($renewalUrl!=='')$text.="\nRenew membership: {$renewalUrl}";
+    if(trim(strip_tags($outro))!=='')$text.="\n\n".trim(strip_tags($outro));
+    return ['html'=>$html,'text'=>$text];
 }
 
 function emailCampaignEventMerge(?PDO $pdo, int $eventId, string $baseUrl): array
@@ -132,7 +185,8 @@ function emailCampaignRecipientRows(PDO $pdo, array $campaign): array
                     COALESCE(NULLIF(p.last_name,''),u.last_name) last_name,
                     CASE WHEN :person_only='1' THEN p.email WHEN :account_only='1' THEN u.email ELSE COALESCE(NULLIF(p.email,''),u.email) END email,
                     p.email person_email,u.email account_email,p.member_number,u.general_email_opt_in user_general,u.ride_notice_opt_in user_ride,
-                    p.general_email_opt_in person_general,p.ride_notice_opt_in person_ride
+                    u.renewal_reminder_opt_in user_renewal,p.general_email_opt_in person_general,p.ride_notice_opt_in person_ride,
+                    p.renewal_reminder_opt_in person_renewal
               FROM users u LEFT JOIN people p ON p.owner_user_id=u.id AND p.is_archived=0 {$membershipJoin}
               WHERE ".implode(' AND ',$where);
         $params=[':active_year'=>$year,':person_only'=>$strategy==='person_only'?'1':'0',':account_only'=>$strategy==='account_only'?'1':'0'];
@@ -154,6 +208,7 @@ function emailCampaignSnapshotRecipients(PDO $pdo, int $campaignId): array
         $usesPerson=$strategy==='person_only'||($strategy==='person_first'&&filter_var(trim((string)($row['person_email']??'')),FILTER_VALIDATE_EMAIL));
         if($category==='general' && empty($row[$usesPerson?'person_general':'user_general'])){ $skipped++; continue; }
         if($category==='ride_notice' && empty($row[$usesPerson?'person_ride':'user_ride'])){ $skipped++; continue; }
+        if($category==='renewal_reminder' && empty($row[$usesPerson?'person_renewal':'user_renewal'])){ $skipped++; continue; }
         if(isset($dedup[$email])) continue;
         $first=trim((string)($row['first_name']??'')); $last=trim((string)($row['last_name']??''));
         $dedup[$email]=array_merge($event,[
@@ -175,23 +230,27 @@ function emailCampaignSnapshotRecipients(PDO $pdo, int $campaignId): array
 function emailCampaignRenderRecipient(array $campaign,array $recipient,array $settings): array
 {
     $merge=json_decode((string)($recipient['merge_json']??''),true); if(!is_array($merge))$merge=[];
-    $base=emailCampaignBaseUrl($settings); $merge['unsubscribe_url']=$base.'/email_unsubscribe.php?t='.rawurlencode((string)$recipient['unsubscribe_token']);
+    $base=emailCampaignBaseUrl($settings);
+    $unsubscribeToken=(string)($recipient['unsubscribe_token']??'');
+    $merge['unsubscribe_url']=$base.'/email_unsubscribe.php'.($unsubscribeToken==='test'?'?preview=1':'?t='.rawurlencode($unsubscribeToken));
     $subject=emailCampaignMerge((string)$campaign['subject_template'],$merge);
-    $html=emailCampaignMerge((string)$campaign['html_template'],$merge);
-    $text=emailCampaignMerge((string)($campaign['text_template']?:strip_tags((string)$campaign['html_template'])),$merge);
+    $structured=emailCampaignStructuredBody($campaign,$merge);
+    $html=$structured['html']??emailCampaignMerge((string)$campaign['html_template'],$merge);
+    $text=$structured['text']??emailCampaignMerge((string)($campaign['text_template']?:strip_tags((string)$campaign['html_template'])),$merge);
+    $afterFooterHtml=''; $afterFooterText='';
     if((string)$campaign['category']!=='operational'){
-        $html.='<p style="margin-top:24px;font-size:12px;color:#667;">You can <a href="'.h($merge['unsubscribe_url']).'">manage or unsubscribe from these emails</a>.</p>';
-        $text.="\n\nManage or unsubscribe: ".$merge['unsubscribe_url'];
+        $afterFooterHtml='<div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(20,97,24,0.12);font-size:12px;color:#667;text-align:left;">You can <a href="'.h($merge['unsubscribe_url']).'">manage or unsubscribe from these emails</a>.</div>';
+        $afterFooterText='Manage or unsubscribe: '.$merge['unsubscribe_url'];
     }
     $pixel=$base.'/email_open.php?t='.rawurlencode((string)$recipient['tracking_token']);
-    if($base!=='')$html.='<img src="'.h($pixel).'" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">';
-    return ['subject'=>$subject,'html'=>$html,'text'=>$text];
+    if($base!==''&&strtolower((string)parse_url($base,PHP_URL_SCHEME))==='https')$afterFooterHtml.='<img src="'.h($pixel).'" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">';
+    return ['subject'=>$subject,'html'=>$html,'text'=>$text,'after_footer_html'=>$afterFooterHtml,'after_footer_text'=>$afterFooterText];
 }
 
 function emailCampaignRecipientStillConsented(PDO $pdo,array $campaign,array $recipient): bool
 {
     $category=(string)($campaign['category']??'general'); if($category==='operational')return true;
-    $column=$category==='ride_notice'?'ride_notice_opt_in':'general_email_opt_in';
+    $column=match($category){'ride_notice'=>'ride_notice_opt_in','renewal_reminder'=>'renewal_reminder_opt_in',default=>'general_email_opt_in'};
     $merge=json_decode((string)($recipient['merge_json']??''),true);$source=is_array($merge)?(string)($merge['_address_source']??'account'):'account';
     if($source==='person'&&!empty($recipient['person_id'])){$stmt=$pdo->prepare("SELECT {$column} FROM people WHERE id=:id AND is_archived=0 LIMIT 1");$stmt->execute([':id'=>(int)$recipient['person_id']]);return (bool)$stmt->fetchColumn();}
     if(!empty($recipient['user_id'])){$stmt=$pdo->prepare("SELECT {$column} FROM users WHERE id=:id LIMIT 1");$stmt->execute([':id'=>(int)$recipient['user_id']]);return (bool)$stmt->fetchColumn();}
@@ -213,7 +272,7 @@ function processEmailCampaignBatch(PDO $pdo,int $campaignId): array
         }
         $payload=emailCampaignRenderRecipient($campaign,$recipient,$settings); $emailSettings=getEmailSettings($pdo);
         $beforeLogId=(int)$pdo->query('SELECT COALESCE(MAX(id),0) FROM email_log')->fetchColumn();
-        $ok=send_logged_email($pdo,(string)$recipient['email'],subject_with_prefix($emailSettings,$payload['subject']),wrap_user_email_html($settings,$emailSettings,$payload['html']),wrap_user_email_text($settings,$emailSettings,$payload['text']),['kind'=>'campaign','campaign_id'=>$campaignId,'campaign_recipient_id'=>(int)$recipient['id']]);
+        $ok=send_logged_email($pdo,(string)$recipient['email'],subject_with_prefix($emailSettings,$payload['subject']),wrap_user_email_html($settings,$emailSettings,$payload['html'],$payload['after_footer_html']),wrap_user_email_text($settings,$emailSettings,$payload['text'],$payload['after_footer_text']),['kind'=>'campaign','campaign_id'=>$campaignId,'campaign_recipient_id'=>(int)$recipient['id']]);
         $logStmt=$pdo->prepare('SELECT id FROM email_log WHERE id>:after_id AND meta_json LIKE :marker ORDER BY id DESC LIMIT 1');
         $logStmt->execute([':after_id'=>$beforeLogId,':marker'=>'%"campaign_recipient_id":'.(int)$recipient['id'].'%']);$logId=(int)($logStmt->fetchColumn()?:0);
         $status=$ok?'sent':'failed'; $ok?$sent++:$failed++;

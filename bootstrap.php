@@ -119,7 +119,7 @@ $actingAsOriginalUser = $isActingAs && is_array($_SESSION['act_as_original_user'
 if ($currentUser && $pdo) {
     $stmt = $pdo->prepare("
         SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at,
-               u.general_email_opt_in, u.ride_notice_opt_in
+               u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in
         FROM users u
         JOIN roles r ON r.id = u.role_id
         WHERE u.id = :id

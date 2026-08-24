@@ -1063,8 +1063,8 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
         }
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("
-            INSERT INTO users (email, password_hash, role_id, first_name, last_name, general_email_opt_in, ride_notice_opt_in, created_at, updated_at)
-            VALUES (:email, :password_hash, :role_id, :first_name, :last_name, :general_opt_in, :ride_notice_opt_in, NOW(), NOW())
+            INSERT INTO users (email, password_hash, role_id, first_name, last_name, general_email_opt_in, ride_notice_opt_in, renewal_reminder_opt_in, created_at, updated_at)
+            VALUES (:email, :password_hash, :role_id, :first_name, :last_name, :general_opt_in, :ride_notice_opt_in, :renewal_opt_in, NOW(), NOW())
         ");
         $stmt->execute([
             ':email' => $email,
@@ -1074,6 +1074,7 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
             ':last_name' => $lastName ?: null,
             ':general_opt_in' => !empty($_POST['general_email_opt_in']) ? 1 : 0,
             ':ride_notice_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
+            ':renewal_opt_in' => !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0,
         ]);
         $userId = (int)$pdo->lastInsertId();
 
@@ -1085,8 +1086,8 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
             $safeFirst = $firstName !== '' ? $firstName : '—';
             $safeLast = $lastName !== '' ? $lastName : '—';
             $ins = $pdo->prepare("
-                INSERT INTO people (owner_user_id, member_number, first_name, last_name, dob, email, general_email_opt_in, ride_notice_opt_in, is_archived, created_at, updated_at)
-                VALUES (:uid, NULL, :first_name, :last_name, NULL, :email, :general_opt_in, :ride_notice_opt_in, 0, NOW(), NOW())
+                INSERT INTO people (owner_user_id, member_number, first_name, last_name, dob, email, general_email_opt_in, ride_notice_opt_in, renewal_reminder_opt_in, is_archived, created_at, updated_at)
+                VALUES (:uid, NULL, :first_name, :last_name, NULL, :email, :general_opt_in, :ride_notice_opt_in, :renewal_opt_in, 0, NOW(), NOW())
             ");
             $ins->execute([
                 ':uid' => $userId,
@@ -1095,6 +1096,7 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
                     ':email' => $email,
                     ':general_opt_in' => !empty($_POST['general_email_opt_in']) ? 1 : 0,
                     ':ride_notice_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
+                    ':renewal_opt_in' => !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0,
                 ]);
                 $newPersonId = (int)$pdo->lastInsertId();
         } catch (Throwable $e) {
@@ -1230,7 +1232,7 @@ function fetchAllUsersForAdmin(?PDO $pdo, array &$alerts): array
     try {
         $stmt = $pdo->query("
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at, u.created_at,
-                   u.general_email_opt_in, u.ride_notice_opt_in
+                   u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in
             FROM users u
             JOIN roles r ON r.id = u.role_id
             ORDER BY u.created_at DESC
@@ -1331,9 +1333,10 @@ function updateOwnUserDetails(?PDO $pdo, int $userId, array $data, array &$alert
         }
         $generalOptIn = !empty($data['general_email_opt_in']) ? 1 : 0;
         $rideNoticeOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
-        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, updated_at = NOW() WHERE id = :id');
-        $update->execute([':first_name' => $firstName, ':last_name' => $lastName, ':email' => $email, ':general_opt_in' => $generalOptIn, ':ride_notice_opt_in' => $rideNoticeOptIn, ':id' => $userId]);
-        return ['first_name' => $firstName, 'last_name' => $lastName, 'email' => $email, 'general_email_opt_in' => $generalOptIn, 'ride_notice_opt_in' => $rideNoticeOptIn];
+        $renewalReminderOptIn = !empty($data['renewal_reminder_opt_in']) ? 1 : 0;
+        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, updated_at = NOW() WHERE id = :id');
+        $update->execute([':first_name' => $firstName, ':last_name' => $lastName, ':email' => $email, ':general_opt_in' => $generalOptIn, ':ride_notice_opt_in' => $rideNoticeOptIn, ':renewal_opt_in' => $renewalReminderOptIn, ':id' => $userId]);
+        return ['first_name' => $firstName, 'last_name' => $lastName, 'email' => $email, 'general_email_opt_in' => $generalOptIn, 'ride_notice_opt_in' => $rideNoticeOptIn, 'renewal_reminder_opt_in' => $renewalReminderOptIn];
     } catch (PDOException $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not update your account details.'];
         return null;

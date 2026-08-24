@@ -203,8 +203,9 @@
                         <input type="password" name="confirm_password" class="form-control placeholder-muted" placeholder="Confirm password" autocomplete="new-password" required>
                     </div>
                     <div class="col-12">
-                        <div class="form-check"><input class="form-check-input" type="checkbox" id="register_general_email" name="general_email_opt_in" value="1" <?php echo !empty($_POST['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="register_general_email">Email me general news, announcements and renewal reminders</label></div>
+                        <div class="form-check"><input class="form-check-input" type="checkbox" id="register_general_email" name="general_email_opt_in" value="1" <?php echo !empty($_POST['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="register_general_email">Email me general news and announcements</label></div>
                         <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="register_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($_POST['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="register_ride_notice">Send me the weekly Ride Notice calendar update</label></div>
+                        <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="register_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' || !empty($_POST['renewal_reminder_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="register_renewal_reminder">Send me renewal reminders</label></div>
                         <div class="form-text">You can change these choices in your account. Essential messages about your own entries are sent separately.</div>
                     </div>
                     <div class="col-12 d-grid">

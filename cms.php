@@ -3209,6 +3209,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
     $email = trim((string)($data['email'] ?? ''));
     $generalOptIn = !empty($data['general_email_opt_in']) ? 1 : 0;
     $rideNoticeOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
+    $renewalReminderOptIn = !empty($data['renewal_reminder_opt_in']) ? 1 : 0;
     $phone = trim((string)($data['phone'] ?? ''));
     $address = trim((string)($data['address'] ?? ''));
     $postcode = trim((string)($data['postcode'] ?? ''));
@@ -3275,6 +3276,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
                     email = :email,
                     general_email_opt_in = :general_opt_in,
                     ride_notice_opt_in = :ride_notice_opt_in,
+                    renewal_reminder_opt_in = :renewal_opt_in,
                     phone = :phone,
                     address = :address,
                     postcode = :postcode,
@@ -3292,6 +3294,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
                 ':email' => $email !== '' ? $email : null,
                 ':general_opt_in' => $generalOptIn,
                 ':ride_notice_opt_in' => $rideNoticeOptIn,
+                ':renewal_opt_in' => $renewalReminderOptIn,
                 ':phone' => $phone !== '' ? $phone : null,
                 ':address' => $address !== '' ? $address : null,
                 ':postcode' => $postcode !== '' ? $postcode : null,
@@ -3305,8 +3308,8 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO people (owner_user_id, member_number, first_name, last_name, dob, email, general_email_opt_in, ride_notice_opt_in, phone, address, postcode, junior_or_senior, emergency_contact_name, emergency_contact_phone, is_archived, created_at, updated_at)
-            VALUES (:uid, NULL, :first_name, :last_name, :dob, :email, :general_opt_in, :ride_notice_opt_in, :phone, :address, :postcode, :junior_senior, :emergency_name, :emergency_phone, 0, NOW(), NOW())
+            INSERT INTO people (owner_user_id, member_number, first_name, last_name, dob, email, general_email_opt_in, ride_notice_opt_in, renewal_reminder_opt_in, phone, address, postcode, junior_or_senior, emergency_contact_name, emergency_contact_phone, is_archived, created_at, updated_at)
+            VALUES (:uid, NULL, :first_name, :last_name, :dob, :email, :general_opt_in, :ride_notice_opt_in, :renewal_opt_in, :phone, :address, :postcode, :junior_senior, :emergency_name, :emergency_phone, 0, NOW(), NOW())
         ");
         $stmt->execute([
             ':uid' => $ownerUserId,
@@ -3316,6 +3319,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
             ':email' => $email !== '' ? $email : null,
             ':general_opt_in' => $generalOptIn,
             ':ride_notice_opt_in' => $rideNoticeOptIn,
+            ':renewal_opt_in' => $renewalReminderOptIn,
             ':phone' => $phone !== '' ? $phone : null,
             ':address' => $address !== '' ? $address : null,
             ':postcode' => $postcode !== '' ? $postcode : null,

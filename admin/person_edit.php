@@ -35,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $juniorSenior = trim((string)($_POST['junior_or_senior'] ?? ''));
     $generalEmailOptIn = !empty($_POST['general_email_opt_in']) ? 1 : 0;
     $rideNoticeOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
+    $renewalReminderOptIn = !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0;
 
     if ($firstName === '' || $lastName === '') $alerts[] = ['type' => 'danger', 'message' => 'First name and last name are required.'];
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];
@@ -44,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$alerts) {
         try {
-            $update = $pdo->prepare("UPDATE people SET member_number = :member_number, first_name = :first_name, last_name = :last_name, dob = :dob, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, phone = :phone, address = :address, postcode = :postcode, junior_or_senior = :junior_or_senior, emergency_contact_name = :emergency_name, emergency_contact_phone = :emergency_phone, is_archived = :is_archived, updated_at = NOW() WHERE id = :id LIMIT 1");
+            $update = $pdo->prepare("UPDATE people SET member_number = :member_number, first_name = :first_name, last_name = :last_name, dob = :dob, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, phone = :phone, address = :address, postcode = :postcode, junior_or_senior = :junior_or_senior, emergency_contact_name = :emergency_name, emergency_contact_phone = :emergency_phone, is_archived = :is_archived, updated_at = NOW() WHERE id = :id LIMIT 1");
             $update->execute([
                 ':member_number' => $memberNumber !== '' ? (int)$memberNumber : null,
                 ':first_name' => $firstName,
@@ -53,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':email' => $email !== '' ? $email : null,
                 ':general_opt_in' => $generalEmailOptIn,
                 ':ride_notice_opt_in' => $rideNoticeOptIn,
+                ':renewal_opt_in' => $renewalReminderOptIn,
                 ':phone' => trim((string)($_POST['phone'] ?? '')) ?: null,
                 ':address' => trim((string)($_POST['address'] ?? '')) ?: null,
                 ':postcode' => trim((string)($_POST['postcode'] ?? '')) ?: null,
@@ -89,8 +91,9 @@ admin_layout_start('Edit person', 'people');
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Email</label><input type="email" class="form-control" name="email" value="<?php echo h((string)($person['email'] ?? '')); ?>"></div>
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Phone</label><input class="form-control" name="phone" value="<?php echo h((string)($person['phone'] ?? '')); ?>"></div>
         <div class="col-12">
-            <div class="form-check"><input class="form-check-input" type="checkbox" id="personGeneralEmail" name="general_email_opt_in" value="1" <?php echo !empty($person['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="personGeneralEmail">Subscribed to general news, announcements and renewal reminders</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="personGeneralEmail" name="general_email_opt_in" value="1" <?php echo !empty($person['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="personGeneralEmail">Subscribed to general news and announcements</label></div>
             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="personRideNotice" name="ride_notice_opt_in" value="1" <?php echo !empty($person['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="personRideNotice">Subscribed to the weekly Ride Notice</label></div>
+            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="personRenewalReminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($person['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="personRenewalReminder">Receives renewal reminders</label></div>
             <div class="form-text">Only record a subscription where this person has agreed to receive it. Essential entry-related messages are separate.</div>
         </div>
         <div class="col-12"><label class="form-label fw-semibold">Address</label><textarea class="form-control" name="address" rows="3"><?php echo h((string)($person['address'] ?? '')); ?></textarea></div>

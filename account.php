@@ -1011,8 +1011,9 @@ $accountIntroAutoOpen = false;
                                             <div class="form-text">Required only when changing your email.</div>
                                         </div>
                                         <div class="col-12">
-                                            <div class="form-check"><input class="form-check-input" type="checkbox" id="user_general_email" name="general_email_opt_in" value="1" <?php echo !empty($_POST['general_email_opt_in'] ?? $currentUser['general_email_opt_in'] ?? 0) ? 'checked' : ''; ?>><label class="form-check-label" for="user_general_email">General news, announcements and renewal reminders</label></div>
+                                            <div class="form-check"><input class="form-check-input" type="checkbox" id="user_general_email" name="general_email_opt_in" value="1" <?php echo !empty($_POST['general_email_opt_in'] ?? $currentUser['general_email_opt_in'] ?? 0) ? 'checked' : ''; ?>><label class="form-check-label" for="user_general_email">General news and announcements</label></div>
                                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="user_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($_POST['ride_notice_opt_in'] ?? $currentUser['ride_notice_opt_in'] ?? 0) ? 'checked' : ''; ?>><label class="form-check-label" for="user_ride_notice">Weekly Ride Notice calendar update</label></div>
+                                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="user_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($_POST['renewal_reminder_opt_in'] ?? $currentUser['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="user_renewal_reminder">Renewal reminders</label></div>
                                             <div class="form-text">These choices do not stop essential emails about events you have entered.</div>
                                         </div>
                                         <div class="col-12"><button class="btn btn-success">Save login details</button></div>
@@ -1287,8 +1288,9 @@ $accountIntroAutoOpen = false;
                                             <input type="email" class="form-control" name="email" value="<?php echo h($editPerson['email'] ?? ''); ?>">
                                         </div>
                                         <div class="col-12">
-                                            <div class="form-check"><input class="form-check-input" type="checkbox" id="person_general_email" name="general_email_opt_in" value="1" <?php echo !empty($editPerson['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="person_general_email">This person agrees to general news, announcements and renewal reminders</label></div>
+                                            <div class="form-check"><input class="form-check-input" type="checkbox" id="person_general_email" name="general_email_opt_in" value="1" <?php echo !empty($editPerson['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="person_general_email">This person agrees to general news and announcements</label></div>
                                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="person_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($editPerson['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="person_ride_notice">This person agrees to the weekly Ride Notice calendar update</label></div>
+                                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="person_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($editPerson['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="person_renewal_reminder">This person receives renewal reminders</label></div>
                                             <div class="form-text">Only select these where the person has agreed. Essential emails about their own entries are handled separately.</div>
                                         </div>
                                         <div class="col-12 col-md-6">
