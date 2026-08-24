@@ -242,8 +242,9 @@ a:visited {
 .home-intro-established { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .home-intro-title { margin-top: .3rem; font-size: clamp(1.9rem, 4vw, 3.6rem); line-height: 1.12; font-weight: 500; }
 .home-intro-tagline { margin-top: .35rem; font-size: clamp(.95rem, 1.6vw, 1.22rem); font-weight: 400; }
-.home-intro-join { flex: 0 0 auto; min-width: 180px; margin-top: 4px; padding: .7rem 1.5rem; font-size: 1.05rem; }
-.home-intro-actions { display: flex; flex-direction: column; align-items: stretch; gap: .55rem; }
+.home-intro-join { flex: 0 0 auto; min-width: 180px; padding: .7rem 1.5rem; font-size: 1.05rem; }
+.home-intro-actions { align-self: stretch; display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: .55rem; text-align: right; }
+.home-intro-short-name { margin-top: 1.25rem; letter-spacing: .1em; text-align: center; text-indent: .1em; }
 .home-mobile-toggler { display: none; align-self: flex-end; }
 .navbar {
     padding-top: 0.5rem;

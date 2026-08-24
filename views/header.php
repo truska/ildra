@@ -165,6 +165,7 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                     <div class="home-intro-tagline"><?php echo h((string)($siteSettings['hero_tagline'] ?? 'Home for Endurance Riding in Ireland')); ?></div>
                 </div>
                 <div class="home-intro-actions navbar-dark">
+                    <div class="home-intro-title home-intro-short-name"><?php echo h($headerShortName); ?></div>
                     <a class="btn button1 home-intro-join" href="<?php echo h((string)($siteSettings['hero_cta_url'] ?? '/memberships')); ?>"><?php echo h((string)($siteSettings['hero_cta_label'] ?? 'JOIN')); ?></a>
                     <button class="navbar-toggler home-mobile-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
                         <span class="navbar-toggler-icon"></span>
