@@ -1085,14 +1085,31 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
     $total = format_price($order['total'] ?? 0);
     $items = $order['items'] ?? [];
 
-    $subject = subject_with_prefix($emailSettings, "Booking confirmation {$bookingRef}");
+    $purchaseKinds = [];
+    foreach ($items as $item) {
+        $bookingType = strtolower(trim((string)($item['booking_type'] ?? '')));
+        $purchaseKinds[] = $bookingType === 'membership'
+            ? 'membership'
+            : ($bookingType === 'horse_logbook' ? 'horse_logbook' : 'entry');
+    }
+    $purchaseKinds = array_values(array_unique($purchaseKinds));
+    $confirmationTitle = count($purchaseKinds) === 1
+        ? match ($purchaseKinds[0]) {
+            'membership' => 'Membership Purchase Confirmation',
+            'horse_logbook' => 'Horse Logbook Purchase Confirmation',
+            'entry' => 'Entry Confirmation',
+            default => 'Purchase Confirmation',
+        }
+        : 'Purchase Confirmation';
+
+    $subject = subject_with_prefix($emailSettings, "{$confirmationTitle} {$bookingRef}");
 
     $rowsHtml = '';
     $rowsText = [];
     foreach ($items as $item) {
         $title = (string)($item['event_title'] ?? '');
         $price = format_price($item['price'] ?? 0);
-        $type = ucfirst((string)($item['booking_type'] ?? 'item'));
+        $type = ucwords(str_replace('_', ' ', (string)($item['booking_type'] ?? 'item')));
         $meta = $item['metadata'] ?? [];
         $details = [];
         if (!empty($meta['class_label'])) {
@@ -1115,8 +1132,8 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
 
         $rowsHtml .= '<tr>'
             . '<td style="padding:10px 0;"><div style="font-weight:700;color:#0c2a12;">' . h($title) . '</div>'
-            . ($detailsStr !== '' ? '<div style="color:#476146;font-size:13px;line-height:1.4;">' . h($detailsStr) . '</div>' : '')
-            . '<div style="color:#476146;font-size:13px;">Type: ' . h($type) . '</div>'
+            . ($detailsStr !== '' ? '<div style="color:#476146;line-height:1.4;">' . h($detailsStr) . '</div>' : '')
+            . '<div style="color:#476146;">Type: ' . h($type) . '</div>'
             . '</td>'
             . '<td style="padding:10px 0;text-align:right;white-space:nowrap;font-weight:700;color:#0c2a12;">' . h($price) . '</td>'
             . '</tr>';
@@ -1124,7 +1141,7 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         $rowsText[] = "- {$title} ({$type}) — {$price}" . ($detailsStr !== '' ? " — {$detailsStr}" : '');
     }
 
-    $htmlInner = '<div style="font-size:16px;font-weight:800;color:#0c2a12;">Booking confirmation</div>'
+    $htmlInner = '<div style="font-size:16px;font-weight:800;color:#0c2a12;">' . h($confirmationTitle) . '</div>'
         . '<div style="margin-top:6px;color:#476146;">Reference: <strong>' . h($bookingRef) . '</strong></div>'
         . '<div style="margin-top:4px;color:#476146;">Placed: ' . h($placed) . '</div>'
         . '<div style="margin-top:4px;color:#476146;">Contact: ' . h($contactName) . ' · ' . h($contactEmail) . '</div>'
@@ -1135,11 +1152,11 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         . '<td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;font-weight:800;">' . h($total) . '</td></tr>'
         . '</table>'
         . '</div>'
-        . '<div style="margin-top:18px;color:#476146;font-size:13px;">Thank you for your booking.</div>';
+        . '<div style="margin-top:18px;color:#476146;">Thank you for your purchase.</div>';
 
     $html = wrap_user_email_html($siteSettings, $emailSettings, $htmlInner);
 
-    $text = wrap_user_email_text($siteSettings, $emailSettings, "Booking confirmation\n"
+    $text = wrap_user_email_text($siteSettings, $emailSettings, $confirmationTitle . "\n"
         . "Reference: {$bookingRef}\n"
         . "Placed: {$placed}\n"
         . "Contact: {$contactName} · {$contactEmail}\n\n"

@@ -175,7 +175,7 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                 send_logged_email(
                     $pdo,
                     $contactEmail,
-                    (string)($emailPayload['subject'] ?? ('Booking confirmation ' . (string)($order['booking_ref'] ?? ''))),
+                    (string)($emailPayload['subject'] ?? ('Purchase Confirmation ' . (string)($order['booking_ref'] ?? ''))),
                     (string)($emailPayload['html'] ?? ''),
                     (string)($emailPayload['text'] ?? ''),
                     [

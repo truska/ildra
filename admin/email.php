@@ -244,7 +244,7 @@ if ($view === 'settings') {
                         <div class="help-row">Delivery identity used in the From header. This may be a no-reply SMTP address and is not shown in the email signature.</div>
                     </div>
                     <div class="col-12">
-                        <div class="help-row">Example subject: <code>[TEST]</code> Booking confirmation …</div>
+                        <div class="help-row">Example subject: <code>[TEST]</code> Purchase Confirmation …</div>
                     </div>
                 </div>
             </div>

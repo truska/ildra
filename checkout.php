@@ -323,7 +323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
         send_logged_email(
             $pdo,
             $contactEmail,
-            (string)($emailPayload['subject'] ?? ('Booking confirmation ' . (string)($order['booking_ref'] ?? ''))),
+            (string)($emailPayload['subject'] ?? ('Purchase Confirmation ' . (string)($order['booking_ref'] ?? ''))),
             (string)($emailPayload['html'] ?? ''),
             (string)($emailPayload['text'] ?? ''),
             [
@@ -477,11 +477,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                         <?php if ($stripeTestMode): ?>
                             <div class="stripe-test-note rounded p-3 mt-3 small">
                                 <div class="fw-semibold mb-1">Stripe test payment reminder</div>
-                                <div>Successful payment: <code>4242 4242 4242 4242</code></div>
+                                <div>Successful payment: <code>4242 4242 4242 4242</code> <button class="btn btn-sm btn-outline-secondary p-0 ms-1 test-card-copy" style="width:28px;height:28px;" type="button" data-copy-card="4242 4242 4242 4242" title="Copy successful test card number" aria-label="Copy successful test card number"><i class="fa-regular fa-copy" aria-hidden="true"></i></button></div>
                                 <div class="text-muted small mt-1">
-                                    Generic decline: <code>4000 0000 0000 0002</code><br>
-                                    Insufficient funds: <code>4000 0000 0000 9995</code><br>
-                                    Authentication required: <code>4000 0025 0000 3155</code>
+                                    Generic decline: <code>4000 0000 0000 0002</code> <button class="btn btn-sm btn-outline-secondary p-0 ms-1 test-card-copy" style="width:28px;height:28px;" type="button" data-copy-card="4000 0000 0000 0002" title="Copy generic decline test card number" aria-label="Copy generic decline test card number"><i class="fa-regular fa-copy" aria-hidden="true"></i></button><br>
+                                    Insufficient funds: <code>4000 0000 0000 9995</code> <button class="btn btn-sm btn-outline-secondary p-0 ms-1 test-card-copy" style="width:28px;height:28px;" type="button" data-copy-card="4000 0000 0000 9995" title="Copy insufficient funds test card number" aria-label="Copy insufficient funds test card number"><i class="fa-regular fa-copy" aria-hidden="true"></i></button><br>
+                                    Authentication required: <code>4000 0025 0000 3155</code> <button class="btn btn-sm btn-outline-secondary p-0 ms-1 test-card-copy" style="width:28px;height:28px;" type="button" data-copy-card="4000 0025 0000 3155" title="Copy authentication test card number" aria-label="Copy authentication test card number"><i class="fa-regular fa-copy" aria-hidden="true"></i></button>
                                 </div>
                                 <div class="text-muted small mt-1">Use any future expiry date and any three-digit CVC.</div>
                             </div>
@@ -599,5 +599,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+        document.querySelectorAll('[data-copy-card]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const value = button.dataset.copyCard || '';
+                let copied = false;
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(value);
+                        copied = true;
+                    } else {
+                        const input = document.createElement('textarea');
+                        input.value = value;
+                        input.style.position = 'fixed';
+                        input.style.opacity = '0';
+                        document.body.appendChild(input);
+                        input.select();
+                        copied = document.execCommand('copy');
+                        input.remove();
+                    }
+                } catch (error) {
+                    copied = false;
+                }
+                if (!copied) return;
+                const icon = button.querySelector('i');
+                if (icon) icon.className = 'fa-solid fa-check';
+                const originalTitle = button.title;
+                button.title = 'Copied';
+                setTimeout(() => {
+                    if (icon) icon.className = 'fa-regular fa-copy';
+                    button.title = originalTitle;
+                }, 1200);
+            });
+        });
+    </script>
 </body>
 </html>
