@@ -86,9 +86,13 @@ require_once __DIR__ . '/dev_tasks.php';
 require_once __DIR__ . '/event_ride_notes.php';
 require_once __DIR__ . '/bookings_store.php';
 require_once __DIR__ . '/email.php';
+require_once __DIR__ . '/email_campaigns.php';
 require_once __DIR__ . '/stripe.php';
 
 $pdo = createPdo($config, $alerts);
+if ($pdo) {
+    ensureEmailCampaignTables($pdo);
+}
 $currentUser = $_SESSION['user'] ?? null;
 $allUsers = [];
 
@@ -114,7 +118,8 @@ $actingAsOriginalUser = $isActingAs && is_array($_SESSION['act_as_original_user'
 // Refresh user details from DB each request so role/level changes take effect
 if ($currentUser && $pdo) {
     $stmt = $pdo->prepare("
-        SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at
+        SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at,
+               u.general_email_opt_in, u.ride_notice_opt_in
         FROM users u
         JOIN roles r ON r.id = u.role_id
         WHERE u.id = :id

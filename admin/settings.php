@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
 
+$settingsRole = strtolower((string)($currentUser['role'] ?? ''));
+$canManageCampaignEmail = in_array($settingsRole, ['superadmin', 'admin'], true);
 $siteSettings = getSiteSettings($pdo);
 $companySocials = fetchCompanySocials($pdo);
 $companyAffiliates = fetchCompanyAffiliates($pdo);
@@ -64,6 +66,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $siteSettings = array_merge($siteSettings, $payload);
         $companySocials = $postedSocials;
         $companyAffiliates = $postedAffiliates;
+    } elseif ($settingsSection === 'campaign_email') {
+        if (!$canManageCampaignEmail) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Campaign email settings are restricted to senior administrators.'];
+        } else {
+            $baseUrl = rtrim(trim((string)($_POST['campaign_public_base_url'] ?? '')), '/');
+            if ($baseUrl !== '' && !filter_var($baseUrl, FILTER_VALIDATE_URL)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Campaign public base URL must be a valid absolute URL.'];
+            }
+            $payload = [
+                'campaign_live_sending_enabled' => !empty($_POST['campaign_live_sending_enabled']) ? '1' : '0',
+                'campaign_default_batch_size' => max(1, min(500, (int)($_POST['campaign_default_batch_size'] ?? 25))),
+                'campaign_public_base_url' => $baseUrl,
+            ];
+            if (!$alerts && saveSiteSettings($pdo, $payload, $alerts)) {
+                $_SESSION['flash_success'] = 'Campaign email settings saved.';
+                header('Location: settings.php?tab=campaign_email');
+                exit;
+            }
+            $siteSettings = array_merge($siteSettings, $payload);
+        }
     } elseif ($settingsSection === 'ride_notes_email') {
         $payload = [
             'ride_notes_email_intro_html' => trim((string)($_POST['ride_notes_email_intro_html'] ?? '')),
@@ -133,7 +155,9 @@ $manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), stat
 }));
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 $requestedSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'company'));
-$activeSettingsTab = in_array($requestedSettingsTab, ['company', 'home', 'events', 'ride_notes_email', 'global'], true) ? $requestedSettingsTab : 'company';
+$allowedSettingsTabs = ['company', 'home', 'events', 'ride_notes_email', 'global'];
+if ($canManageCampaignEmail) $allowedSettingsTabs[] = 'campaign_email';
+$activeSettingsTab = in_array($requestedSettingsTab, $allowedSettingsTabs, true) ? $requestedSettingsTab : 'company';
 
 admin_layout_start('Settings', 'settings');
 ?>
@@ -151,6 +175,9 @@ admin_layout_start('Settings', 'settings');
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'ride_notes_email' ? 'active' : ''; ?>" id="ride-notes-email-tab" data-bs-toggle="tab" data-bs-target="#ride-notes-email-settings" type="button" role="tab" aria-controls="ride-notes-email-settings" aria-selected="<?php echo $activeSettingsTab === 'ride_notes_email' ? 'true' : 'false'; ?>">Ride Notes Email</button>
         </li>
+        <?php if ($canManageCampaignEmail): ?><li class="nav-item" role="presentation">
+            <button class="nav-link <?php echo $activeSettingsTab === 'campaign_email' ? 'active' : ''; ?>" id="campaign-email-tab" data-bs-toggle="tab" data-bs-target="#campaign-email-settings" type="button" role="tab" aria-controls="campaign-email-settings" aria-selected="<?php echo $activeSettingsTab === 'campaign_email' ? 'true' : 'false'; ?>">Campaign Email</button>
+        </li><?php endif; ?>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'global' ? 'active' : ''; ?>" id="global-tab" data-bs-toggle="tab" data-bs-target="#global-settings" type="button" role="tab" aria-controls="global-settings" aria-selected="<?php echo $activeSettingsTab === 'global' ? 'true' : 'false'; ?>">Global</button>
         </li>
@@ -261,6 +288,19 @@ admin_layout_start('Settings', 'settings');
             <div class="col-12"><button class="btn btn-success">Save Ride Notes email settings</button></div>
         </form></div>
     </div>
+    <?php if ($canManageCampaignEmail): ?><div class="tab-pane fade <?php echo $activeSettingsTab === 'campaign_email' ? 'show active' : ''; ?>" id="campaign-email-settings" role="tabpanel" aria-labelledby="campaign-email-tab" tabindex="0">
+        <h3 class="h5 fw-bold mb-1">Campaign email</h3>
+        <p class="text-muted small mb-3">Senior administrator controls for scheduled and bulk campaign delivery.</p>
+        <div class="card-soft p-3"><form method="post" class="row g-3 align-items-end"><input type="hidden" name="settings_section" value="campaign_email">
+            <div class="col-12">
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="campaign_live_sending_enabled" name="campaign_live_sending_enabled" value="1" <?php echo (string)($siteSettings['campaign_live_sending_enabled'] ?? '0') === '1' ? 'checked' : ''; ?>><label class="form-check-label fw-semibold" for="campaign_live_sending_enabled">Enable live campaign delivery</label></div>
+                <div class="form-text">Keep disabled while campaign templates and audiences are being tested. Approved campaigns cannot send while this is off.</div>
+            </div>
+            <div class="col-12 col-md-3"><label class="form-label fw-semibold" for="campaign_default_batch_size">Default batch size</label><input class="form-control" id="campaign_default_batch_size" name="campaign_default_batch_size" type="number" min="1" max="500" value="<?php echo (int)($siteSettings['campaign_default_batch_size'] ?? 25); ?>"><div class="form-text">Maximum recipients processed per scheduled run.</div></div>
+            <div class="col-12 col-md-6"><label class="form-label fw-semibold" for="campaign_public_base_url">Public base URL</label><input class="form-control" id="campaign_public_base_url" name="campaign_public_base_url" type="url" value="<?php echo h((string)($siteSettings['campaign_public_base_url'] ?? '')); ?>" placeholder="https://enduranceridingireland.com"><div class="form-text">Used for tracking, unsubscribe and campaign links generated by cron.</div></div>
+            <div class="col-12"><button class="btn btn-success">Save campaign email settings</button></div>
+        </form></div>
+    </div><?php endif; ?>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'global' ? 'show active' : ''; ?>" id="global-settings" role="tabpanel" aria-labelledby="global-tab" tabindex="0">
     <div class="row g-4">
         <div class="col-12">
