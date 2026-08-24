@@ -353,6 +353,20 @@ function format_display_date($value, string $fallback = '—'): string
     return date('d M Y', $ts);
 }
 
+function app_local_timezone(): DateTimeZone
+{
+    static $timezone = null;
+    if (!$timezone instanceof DateTimeZone) {
+        $timezone = new DateTimeZone('Europe/London');
+    }
+    return $timezone;
+}
+
+function app_local_datetime(string $value = 'now'): DateTimeImmutable
+{
+    return new DateTimeImmutable($value, app_local_timezone());
+}
+
 function format_display_datetime($value, string $fallback = '—'): string
 {
     if ($value instanceof DateTimeInterface) {

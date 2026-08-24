@@ -31,7 +31,7 @@ if (!function_exists('footer_short_date')) {
 if (!function_exists('footer_entry_status')) {
     function footer_entry_status(array $event, ?DateTimeImmutable $now = null): array
     {
-        $now = $now ?? new DateTimeImmutable('now');
+        $now = $now ?? app_local_datetime();
         $eventDate = trim((string)($event['event_date'] ?? ''));
         $openAt = $event['entry_open_at'] ?? null;
         $closeAt = $event['entry_close_at'] ?? null;
@@ -43,8 +43,8 @@ if (!function_exists('footer_entry_status')) {
             $closeAt = date('Y-m-d 23:59:59', strtotime($eventDate . ' -1 week'));
         }
 
-        $openDate = $openAt ? new DateTimeImmutable((string)$openAt) : null;
-        $closeDate = $closeAt ? new DateTimeImmutable((string)$closeAt) : null;
+        $openDate = $openAt ? app_local_datetime((string)$openAt) : null;
+        $closeDate = $closeAt ? app_local_datetime((string)$closeAt) : null;
         if ($openDate && $now < $openDate) {
             return ['label' => 'Entries Not Open', 'date' => footer_short_date($openDate->format('Y-m-d')), 'class' => 'not-open'];
         }

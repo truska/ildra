@@ -308,10 +308,10 @@ $navItemEventsUrl = $basePath . '/events';
 	                                if (!$entryCloseAt && $eventDate) {
 	                                    $entryCloseAt = date('Y-m-d 23:59:59', strtotime($eventDate . ' -1 week'));
 	                                }
-	                                $now = new DateTimeImmutable('now');
-	                                $entryOpenDt = $entryOpenAt ? new DateTimeImmutable((string)$entryOpenAt) : null;
-	                                $nonMemberEntryOpenDt = $nonMemberEntryOpenAt ? new DateTimeImmutable((string)$nonMemberEntryOpenAt) : null;
-	                                $entryCloseDt = $entryCloseAt ? new DateTimeImmutable((string)$entryCloseAt) : null;
+	                                $now = app_local_datetime();
+	                                $entryOpenDt = $entryOpenAt ? app_local_datetime((string)$entryOpenAt) : null;
+	                                $nonMemberEntryOpenDt = $nonMemberEntryOpenAt ? app_local_datetime((string)$nonMemberEntryOpenAt) : null;
+	                                $entryCloseDt = $entryCloseAt ? app_local_datetime((string)$entryCloseAt) : null;
 	                                $entryPills = [];
 	                                if ($entryOpenDt && $now < $entryOpenDt) {
 	                                    $entryPills[] = [

@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+// Public and admin dates use UK local time, including daylight-saving changes.
+date_default_timezone_set('Europe/London');
+
 session_start();
 
 if (isset($_GET['clear_sql_errors'])) {

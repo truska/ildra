@@ -4928,7 +4928,7 @@ function event_date_defaults(string $eventDate, array $settings): ?array
     }
 
     try {
-        $start = new DateTimeImmutable($eventDate . ' 12:00:00');
+        $start = app_local_datetime($eventDate . ' 12:00:00');
     } catch (Exception $e) {
         return null;
     }

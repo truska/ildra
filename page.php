@@ -240,10 +240,10 @@ foreach ($pageElements as &$pageElement) {
             if (!$entryOpenAt && $eventDate) $entryOpenAt = date('Y-m-d 00:00:00', strtotime($eventDate . ' -1 month'));
             if (!$nonMemberOpenAt && $entryOpenAt) $nonMemberOpenAt = date('Y-m-d H:i:s', strtotime((string)$entryOpenAt . ' +1 week'));
             if (!$entryCloseAt && $eventDate) $entryCloseAt = date('Y-m-d 23:59:59', strtotime($eventDate . ' -1 week'));
-            $now = new DateTimeImmutable('now');
-            $entryOpenDt = $entryOpenAt ? new DateTimeImmutable((string)$entryOpenAt) : null;
-            $nonMemberOpenDt = $nonMemberOpenAt ? new DateTimeImmutable((string)$nonMemberOpenAt) : null;
-            $entryCloseDt = $entryCloseAt ? new DateTimeImmutable((string)$entryCloseAt) : null;
+            $now = app_local_datetime();
+            $entryOpenDt = $entryOpenAt ? app_local_datetime((string)$entryOpenAt) : null;
+            $nonMemberOpenDt = $nonMemberOpenAt ? app_local_datetime((string)$nonMemberOpenAt) : null;
+            $entryCloseDt = $entryCloseAt ? app_local_datetime((string)$entryCloseAt) : null;
             $capacity = (int)($event['capacity_limit'] ?? 0); $isLimited = !empty($event['capacity_enabled']) && $capacity > 0;
             $entryCount = (int)($event['entry_count'] ?? 0); $isFull = $isLimited && $entryCount >= $capacity;
             $entriesClosed = $entryCloseDt && $now > $entryCloseDt;
