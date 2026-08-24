@@ -957,6 +957,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                         <?php endforeach; ?>
                                                     </select>
                                                     <div class="small helper-text" id="classPriceHint">Price will show when you pick a class. To unlock member rates, choose a member above.</div>
+                                                    <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="memberRateUsedNotice"></div>
                                                     <div class="validation-message small d-none" data-validation-for="class_code">Please choose a class.</div>
                                                 </div>
                                             </div>
@@ -1117,6 +1118,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const classSelect = document.getElementById('classSelect');
         const rideTypeSelect = document.getElementById('rideTypeSelect');
         const priceHint = document.getElementById('classPriceHint');
+        const memberRateUsedNotice = document.getElementById('memberRateUsedNotice');
         const priceSummary = document.getElementById('classPriceSummary');
         const form = document.getElementById('entryForm');
         const submitEntry = document.getElementById('submitEntry');
@@ -1182,6 +1184,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         ? [person.first_name || '', person.last_name || ''].join(' ').trim()
                         : 'Not selected';
                 }
+                if (rideTypeSelect) rideTypeSelect.value = '';
+                if (classSelect) classSelect.value = '';
                 updateMemberPriceAvailability();
                 updateClassGroupOptions();
                 syncJuniorRideFields();
@@ -1219,6 +1223,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const updateMemberPriceAvailability = () => {
             if (!classSelect) return;
             const eligible = selectedPersonEligible();
+            const personId = selectedPersonId();
+            const memberRateAlreadyUsed = !!(personId && memberPriceUsedByPerson?.[personId]);
+            if (memberRateUsedNotice) {
+                memberRateUsedNotice.classList.toggle('d-none', !memberRateAlreadyUsed);
+                memberRateUsedNotice.textContent = memberRateAlreadyUsed
+                    ? 'This rider has already used their member-rate entry for this event, so another member-rate class cannot be selected.'
+                    : '';
+            }
             const memberOptions = Array.from(classSelect.options || []).filter((opt) => opt.dataset.memberPrice === '1');
             memberOptions.forEach((opt) => {
                 const competitiveRecognition = ['CTR', 'ER'].includes(opt.dataset.classGroup || '') && (selectedPersonActiveMember() || selectedPersonExternalRecognition());
@@ -1271,7 +1283,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         };
 
         if (rideTypeSelect) {
-            rideTypeSelect.addEventListener('change', updateClassGroupOptions);
+            rideTypeSelect.addEventListener('change', () => {
+                if (classSelect) classSelect.value = '';
+                updateClassGroupOptions();
+            });
         }
 
         const setPriceCopy = () => {

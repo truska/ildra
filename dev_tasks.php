@@ -105,7 +105,7 @@ function devTaskCreate(PDO $pdo, array $data, array $file, array $user, array &$
     if ($alerts) return null;
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by, updated_by, next_action_by) VALUES (:title,:priority,'open',:user,:user,:next_action_by)");
+        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by, updated_by, task_notes, next_action_by) VALUES (:title,:priority,'open',:user,:user,'',:next_action_by)");
         $stmt->execute([':title'=>$title, ':priority'=>$priority, ':user'=>(int)$user['id'], ':next_action_by'=>$nextActionBy]);
         $id = (int)$pdo->lastInsertId();
         $stmt = $pdo->prepare('INSERT INTO dev_task_messages (task_id,user_id,author_name,message,image_filename) VALUES (:task,:user,:author,:message,:image)');

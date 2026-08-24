@@ -42,13 +42,21 @@ foreach ($tasks as $task) {
 asort($raisedByOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $nextActionOptions = ['0'=>'Unassigned'];
 foreach (devTaskAssignableUsers($pdo) as $user) $nextActionOptions[(string)$user['id']] = devTaskAuthorName($user);
+$priorityOptions = ['1'=>'1 — Urgent','2'=>'2 — High','3'=>'3 — Normal','4'=>'4 — Low','5'=>'5 — When possible'];
+$updatedByOptions = [];
+foreach ($tasks as $task) {
+    $updatedById = (int)($task['updated_by'] ?? 0);
+    if ($updatedById <= 0) continue;
+    $updatedByOptions[(string)$updatedById] = trim(($task['updated_first_name']??'').' '.($task['updated_last_name']??'')) ?: ($task['updated_email']??'Unknown');
+}
+asort($updatedByOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $statusOptions = ['open'=>'Open','completed'=>'Completed','future'=>'Future','closed'=>'Closed'];
 $tableColumns = [
-    'priority' => ['label'=>'Priority','sortable'=>true,'compare'=>'number','form'=>$filterForm],
+    'priority' => ['label'=>'Priority','sortable'=>true,'compare'=>'number','filter'=>'select','options'=>$priorityOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['priority']],
     'task' => ['label'=>'Task','sortable'=>true,'filter'=>'text','placeholder'=>'Search task','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['title']],
     'next_action' => ['label'=>'Next action by','sortable'=>true,'filter'=>'select','options'=>$nextActionOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['next_action_by'] ?? 0),'sort_value'=>static fn(array $row):string=>empty($row['next_action_by'])?'1 Unassigned':'0 '.(trim(($row['assignee_first_name']??'').' '.($row['assignee_last_name']??'')) ?: ($row['assignee_email']??'Unknown'))],
     'raised_by' => ['label'=>'Raised by','sortable'=>true,'filter'=>'select','options'=>$raisedByOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['created_by'],'sort_value'=>static fn(array $row):string=>trim(($row['first_name']??'').' '.($row['last_name']??'')) ?: ($row['email']??'Unknown')],
-    'updated_by' => ['label'=>'Last edited by','sortable'=>true,'filter'=>'text','placeholder'=>'Search editor','form'=>$filterForm,'value'=>static fn(array $row):string=>trim(($row['updated_first_name']??'').' '.($row['updated_last_name']??'')) ?: ($row['updated_email']??''),'sort_value'=>static fn(array $row):string=>trim(($row['updated_first_name']??'').' '.($row['updated_last_name']??'')) ?: ($row['updated_email']??'')],
+    'updated_by' => ['label'=>'Last edited by','sortable'=>true,'filter'=>'select','options'=>$updatedByOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['updated_by']??0),'sort_value'=>static fn(array $row):string=>trim(($row['updated_first_name']??'').' '.($row['updated_last_name']??'')) ?: ($row['updated_email']??'')],
     'conversation' => ['label'=>'Conversation','sortable'=>true,'filter'=>'text','placeholder'=>'Search conversation','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['conversation_search']??''),'sort_value'=>static fn(array $row):int=>(int)$row['message_count'],'compare'=>'number'],
     'updated' => ['label'=>'Updated','sortable'=>true,'filter'=>'text','placeholder'=>'Search updated','form'=>$filterForm,'value'=>static fn(array $row):string=>date('j M Y, H:i',(int)$row['updated_at_ts']),'sort_value'=>static fn(array $row):int=>(int)$row['updated_at_ts'],'compare'=>'number'],
     'task_status' => ['label'=>'Status','sortable'=>true,'filter'=>'select','options'=>$statusOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['status']],
