@@ -942,7 +942,9 @@ function ensurePricingSchemeTables(?PDO $pdo): void
                 sort_order INT UNSIGNED NOT NULL DEFAULT 0,
                 class_name VARCHAR(190) NOT NULL,
                 class_code VARCHAR(32) NULL DEFAULT NULL,
+                class_group VARCHAR(32) NULL DEFAULT NULL,
                 price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                foreign_recognition_price DECIMAL(10,2) NULL DEFAULT NULL,
                 is_member_price TINYINT(1) NOT NULL DEFAULT 0,
                 is_junior_ride TINYINT(1) NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -957,6 +959,20 @@ function ensurePricingSchemeTables(?PDO $pdo): void
     if (!table_column_exists($pdo, 'pricing_scheme_rows', 'is_junior_ride')) {
         try {
             $pdo->exec("ALTER TABLE pricing_scheme_rows ADD COLUMN is_junior_ride TINYINT(1) NOT NULL DEFAULT 0 AFTER is_member_price");
+        } catch (PDOException $e) {
+            // ignore
+        }
+    }
+    if (!table_column_exists($pdo, 'pricing_scheme_rows', 'class_group')) {
+        try {
+            $pdo->exec("ALTER TABLE pricing_scheme_rows ADD COLUMN class_group VARCHAR(32) NULL DEFAULT NULL AFTER class_code");
+        } catch (PDOException $e) {
+            // ignore
+        }
+    }
+    if (!table_column_exists($pdo, 'pricing_scheme_rows', 'foreign_recognition_price')) {
+        try {
+            $pdo->exec("ALTER TABLE pricing_scheme_rows ADD COLUMN foreign_recognition_price DECIMAL(10,2) NULL DEFAULT NULL AFTER price");
         } catch (PDOException $e) {
             // ignore
         }
@@ -976,7 +992,9 @@ function ensureEventPricingTables(?PDO $pdo): void
                 sort_order INT UNSIGNED NOT NULL DEFAULT 0,
                 class_name VARCHAR(190) NOT NULL,
                 class_code VARCHAR(32) NULL DEFAULT NULL,
+                class_group VARCHAR(32) NULL DEFAULT NULL,
                 price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                foreign_recognition_price DECIMAL(10,2) NULL DEFAULT NULL,
                 is_member_price TINYINT(1) NOT NULL DEFAULT 0,
                 is_junior_ride TINYINT(1) NOT NULL DEFAULT 0,
                 enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -996,6 +1014,31 @@ function ensureEventPricingTables(?PDO $pdo): void
             // ignore
         }
     }
+    if (!table_column_exists($pdo, 'event_pricing_rows', 'class_group')) {
+        try {
+            $pdo->exec("ALTER TABLE event_pricing_rows ADD COLUMN class_group VARCHAR(32) NULL DEFAULT NULL AFTER class_code");
+        } catch (PDOException $e) {
+            // ignore
+        }
+    }
+    if (!table_column_exists($pdo, 'event_pricing_rows', 'foreign_recognition_price')) {
+        try {
+            $pdo->exec("ALTER TABLE event_pricing_rows ADD COLUMN foreign_recognition_price DECIMAL(10,2) NULL DEFAULT NULL AFTER price");
+        } catch (PDOException $e) {
+            // ignore
+        }
+    }
+}
+
+function pricing_class_group(array $row): string
+{
+    $group = strtoupper(trim((string)($row['class_group'] ?? '')));
+    if ($group !== '') return $group;
+    $source = strtoupper(trim((string)($row['class_code'] ?? '') . ' ' . (string)($row['class_name'] ?? '')));
+    foreach (['VPR', 'CTR', 'ER', 'PR'] as $knownGroup) {
+        if (preg_match('/^' . preg_quote($knownGroup, '/') . '\\b/', $source)) return $knownGroup;
+    }
+    return 'OTHER';
 }
 
 /**
@@ -1267,7 +1310,9 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
     $rowSort = $data['row_sort'] ?? [];
     $rowNames = $data['row_class_name'] ?? [];
     $rowCodes = $data['row_class_code'] ?? [];
+    $rowGroups = $data['row_class_group'] ?? [];
     $rowPrices = $data['row_price'] ?? [];
+    $rowForeignPrices = $data['row_foreign_recognition_price'] ?? [];
     $rowMember = $data['row_is_member_price'] ?? [];
     $rowJunior = $data['row_is_junior_ride'] ?? [];
 
@@ -1276,7 +1321,9 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
     if (!is_array($rowSort)) $rowSort = [];
     if (!is_array($rowNames)) $rowNames = [];
     if (!is_array($rowCodes)) $rowCodes = [];
+    if (!is_array($rowGroups)) $rowGroups = [];
     if (!is_array($rowPrices)) $rowPrices = [];
+    if (!is_array($rowForeignPrices)) $rowForeignPrices = [];
     if (!is_array($rowMember)) $rowMember = [];
     if (!is_array($rowJunior)) $rowJunior = [];
 
@@ -1294,6 +1341,10 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
             $classCode = mb_substr($classCode, 0, 32);
         }
         $price = price_to_number((string)($rowPrices[$i] ?? '0'));
+        $foreignPriceRaw = trim((string)($rowForeignPrices[$i] ?? ''));
+        $foreignRecognitionPrice = $foreignPriceRaw === '' ? null : price_to_number($foreignPriceRaw);
+        $classGroup = strtoupper(trim((string)($rowGroups[$i] ?? '')));
+        if (mb_strlen($classGroup) > 32) $classGroup = mb_substr($classGroup, 0, 32);
         $sortOrder = (int)($rowSort[$i] ?? (($i + 1) * 10));
         $isMemberPrice = !empty($rowMember[$i]) ? 1 : 0;
         $isJuniorRide = !empty($rowJunior[$i]) ? 1 : 0;
@@ -1303,7 +1354,9 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
             'sort_order' => $sortOrder,
             'class_name' => $className,
             'class_code' => $classCode,
+            'class_group' => $classGroup !== '' ? $classGroup : null,
             'price' => $price,
+            'foreign_recognition_price' => $isMemberPrice ? $foreignRecognitionPrice : null,
             'is_member_price' => $isMemberPrice,
             'is_junior_ride' => $isJuniorRide,
         ];
@@ -1352,15 +1405,17 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
             SET sort_order = :sort_order,
                 class_name = :class_name,
                 class_code = :class_code,
+                class_group = :class_group,
                 price = :price,
+                foreign_recognition_price = :foreign_recognition_price,
                 is_member_price = :is_member_price,
                 is_junior_ride = :is_junior_ride,
                 updated_at = NOW()
             WHERE id = :id AND scheme_id = :sid
         ");
         $insertRow = $pdo->prepare("
-            INSERT INTO pricing_scheme_rows (scheme_id, sort_order, class_name, class_code, price, is_member_price, is_junior_ride, created_at, updated_at)
-            VALUES (:sid, :sort_order, :class_name, :class_code, :price, :is_member_price, :is_junior_ride, NOW(), NOW())
+            INSERT INTO pricing_scheme_rows (scheme_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, created_at, updated_at)
+            VALUES (:sid, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, NOW(), NOW())
         ");
         foreach ($rows as $row) {
             if ($row['id']) {
@@ -1368,7 +1423,9 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
                     ':sort_order' => $row['sort_order'],
                     ':class_name' => $row['class_name'],
                     ':class_code' => $row['class_code'],
+                    ':class_group' => $row['class_group'],
                     ':price' => $row['price'],
+                    ':foreign_recognition_price' => $row['foreign_recognition_price'],
                     ':is_member_price' => $row['is_member_price'],
                     ':is_junior_ride' => $row['is_junior_ride'],
                     ':id' => $row['id'],
@@ -1381,7 +1438,9 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
                     ':sort_order' => $row['sort_order'],
                     ':class_name' => $row['class_name'],
                     ':class_code' => $row['class_code'],
+                    ':class_group' => $row['class_group'],
                     ':price' => $row['price'],
+                    ':foreign_recognition_price' => $row['foreign_recognition_price'],
                     ':is_member_price' => $row['is_member_price'],
                     ':is_junior_ride' => $row['is_junior_ride'],
                 ]);
@@ -1455,8 +1514,8 @@ function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows): bool
         $pdo->beginTransaction();
         $pdo->prepare("DELETE FROM event_pricing_rows WHERE event_id = :eid")->execute([':eid' => $eventId]);
         $ins = $pdo->prepare("
-            INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, price, is_member_price, is_junior_ride, enabled, created_at, updated_at)
-            VALUES (:eid, :sort_order, :class_name, :class_code, :price, :is_member_price, :is_junior_ride, :enabled, NOW(), NOW())
+            INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, enabled, created_at, updated_at)
+            VALUES (:eid, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, :enabled, NOW(), NOW())
         ");
         foreach ($rows as $row) {
             $ins->execute([
@@ -1464,7 +1523,9 @@ function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows): bool
                 ':sort_order' => (int)($row['sort_order'] ?? 0),
                 ':class_name' => (string)($row['class_name'] ?? ''),
                 ':class_code' => ($row['class_code'] ?? null) !== '' ? $row['class_code'] : null,
+                ':class_group' => ($row['class_group'] ?? null) !== '' ? strtoupper(trim((string)$row['class_group'])) : null,
                 ':price' => (float)($row['price'] ?? 0),
+                ':foreign_recognition_price' => ($row['foreign_recognition_price'] ?? null) !== null && $row['foreign_recognition_price'] !== '' ? (float)$row['foreign_recognition_price'] : null,
                 ':is_member_price' => !empty($row['is_member_price']) ? 1 : 0,
                 ':is_junior_ride' => !empty($row['is_junior_ride']) ? 1 : 0,
                 ':enabled' => !empty($row['enabled']) ? 1 : 0,
@@ -1488,7 +1549,7 @@ function copyPricingSchemeToEvent(?PDO $pdo, int $schemeId, int $eventId): bool
     ensurePricingSchemeTables($pdo);
     ensureEventPricingTables($pdo);
     try {
-        $stmt = $pdo->prepare("SELECT sort_order, class_name, class_code, price, is_member_price, is_junior_ride FROM pricing_scheme_rows WHERE scheme_id = :sid ORDER BY sort_order ASC, id ASC");
+        $stmt = $pdo->prepare("SELECT sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride FROM pricing_scheme_rows WHERE scheme_id = :sid ORDER BY sort_order ASC, id ASC");
         $stmt->execute([':sid' => $schemeId]);
         $rows = [];
         foreach ($stmt->fetchAll() as $r) {
@@ -1496,7 +1557,9 @@ function copyPricingSchemeToEvent(?PDO $pdo, int $schemeId, int $eventId): bool
                 'sort_order' => (int)($r['sort_order'] ?? 0),
                 'class_name' => (string)($r['class_name'] ?? ''),
                 'class_code' => $r['class_code'] ?? null,
+                'class_group' => $r['class_group'] ?? null,
                 'price' => (float)($r['price'] ?? 0),
+                'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (float)$r['foreign_recognition_price'] : null,
                 'is_member_price' => (int)($r['is_member_price'] ?? 0),
                 'is_junior_ride' => (int)($r['is_junior_ride'] ?? 0),
                 'enabled' => 1,
@@ -1610,7 +1673,9 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
     $rowSort = $data['event_row_sort'] ?? [];
     $rowNames = $data['event_row_class_name'] ?? [];
     $rowCodes = $data['event_row_class_code'] ?? [];
+    $rowGroups = $data['event_row_class_group'] ?? [];
     $rowPrices = $data['event_row_price'] ?? [];
+    $rowForeignPrices = $data['event_row_foreign_recognition_price'] ?? [];
     $rowMember = $data['event_row_is_member_price'] ?? [];
     $rowJunior = $data['event_row_is_junior_ride'] ?? [];
     $rowEnabled = $data['event_row_enabled'] ?? [];
@@ -1643,6 +1708,10 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
         $isJuniorRide = !empty($rowJunior[$key]) ? 1 : 0;
         $enabled = !empty($rowEnabled[$key]) ? 1 : 0;
         $price = price_to_number((string)($rowPrices[$key] ?? '0'));
+        $foreignPriceRaw = trim((string)($rowForeignPrices[$key] ?? ''));
+        $foreignRecognitionPrice = $foreignPriceRaw === '' ? null : price_to_number($foreignPriceRaw);
+        $classGroup = strtoupper(trim((string)($rowGroups[$key] ?? '')));
+        if (mb_strlen($classGroup) > 32) $classGroup = mb_substr($classGroup, 0, 32);
         if ($enabled && !$isMember) {
             $hasEnabledNonMember = true;
         }
@@ -1650,7 +1719,9 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
             'sort_order' => $sortOrder,
             'class_name' => $className,
             'class_code' => $classCode,
+            'class_group' => $classGroup !== '' ? $classGroup : null,
             'price' => $price,
+            'foreign_recognition_price' => $isMember ? $foreignRecognitionPrice : null,
             'is_member_price' => $isMember,
             'is_junior_ride' => $isJuniorRide,
             'enabled' => $enabled,
@@ -5011,6 +5082,7 @@ function buildDuplicatedEventPricingRows(?PDO $pdo, array $sourceEvent): array
                 'sort_order' => (int)($row['sort_order'] ?? (($i + 1) * 10)),
                 'class_name' => (string)($row['class_name'] ?? ''),
                 'class_code' => $row['class_code'] ?? null,
+                'class_group' => $row['class_group'] ?? null,
                 'price' => (float)($row['price'] ?? 0),
                 'is_member_price' => !empty($row['is_member_price']) ? 1 : 0,
                 'is_junior_ride' => !empty($row['is_junior_ride']) ? 1 : 0,
@@ -5032,6 +5104,7 @@ function buildDuplicatedEventPricingRows(?PDO $pdo, array $sourceEvent): array
             'sort_order' => (int)($row['sort_order'] ?? (($i + 1) * 10)),
             'class_name' => (string)($row['class_name'] ?? ''),
             'class_code' => ($row['class_code'] ?? null) !== '' ? $row['class_code'] : null,
+            'class_group' => ($row['class_group'] ?? null) !== '' ? $row['class_group'] : null,
             'price' => $matchedPrice !== null ? $matchedPrice : (float)($row['price'] ?? 0),
             'is_member_price' => !empty($row['is_member_price']) ? 1 : 0,
             'is_junior_ride' => !empty($row['is_junior_ride']) ? 1 : 0,
@@ -5143,8 +5216,8 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
 
         if ($pricingRows) {
             $insPricing = $pdo->prepare("
-                INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, price, is_member_price, is_junior_ride, enabled, created_at, updated_at)
-                VALUES (:event_id, :sort_order, :class_name, :class_code, :price, :is_member_price, :is_junior_ride, :enabled, NOW(), NOW())
+                INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, enabled, created_at, updated_at)
+                VALUES (:event_id, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, :enabled, NOW(), NOW())
             ");
             foreach ($pricingRows as $row) {
                 $insPricing->execute([
@@ -5152,7 +5225,9 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
                     ':sort_order' => (int)($row['sort_order'] ?? 0),
                     ':class_name' => (string)($row['class_name'] ?? ''),
                     ':class_code' => ($row['class_code'] ?? null) !== '' ? $row['class_code'] : null,
+                    ':class_group' => ($row['class_group'] ?? null) !== '' ? $row['class_group'] : null,
                     ':price' => (float)($row['price'] ?? 0),
+                    ':foreign_recognition_price' => ($row['foreign_recognition_price'] ?? null) !== null && $row['foreign_recognition_price'] !== '' ? (float)$row['foreign_recognition_price'] : null,
                     ':is_member_price' => !empty($row['is_member_price']) ? 1 : 0,
                     ':is_junior_ride' => !empty($row['is_junior_ride']) ? 1 : 0,
                     ':enabled' => !empty($row['enabled']) ? 1 : 0,

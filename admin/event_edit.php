@@ -175,8 +175,10 @@ foreach ($eventTypes as $t) {
             return [
                 'sort_order' => (int)($r['sort_order'] ?? 10),
                 'class_code' => (string)($r['class_code'] ?? ''),
+                'class_group' => (string)($r['class_group'] ?? ''),
                 'class_name' => (string)($r['class_name'] ?? ''),
                 'price' => (string)($r['price'] ?? '0'),
+                'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (string)$r['foreign_recognition_price'] : '',
                 'is_member_price' => !empty($r['is_member_price']) ? 1 : 0,
                 'is_junior_ride' => !empty($r['is_junior_ride']) ? 1 : 0,
                 'enabled' => 1,
@@ -189,7 +191,9 @@ $eventPricingRows = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $names = (array)($_POST['event_row_class_name'] ?? []);
     $codes = (array)($_POST['event_row_class_code'] ?? []);
+    $groups = (array)($_POST['event_row_class_group'] ?? []);
     $prices = (array)($_POST['event_row_price'] ?? []);
+    $foreignPrices = (array)($_POST['event_row_foreign_recognition_price'] ?? []);
     $sort = (array)($_POST['event_row_sort'] ?? []);
     $member = (array)($_POST['event_row_is_member_price'] ?? []);
     $junior = (array)($_POST['event_row_is_junior_ride'] ?? []);
@@ -199,8 +203,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'id' => 0,
             'sort_order' => (int)($sort[$key] ?? 0),
             'class_code' => (string)($codes[$key] ?? ''),
+            'class_group' => (string)($groups[$key] ?? ''),
             'class_name' => (string)($names[$key] ?? ''),
             'price' => (string)($prices[$key] ?? '0'),
+            'foreign_recognition_price' => (string)($foreignPrices[$key] ?? ''),
             'is_member_price' => !empty($member[$key]) ? 1 : 0,
             'is_junior_ride' => !empty($junior[$key]) ? 1 : 0,
             'enabled' => !empty($enabled[$key]) ? 1 : 0,
@@ -229,8 +235,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'id' => 0,
                 'sort_order' => (int)($r['sort_order'] ?? 10),
                 'class_code' => (string)($r['class_code'] ?? ''),
+                'class_group' => (string)($r['class_group'] ?? ''),
                 'class_name' => (string)($r['class_name'] ?? ''),
                 'price' => (string)($r['price'] ?? '0'),
+                'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (string)$r['foreign_recognition_price'] : '',
                 'is_member_price' => !empty($r['is_member_price']) ? 1 : 0,
                 'is_junior_ride' => !empty($r['is_junior_ride']) ? 1 : 0,
                 'enabled' => 1,
@@ -422,7 +430,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <div class="small text-muted">
-                    <span class="fw-bold">Tip:</span> Member prices are marked explicitly. Changing the event type will reset pricing to that type’s default scheme.
+                    <span class="fw-bold">Tip:</span> Foreign Recognition is optional on member-price rows; blank uses the member rate. Changing the event type will reset pricing to that type’s default scheme.
                 </div>
                 <button class="btn btn-sm btn-outline-secondary has-icon" type="button" id="addPricingRowBtn"><i class="fa-solid fa-plus btn-icon"></i><span class="btn-label">Add row</span></button>
             </div>
@@ -434,16 +442,18 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                         <tr>
                             <th class="compact">On</th>
                             <th class="compact">Code</th>
+                            <th class="compact">Ride type</th>
                             <th>Class name</th>
                             <th class="compact">£ Price</th>
                             <th class="compact">Member price</th>
+                            <th class="compact">Foreign Recognition £</th>
                             <th class="compact">Junior ride</th>
                             <th class="compact"></th>
                         </tr>
                         </thead>
                         <tbody id="pricingRowsTbody">
                         <?php if (!$eventPricingRows): ?>
-                            <tr><td colspan="7" class="row-muted small p-3">No pricing rows yet. Use “Add row” or select an event type with a default pricing scheme.</td></tr>
+                            <tr><td colspan="9" class="row-muted small p-3">No pricing rows yet. Use “Add row” or select an event type with a default pricing scheme.</td></tr>
                         <?php else: ?>
                             <?php foreach (array_values($eventPricingRows) as $i => $row): ?>
                                 <?php
@@ -462,6 +472,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                                         <input type="hidden" name="event_row_sort[<?php echo h($rowKey); ?>]" value="<?php echo h((string)$sortOrder); ?>">
                                         <input type="text" class="form-control form-control-sm code-input" name="event_row_class_code[<?php echo h($rowKey); ?>]" value="<?php echo h((string)($row['class_code'] ?? '')); ?>" placeholder="PR">
                                     </td>
+                                    <td class="compact"><input type="text" class="form-control form-control-sm text-uppercase" name="event_row_class_group[<?php echo h($rowKey); ?>]" value="<?php echo h((string)($row['class_group'] ?? '')); ?>" placeholder="PR"></td>
                                     <td>
                                         <input type="text" class="form-control form-control-sm name-input" name="event_row_class_name[<?php echo h($rowKey); ?>]" value="<?php echo h((string)($row['class_name'] ?? '')); ?>" placeholder="Pleasure Ride">
                                     </td>
@@ -472,6 +483,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                                         <input type="hidden" name="event_row_is_member_price[<?php echo h($rowKey); ?>]" value="0">
                                         <input class="form-check-input" type="checkbox" value="1" name="event_row_is_member_price[<?php echo h($rowKey); ?>]" <?php echo $memberChecked ? 'checked' : ''; ?> aria-label="Member price">
                                     </td>
+                                    <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[<?php echo h($rowKey); ?>]" value="<?php echo h((string)($row['foreign_recognition_price'] ?? '')); ?>" placeholder="Member"></td>
                                     <td class="compact">
                                         <input type="hidden" name="event_row_is_junior_ride[<?php echo h($rowKey); ?>]" value="0">
                                         <input class="form-check-input" type="checkbox" value="1" name="event_row_is_junior_ride[<?php echo h($rowKey); ?>]" <?php echo $juniorChecked ? 'checked' : ''; ?> aria-label="Junior ride">
@@ -731,8 +743,10 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             tr.dataset.rowKey = rowKey;
             const sortOrder = Number((row && row.sort_order) ?? 0) || 0;
             const classCode = String((row && row.class_code) ?? '');
+            const classGroup = String((row && row.class_group) ?? '');
             const className = String((row && row.class_name) ?? '');
             const price = normalizePrice((row && row.price) ?? '0');
+            const foreignPrice = (row && row.foreign_recognition_price) == null || String(row.foreign_recognition_price).trim() === '' ? '' : normalizePrice(row.foreign_recognition_price);
             const enabled = (row && row.enabled) !== 0 && (row && row.enabled) !== '0';
             const isMemberPrice = (row && row.is_member_price) === 1 || (row && row.is_member_price) === '1' || (row && row.is_member_price) === true;
             const isJuniorRide = (row && row.is_junior_ride) === 1 || (row && row.is_junior_ride) === '1' || (row && row.is_junior_ride) === true;
@@ -746,6 +760,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <input type="hidden" name="event_row_sort[${rowKey}]" value="${sortOrder}">
                     <input type="text" class="form-control form-control-sm code-input" name="event_row_class_code[${rowKey}]" value="${classCode.replace(/\"/g, '&quot;')}" placeholder="PR">
                 </td>
+                <td class="compact"><input type="text" class="form-control form-control-sm text-uppercase" name="event_row_class_group[${rowKey}]" value="${classGroup.replace(/"/g, '&quot;')}" placeholder="PR"></td>
                 <td>
                     <input type="text" class="form-control form-control-sm name-input" name="event_row_class_name[${rowKey}]" value="${className.replace(/\"/g, '&quot;')}" placeholder="Pleasure Ride">
                 </td>
@@ -756,6 +771,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <input type="hidden" name="event_row_is_member_price[${rowKey}]" value="0">
                     <input class="form-check-input" type="checkbox" value="1" name="event_row_is_member_price[${rowKey}]" ${isMemberPrice ? 'checked' : ''} aria-label="Member price">
                 </td>
+                <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[${rowKey}]" value="${foreignPrice}" placeholder="Member"></td>
                 <td class="compact">
                     <input type="hidden" name="event_row_is_junior_ride[${rowKey}]" value="0">
                     <input class="form-check-input" type="checkbox" value="1" name="event_row_is_junior_ride[${rowKey}]" ${isJuniorRide ? 'checked' : ''} aria-label="Junior ride">
@@ -772,7 +788,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             pricingTbody.innerHTML = '';
             if (!rows || rows.length === 0) {
                 const empty = document.createElement('tr');
-                empty.innerHTML = `<td colspan="7" class="row-muted small p-3">No pricing rows yet. Use “Add row” or select an event type with a default pricing scheme.</td>`;
+                empty.innerHTML = `<td colspan="9" class="row-muted small p-3">No pricing rows yet. Use “Add row” or select an event type with a default pricing scheme.</td>`;
                 pricingTbody.appendChild(empty);
                 return;
             }
@@ -800,7 +816,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         if (addPricingRowBtn && pricingTbody) {
             addPricingRowBtn.addEventListener('click', () => {
-                if (pricingTbody.querySelector('td[colspan="6"]')) {
+                if (pricingTbody.querySelector('td[colspan="9"]')) {
                     pricingTbody.innerHTML = '';
                 }
                 const rowKey = `n${Date.now()}_${pricingRowCounter++}`;
@@ -808,8 +824,10 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 const row = createPricingRow(rowKey, {
                     sort_order: (existing + 1) * 10,
                     class_code: '',
+                    class_group: '',
                     class_name: '',
                     price: '0.00',
+                    foreign_recognition_price: '',
                     is_member_price: 0,
                     is_junior_ride: 0,
                     enabled: 1,

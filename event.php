@@ -38,6 +38,8 @@ if ($isLoggedIn && $pdo) {
 $peopleWithActiveMembership = [];
 $memberPriceEligibleByPerson = [];
 $memberPriceUsedByPerson = [];
+$externallyRecognisedPeople = [];
+$recognisedHorses = [];
 if ($isLoggedIn && $pdo && $people) {
     $memberIdSet = [];
     foreach ($people as $p) {
@@ -99,6 +101,21 @@ if ($isLoggedIn && $pdo && $people) {
     foreach ($memberIdSet as $personId => $_) {
         $memberPriceEligibleByPerson[$personId] = !empty($peopleWithActiveMembership[$personId])
             && empty($memberPriceUsedByPerson[$personId]);
+    }
+}
+$recognitionDate = !empty($event['event_date']) ? (string)$event['event_date'] : date('Y-m-d');
+if ($isLoggedIn && $pdo) {
+    $externallyRecognisedPeople = externalRecognitionIds($pdo, 'rider', array_column($people, 'id'), $recognitionDate);
+    $recognisedHorses = externalRecognitionIds($pdo, 'horse', array_column($horses, 'id'), $recognitionDate);
+    $recognitionYear = (int)substr($recognitionDate, 0, 4);
+    if ($recognitionYear > 0) {
+        $horseIds = array_values(array_unique(array_filter(array_map('intval', array_column($horses, 'id')))));
+        if ($horseIds) {
+            $in = implode(',', array_fill(0, count($horseIds), '?'));
+            $stmt = $pdo->prepare("SELECT DISTINCT horse_id FROM horse_logbook_purchases WHERE horse_id IN ($in) AND valid_year=? AND status='active'");
+            $stmt->execute(array_merge($horseIds, [$recognitionYear]));
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $horseId) $recognisedHorses[(int)$horseId] = true;
+        }
     }
 }
 $dbEntryCount = (int)($event['entry_count'] ?? 0);
@@ -217,7 +234,9 @@ if ($eventPricingRows) {
             'value' => $value,
             'code' => $code !== '' ? $code : $label,
             'label' => $label !== '' ? $label : $code,
+            'class_group' => pricing_class_group($row),
             'price' => format_price((float)($row['price'] ?? 0)),
+            'foreign_recognition_price' => $row['foreign_recognition_price'] !== null ? format_price((float)$row['foreign_recognition_price']) : null,
             'is_member_price' => !empty($row['is_member_price']),
             'is_junior_ride' => !empty($row['is_junior_ride']),
             'pricing_row_id' => $rowId > 0 ? $rowId : null,
@@ -238,6 +257,7 @@ if (!$classOptions) {
                 'value' => $code,
                 'code' => $code,
                 'label' => $label ?: $code,
+                'class_group' => pricing_class_group($cls),
                 'price' => $price === '' ? '' : format_price($price),
                 'is_member_price' => null,
                 'is_junior_ride' => null,
@@ -275,6 +295,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $horseId = (int)($_POST['horse_id'] ?? 0);
         $componentSelections = $_POST['component'] ?? [];
         $selectedPersonIsJunior = false;
+        $selectedPersonHasActiveMembership = false;
+        $selectedPersonHasExternalRecognition = false;
+        $selectedHorseIsRecognised = false;
 
         // Optional: link this entry to a saved person/horse owned by the current account.
         if ($personId > 0) {
@@ -284,6 +307,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             } else {
                 $riderName = trim((string)($p['first_name'] ?? '') . ' ' . (string)($p['last_name'] ?? ''));
                 $selectedPersonIsJunior = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
+                $selectedPersonHasActiveMembership = !empty($peopleWithActiveMembership[$personId]);
+                $selectedPersonHasExternalRecognition = !empty($externallyRecognisedPeople[$personId]);
             }
         }
         if ($horseId > 0) {
@@ -301,6 +326,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     $horseId = 0;
                 } else {
                     $horseName = trim((string)($h['name'] ?? ''));
+                    $selectedHorseIsRecognised = !empty($recognisedHorses[$horseId]);
                 }
             }
         }
@@ -325,12 +351,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         if ($emergencyContactName === '' || $emergencyContactPhone === '') {
             $alerts[] = ['type' => 'danger', 'message' => 'Provide an emergency contact name and phone number for this ride.'];
         }
+        $selectedClassGroup = $selectedClass ? (string)($selectedClass['class_group'] ?? 'OTHER') : '';
+        $isCompetitiveClass = in_array($selectedClassGroup, ['CTR','ER'], true);
         if ($selectedClass && !empty($selectedClass['is_member_price'])) {
             if ($personId <= 0) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Choose a member above to use member pricing.'];
-            } elseif (empty($memberPriceEligibleByPerson[$personId])) {
+            } elseif (!$isCompetitiveClass && empty($memberPriceEligibleByPerson[$personId])) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Member pricing is not available for the selected person.'];
+            } elseif ($isCompetitiveClass && !$selectedPersonHasActiveMembership && !$selectedPersonHasExternalRecognition) {
+                $alerts[] = ['type' => 'danger', 'message' => 'CTR and ER classes require an ILDRA member or an externally recognised rider.'];
             }
+        }
+        if ($isCompetitiveClass && !$selectedHorseIsRecognised) {
+            $alerts[] = ['type' => 'danger', 'message' => 'CTR and ER classes require a horse with a valid ILDRA logbook or approved external recognition.'];
         }
         if ($selectedClass && (!empty($selectedClass['is_junior_ride']) || $selectedPersonIsJunior) && $accompanyingAdult === '') {
             $alerts[] = ['type' => 'danger', 'message' => 'Accompanying adult is required for junior rides.'];
@@ -403,13 +436,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     'line_total' => $lineTotal !== 0.0 ? round($lineTotal, 2) : null,
                 ];
             }
-            $basePrice = price_to_number($selectedClass['price'] ?? 0);
+            $useForeignRecognitionPrice = !empty($selectedClass['is_member_price'])
+                && $selectedPersonHasExternalRecognition
+                && !$selectedPersonHasActiveMembership
+                && ($selectedClass['foreign_recognition_price'] ?? null) !== null;
+            $basePrice = price_to_number($useForeignRecognitionPrice
+                ? $selectedClass['foreign_recognition_price']
+                : ($selectedClass['price'] ?? 0));
             $metadata = [
                 'class_code' => $selectedClass['code'],
                 'class_label' => $selectedClass['label'],
                 'pricing_row_id' => $selectedClass['pricing_row_id'] ?? null,
                 'is_member_price' => $selectedClass['is_member_price'] ?? null,
+                'is_foreign_recognition_price' => $useForeignRecognitionPrice,
                 'is_junior_ride' => $selectedClass['is_junior_ride'] ?? null,
+                'class_group' => $selectedClassGroup,
                 'rider_name' => $riderName,
                 'contact_email' => $contactEmail,
                 'contact_phone' => $contactPhone,
@@ -816,7 +857,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                        }
                                                             $isJuniorPerson = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
 	                                                        ?>
-	                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>"><?php echo h($pLabel); ?></option>
+                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>"><?php echo h($pLabel); ?></option>
 	                                                    <?php endforeach; ?>
 	                                                </select>
 	                                                <div class="validation-message small d-none" data-validation-for="prefill_person">Please choose a rider.</div>
@@ -840,7 +881,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                                 $horseLabel .= ' [linked]';
                                                             }
                                                             ?>
-	                                                        <option value="<?php echo (int)($h['id'] ?? 0); ?>" <?php echo count($horses) === 1 && !empty($h['is_global_placeholder']) ? 'selected' : ''; ?>><?php echo h($horseLabel); ?></option>
+                                                        <option value="<?php echo (int)($h['id'] ?? 0); ?>" data-recognised="<?php echo !empty($recognisedHorses[(int)($h['id'] ?? 0)]) ? '1' : '0'; ?>" <?php echo count($horses) === 1 && !empty($h['is_global_placeholder']) ? 'selected' : ''; ?>><?php echo h($horseLabel); ?></option>
 	                                                    <?php endforeach; ?>
 	                                                </select>
 	                                                <div class="validation-message small d-none" data-validation-for="prefill_horse">Please choose a horse.</div>
@@ -872,32 +913,53 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     <?php if ($type === 'classes'): ?>
                                         <div class="col-12 form-section">
                                             <div class="fw-bold mb-2">Class selection</div>
-                                            <label class="form-label" for="classSelect">Class <span class="text-danger">*</span></label>
-                                            <select name="class_code" class="form-select" id="classSelect" data-required="true">
-                                                <option value="">Choose...</option>
-                                                <?php foreach ($classOptions as $cls): ?>
+                                            <?php $classGroups = array_values(array_unique(array_map(static fn(array $class): string => (string)$class['class_group'], $classOptions))); ?>
+                                            <div class="row g-3">
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label" for="rideTypeSelect">Ride type <span class="text-danger">*</span></label>
+                                                    <select class="form-select" id="rideTypeSelect" name="ride_type" data-required="true">
+                                                        <option value="">Choose...</option>
+                                                        <?php foreach ($classGroups as $classGroup): ?>
+                                                            <option value="<?php echo h($classGroup); ?>"><?php echo h($classGroup === 'OTHER' ? 'Other' : $classGroup); ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <div class="validation-message small d-none" data-validation-for="ride_type">Please choose a ride type.</div>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <label class="form-label" for="classSelect">Class <span class="text-danger">*</span></label>
+                                                    <select name="class_code" class="form-select" id="classSelect" data-required="true">
+                                                        <option value="">Choose...</option>
+                                                        <?php foreach ($classOptions as $cls): ?>
                                                     <?php
                                                     $memberLabel = '';
                                                     $isMemberPrice = !empty($cls['is_member_price']);
                                                     if (array_key_exists('is_member_price', $cls) && $cls['is_member_price'] !== null) {
-                                                        $memberLabel = $isMemberPrice ? ', member' : ', non-member';
+                                                        $memberLabel = $isMemberPrice
+                                                            ? (in_array((string)$cls['class_group'], ['CTR','ER'], true) ? ', recognised rider' : ', member')
+                                                            : ', non-member';
                                                     }
                                                     $lockIcon = $isMemberPrice ? ' 🔒' : '';
                                                     $baseLabel = $cls['label'] . ($cls['price'] !== '' ? ' (' . $cls['price'] . $memberLabel . ')' : '');
                                                     $lockedLabel = $baseLabel . $lockIcon;
                                                     ?>
-                                                    <option value="<?php echo h((string)($cls['value'] ?? $cls['code'])); ?>"
+                                                            <option value="<?php echo h((string)($cls['value'] ?? $cls['code'])); ?>"
                                                             data-price="<?php echo h((string)$cls['price']); ?>"
+                                                            data-member-price-value="<?php echo h((string)$cls['price']); ?>"
+                                                            data-foreign-price="<?php echo h((string)($cls['foreign_recognition_price'] ?? '')); ?>"
+                                                            data-class-label="<?php echo h((string)$cls['label']); ?>"
                                                             data-label="<?php echo h($baseLabel); ?>"
                                                             data-label-locked="<?php echo h($lockedLabel); ?>"
+                                                            data-class-group="<?php echo h((string)$cls['class_group']); ?>"
                                                             data-junior-ride="<?php echo !empty($cls['is_junior_ride']) ? '1' : '0'; ?>"
                                                             <?php echo $isMemberPrice ? 'data-member-price="1" disabled' : ''; ?>>
                                                         <?php echo h($lockedLabel); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <div class="small helper-text" id="classPriceHint">Price will show when you pick a class. To unlock member rates, choose a member above.</div>
-                                            <div class="validation-message small d-none" data-validation-for="class_code">Please choose a class.</div>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <div class="small helper-text" id="classPriceHint">Price will show when you pick a class. To unlock member rates, choose a member above.</div>
+                                                    <div class="validation-message small d-none" data-validation-for="class_code">Please choose a class.</div>
+                                                </div>
+                                            </div>
                                         </div>
                                     <?php elseif ($type === 'rider_details'): ?>
                                         <div class="col-12 form-section d-none" id="juniorRideSection">
@@ -994,7 +1056,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                     <?php elseif ($isRequiredConsent): ?>
                                                         <div class="form-check d-flex align-items-center gap-2 mb-1">
                                                             <input class="form-check-input component-toggle component-consent-required" type="checkbox" value="1" id="component_select_<?php echo $compId; ?>" name="component[<?php echo $compId; ?>]" <?php echo isset($componentSelections[$compId]) ? 'checked' : ''; ?> required>
-                                                            <label class="form-check-label fw-semibold" for="component_select_<?php echo $compId; ?>">Required to continue</label>
+                                                            <label class="form-check-label fw-semibold" for="component_select_<?php echo $compId; ?>">I accept all of the above</label>
                                                         </div>
                                                         <div class="text-muted small">Must be accepted to continue.</div>
                                                     <?php else: ?>
@@ -1053,6 +1115,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     <?php render_tinymce_bootstrap(); ?>
     <script>
         const classSelect = document.getElementById('classSelect');
+        const rideTypeSelect = document.getElementById('rideTypeSelect');
         const priceHint = document.getElementById('classPriceHint');
         const priceSummary = document.getElementById('classPriceSummary');
         const form = document.getElementById('entryForm');
@@ -1120,6 +1183,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         : 'Not selected';
                 }
                 updateMemberPriceAvailability();
+                updateClassGroupOptions();
                 syncJuniorRideFields();
                 setPriceCopy();
                 updateTotal();
@@ -1139,10 +1203,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 if (selectedHorseSummary) {
                     selectedHorseSummary.textContent = horse?.name || 'Not selected';
                 }
+                updateClassGroupOptions();
             });
-            if (prefillHorse.value) {
-                prefillHorse.dispatchEvent(new Event('change'));
-            }
         }
 
         const selectedPersonId = () => parseInt(prefillPerson?.value || '0', 10) || 0;
@@ -1150,22 +1212,67 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             const id = selectedPersonId();
             return !!(id && memberEligibilityByPerson && memberEligibilityByPerson[id]);
         };
+        const selectedPersonActiveMember = () => prefillPerson?.selectedOptions?.[0]?.dataset?.memberActive === '1';
+        const selectedPersonExternalRecognition = () => prefillPerson?.selectedOptions?.[0]?.dataset?.externalRecognition === '1';
+        const selectedHorseRecognised = () => prefillHorse?.selectedOptions?.[0]?.dataset?.recognised === '1';
 
         const updateMemberPriceAvailability = () => {
             if (!classSelect) return;
             const eligible = selectedPersonEligible();
             const memberOptions = Array.from(classSelect.options || []).filter((opt) => opt.dataset.memberPrice === '1');
             memberOptions.forEach((opt) => {
-                const lockedLabel = opt.dataset.labelLocked || opt.textContent;
-                const baseLabel = opt.dataset.label || opt.textContent;
-                opt.disabled = !eligible;
-                opt.textContent = eligible ? baseLabel : lockedLabel;
+                const competitiveRecognition = ['CTR', 'ER'].includes(opt.dataset.classGroup || '') && (selectedPersonActiveMember() || selectedPersonExternalRecognition());
+                const optionEligible = eligible || competitiveRecognition;
+                const useForeignPrice = selectedPersonExternalRecognition() && !selectedPersonActiveMember() && opt.dataset.foreignPrice !== '';
+                const effectivePrice = useForeignPrice ? opt.dataset.foreignPrice : opt.dataset.memberPriceValue;
+                const rateLabel = useForeignPrice ? ', Foreign Recognition' : (['CTR', 'ER'].includes(opt.dataset.classGroup || '') ? ', recognised rider' : ', member');
+                const baseLabel = `${opt.dataset.classLabel} (${effectivePrice}${rateLabel})`;
+                const lockedLabel = `${baseLabel} 🔒`;
+                opt.dataset.price = effectivePrice;
+                opt.disabled = !optionEligible;
+                opt.textContent = optionEligible ? baseLabel : lockedLabel;
             });
             const selectedOpt = classSelect.selectedOptions[0];
-            if (!eligible && selectedOpt?.dataset?.memberPrice === '1') {
+            const selectedCompetitiveRecognition = ['CTR', 'ER'].includes(selectedOpt?.dataset?.classGroup || '') && (selectedPersonActiveMember() || selectedPersonExternalRecognition());
+            if (!eligible && !selectedCompetitiveRecognition && selectedOpt?.dataset?.memberPrice === '1') {
                 classSelect.value = '';
             }
         };
+
+        const updateClassGroupOptions = () => {
+            if (!classSelect || !rideTypeSelect) return;
+            const personIsJunior = prefillPerson?.selectedOptions?.[0]?.dataset?.personJunior === '1';
+            const personIsMember = selectedPersonActiveMember();
+            const competitiveAllowed = (personIsMember || selectedPersonExternalRecognition()) && selectedHorseRecognised();
+            Array.from(rideTypeSelect.options).forEach((option) => {
+                if (['CTR', 'ER'].includes(option.value)) option.disabled = !competitiveAllowed;
+            });
+            if (['CTR', 'ER'].includes(rideTypeSelect.value) && !competitiveAllowed) rideTypeSelect.value = '';
+            const selectedGroup = rideTypeSelect.value;
+            Array.from(classSelect.options).forEach((option, index) => {
+                if (index === 0) return;
+                const groupMatches = option.dataset.classGroup === selectedGroup;
+                const juniorMatches = (option.dataset.juniorRide === '1') === personIsJunior;
+                const competitiveMatches = !['CTR', 'ER'].includes(selectedGroup) || competitiveAllowed;
+                const memberMatches = ['CTR', 'ER'].includes(selectedGroup)
+                    || (option.dataset.memberPrice === '1') === personIsMember;
+                option.hidden = !(groupMatches && juniorMatches && competitiveMatches && memberMatches);
+            });
+            const selectedOption = classSelect.selectedOptions[0];
+            if (!selectedGroup || (selectedOption && selectedOption.value && selectedOption.dataset.classGroup !== selectedGroup)) {
+                classSelect.value = '';
+            }
+            updateMemberPriceAvailability();
+            const availableOptions = Array.from(classSelect.options).filter((option, index) => index > 0 && !option.hidden && !option.disabled);
+            if (!classSelect.value && availableOptions.length === 1) classSelect.value = availableOptions[0].value;
+            setPriceCopy();
+            syncJuniorRideFields();
+            updateTotal();
+        };
+
+        if (rideTypeSelect) {
+            rideTypeSelect.addEventListener('change', updateClassGroupOptions);
+        }
 
         const setPriceCopy = () => {
             if (!classSelect) return;
@@ -1175,7 +1282,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             const personId = selectedPersonId();
             let memberNote = 'To unlock member rates, choose a member above.';
             if (personId) {
-                if (!memberActiveByPerson?.[personId]) {
+                if (selectedPersonExternalRecognition() && !selectedPersonActiveMember()) {
+                    memberNote = 'Foreign Recognition rate applied where one has been set.';
+                } else if (!memberActiveByPerson?.[personId]) {
                     memberNote = 'Selected person does not have an active membership.';
                 } else if (memberPriceUsedByPerson?.[personId]) {
                     memberNote = 'Member rate already used for this event.';
@@ -1402,6 +1511,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             setPriceCopy();
             syncJuniorRideFields();
         }
+        updateClassGroupOptions();
+        if (prefillHorse?.value) prefillHorse.dispatchEvent(new Event('change'));
         updateTotal();
         if (window.tinymce) {
             tinymce.init(window.ildraTinyMceConfig({

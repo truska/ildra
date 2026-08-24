@@ -90,6 +90,7 @@ require_once __DIR__ . '/event_ride_notes.php';
 require_once __DIR__ . '/bookings_store.php';
 require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/email_campaigns.php';
+require_once __DIR__ . '/external_recognition.php';
 require_once __DIR__ . '/stripe.php';
 
 $pdo = createPdo($config, $alerts);

@@ -57,6 +57,7 @@ $accountSectionLabels = [
     'people' => 'People Management',
     'horses' => 'Horse Management',
     'shares' => 'Share Management',
+    'recognition' => 'External Recognition',
     'my-account' => 'My Account',
 ];
 $isAccountManagementView = isset($accountSectionLabels[$accountView]);
@@ -264,6 +265,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             if ($savedId && !$alerts) {
                 $_SESSION['flash_success'] = $personId > 0 ? 'Person updated.' : 'Person added.';
                 header('Location: ' . $basePath . '/account?view=people');
+                exit;
+            }
+        } elseif ($action === 'apply_external_recognition') {
+            $accountView = 'recognition';
+            if (saveExternalRecognitionApplication($pdo, $userId, $_POST, $alerts)) {
+                $_SESSION['flash_success'] = 'External recognition application submitted for review.';
+                header('Location: ' . $basePath . '/account?view=recognition');
                 exit;
             }
         } elseif ($action === 'archive_person') {
@@ -1089,6 +1097,38 @@ $accountIntroAutoOpen = false;
                                     <?php endif; ?>
                                 </div>
 
+                            <?php elseif ($accountView === 'recognition'): ?>
+                                <?php
+                                $recognitionPeople = array_values(array_filter(fetchMembersForUser($pdo, $userId), static fn(array $p): bool => empty($p['is_linked'])));
+                                $recognitionHorses = array_values(array_filter(fetchHorsesForUser($pdo, $userId), static fn(array $h): bool => empty($h['is_linked'])));
+                                $recognitionOrganisations = fetchRecognisedOrganisations($pdo);
+                                $recognitionApplications = fetchExternalRecognitionsForUser($pdo, $userId);
+                                $recognitionPersonId = (int)($_GET['person_id'] ?? 0);
+                                ?>
+                                <div class="alert alert-info">External recognition allows an eligible visiting rider or horse to enter applicable rides. It does not create ILDRA membership, an ILDRA membership number or an ILDRA horse logbook.</div>
+                                <div class="row g-4">
+                                    <div class="col-12 col-lg-5">
+                                        <div class="border rounded p-3">
+                                            <h3 class="h6 fw-bold">Apply for recognition</h3>
+                                            <form method="post" class="row g-3" id="recognitionApplicationForm">
+                                                <input type="hidden" name="action" value="apply_external_recognition">
+                                                <div class="col-12"><label class="form-label">Recognition for</label><select class="form-select" name="subject_type" id="recognitionSubjectType"><option value="rider">Rider</option><option value="horse">Horse</option></select></div>
+                                                <div class="col-12" id="recognitionRiderField"><label class="form-label">Person</label><select class="form-select" name="subject_id" data-recognition-subject="rider"><option value="">Choose...</option><?php foreach($recognitionPeople as $person): ?><option value="<?php echo (int)$person['id']; ?>" <?php echo (int)$person['id'] === $recognitionPersonId ? 'selected' : ''; ?>><?php echo h(trim((string)$person['first_name'].' '.(string)$person['last_name'])); ?></option><?php endforeach; ?></select></div>
+                                                <div class="col-12 d-none" id="recognitionHorseField"><label class="form-label">Horse</label><select class="form-select" data-recognition-subject="horse"><option value="">Choose...</option><?php foreach($recognitionHorses as $horse): ?><option value="<?php echo (int)$horse['id']; ?>"><?php echo h((string)$horse['name']); ?></option><?php endforeach; ?></select></div>
+                                                <div class="col-12"><label class="form-label">Organisation</label><select class="form-select" name="organisation_id" id="recognitionOrganisation"><option value="">Other organisation</option><?php foreach($recognitionOrganisations as $organisation): ?><option value="<?php echo (int)$organisation['id']; ?>"><?php echo h((string)$organisation['name'].' ['.(string)$organisation['country_code'].']'); ?></option><?php endforeach; ?></select></div>
+                                                <div class="col-12" id="recognitionOtherFields"><div class="row g-3"><div class="col-md-8"><label class="form-label">Other organisation name</label><input class="form-control" name="other_organisation_name"></div><div class="col-md-4"><label class="form-label">Country</label><input class="form-control text-uppercase" name="organisation_country_code" maxlength="2" placeholder="IE"></div></div></div>
+                                                <div class="col-md-7"><label class="form-label">External membership or registration number</label><input class="form-control" name="credential_number" required></div>
+                                                <div class="col-md-5"><label class="form-label">Valid until</label><input class="form-control" type="date" name="valid_until" required></div>
+                                                <div class="col-12"><label class="form-label">Notes <span class="text-muted">(optional)</span></label><textarea class="form-control" name="applicant_notes" rows="2"></textarea></div>
+                                                <div class="col-12"><button class="btn btn-success">Submit for review</button></div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-7"><h3 class="h6 fw-bold">Applications</h3><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>For</th><th>Organisation</th><th>Number</th><th>Valid until</th><th>Status</th></tr></thead><tbody><?php foreach($recognitionApplications as $application): ?><tr><td><?php echo h((string)($application['person_name'] ?: $application['horse_name'])); ?></td><td><?php echo h((string)($application['organisation_name'] ?: $application['other_organisation_name'])); ?></td><td><?php echo h((string)$application['credential_number']); ?></td><td><?php echo h(format_display_date($application['valid_until'])); ?></td><td class="text-capitalize"><?php echo h(str_replace('_',' ',(string)$application['status'])); ?></td></tr><?php endforeach; ?><?php if(!$recognitionApplications): ?><tr><td colspan="5" class="text-muted">No applications submitted.</td></tr><?php endif; ?></tbody></table></div></div>
+                                </div>
+                                <script>
+                                (() => { const type=document.getElementById('recognitionSubjectType'), rider=document.getElementById('recognitionRiderField'), horse=document.getElementById('recognitionHorseField'), org=document.getElementById('recognitionOrganisation'), other=document.getElementById('recognitionOtherFields'); const sync=()=>{const isHorse=type.value==='horse'; rider.classList.toggle('d-none',isHorse); horse.classList.toggle('d-none',!isHorse); const riderSelect=rider.querySelector('select'),horseSelect=horse.querySelector('select'); riderSelect.name=isHorse?'':'subject_id'; horseSelect.name=isHorse?'subject_id':'';}; type.addEventListener('change',sync); org.addEventListener('change',()=>other.classList.toggle('d-none',org.value!=='')); sync(); })();
+                                </script>
                             <?php elseif ($accountView === 'people'): ?>
                                 <?php
                                 $userId = (int)($currentUser['id'] ?? 0);
@@ -1302,10 +1342,6 @@ $accountIntroAutoOpen = false;
                                             <input class="form-control" name="emergency_contact_phone" placeholder="Emergency phone" value="<?php echo h($editPerson['emergency_contact_phone'] ?? ''); ?>" required>
                                         </div>
                                         <div class="col-12 col-md-6">
-                                            <label class="form-label fw-bold">Date of birth (required for juniors)</label>
-                                            <input type="date" class="form-control" name="dob" value="<?php echo h($editPerson['dob'] ?? ''); ?>">
-                                        </div>
-                                        <div class="col-12 col-md-6">
                                             <label class="form-label fw-bold">Junior or Senior</label>
                                             <select class="form-select" name="junior_or_senior">
                                                 <option value="">Select...</option>
@@ -1313,9 +1349,16 @@ $accountIntroAutoOpen = false;
                                                 <option value="Senior" <?php echo (isset($editPerson['junior_or_senior']) && $editPerson['junior_or_senior'] === 'Senior') ? 'selected' : ''; ?>>Senior</option>
                                             </select>
                                         </div>
-                                        <div class="col-12 d-flex gap-2">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-bold">Date of birth (required for juniors)</label>
+                                            <input type="date" class="form-control" name="dob" value="<?php echo h($editPerson['dob'] ?? ''); ?>">
+                                        </div>
+                                        <div class="col-12 d-flex flex-wrap gap-2">
                                             <button class="btn btn-success fw-bold" type="submit"><?php echo $editPerson ? 'Save changes' : 'Add person'; ?></button>
 	                                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <?php if ($editPerson): ?>
+                                                <a class="btn btn-outline-success ms-md-auto" href="<?php echo h($basePath); ?>/account?view=recognition&amp;person_id=<?php echo (int)$editPerson['id']; ?>">Apply for Foreign Recognition</a>
+                                            <?php endif; ?>
 	                                        </div>
 	                                    </form>
 	                                            </div>
@@ -2136,16 +2179,16 @@ $accountIntroAutoOpen = false;
                                 <input class="form-control" name="emergency_contact_phone" placeholder="Emergency phone" value="<?php echo h($promptPerson['emergency_contact_phone'] ?? ''); ?>" required>
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Date of birth (required for juniors)</label>
-                                <input type="date" class="form-control" name="dob" value="<?php echo h($promptPerson['dob'] ?? ''); ?>">
-                            </div>
-                            <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold">Junior or Senior</label>
                                 <select class="form-select" name="junior_or_senior">
                                     <option value="">Select...</option>
                                     <option value="Junior" <?php echo (isset($promptPerson['junior_or_senior']) && $promptPerson['junior_or_senior'] === 'Junior') ? 'selected' : ''; ?>>Junior</option>
                                     <option value="Senior" <?php echo (isset($promptPerson['junior_or_senior']) && $promptPerson['junior_or_senior'] === 'Senior') ? 'selected' : ''; ?>>Senior</option>
                                 </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold">Date of birth (required for juniors)</label>
+                                <input type="date" class="form-control" name="dob" value="<?php echo h($promptPerson['dob'] ?? ''); ?>">
                             </div>
                             <div class="col-12 d-flex gap-2">
                                 <button class="btn btn-success fw-bold" type="submit">Save details</button>

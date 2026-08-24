@@ -23,6 +23,7 @@ function defaultAdminMenuItems(): array
         ['dev_tasks', 'Dev Tasks', 'dev_tasks.php', 'fa-solid fa-list-check'],
         ['memberships', 'Memberships', 'memberships.php', 'fa-solid fa-id-card'],
         ['members', 'Members', 'members.php', 'fa-solid fa-user-group'],
+        ['external_recognition', 'External Recognition', 'external_recognition.php', 'fa-solid fa-id-card-clip'],
         ['awards', 'Awards', 'awards.php', 'fa-solid fa-trophy'],
         ['people', 'People', 'people.php', 'fa-solid fa-address-book'],
         ['horses', 'Horses', 'horses.php', 'fa-solid fa-horse'],
@@ -56,7 +57,7 @@ function adminMenuFixedRoles(string $key): array
     if (in_array($key, ['tech', 'tech_email', 'image_folders'], true)) {
         return ['superadmin'];
     }
-    if (in_array($key, ['users', 'email', 'email_campaigns', 'pricing_schemes', 'people', 'horses', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
+    if (in_array($key, ['users', 'email', 'email_campaigns', 'pricing_schemes', 'people', 'horses', 'external_recognition', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
         return ['superadmin', 'admin', 'manager'];
     }
     return ['superadmin', 'admin', 'manager', 'organiser'];

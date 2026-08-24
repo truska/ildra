@@ -52,7 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $sort = (array)($_POST['row_sort'] ?? []);
     $names = (array)($_POST['row_class_name'] ?? []);
     $codes = (array)($_POST['row_class_code'] ?? []);
+    $groups = (array)($_POST['row_class_group'] ?? []);
     $prices = (array)($_POST['row_price'] ?? []);
+    $foreignPrices = (array)($_POST['row_foreign_recognition_price'] ?? []);
     $member = (array)($_POST['row_is_member_price'] ?? []);
     $keys = array_keys($names);
     sort($keys);
@@ -62,7 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'sort_order' => (int)($sort[$i] ?? (($i + 1) * 10)),
             'class_name' => (string)($names[$i] ?? ''),
             'class_code' => (string)($codes[$i] ?? ''),
+            'class_group' => (string)($groups[$i] ?? ''),
             'price' => (string)($prices[$i] ?? ''),
+            'foreign_recognition_price' => (string)($foreignPrices[$i] ?? ''),
             'is_member_price' => !empty($member[$i]) ? 1 : 0,
         ];
     }
@@ -121,7 +125,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
                 <div class="fw-semibold">Pricing rows</div>
-                <div class="text-muted small">Add one or more class rows. Member pricing is marked explicitly.</div>
+                <div class="text-muted small">Foreign Recognition is optional on member-price rows; leave it blank to use the member rate.</div>
             </div>
             <button class="btn btn-sm btn-outline-primary" type="button" id="addRowBtn">Add row</button>
         </div>
@@ -132,16 +136,18 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                 <tr>
                     <th style="width:110px;">Order</th>
                     <th style="width:130px;">Code (opt)</th>
+                    <th style="width:110px;">Ride type</th>
                     <th>Class name</th>
                     <th style="width:140px;">Price (£)</th>
                     <th style="width:160px;">Member price?</th>
+                    <th style="width:160px;">Foreign Recognition (£)</th>
                     <th style="width:140px;">Junior ride?</th>
                     <th style="width:80px;"></th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if (!$rows): ?>
-                    <?php $rows = [['id' => 0, 'sort_order' => 10, 'class_code' => '', 'class_name' => '', 'price' => '0', 'is_member_price' => 0, 'is_junior_ride' => 0]]; ?>
+                    <?php $rows = [['id' => 0, 'sort_order' => 10, 'class_code' => '', 'class_group' => '', 'class_name' => '', 'price' => '0', 'foreign_recognition_price' => '', 'is_member_price' => 0, 'is_junior_ride' => 0]]; ?>
                 <?php endif; ?>
                 <?php foreach ($rows as $i => $r): ?>
                     <tr>
@@ -152,6 +158,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                         <td>
                             <input class="form-control form-control-sm" data-row-field="code" name="row_class_code[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_code'] ?? '')); ?>" maxlength="32">
                         </td>
+                        <td><input class="form-control form-control-sm text-uppercase" data-row-field="group" name="row_class_group[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_group'] ?? '')); ?>" maxlength="32" placeholder="PR"></td>
                         <td>
                             <input class="form-control form-control-sm" data-row-field="name" name="row_class_name[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_name'] ?? '')); ?>" required>
                         </td>
@@ -161,6 +168,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                         <td class="text-center">
                             <input class="form-check-input" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_member_price']) ? 'checked' : ''; ?>>
                         </td>
+                        <td><input class="form-control form-control-sm" data-row-field="foreign_price" name="row_foreign_recognition_price[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['foreign_recognition_price'] ?? '')); ?>" inputmode="decimal" placeholder="Member rate"></td>
                         <td class="text-center">
                             <input class="form-check-input" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_junior_ride']) ? 'checked' : ''; ?>>
                         </td>
@@ -189,6 +197,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         <td>
             <input class="form-control form-control-sm" data-row-field="code" name="row_class_code[0]" value="" maxlength="32">
         </td>
+        <td><input class="form-control form-control-sm text-uppercase" data-row-field="group" name="row_class_group[0]" value="" maxlength="32" placeholder="PR"></td>
         <td>
             <input class="form-control form-control-sm" data-row-field="name" name="row_class_name[0]" value="" required>
         </td>
@@ -198,6 +207,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         <td class="text-center">
             <input class="form-check-input" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[0]" value="1">
         </td>
+        <td><input class="form-control form-control-sm" data-row-field="foreign_price" name="row_foreign_recognition_price[0]" value="" inputmode="decimal" placeholder="Member rate"></td>
         <td class="text-center">
             <input class="form-check-input" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[0]" value="1">
         </td>
@@ -233,12 +243,16 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                 if (sort) sort.name = `row_sort[${idx}]`;
                 const code = row.querySelector('[data-row-field="code"]');
                 if (code) code.name = `row_class_code[${idx}]`;
+                const group = row.querySelector('[data-row-field="group"]');
+                if (group) group.name = `row_class_group[${idx}]`;
                 const name = row.querySelector('[data-row-field="name"]');
                 if (name) name.name = `row_class_name[${idx}]`;
                 const price = row.querySelector('[data-row-field="price"]');
                 if (price) price.name = `row_price[${idx}]`;
                 const member = row.querySelector('[data-row-field="member_checkbox"]');
                 if (member) member.name = `row_is_member_price[${idx}]`;
+                const foreignPrice = row.querySelector('[data-row-field="foreign_price"]');
+                if (foreignPrice) foreignPrice.name = `row_foreign_recognition_price[${idx}]`;
                 const junior = row.querySelector('[data-row-field="junior_checkbox"]');
                 if (junior) junior.name = `row_is_junior_ride[${idx}]`;
             });
