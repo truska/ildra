@@ -167,16 +167,23 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                 <div class="home-intro-actions navbar-dark">
                     <div class="home-intro-title home-intro-short-name"><?php echo h($headerShortName); ?></div>
                     <a class="btn button1 home-intro-join" href="<?php echo h((string)($siteSettings['hero_cta_url'] ?? '/memberships')); ?>"><?php echo h((string)($siteSettings['hero_cta_label'] ?? 'JOIN')); ?></a>
-                    <button class="navbar-toggler home-mobile-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
+                    <div class="home-mobile-controls">
+                        <a class="home-mobile-quick-action" href="<?php echo h($basePath); ?>/events"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span>Calendar</span></a>
+                        <button class="home-mobile-quick-action" type="button" disabled><span>AN Other</span></button>
+                        <button class="navbar-toggler home-mobile-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     <?php endif; ?>
     <nav class="navbar navbar-expand-lg navbar-dark bg-success bg-gradient py-0">
         <div class="container nav-shell">
-        <?php if (!$headerIsHome): ?><div class="mobile-nav-short-name"><?php echo h($headerShortName); ?></div><?php endif; ?>
+        <?php if (!$headerIsHome): ?>
+            <a class="inside-mobile-calendar" href="<?php echo h($basePath); ?>/events" aria-label="Calendar"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></a>
+            <div class="mobile-nav-short-name"><?php echo h($headerShortName); ?></div>
+        <?php endif; ?>
         <button class="navbar-toggler main-navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
