@@ -870,9 +870,13 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             const eventTypeChangeModalEl = document.getElementById('eventTypeChangeModal');
             const eventTypeChangeName = document.getElementById('eventTypeChangeName');
             const confirmEventTypeChange = document.getElementById('confirmEventTypeChange');
-            const eventTypeChangeModal = eventTypeChangeModalEl && window.bootstrap
-                ? new bootstrap.Modal(eventTypeChangeModalEl)
-                : null;
+            let eventTypeChangeModal = null;
+            const getEventTypeChangeModal = () => {
+                if (!eventTypeChangeModal && eventTypeChangeModalEl && window.bootstrap) {
+                    eventTypeChangeModal = new window.bootstrap.Modal(eventTypeChangeModalEl);
+                }
+                return eventTypeChangeModal;
+            };
 
             eventTypeSelect.addEventListener('change', () => {
                 const nextTypeId = String(eventTypeSelect.value || '');
@@ -882,7 +886,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 pendingEventTypeId = nextTypeId;
                 eventTypeSelect.value = lastEventTypeId;
                 if (eventTypeChangeName) eventTypeChangeName.textContent = nextTypeName;
-                eventTypeChangeModal?.show();
+                getEventTypeChangeModal()?.show();
             });
 
             confirmEventTypeChange?.addEventListener('click', () => {
@@ -892,7 +896,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 const rows = defaultPricingRowsByType[lastEventTypeId] || defaultPricingRowsByType[Number(lastEventTypeId)] || [];
                 renderPricingRows(rows);
                 pendingEventTypeId = '';
-                eventTypeChangeModal?.hide();
+                getEventTypeChangeModal()?.hide();
             });
 
             eventTypeChangeModalEl?.addEventListener('hidden.bs.modal', () => {
