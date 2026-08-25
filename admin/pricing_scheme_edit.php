@@ -129,6 +129,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
             <div>
                 <div class="fw-semibold">Pricing rows</div>
                 <div class="text-muted small">Foreign Price is optional on member-price rows; leave it blank to use the member rate.</div>
+                <div class="text-muted small">Code is optional.</div>
             </div>
             <button class="btn btn-sm btn-outline-primary" type="button" id="addRowBtn">Add row</button>
         </div>
@@ -155,7 +156,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                         <th><button class="btn btn-link btn-sm p-0 fw-bold text-dark text-decoration-none js-row-sort" type="button" data-sort-field="foreign_price" data-sort-type="number">Foreign Price <span>↕</span></button><div class="d-flex gap-1 mt-1"><input class="form-control form-control-sm js-row-filter" type="search" data-filter-field="foreign_price" placeholder="Search"><button class="btn btn-sm btn-outline-secondary" type="button" id="clearRowFilters">Clear</button></div></th>
                     </tr>
                     <tr class="small text-muted fw-bold">
-                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="code">Code (optional) <span>↕</span></button><input class="form-control form-control-sm mt-1 js-row-filter" type="search" data-filter-field="code" placeholder="Search"></th>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="code">Code <span>↕</span></button><input class="form-control form-control-sm mt-1 js-row-filter" type="search" data-filter-field="code" placeholder="Search"></th>
                         <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="member_checkbox" data-sort-type="checked">Members <span>↕</span></button><select class="form-select form-select-sm mt-1 js-row-filter" data-filter-field="member_checkbox" data-filter-type="checked"><option value="">All</option><option value="1">Yes</option><option value="0">No</option></select></th>
                         <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="junior_checkbox" data-sort-type="checked">Junior <span>↕</span></button><select class="form-select form-select-sm mt-1 js-row-filter" data-filter-field="junior_checkbox" data-filter-type="checked"><option value="">All</option><option value="1">Yes</option><option value="0">No</option></select></th>
                         <th></th>
