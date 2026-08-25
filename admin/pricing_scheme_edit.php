@@ -14,6 +14,7 @@ if (!$isAdmin) {
 $schemeId = (int)($_GET['id'] ?? 0);
 $scheme = $schemeId > 0 ? fetchPricingSchemeById($pdo, $schemeId) : null;
 $eventTypes = fetchEventTypes($pdo);
+$rideClassOptions = ['PR', 'VPR', 'CTR', 'ER', 'OTHER'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $savedId = savePricingScheme($pdo, $_POST, $alerts, $schemeId > 0 ? $schemeId : null);
@@ -56,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $prices = (array)($_POST['row_price'] ?? []);
     $foreignPrices = (array)($_POST['row_foreign_recognition_price'] ?? []);
     $member = (array)($_POST['row_is_member_price'] ?? []);
+    $junior = (array)($_POST['row_is_junior_ride'] ?? []);
     $keys = array_keys($names);
     sort($keys);
     foreach ($keys as $i) {
@@ -68,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'price' => (string)($prices[$i] ?? ''),
             'foreign_recognition_price' => (string)($foreignPrices[$i] ?? ''),
             'is_member_price' => !empty($member[$i]) ? 1 : 0,
+            'is_junior_ride' => !empty($junior[$i]) ? 1 : 0,
         ];
     }
 }
@@ -125,56 +128,58 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
                 <div class="fw-semibold">Pricing rows</div>
-                <div class="text-muted small">Foreign Recognition is optional on member-price rows; leave it blank to use the member rate.</div>
+                <div class="text-muted small">Foreign Price is optional on member-price rows; leave it blank to use the member rate.</div>
             </div>
             <button class="btn btn-sm btn-outline-primary" type="button" id="addRowBtn">Add row</button>
         </div>
 
         <div class="table-responsive">
+            <style>
+                #rowsTable .js-pricing-primary > td { padding-top: .75rem; }
+                #rowsTable .js-pricing-secondary > td {
+                    padding-bottom: .75rem;
+                    border-bottom: 2px solid #6c757d;
+                }
+                #rowsTable thead tr:last-child > th {
+                    border-bottom: 3px solid #212529;
+                }
+            </style>
             <table class="table table-sm align-middle" id="rowsTable">
+                <colgroup><col style="width:12%"><col style="width:18%"><col style="width:36%"><col style="width:14%"><col style="width:20%"></colgroup>
                 <thead class="table-light">
-                <tr>
-                    <th style="width:110px;">Order</th>
-                    <th style="width:130px;">Code (opt)</th>
-                    <th style="width:110px;">Ride type</th>
-                    <th>Class name</th>
-                    <th style="width:140px;">Price (£)</th>
-                    <th style="width:160px;">Member price?</th>
-                    <th style="width:160px;">Foreign Recognition (£)</th>
-                    <th style="width:140px;">Junior ride?</th>
-                    <th style="width:80px;"></th>
-                </tr>
+                    <tr>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-dark text-decoration-none js-row-sort" type="button" data-sort-field="sort" data-sort-type="number">Order <span>↕</span></button><input class="form-control form-control-sm mt-1 js-row-filter" type="search" data-filter-field="sort" placeholder="Search"></th>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-dark text-decoration-none js-row-sort" type="button" data-sort-field="group">Ride Class <span>↕</span></button><select class="form-select form-select-sm mt-1 js-row-filter" data-filter-field="group"><option value="">All</option><?php foreach ($rideClassOptions as $option): ?><option value="<?php echo h($option); ?>"><?php echo h($option); ?></option><?php endforeach; ?></select></th>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-dark text-decoration-none js-row-sort" type="button" data-sort-field="name">Class <span>↕</span></button><input class="form-control form-control-sm mt-1 js-row-filter" type="search" data-filter-field="name" placeholder="Search"></th>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-dark text-decoration-none js-row-sort" type="button" data-sort-field="price" data-sort-type="number">Price <span>↕</span></button><input class="form-control form-control-sm mt-1 js-row-filter" type="search" data-filter-field="price" placeholder="Search"></th>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-dark text-decoration-none js-row-sort" type="button" data-sort-field="foreign_price" data-sort-type="number">Foreign Price <span>↕</span></button><div class="d-flex gap-1 mt-1"><input class="form-control form-control-sm js-row-filter" type="search" data-filter-field="foreign_price" placeholder="Search"><button class="btn btn-sm btn-outline-secondary" type="button" id="clearRowFilters">Clear</button></div></th>
+                    </tr>
+                    <tr class="small text-muted fw-bold">
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="code">Code (optional) <span>↕</span></button><input class="form-control form-control-sm mt-1 js-row-filter" type="search" data-filter-field="code" placeholder="Search"></th>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="member_checkbox" data-sort-type="checked">Members <span>↕</span></button><select class="form-select form-select-sm mt-1 js-row-filter" data-filter-field="member_checkbox" data-filter-type="checked"><option value="">All</option><option value="1">Yes</option><option value="0">No</option></select></th>
+                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="junior_checkbox" data-sort-type="checked">Junior <span>↕</span></button><select class="form-select form-select-sm mt-1 js-row-filter" data-filter-field="junior_checkbox" data-filter-type="checked"><option value="">All</option><option value="1">Yes</option><option value="0">No</option></select></th>
+                        <th></th>
+                        <th class="text-end">Action</th>
+                    </tr>
                 </thead>
                 <tbody>
                 <?php if (!$rows): ?>
                     <?php $rows = [['id' => 0, 'sort_order' => 10, 'class_code' => '', 'class_group' => '', 'class_name' => '', 'price' => '0', 'foreign_recognition_price' => '', 'is_member_price' => 0, 'is_junior_ride' => 0]]; ?>
                 <?php endif; ?>
                 <?php foreach ($rows as $i => $r): ?>
-                    <tr>
-                        <td>
-                            <input type="hidden" data-row-field="id" name="row_id[<?php echo (int)$i; ?>]" value="<?php echo (int)($r['id'] ?? 0); ?>">
-                            <input class="form-control form-control-sm" data-row-field="sort" name="row_sort[<?php echo (int)$i; ?>]" type="number" value="<?php echo (int)($r['sort_order'] ?? (($i + 1) * 10)); ?>" step="1">
-                        </td>
-                        <td>
-                            <input class="form-control form-control-sm" data-row-field="code" name="row_class_code[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_code'] ?? '')); ?>" maxlength="32">
-                        </td>
-                        <td><input class="form-control form-control-sm text-uppercase" data-row-field="group" name="row_class_group[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_group'] ?? '')); ?>" maxlength="32" placeholder="PR"></td>
-                        <td>
-                            <input class="form-control form-control-sm" data-row-field="name" name="row_class_name[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_name'] ?? '')); ?>" required>
-                        </td>
-                        <td>
-                            <input class="form-control form-control-sm" data-row-field="price" name="row_price[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['price'] ?? '0')); ?>" inputmode="decimal">
-                        </td>
-                        <td class="text-center">
-                            <input class="form-check-input" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_member_price']) ? 'checked' : ''; ?>>
-                        </td>
-                        <td><input class="form-control form-control-sm" data-row-field="foreign_price" name="row_foreign_recognition_price[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['foreign_recognition_price'] ?? '')); ?>" inputmode="decimal" placeholder="Member rate"></td>
-                        <td class="text-center">
-                            <input class="form-check-input" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_junior_ride']) ? 'checked' : ''; ?>>
-                        </td>
-                        <td class="text-end">
-                            <button class="btn btn-sm btn-outline-danger js-remove-row" type="button">Remove</button>
-                        </td>
+                    <tr class="js-pricing-primary">
+                        <td><input type="hidden" data-row-field="id" name="row_id[<?php echo (int)$i; ?>]" value="<?php echo (int)($r['id'] ?? 0); ?>"><input class="form-control form-control-sm" data-row-field="sort" name="row_sort[<?php echo (int)$i; ?>]" type="number" value="<?php echo (int)($r['sort_order'] ?? (($i + 1) * 10)); ?>" step="1"></td>
+                        <td><?php $selectedRideClass = strtoupper(trim((string)($r['class_group'] ?? ''))); ?><select class="form-select form-select-sm" data-row-field="group" name="row_class_group[<?php echo (int)$i; ?>]"><option value="">Select</option><?php foreach ($rideClassOptions as $option): ?><option value="<?php echo h($option); ?>" <?php echo $selectedRideClass === $option ? 'selected' : ''; ?>><?php echo h($option); ?></option><?php endforeach; ?><?php if ($selectedRideClass !== '' && !in_array($selectedRideClass, $rideClassOptions, true)): ?><option value="<?php echo h($selectedRideClass); ?>" selected><?php echo h($selectedRideClass); ?> (existing)</option><?php endif; ?></select></td>
+                        <td><input class="form-control form-control-sm" data-row-field="name" name="row_class_name[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_name'] ?? '')); ?>" required></td>
+                        <td><input class="form-control form-control-sm" data-row-field="price" name="row_price[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['price'] ?? '0')); ?>" inputmode="decimal"></td>
+                        <td><input class="form-control form-control-sm" data-row-field="foreign_price" name="row_foreign_recognition_price[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['foreign_recognition_price'] ?? '')); ?>" inputmode="decimal" placeholder="0.00"></td>
+                    </tr>
+                    <tr class="js-pricing-secondary border-bottom">
+                        <td><input class="form-control form-control-sm" data-row-field="code" name="row_class_code[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_code'] ?? '')); ?>" maxlength="32"></td>
+                        <td><label class="d-flex align-items-center gap-2 mb-0"><span>Members</span><input class="form-check-input mt-0" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_member_price']) ? 'checked' : ''; ?>></label></td>
+                        <td><label class="d-flex align-items-center gap-2 mb-0"><span>Junior</span><input class="form-check-input mt-0" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_junior_ride']) ? 'checked' : ''; ?>></label></td>
+                        <td></td>
+                        <td class="text-end"><button class="btn btn-sm btn-outline-danger js-remove-row" type="button">Remove</button></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -189,31 +194,19 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
 </form>
 
 <template id="rowTemplate">
-    <tr>
-        <td>
-            <input type="hidden" data-row-field="id" name="row_id[0]" value="0">
-            <input class="form-control form-control-sm" data-row-field="sort" name="row_sort[0]" type="number" value="10" step="1">
-        </td>
-        <td>
-            <input class="form-control form-control-sm" data-row-field="code" name="row_class_code[0]" value="" maxlength="32">
-        </td>
-        <td><input class="form-control form-control-sm text-uppercase" data-row-field="group" name="row_class_group[0]" value="" maxlength="32" placeholder="PR"></td>
-        <td>
-            <input class="form-control form-control-sm" data-row-field="name" name="row_class_name[0]" value="" required>
-        </td>
-        <td>
-            <input class="form-control form-control-sm" data-row-field="price" name="row_price[0]" value="0" inputmode="decimal">
-        </td>
-        <td class="text-center">
-            <input class="form-check-input" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[0]" value="1">
-        </td>
-        <td><input class="form-control form-control-sm" data-row-field="foreign_price" name="row_foreign_recognition_price[0]" value="" inputmode="decimal" placeholder="Member rate"></td>
-        <td class="text-center">
-            <input class="form-check-input" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[0]" value="1">
-        </td>
-        <td class="text-end">
-            <button class="btn btn-sm btn-outline-danger js-remove-row" type="button">Remove</button>
-        </td>
+    <tr class="js-pricing-primary">
+        <td><input type="hidden" data-row-field="id" name="row_id[0]" value="0"><input class="form-control form-control-sm" data-row-field="sort" name="row_sort[0]" type="number" value="10" step="1"></td>
+        <td><select class="form-select form-select-sm" data-row-field="group" name="row_class_group[0]"><option value="">Select</option><?php foreach ($rideClassOptions as $option): ?><option value="<?php echo h($option); ?>"><?php echo h($option); ?></option><?php endforeach; ?></select></td>
+        <td><input class="form-control form-control-sm" data-row-field="name" name="row_class_name[0]" value="" required></td>
+        <td><input class="form-control form-control-sm" data-row-field="price" name="row_price[0]" value="0" inputmode="decimal"></td>
+        <td><input class="form-control form-control-sm" data-row-field="foreign_price" name="row_foreign_recognition_price[0]" value="" inputmode="decimal" placeholder="0.00"></td>
+    </tr>
+    <tr class="js-pricing-secondary border-bottom">
+        <td><input class="form-control form-control-sm" data-row-field="code" name="row_class_code[0]" value="" maxlength="32"></td>
+        <td><label class="d-flex align-items-center gap-2 mb-0"><span>Members</span><input class="form-check-input mt-0" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[0]" value="1"></label></td>
+        <td><label class="d-flex align-items-center gap-2 mb-0"><span>Junior</span><input class="form-check-input mt-0" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[0]" value="1"></label></td>
+        <td></td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-danger js-remove-row" type="button">Remove</button></td>
     </tr>
 </template>
 
@@ -233,27 +226,78 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         const addBtn = document.getElementById('addRowBtn');
         const tableBody = document.querySelector('#rowsTable tbody');
         const tpl = document.getElementById('rowTemplate');
+        const filters = document.querySelectorAll('.js-row-filter');
+        let activeSort = { field: '', direction: 'asc' };
+
+        function pairFields(primary) {
+            return [primary, primary.nextElementSibling];
+        }
+
+        function pairField(primary, field) {
+            for (const row of pairFields(primary)) {
+                const input = row && row.querySelector(`[data-row-field="${field}"]`);
+                if (input) return input;
+            }
+            return null;
+        }
+
+        function pairValue(primary, field, type) {
+            const input = pairField(primary, field);
+            if (!input) return '';
+            return type === 'checked' ? (input.checked ? '1' : '0') : String(input.value || '').trim();
+        }
+
+        function applyRowFilters() {
+            tableBody.querySelectorAll('.js-pricing-primary').forEach((primary) => {
+                let matches = true;
+                filters.forEach((filter) => {
+                    const needle = String(filter.value || '').trim().toLowerCase();
+                    if (!needle) return;
+                    const value = pairValue(primary, filter.dataset.filterField, filter.dataset.filterType).toLowerCase();
+                    if (filter.tagName === 'SELECT' ? value !== needle : !value.includes(needle)) matches = false;
+                });
+                pairFields(primary).forEach((row) => { if (row) row.hidden = !matches; });
+            });
+        }
+
+        function sortRows(field, type, button) {
+            const direction = activeSort.field === field && activeSort.direction === 'asc' ? 'desc' : 'asc';
+            activeSort = { field, direction };
+            const rows = Array.from(tableBody.querySelectorAll('.js-pricing-primary'));
+            rows.sort((left, right) => {
+                const leftValue = pairValue(left, field, type);
+                const rightValue = pairValue(right, field, type);
+                const result = type === 'number' || type === 'checked'
+                    ? (parseFloat(leftValue) || 0) - (parseFloat(rightValue) || 0)
+                    : leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' });
+                return direction === 'desc' ? -result : result;
+            });
+            rows.forEach((primary) => pairFields(primary).forEach((row) => tableBody.appendChild(row)));
+            document.querySelectorAll('.js-row-sort span').forEach((arrow) => { arrow.textContent = '↕'; });
+            button.querySelector('span').textContent = direction === 'asc' ? '↑' : '↓';
+            syncRowIndexes();
+        }
 
         function syncRowIndexes() {
-            const rows = tableBody.querySelectorAll('tr');
+            const rows = tableBody.querySelectorAll('.js-pricing-primary');
             rows.forEach((row, idx) => {
-                const id = row.querySelector('[data-row-field="id"]');
+                const id = pairField(row, 'id');
                 if (id) id.name = `row_id[${idx}]`;
-                const sort = row.querySelector('[data-row-field="sort"]');
+                const sort = pairField(row, 'sort');
                 if (sort) sort.name = `row_sort[${idx}]`;
-                const code = row.querySelector('[data-row-field="code"]');
+                const code = pairField(row, 'code');
                 if (code) code.name = `row_class_code[${idx}]`;
-                const group = row.querySelector('[data-row-field="group"]');
+                const group = pairField(row, 'group');
                 if (group) group.name = `row_class_group[${idx}]`;
-                const name = row.querySelector('[data-row-field="name"]');
+                const name = pairField(row, 'name');
                 if (name) name.name = `row_class_name[${idx}]`;
-                const price = row.querySelector('[data-row-field="price"]');
+                const price = pairField(row, 'price');
                 if (price) price.name = `row_price[${idx}]`;
-                const member = row.querySelector('[data-row-field="member_checkbox"]');
+                const member = pairField(row, 'member_checkbox');
                 if (member) member.name = `row_is_member_price[${idx}]`;
-                const foreignPrice = row.querySelector('[data-row-field="foreign_price"]');
+                const foreignPrice = pairField(row, 'foreign_price');
                 if (foreignPrice) foreignPrice.name = `row_foreign_recognition_price[${idx}]`;
-                const junior = row.querySelector('[data-row-field="junior_checkbox"]');
+                const junior = pairField(row, 'junior_checkbox');
                 if (junior) junior.name = `row_is_junior_ride[${idx}]`;
             });
         }
@@ -268,9 +312,12 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         function wireRemoveButtons() {
             tableBody.querySelectorAll('.js-remove-row').forEach((btn) => {
                 btn.onclick = () => {
-                    const row = btn.closest('tr');
-                    if (row) row.remove();
+                    const secondary = btn.closest('.js-pricing-secondary');
+                    const primary = secondary && secondary.previousElementSibling;
+                    if (secondary) secondary.remove();
+                    if (primary) primary.remove();
                     syncRowIndexes();
+                    applyRowFilters();
                 };
             });
         }
@@ -283,10 +330,29 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
             tableBody.appendChild(clone);
             syncRowIndexes();
             wireRemoveButtons();
+            applyRowFilters();
         });
+
+        filters.forEach((filter) => filter.addEventListener(filter.tagName === 'SELECT' ? 'change' : 'input', applyRowFilters));
+        document.querySelectorAll('.js-row-sort').forEach((button) => {
+            button.addEventListener('click', () => sortRows(button.dataset.sortField, button.dataset.sortType || 'text', button));
+        });
+        document.getElementById('clearRowFilters').addEventListener('click', () => {
+            filters.forEach((filter) => { filter.value = ''; });
+            applyRowFilters();
+        });
+        tableBody.addEventListener('input', applyRowFilters);
+        tableBody.addEventListener('change', applyRowFilters);
+        tableBody.closest('form').addEventListener('invalid', (event) => {
+            const row = event.target.closest('tr');
+            if (!row || !row.hidden) return;
+            filters.forEach((filter) => { filter.value = ''; });
+            applyRowFilters();
+        }, true);
 
         wireRemoveButtons();
         syncRowIndexes();
+        applyRowFilters();
     })();
 </script>
 <?php
