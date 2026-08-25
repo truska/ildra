@@ -558,6 +558,29 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         </div>
     </form>
 </div>
+
+<div class="modal fade" id="eventTypeChangeModal" tabindex="-1" aria-labelledby="eventTypeChangeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventTypeChangeModalLabel">Change event type?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Changing to <strong id="eventTypeChangeName"></strong> will replace the current classes and prices with that event type’s default pricing scheme.</p>
+                <p>Any unsaved changes in the Classes &amp; Pricing section will be lost.</p>
+                <div class="alert alert-warning mb-0" role="alert">
+                    <strong>Remember to save:</strong> after applying this change, click <strong>Save</strong> at the bottom of the event record to make it permanent.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep current type</button>
+                <button type="button" class="btn btn-success" id="confirmEventTypeChange">Apply event type</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     (function() {
         const startDate = document.querySelector('input[name="event_date"]');
@@ -843,17 +866,38 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         // UX: event type change resets pricing to default scheme for that type (matches server-side behaviour on save).
         if (eventTypeSelect && pricingTbody) {
             let lastEventTypeId = String(eventTypeSelect.value || '');
+            let pendingEventTypeId = '';
+            const eventTypeChangeModalEl = document.getElementById('eventTypeChangeModal');
+            const eventTypeChangeName = document.getElementById('eventTypeChangeName');
+            const confirmEventTypeChange = document.getElementById('confirmEventTypeChange');
+            const eventTypeChangeModal = eventTypeChangeModalEl && window.bootstrap
+                ? new bootstrap.Modal(eventTypeChangeModalEl)
+                : null;
+
             eventTypeSelect.addEventListener('change', () => {
                 const nextTypeId = String(eventTypeSelect.value || '');
                 if (nextTypeId === lastEventTypeId) return;
-                const ok = window.confirm('Changing the event type will reset classes and prices to the default scheme for that type.\n\nContinue?');
-                if (!ok) {
-                    eventTypeSelect.value = lastEventTypeId;
-                    return;
-                }
-                lastEventTypeId = nextTypeId;
-                const rows = defaultPricingRowsByType[nextTypeId] || defaultPricingRowsByType[Number(nextTypeId)] || [];
+                const nextTypeName = eventTypeSelect.selectedOptions[0]?.textContent?.trim() || 'the selected event type';
+
+                pendingEventTypeId = nextTypeId;
+                eventTypeSelect.value = lastEventTypeId;
+                if (eventTypeChangeName) eventTypeChangeName.textContent = nextTypeName;
+                eventTypeChangeModal?.show();
+            });
+
+            confirmEventTypeChange?.addEventListener('click', () => {
+                if (!pendingEventTypeId) return;
+                lastEventTypeId = pendingEventTypeId;
+                eventTypeSelect.value = lastEventTypeId;
+                const rows = defaultPricingRowsByType[lastEventTypeId] || defaultPricingRowsByType[Number(lastEventTypeId)] || [];
                 renderPricingRows(rows);
+                pendingEventTypeId = '';
+                eventTypeChangeModal?.hide();
+            });
+
+            eventTypeChangeModalEl?.addEventListener('hidden.bs.modal', () => {
+                pendingEventTypeId = '';
+                eventTypeSelect.value = lastEventTypeId;
             });
         }
 
