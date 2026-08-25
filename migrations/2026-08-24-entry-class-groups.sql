@@ -27,6 +27,18 @@ SET class_group = CASE
 END
 WHERE class_group IS NULL OR TRIM(class_group) = '';
 
+-- Repair older copied rows where the class name says Junior but the junior flag
+-- was not carried into the event pricing record.
+UPDATE pricing_scheme_rows
+SET is_junior_ride = 1
+WHERE UPPER(TRIM(class_name)) LIKE 'JUNIOR %'
+  AND is_junior_ride = 0;
+
+UPDATE event_pricing_rows
+SET is_junior_ride = 1
+WHERE UPPER(TRIM(class_name)) LIKE 'JUNIOR %'
+  AND is_junior_ride = 0;
+
 SELECT 'pricing_scheme_rows' AS source, class_group, COUNT(*) AS row_count
 FROM pricing_scheme_rows
 GROUP BY class_group
