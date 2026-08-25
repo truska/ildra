@@ -259,7 +259,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
     .pricing-table td { border-bottom: 1px solid rgba(0,0,0,.06); padding: 0.5rem; vertical-align: middle; }
     .pricing-table .compact { width: 1%; white-space: nowrap; }
     .pricing-table .price-input { width: 120px; }
-    .pricing-table .code-input { width: 120px; }
+    .pricing-table .code-input { width: 160px; }
     .pricing-table .name-input { min-width: 240px; }
     .pricing-table .row-muted { color: rgba(0,0,0,.5); }
     .pricing-table .remove-btn { white-space: nowrap; }
@@ -445,9 +445,9 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                             <th class="compact">Ride type</th>
                             <th>Class name</th>
                             <th class="compact">£ Price</th>
-                            <th class="compact">Member price</th>
-                            <th class="compact">Foreign Recognition £</th>
-                            <th class="compact">Junior ride</th>
+                            <th class="compact">Member</th>
+                            <th class="compact">£ Foreign</th>
+                            <th class="compact">Junior</th>
                             <th class="compact"></th>
                         </tr>
                         </thead>
