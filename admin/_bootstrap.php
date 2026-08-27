@@ -32,19 +32,7 @@ $siteBase = rtrim(dirname($adminBase), '/');
 
 $adminNavItems = fetchAdminMenuItems($pdo, true);
 
-$adminManualHref = null;
-$manualAssetId = (int)($siteSettingsBootstrap['admin_manual_asset_id'] ?? 0);
-if ($manualAssetId > 0) {
-    $manualAsset = fetchAssetLibraryById($pdo, $manualAssetId);
-    if ($manualAsset && ($manualAsset['asset_type'] ?? '') === 'pdf' && empty($manualAsset['archived'])) {
-        $adminManualHref = ($siteBase ?: '') . assetLibraryPublicUrl($manualAsset);
-    }
-}
-// Retain compatibility with installations still using the old admin-folder file.
-if ($adminManualHref === null) {
-    $manualFileName = ltrim(trim((string)($siteSettingsBootstrap['admin_manual_filename'] ?? '')), '/');
-    $adminManualHref = $manualFileName !== '' ? ($adminBase . '/' . $manualFileName) : null;
-}
+$adminManualHref = ($siteBase ?: '') . '/help_manual.php';
 
 function admin_active(string $key, string $current): string
 {
@@ -168,6 +156,44 @@ function admin_layout_start(string $title, string $activeKey): void
         }
         .admin-content {
             padding: 1.5rem;
+            padding-bottom: 5rem;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .admin-utility-footer {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem;
+            position: fixed;
+            right: 0;
+            bottom: 0;
+            left: 260px;
+            z-index: 1020;
+            padding: 0.55rem 1.5rem;
+            background: var(--nav-bg);
+            color: #f1fff0;
+            box-shadow: 0 -6px 20px rgba(15,47,31,0.14);
+            transition: left 0.2s ease;
+        }
+        body.admin-nav-collapsed .admin-utility-footer { left: 76px; }
+        .admin-utility-footer-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.35rem 0.65rem;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #f1fff0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .admin-utility-footer-link:hover,
+        .admin-utility-footer-link:focus {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
         }
         .admin-page-actions {
             display: flex;
@@ -266,7 +292,14 @@ function admin_layout_start(string $title, string $activeKey): void
 	        .sort-link { display: inline-flex; align-items: center; gap: 0.35rem; }
 	        .sort-arrow { display: inline-block; width: 1ch; text-align: center; color: #888; }
             @media (max-width: 991.98px) {
+                .admin-content { padding-bottom: 1.5rem; }
+                .admin-utility-footer {
+                    position: static;
+                    margin: auto -1.5rem -1.5rem;
+                    box-shadow: none;
+                }
                 body.admin-nav-collapsed .admin-shell { display:block; }
+                body.admin-nav-collapsed .admin-utility-footer { left: auto; }
                 body.admin-nav-collapsed .admin-sidebar { padding:1.5rem 1rem; }
                 body.admin-nav-collapsed .admin-sidebar-brand,
                 body.admin-nav-collapsed .admin-sidebar-meta,
@@ -430,13 +463,9 @@ function admin_layout_start(string $title, string $activeKey): void
                 <?php endforeach; ?>
                 <a class="nav-link" href="../?logout=1" title="Logout"><i class="fa-solid fa-right-from-bracket admin-nav-icon"></i><span class="admin-nav-label">Logout</span></a>
                 <div class="mt-3 pt-2 border-top border-success border-opacity-25">
-                    <?php if ($adminManualHref): ?>
-                        <a class="nav-link" href="<?php echo h($adminManualHref); ?>" target="_blank" rel="noopener">
-                            <i class="fa-solid fa-file-pdf admin-nav-icon"></i><span class="admin-nav-label">Manual</span>
-                        </a>
-                    <?php else: ?>
-                        <span class="nav-link disabled text-muted"><i class="fa-solid fa-file-pdf admin-nav-icon"></i><span class="admin-nav-label">Manual not set</span></span>
-                    <?php endif; ?>
+                    <a class="nav-link" href="<?php echo h($adminManualHref); ?>" target="_blank" rel="noopener">
+                        <i class="fa-solid fa-book-open admin-nav-icon"></i><span class="admin-nav-label">Manual</span>
+                    </a>
                 </div>
             </nav>
         </aside>
@@ -454,7 +483,16 @@ function admin_layout_start(string $title, string $activeKey): void
 
 function admin_layout_end(): void
 {
+    $helpContext = (string)($_SERVER['REQUEST_URI'] ?? '/admin/index.php');
+    $contextualHelpHref = '../help?from=' . rawurlencode($helpContext);
     ?>
+        <footer class="admin-utility-footer" aria-label="Admin utilities">
+            <a class="admin-utility-footer-link" href="<?php echo h($contextualHelpHref); ?>" target="_blank" rel="noopener">
+                <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+                <span>Help for this page</span>
+                <span class="visually-hidden"> (opens in a new tab)</span>
+            </a>
+        </footer>
         </main>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>

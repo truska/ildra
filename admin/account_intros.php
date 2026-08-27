@@ -32,8 +32,8 @@ admin_layout_start('Account Help', 'help_accounts');
         <div class="accordion" id="account-intro-editor">
             <?php foreach ($labels as $viewKey => $label): $intro = $intros[$viewKey] ?? ['heading' => '', 'body_html' => '', 'is_active' => 1]; ?>
                 <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button <?php echo $viewKey === 'people' ? '' : 'collapsed'; ?>" type="button" data-bs-toggle="collapse" data-bs-target="#intro-<?php echo h($viewKey); ?>"><?php echo h($label); ?></button></h2>
-                    <div id="intro-<?php echo h($viewKey); ?>" class="accordion-collapse collapse <?php echo $viewKey === 'people' ? 'show' : ''; ?>" data-bs-parent="#account-intro-editor">
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#intro-<?php echo h($viewKey); ?>" aria-expanded="false" aria-controls="intro-<?php echo h($viewKey); ?>"><?php echo h($label); ?></button></h2>
+                    <div id="intro-<?php echo h($viewKey); ?>" class="accordion-collapse collapse" data-bs-parent="#account-intro-editor">
                         <div class="accordion-body row g-3">
                             <div class="col-12"><label class="form-label fw-semibold">Heading</label><input class="form-control" name="intros[<?php echo h($viewKey); ?>][heading]" required value="<?php echo h((string)$intro['heading']); ?>"></div>
                             <div class="col-12"><label class="form-label fw-semibold">HTML text</label><textarea class="form-control wysiwyg-field" name="intros[<?php echo h($viewKey); ?>][body_html]" rows="7" required><?php echo h((string)$intro['body_html']); ?></textarea></div>

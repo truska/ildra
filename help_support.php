@@ -22,6 +22,8 @@ function ensureHelpTables(?PDO $pdo): void
         keywords VARCHAR(500) DEFAULT NULL,
         group_id INT UNSIGNED DEFAULT NULL,
         is_global TINYINT(1) NOT NULL DEFAULT 0,
+        include_in_user_manual TINYINT(1) NOT NULL DEFAULT 0,
+        include_in_admin_manual TINYINT(1) NOT NULL DEFAULT 0,
         min_user_level INT NOT NULL DEFAULT 0,
         max_user_level INT DEFAULT NULL,
         display_order INT NOT NULL DEFAULT 0,
@@ -34,6 +36,14 @@ function ensureHelpTables(?PDO $pdo): void
     $globalColumn = $pdo->query("SHOW COLUMNS FROM help_articles LIKE 'is_global'")->fetch();
     if (!$globalColumn) {
         $pdo->exec("ALTER TABLE help_articles ADD COLUMN is_global TINYINT(1) NOT NULL DEFAULT 0 AFTER group_id");
+    }
+    $userManualColumn = $pdo->query("SHOW COLUMNS FROM help_articles LIKE 'include_in_user_manual'")->fetch();
+    if (!$userManualColumn) {
+        $pdo->exec("ALTER TABLE help_articles ADD COLUMN include_in_user_manual TINYINT(1) NOT NULL DEFAULT 0 AFTER is_global");
+    }
+    $adminManualColumn = $pdo->query("SHOW COLUMNS FROM help_articles LIKE 'include_in_admin_manual'")->fetch();
+    if (!$adminManualColumn) {
+        $pdo->exec("ALTER TABLE help_articles ADD COLUMN include_in_admin_manual TINYINT(1) NOT NULL DEFAULT 0 AFTER include_in_user_manual");
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS account_intro_modals (
         view_key VARCHAR(30) PRIMARY KEY,
@@ -154,6 +164,37 @@ function fetchHelpArticle(?PDO $pdo, int $id): ?array
     return $stmt->fetch() ?: null;
 }
 
+function helpUserLevelOptions(?PDO $pdo): array
+{
+    $grouped = [0 => ['Visitor']];
+    if ($pdo) {
+        try {
+            $roles = $pdo->query('SELECT name, level FROM roles ORDER BY level, name')->fetchAll() ?: [];
+            foreach ($roles as $role) {
+                $level = (int)$role['level'];
+                $name = strtolower(trim((string)$role['name']));
+                $label = $name === 'superadmin' ? 'SuperAdmin' : ucfirst($name);
+                if ($label !== '') $grouped[$level][] = $label;
+            }
+        } catch (PDOException $e) {
+            // The Help editor remains usable with the established role levels.
+            $grouped += [1 => ['User'], 3 => ['Organiser'], 4 => ['Manager', 'Admin'], 5 => ['SuperAdmin']];
+        }
+    }
+    ksort($grouped);
+    $options = [];
+    foreach ($grouped as $level => $labels) {
+        $options[(int)$level] = implode(' / ', array_values(array_unique($labels)));
+    }
+    return $options;
+}
+
+function helpUserLevelLabel(array $options, ?int $level, string $emptyLabel = 'No maximum'): string
+{
+    if ($level === null) return $emptyLabel;
+    return $options[$level] ?? ('Legacy level ' . $level);
+}
+
 function saveHelpGroup(?PDO $pdo, array $data, array &$alerts): bool
 {
     if (!$pdo) return false;
@@ -173,9 +214,11 @@ function saveHelpArticle(?PDO $pdo, array $data, array &$alerts): bool
     $id=(int)($data['article_id']??0); $title=trim((string)($data['title']??'')); $body=trim((string)($data['body_html']??''));
     if ($title==='' || $body==='') { $alerts[]=['type'=>'danger','message'=>'Title and instructions are required.']; return false; }
     $max=trim((string)($data['max_user_level']??''));
+    $minLevel=(int)($data['min_user_level']??0); $maxLevel=$max===''?null:(int)$max;
+    if ($maxLevel !== null && $maxLevel < $minLevel) { $alerts[]=['type'=>'danger','message'=>'The maximum audience must not be below the minimum audience.']; return false; }
     $groupId=((int)($data['group_id']??0))?:null;
-    $params=[':title'=>$title,':summary'=>trim((string)($data['summary']??'')),':body'=>$body,':keywords'=>trim((string)($data['keywords']??'')),':group_id'=>$groupId,':global'=>($groupId===null||isset($data['is_global']))?1:0,':min'=>(int)($data['min_user_level']??0),':max'=>$max===''?null:(int)$max,':display_order'=>(int)($data['display_order']??0),':published'=>isset($data['is_published'])?1:0];
-    if ($id) { $params[':id']=$id; $sql='UPDATE help_articles SET title=:title,summary=:summary,body_html=:body,keywords=:keywords,group_id=:group_id,is_global=:global,min_user_level=:min,max_user_level=:max,display_order=:display_order,is_published=:published WHERE id=:id'; }
-    else $sql='INSERT INTO help_articles (title,summary,body_html,keywords,group_id,is_global,min_user_level,max_user_level,display_order,is_published) VALUES (:title,:summary,:body,:keywords,:group_id,:global,:min,:max,:display_order,:published)';
+    $params=[':title'=>$title,':summary'=>trim((string)($data['summary']??'')),':body'=>$body,':keywords'=>trim((string)($data['keywords']??'')),':group_id'=>$groupId,':global'=>($groupId===null||isset($data['is_global']))?1:0,':user_manual'=>isset($data['include_in_user_manual'])?1:0,':admin_manual'=>isset($data['include_in_admin_manual'])?1:0,':min'=>$minLevel,':max'=>$maxLevel,':display_order'=>(int)($data['display_order']??0),':published'=>isset($data['is_published'])?1:0];
+    if ($id) { $params[':id']=$id; $sql='UPDATE help_articles SET title=:title,summary=:summary,body_html=:body,keywords=:keywords,group_id=:group_id,is_global=:global,include_in_user_manual=:user_manual,include_in_admin_manual=:admin_manual,min_user_level=:min,max_user_level=:max,display_order=:display_order,is_published=:published WHERE id=:id'; }
+    else $sql='INSERT INTO help_articles (title,summary,body_html,keywords,group_id,is_global,include_in_user_manual,include_in_admin_manual,min_user_level,max_user_level,display_order,is_published) VALUES (:title,:summary,:body,:keywords,:group_id,:global,:user_manual,:admin_manual,:min,:max,:display_order,:published)';
     return $pdo->prepare($sql)->execute($params);
 }

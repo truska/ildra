@@ -14,6 +14,18 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
     <div class="nav-actions">
         <?php
         $helpContext = (string)($_SERVER['REQUEST_URI'] ?? '/');
+        for ($depth = 0; $depth < 5; $depth++) {
+            $helpPath = (string)(parse_url($helpContext, PHP_URL_PATH) ?? '');
+            if (!preg_match('~/help(?:\.php)?$~', $helpPath)) {
+                break;
+            }
+            $helpQuery = (string)(parse_url($helpContext, PHP_URL_QUERY) ?? '');
+            parse_str($helpQuery, $helpParams);
+            if (!isset($helpParams['from']) || !is_string($helpParams['from']) || $helpParams['from'] === '') {
+                break;
+            }
+            $helpContext = $helpParams['from'];
+        }
         $helpHref = ($basePath ?: '') . '/help?from=' . rawurlencode($helpContext);
         ?>
         <?php if ($isLoggedIn): ?>
