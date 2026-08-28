@@ -5,10 +5,25 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $canAdmin = in_array(($currentUser['role'] ?? ''), ['superadmin', 'admin', 'manager'], true);
+$canManageLogbookRate = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin'], true);
+if (empty($_SESSION['logbook_rate_csrf'])) $_SESSION['logbook_rate_csrf'] = bin2hex(random_bytes(24));
+$logbookRateCsrf = (string)$_SESSION['logbook_rate_csrf'];
+ensureHorseLogbookTables($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    if (!$canAdmin) {
+    if ($action === 'save_logbook_rate') {
+        if (!$canManageLogbookRate) {
+            $alerts[] = ['type'=>'danger','message'=>'Only Admin and SuperAdmin users can change the horse logbook rate.'];
+        } elseif (!hash_equals($logbookRateCsrf, (string)($_POST['csrf'] ?? ''))) {
+            $alerts[] = ['type'=>'danger','message'=>'Your session token expired. Please try again.'];
+        } else {
+            $logbookId=(int)($_POST['logbook_type_id']??0);$year=(int)($_POST['valid_year']??0);$cost=trim((string)($_POST['cost']??''));$description=trim((string)($_POST['description']??''));$status=in_array((string)($_POST['status']??''),['draft','published'],true)?(string)$_POST['status']:'draft';
+            if($year<2000||$year>2100)$alerts[]=['type'=>'danger','message'=>'Enter a valid logbook year.'];
+            if($cost===''||!is_numeric($cost)||(float)$cost<0)$alerts[]=['type'=>'danger','message'=>'Enter a valid horse logbook cost.'];
+            if(!$alerts){$stmt=$pdo->prepare('UPDATE horse_logbook_types SET description=:description,cost=:cost,status=:status,valid_year=:year,updated_at=NOW() WHERE id=:id');$stmt->execute([':description'=>$description?:null,':cost'=>number_format((float)$cost,2,'.',''),':status'=>$status,':year'=>$year,':id'=>$logbookId]);$successMessage='Horse logbook rate saved.';}
+        }
+    } elseif (!$canAdmin) {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage memberships.'];
     } elseif ($action === 'save_membership_type') {
         if (saveMembershipType($pdo, $_POST, $alerts)) {
@@ -31,6 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $membershipTypes = fetchMembershipTypes($pdo, false);
+$logbookTypes = fetchHorseLogbookTypes($pdo, false);
+$logbookType = $logbookTypes[0] ?? null;
 
 $filterForm = 'membership-types-filter-form';
 $statusOptions = [];
@@ -366,6 +383,22 @@ admin_layout_start('Memberships', 'memberships');
         </form>
     </aside>
 </div>
+
+<?php if ($canManageLogbookRate && $logbookType): ?>
+<section class="card-soft p-4 mb-3">
+    <div class="eyebrow">Horse logbook</div>
+    <h6 class="fw-bold mb-1">Annual logbook rate</h6>
+    <p class="notes mb-3">This is the price offered when a user registers or renews a horse logbook. There is normally one current logbook product.</p>
+    <form method="post" class="row g-3 align-items-end">
+        <input type="hidden" name="action" value="save_logbook_rate"><input type="hidden" name="csrf" value="<?php echo h($logbookRateCsrf); ?>"><input type="hidden" name="logbook_type_id" value="<?php echo (int)$logbookType['id']; ?>">
+        <div class="col-md-2"><label class="form-label" for="logbook-year">Logbook year</label><input class="form-control" id="logbook-year" type="number" min="2000" max="2100" name="valid_year" required value="<?php echo (int)$logbookType['valid_year']; ?>"></div>
+        <div class="col-md-2"><label class="form-label" for="logbook-cost">Cost (£)</label><input class="form-control" id="logbook-cost" type="number" min="0" step="0.01" name="cost" required value="<?php echo h(number_format((float)$logbookType['cost'],2,'.','')); ?>"></div>
+        <div class="col-md-2"><label class="form-label" for="logbook-status">Status</label><select class="form-select" id="logbook-status" name="status"><option value="published" <?php echo $logbookType['status']==='published'?'selected':''; ?>>Published</option><option value="draft" <?php echo $logbookType['status']==='draft'?'selected':''; ?>>Draft</option></select></div>
+        <div class="col-md-4"><label class="form-label" for="logbook-description">Description</label><input class="form-control" id="logbook-description" name="description" value="<?php echo h((string)($logbookType['description']??'')); ?>"></div>
+        <div class="col-md-2"><button class="btn btn-success w-100">Save logbook rate</button></div>
+    </form>
+</section>
+<?php endif; ?>
 
 <script>
 // Client-side toggling: add vs edit; hides catalog when drawer is open.
