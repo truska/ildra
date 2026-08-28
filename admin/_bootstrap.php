@@ -569,7 +569,8 @@ function admin_layout_end(): void
                     clearTimeout(timer);
                     const value = input.value.trim();
                     if (value.length === 0) return submitControl(input);
-                    if (value.length < 3) return;
+                    const minimumLength = Math.max(1, parseInt(input.dataset.searchMinLength || '3', 10) || 3);
+                    if (value.length < minimumLength) return;
                     timer = setTimeout(() => submitControl(input), 450);
                 });
             });

@@ -7,7 +7,7 @@ ensureDevTaskTables($pdo);
 
 $listStateKey = 'admin_dev_tasks_list_state';
 $listStateFields = [
-    'status', 'priority', 'task', 'next_action', 'raised_by', 'updated_by',
+    'status', 'task_id', 'priority', 'task', 'next_action', 'raised_by', 'updated_by',
     'conversation', 'updated', 'task_status', 'sort', 'dir', 'p', 'per_page',
 ];
 if (!$_GET && !empty($_SESSION[$listStateKey]) && is_array($_SESSION[$listStateKey])) {
@@ -69,6 +69,7 @@ foreach ($tasks as $task) {
 asort($updatedByOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $statusOptions = ['open'=>'Open','completed'=>'Completed','future'=>'Future','closed'=>'Closed'];
 $tableColumns = [
+    'task_id' => ['label'=>'Task ID','sortable'=>true,'compare'=>'number','filter'=>'text','placeholder'=>'ID','search_min_length'=>1,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['id'],'filter_match'=>static fn(array $row,string $needle,string $value):bool=>$value===ltrim($needle, '#')],
     'priority' => ['label'=>'Priority','sortable'=>true,'compare'=>'number','filter'=>'select','options'=>$priorityOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['priority']],
     'task' => ['label'=>'Task','sortable'=>true,'filter'=>'text','placeholder'=>'Search task','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['title']],
     'next_action' => ['label'=>'Next action by','sortable'=>true,'filter'=>'select','options'=>$nextActionOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['next_action_by'] ?? 0),'sort_value'=>static fn(array $row):string=>empty($row['next_action_by'])?'1 Unassigned':'0 '.(trim(($row['assignee_first_name']??'').' '.($row['assignee_last_name']??'')) ?: ($row['assignee_email']??'Unknown'))],
@@ -99,30 +100,40 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
 </div>
 <form method="get" id="<?php echo h($filterForm); ?>"><input type="hidden" name="status" value="<?php echo h($filter); ?>"></form>
 <style>
-    .dev-task-record-count { margin-left:70px; }
+    .dev-task-record-count { margin-left:145px; }
+    .dev-task-table { width:100%; }
+    .dev-task-table th:nth-child(1), .dev-task-table td:nth-child(1) { width:65px; }
+    .dev-task-table th:nth-child(2), .dev-task-table td:nth-child(2) { width:80px; }
+    .dev-task-table th:nth-child(4), .dev-task-table td:nth-child(4) { width:14%; }
+    .dev-task-table th:nth-child(5), .dev-task-table td:nth-child(5),
+    .dev-task-table th:nth-child(6), .dev-task-table td:nth-child(6) { width:12%; }
+    .dev-task-table th:nth-child(7), .dev-task-table td:nth-child(7) { width:11%; }
+    .dev-task-table th:nth-child(8), .dev-task-table td:nth-child(8) { width:13%; }
+    .dev-task-table th:nth-child(9), .dev-task-table td:nth-child(9) { width:85px; }
     /* Each task deliberately occupies two table rows. Override Bootstrap's
        per-row stripe so those two rows remain one readable visual group. */
     .admin-data-table.table-striped > tbody.dev-task-group > tr > * { border-top:0; --bs-table-bg-type:transparent !important; }
-    .admin-data-table .dev-task-title-row > td { padding-bottom:.2rem; padding-left:70px; }
+    .admin-data-table .dev-task-title-row > td { padding-bottom:.2rem; padding-left:145px; }
     .admin-data-table .dev-task-details-row > td { padding-top:.2rem; }
     .admin-data-table.table-striped > tbody.dev-task-group.dev-task-group-striped > tr > * { --bs-table-bg-type:rgba(0,0,0,.05) !important; }
     @media (max-width: 575.98px) { .dev-task-record-count { margin-left:0; } .admin-data-table .dev-task-title-row > td { padding-left:.25rem; } }
 </style>
-<div class="card-soft p-3"><div class="dev-task-record-count"><?php echo admin_table_record_count($table,'task','tasks'); ?></div><div class="table-responsive"><table class="table table-striped table-sm admin-data-table align-middle mb-0">
+<div class="card-soft p-3"><div class="dev-task-record-count"><?php echo admin_table_record_count($table,'task','tasks'); ?></div><div class="table-responsive"><table class="table table-striped table-sm admin-data-table dev-task-table align-middle mb-0">
 <thead class="table-light"><tr><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_heading($key,$column,$table['sort_key'],$table['sort_dir']); ?></th><?php endforeach; ?></tr>
 <tr class="admin-table-filter-row"><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_filter($key,$column,$table['filters']); ?></th><?php endforeach; ?></tr></thead>
 <?php foreach ($tasks as $taskIndex=>$task): $name=trim(($task['first_name']??'').' '.($task['last_name']??'')) ?: ($task['email']??'Unknown'); $assigneeName=trim(($task['assignee_first_name']??'').' '.($task['assignee_last_name']??'')) ?: ($task['assignee_email']??'Unassigned'); $updatedBy=trim(($task['updated_first_name']??'').' '.($task['updated_last_name']??'')) ?: ($task['updated_email']??'Not recorded'); ?>
 <tbody class="dev-task-group<?php echo $taskIndex % 2 === 0 ? ' dev-task-group-striped' : ''; ?>">
-<tr class="dev-task-title-row"><td colspan="8"><a class="fw-semibold text-decoration-none" href="dev_task.php?id=<?php echo (int)$task['id']; ?>"><?php echo h($task['title']); ?></a></td></tr>
+<tr class="dev-task-title-row"><td colspan="<?php echo count($tableColumns); ?>"><a class="fw-semibold text-decoration-none" href="dev_task.php?id=<?php echo (int)$task['id']; ?>"><?php echo h($task['title']); ?></a></td></tr>
 <tr class="dev-task-details-row">
+    <td class="small text-muted"><?php echo (int)$task['id']; ?></td>
     <td><span class="badge <?php echo (int)$task['priority']<=2?'text-bg-danger':((int)$task['priority']===3?'text-bg-warning':'text-bg-secondary'); ?>">P<?php echo (int)$task['priority']; ?></span></td>
-    <td class="small text-muted">#<?php echo (int)$task['id']; ?> · <?php echo h(date('j M Y, H:i', (int)$task['created_at_ts'])); ?></td>
+    <td class="small text-muted"><?php echo h(date('j M Y, H:i', (int)$task['created_at_ts'])); ?></td>
     <td><?php echo h($assigneeName); ?></td><td><?php echo h($name); ?></td><td><?php echo h($updatedBy); ?></td>
     <td><?php echo (int)$task['message_count']; ?> message<?php echo (int)$task['message_count']===1?'':'s'; ?></td>
     <td><?php echo h(date('j M Y, H:i', (int)$task['updated_at_ts'])); ?></td>
     <td><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?>"><?php echo ucfirst(h($task['status'])); ?></span></td>
 </tr></tbody>
 <?php endforeach; ?>
-<?php if (!$tasks): ?><tbody><tr><td colspan="8" class="text-muted py-4 text-center">No <?php echo h($filter==='all'?'':$filter); ?> tasks found.</td></tr></tbody><?php endif; ?>
+<?php if (!$tasks): ?><tbody><tr><td colspan="<?php echo count($tableColumns); ?>" class="text-muted py-4 text-center">No <?php echo h($filter==='all'?'':$filter); ?> tasks found.</td></tr></tbody><?php endif; ?>
 </table></div><?php echo admin_table_pagination($table); ?></div>
 <?php admin_layout_end(); ?>

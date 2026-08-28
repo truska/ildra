@@ -130,7 +130,9 @@ function admin_table_filter(string $key, array $column, array $filters): string
         return $html.'</select>';
     }
     $inputType = $type === 'date' ? 'date' : 'text';
-    return '<input class="form-control form-control-sm"'.$formAttribute.' type="'.$inputType.'" name="'.h($key).'" value="'.h($value).'" placeholder="'.h((string)($column['placeholder'] ?? 'Search')).'">';
+    $searchMinLength = isset($column['search_min_length']) ? max(1, (int)$column['search_min_length']) : null;
+    $searchMinLengthAttribute = $searchMinLength !== null ? ' data-search-min-length="' . $searchMinLength . '"' : '';
+    return '<input class="form-control form-control-sm"'.$formAttribute.$searchMinLengthAttribute.' type="'.$inputType.'" name="'.h($key).'" value="'.h($value).'" placeholder="'.h((string)($column['placeholder'] ?? 'Search')).'">';
 }
 
 /** Render a safely escaped table value according to its configured data type. */
