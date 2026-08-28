@@ -63,6 +63,10 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                 $existing = find_booking_by_id($bookingRef, $pdo, $alerts);
                 if ($existing) {
                     $order = $existing;
+                    $_SESSION['basket'] = [];
+                    unset($_SESSION['basket_last_added']);
+                    saveBasketForSession($pdo, session_id(), [], $currentUser['id'] ?? null, null);
+                    $basketCount = 0;
                     unset($_SESSION['pending_checkout']);
                 }
             }
@@ -188,6 +192,7 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                 $_SESSION['basket'] = [];
                 unset($_SESSION['basket_last_added']);
                 saveBasketForSession($pdo, session_id(), [], $currentUser['id'] ?? null, null);
+                $basketCount = 0;
                 unset($_SESSION['pending_checkout']);
             }
         }

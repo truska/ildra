@@ -77,9 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
         $alerts[] = ['type' => 'danger', 'message' => 'Contact name and email are required.'];
     }
 
-    $paymentDue = max(0.0, $totalAmount - $userBalance);
-    $paymentDue = round($paymentDue, 2);
-    $creditToUse = round(min(max(0.0, $userBalance), max(0.0, $totalAmount)), 2);
+    $useCredit = (string)($_POST['use_credit'] ?? '1') !== '0';
+    $creditToUse = $useCredit ? round(min(max(0.0, $userBalance), max(0.0, $totalAmount)), 2) : 0.0;
+    $paymentDue = round(max(0.0, $totalAmount - $creditToUse), 2);
     $needsCreditConfirmation = $creditToUse > 0 && (($_POST['confirm_credit'] ?? '') !== '1');
     $needsSimulatedPayment = !$stripeEnabled && $paymentDue > 0 && $totalAmount > 0 && (($_POST['confirm_payment'] ?? '') !== '1');
 
@@ -91,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             'contact_phone' => $contactPhone,
             'credit_to_use' => $creditToUse,
             'payment_due' => $paymentDue,
+            'use_credit' => $useCredit,
         ];
     } elseif (!$alerts && $paymentDue > 0 && $stripeEnabled) {
         // Build Stripe Checkout Session
@@ -209,6 +210,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                     'basket' => $basket,
                     'total' => $totalAmount,
                     'payment_due' => $paymentDue,
+                    'credit_to_use' => $creditToUse,
+                    'use_credit' => $useCredit,
                     'user_balance' => $userBalance,
                     'session_id' => $sessionData['id'] ?? '',
                     'created_at' => time(),
@@ -223,6 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             'contact_name' => $contactName,
             'contact_email' => $contactEmail,
             'contact_phone' => $contactPhone,
+            'use_credit' => $useCredit,
         ];
     } elseif (!$alerts) {
         $order = [
@@ -509,9 +513,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                 <input type="hidden" name="contact_phone" value="<?php echo h($pendingPaymentData['contact_phone'] ?? $contactPhonePrefill); ?>">
                                 <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
                                     <a class="btn btn-outline-secondary" href="<?php echo h($basePath); ?>/basket">Edit basket</a>
-                                    <button class="btn btn-success" type="submit">
-                                        <?php echo ((float)($pendingPaymentData['payment_due'] ?? 0)) > 0 ? 'Use credit and continue' : 'Use credit and place order'; ?>
-                                    </button>
+                                    <button class="btn btn-success" type="submit"><span class="d-block">Continue</span><span class="d-block">Pay <?php echo format_price((float)($pendingPaymentData['payment_due'] ?? 0)); ?></span><span class="d-block">Using Credit</span></button>
+                                    <?php if ($stripeEnabled): ?><button class="btn btn-outline-secondary" type="submit" name="use_credit" value="0"><span class="d-block">Continue</span><span class="d-block">Pay <?php echo format_price($totalAmount); ?></span><span class="d-block">Pay in Full</span></button><?php endif; ?>
                                 </div>
                             </form>
                         </div>
@@ -528,6 +531,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                 <input type="hidden" name="action" value="confirm_checkout">
                                 <input type="hidden" name="confirm_credit" value="1">
                                 <input type="hidden" name="confirm_payment" value="1">
+                                <input type="hidden" name="use_credit" value="<?php echo !empty($pendingPaymentData['use_credit']) ? '1' : '0'; ?>">
                                 <input type="hidden" name="contact_name" value="<?php echo h($pendingPaymentData['contact_name'] ?? $contactNamePrefill); ?>">
                                 <input type="hidden" name="contact_email" value="<?php echo h($pendingPaymentData['contact_email'] ?? $contactEmailPrefill); ?>">
                                 <input type="hidden" name="contact_phone" value="<?php echo h($pendingPaymentData['contact_phone'] ?? $contactPhonePrefill); ?>">
@@ -577,13 +581,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                 <div class="col-12 d-flex justify-content-between align-items-center">
                                     <div>
                                     <div class="fw-semibold mb-1">Total (approx): £<?php echo number_format($totalAmount, 2); ?></div>
-                                    <?php if ($insufficientCredit && $totalAmount > 0): ?>
-                                        <div class="text-danger small">Not enough credit. You’ll pay £<?php echo number_format($paymentDue, 2); ?> now.</div>
+                                    <?php if ($userBalance < 0): ?>
+                                        <div class="text-muted small">Debit balance: <?php echo format_price(abs($userBalance)); ?></div>
                                     <?php else: ?>
-                                        <div class="text-muted small">This will use your account credit.</div>
+                                        <div class="text-muted small">Credit available: <?php echo format_price($userBalance); ?></div>
                                     <?php endif; ?>
                                 </div>
-                                <button class="btn btn-success"><?php echo $insufficientCredit && $totalAmount > 0 ? 'Continue to payment' : 'Place order'; ?></button>
+                                <button class="btn btn-success"><span class="d-block">Continue</span><span class="d-block">Pay <?php echo format_price($paymentDue); ?></span><span class="d-block">Using Credit</span></button>
+                                <?php if ($userBalance > 0 && $totalAmount > 0 && $stripeEnabled): ?><button class="btn btn-outline-secondary" type="submit" name="use_credit" value="0"><span class="d-block">Continue</span><span class="d-block">Pay <?php echo format_price($totalAmount); ?></span><span class="d-block">Pay in Full</span></button><?php endif; ?>
                             </div>
                         </form>
                     </div>
