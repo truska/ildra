@@ -26,14 +26,14 @@ function stripe_is_enabled(array $stripeConfig): bool
     return $stripeConfig['publishable_key'] !== '' && $stripeConfig['secret_key'] !== '';
 }
 
-function stripe_api_request(array $stripeConfig, string $method, string $path, array $params = []): array
+function stripe_api_request(array $stripeConfig, string $method, string $path, array $params = [], array $extraHeaders = []): array
 {
     $url = 'https://api.stripe.com' . $path;
     $method = strtoupper($method);
     $ch = curl_init();
-    $headers = [
+    $headers = array_merge([
         'Authorization: Bearer ' . $stripeConfig['secret_key'],
-    ];
+    ], $extraHeaders);
     $options = [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
@@ -85,6 +85,51 @@ function stripe_retrieve_payment_intent(array $stripeConfig, string $paymentInte
         }
     }
     return stripe_api_request($stripeConfig, 'GET', '/v1/payment_intents/' . urlencode($paymentIntentId), $params);
+}
+
+function stripe_retrieve_balance(array $stripeConfig): array
+{
+    return stripe_api_request($stripeConfig, 'GET', '/v1/balance');
+}
+
+function stripe_create_payout(array $stripeConfig, array $params, string $idempotencyKey = ''): array
+{
+    $headers = $idempotencyKey !== '' ? ['Idempotency-Key: ' . $idempotencyKey] : [];
+    return stripe_api_request($stripeConfig, 'POST', '/v1/payouts', $params, $headers);
+}
+
+function stripe_available_balance(array $balance, string $currency = 'gbp'): float
+{
+    $currency = strtolower($currency);
+    $available = 0;
+    foreach (($balance['available'] ?? []) as $item) {
+        if (strtolower((string)($item['currency'] ?? '')) === $currency) {
+            $available += (int)($item['amount'] ?? 0);
+        }
+    }
+    return max(0, $available / 100);
+}
+
+function stripe_available_source_balance(array $balance, string $currency = 'gbp', string $sourceType = 'card'): float
+{
+    $currency = strtolower($currency);
+    foreach (($balance['available'] ?? []) as $item) {
+        if (strtolower((string)($item['currency'] ?? '')) === $currency) {
+            return max(0, (int)($item['source_types'][$sourceType] ?? 0) / 100);
+        }
+    }
+    return 0.0;
+}
+
+function stripe_pending_source_balance(array $balance, string $currency = 'gbp', string $sourceType = 'card'): float
+{
+    $currency = strtolower($currency);
+    foreach (($balance['pending'] ?? []) as $item) {
+        if (strtolower((string)($item['currency'] ?? '')) === $currency) {
+            return max(0, (int)($item['source_types'][$sourceType] ?? 0) / 100);
+        }
+    }
+    return 0.0;
 }
 
 function stripe_verify_webhook_signature(array $stripeConfig, string $payload, string $sigHeader): bool
