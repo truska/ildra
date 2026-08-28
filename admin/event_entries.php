@@ -14,7 +14,9 @@ if (!$isAdmin) {
 $eventId = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
 $sortKey = $_GET['sort'] ?? 'placed';
 $sortDir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
-$printMode = ($_GET['print'] ?? '') === 'ride_list';
+$requestedPrint = (string)($_GET['print'] ?? '');
+$printType = in_array($requestedPrint, ['organiser_list', 'rider_info_list'], true) ? $requestedPrint : ($requestedPrint === 'ride_list' ? 'organiser_list' : '');
+$printMode = $printType !== '';
 
 $sortFields = [
     'booking_ref' => 'b.booking_ref',
@@ -366,13 +368,15 @@ $pageTitle = $event ? (string)($event['title'] ?? 'Event') : 'Event entries';
 
 if ($event && $printMode) {
     $rideDateText = format_display_date($event['event_date'] ?? null, 'Date TBC');
+    $isRiderInfoPrint = $printType === 'rider_info_list';
+    $printListTitle = $isRiderInfoPrint ? 'Entry Rider Info List' : 'Entry Organiser List';
     ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo h(($event['title'] ?? 'Ride list') . ' ride list'); ?></title>
+    <title><?php echo h(($event['title'] ?? 'Event') . ' — ' . $printListTitle); ?></title>
     <style>
         @page {
             size: A4 portrait;
@@ -476,8 +480,8 @@ if ($event && $printMode) {
 
         <div class="header-row">
             <div class="header-main">
-                <h1><?php echo h((string)($event['title'] ?? 'Ride list')); ?></h1>
-                <div class="subtitle">Ride date: <?php echo h($rideDateText); ?></div>
+                <h1><?php echo h((string)($event['title'] ?? 'Event')); ?></h1>
+                <div class="subtitle"><?php echo h($printListTitle); ?> · Ride date: <?php echo h($rideDateText); ?></div>
             </div>
             <?php if (!empty($event['organiser'])): ?>
                 <div class="header-organiser">Ride Organiser: <?php echo h((string)$event['organiser']); ?></div>
@@ -486,6 +490,15 @@ if ($event && $printMode) {
 
         <table>
             <thead>
+                <?php if ($isRiderInfoPrint): ?>
+                <tr>
+                    <th style="width:18%;">First name</th>
+                    <th style="width:18%;">Surname</th>
+                    <th style="width:20%;">Phone</th>
+                    <th style="width:24%;">Emergency contact name</th>
+                    <th style="width:20%;">Emergency contact phone</th>
+                </tr>
+                <?php else: ?>
                 <tr>
                     <th style="width:6%;">#</th>
                     <th style="width:16%;">Surname</th>
@@ -496,6 +509,7 @@ if ($event && $printMode) {
                     <th style="width:10%;">Out</th>
                     <th style="width:10%;">In</th>
                 </tr>
+                <?php endif; ?>
             </thead>
             <tbody>
                 <?php foreach ($printEntries as $index => $entry): ?>
@@ -505,7 +519,19 @@ if ($event && $printMode) {
                         $horse = trim((string)($meta['horse_name'] ?? $entry['horse_name'] ?? ''));
                         $classLabel = trim((string)($meta['class_label'] ?? $entry['class_label'] ?? ''));
                         $rosetteLabel = entry_rosette_label($entry);
+                        $phone = trim((string)($meta['contact_phone'] ?? $entry['contact_phone'] ?? ''));
+                        $emergencyContactName = trim((string)($meta['emergency_contact_name'] ?? ''));
+                        $emergencyContactPhone = trim((string)($meta['emergency_contact_phone'] ?? ''));
                     ?>
+                    <?php if ($isRiderInfoPrint): ?>
+                    <tr>
+                        <td><?php echo h($nameParts['first'] !== '' ? $nameParts['first'] : '—'); ?></td>
+                        <td><?php echo h($nameParts['surname'] !== '' ? $nameParts['surname'] : '—'); ?></td>
+                        <td><?php echo h($phone !== '' ? $phone : '—'); ?></td>
+                        <td><?php echo h($emergencyContactName !== '' ? $emergencyContactName : '—'); ?></td>
+                        <td><?php echo h($emergencyContactPhone !== '' ? $emergencyContactPhone : '—'); ?></td>
+                    </tr>
+                    <?php else: ?>
                     <tr>
                         <td><?php echo (int)($index + 1); ?></td>
                         <td><?php echo h($nameParts['surname'] !== '' ? $nameParts['surname'] : '—'); ?></td>
@@ -516,10 +542,11 @@ if ($event && $printMode) {
                         <td class="blank-col"></td>
                         <td class="blank-col"></td>
                     </tr>
+                    <?php endif; ?>
                 <?php endforeach; ?>
                 <?php if (!$printEntries): ?>
                     <tr>
-                        <td colspan="8">No accepted entries yet.</td>
+                        <td colspan="<?php echo $isRiderInfoPrint ? 5 : 8; ?>">No accepted entries yet.</td>
                     </tr>
                 <?php endif; ?>
             </tbody>
@@ -575,7 +602,8 @@ admin_layout_start($pageTitle, 'events');
     <div class="admin-page-actions">
         <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
         <?php if ($event): ?>
-            <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=ride_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Print Ride List</span></a>
+            <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=organiser_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Organiser List</span></a>
+            <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=rider_info_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Rider Info List</span></a>
         <?php endif; ?>
         <?php if ($event): ?>
             <a class="btn btn-outline-success has-icon" href="event_edit.php?id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit event</span></a>
