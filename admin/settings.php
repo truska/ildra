@@ -116,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'event_entry_close_weeks' => max(0, (int)($_POST['event_entry_close_weeks'] ?? 0)),
             'event_entry_close_weekday' => max(0, min(6, (int)($_POST['event_entry_close_weekday'] ?? 4))),
             'event_entry_close_time' => trim((string)($_POST['event_entry_close_time'] ?? '')),
+            'event_stripe_refund_fee' => number_format(max(0, price_to_number($_POST['event_stripe_refund_fee'] ?? '5.00')), 2, '.', ''),
         ];
         if (saveSiteSettings($pdo, $payload, $alerts)) {
             $_SESSION['flash_success'] = 'Event settings saved.';
@@ -271,6 +272,10 @@ admin_layout_start('Settings', 'settings');
                     <label class="form-label fw-semibold" for="event_entry_close_time">Time</label>
                     <input type="time" class="form-control" id="event_entry_close_time" name="event_entry_close_time" required value="<?php echo h((string)$siteSettings['event_entry_close_time']); ?>">
                 </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_stripe_refund_fee">Stripe refund fee (£)</label>
+                    <input type="number" min="0" step="0.01" class="form-control" id="event_stripe_refund_fee" name="event_stripe_refund_fee" required value="<?php echo h((string)$siteSettings['event_stripe_refund_fee']); ?>">
+                </div>
                 <div class="col-12 d-flex gap-2">
                     <button class="btn btn-success">Save event settings</button>
                     <a class="btn btn-outline-secondary" href="index.php">Back to dashboard</a>
@@ -334,7 +339,8 @@ admin_layout_start('Settings', 'settings');
                                     <option value="<?php echo (int)$manualDocument['id']; ?>" <?php echo $manualAssetId === (int)$manualDocument['id'] ? 'selected' : ''; ?>><?php echo h((string)($manualDocument['title'] ?: $manualDocument['name'])); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <span class="text-muted small">PDFs are managed in Document &amp; Image Library.</span>
+                            <span class="text-muted small">PDFs are managed in Document &amp; Image Library.<br>
+                            This is now not used as the Help System creates a dynamic manual.</span>
                         </div>
                     </div>
                     <div class="col-12">

@@ -67,23 +67,23 @@ $eventVenue = $item ? (string)($item['venue'] ?? '') : '';
 $organiser = $item ? (string)($item['organiser'] ?? '') : '';
 $backUrl = $basePath . '/bookings';
 
-$refunded = false;
+$refunded = false;$settlementType='';
 if ($item && $pdo) {
     try {
         $stmt = $pdo->prepare("
-            SELECT id
+            SELECT type
             FROM finance_transactions
-            WHERE type = 'entry_refund'
+            WHERE type IN ('entry_refund','entry_stripe_refund','entry_credit')
               AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) = :id
             LIMIT 1
         ");
         $stmt->execute([':id' => (string)($item['id'] ?? 0)]);
-        $refunded = (bool)$stmt->fetchColumn();
+        $settlementType=(string)($stmt->fetchColumn()?:'');$refunded=$settlementType!=='';
     } catch (PDOException $e) {
         $refunded = false;
     }
 }
-$statusLabel = $item ? (!empty($item['is_withdrawn']) ? ($refunded ? 'Withdrawn & Refunded' : 'Withdrawn') : 'Entry Accepted') : 'Entry';
+$statusLabel = $item ? (!empty($item['is_withdrawn']) ? ($refunded ? ($settlementType==='entry_credit'?'Withdrawn & Credited':'Withdrawn & Refunded') : 'Withdrawn') : 'Entry Accepted') : 'Entry';
 
 $bookingTotals = [
     'all' => 0.0,
@@ -129,7 +129,7 @@ if ($item && $pdo) {
                     SELECT type, amount, created_at
                     FROM finance_transactions
                     WHERE reference = :ref
-                      AND type IN ('payment_simulated', 'payment_stripe', 'checkout', 'entry_refund')
+                      AND type IN ('payment_simulated', 'payment_stripe', 'checkout', 'entry_refund', 'entry_stripe_refund', 'entry_credit')
                     ORDER BY created_at ASC
                 ");
                 $stmt->execute([':ref' => $ref]);
@@ -140,12 +140,12 @@ if ($item && $pdo) {
                 foreach ($stmt->fetchAll() ?: [] as $row) {
                     $type = (string)($row['type'] ?? '');
                     $amount = (float)($row['amount'] ?? 0);
-                    if ($type === 'entry_refund') {
-                        $bookingTotals['refund'] += $amount;
+                    if (in_array($type, ['entry_refund', 'entry_stripe_refund', 'entry_credit'], true)) {
+                        $bookingTotals['refund'] += abs($amount);
                         $payments[] = [
                             'date' => $row['created_at'] ?? null,
-                            'method' => 'Refund',
-                            'amount' => -1 * $amount,
+                            'method' => $type === 'entry_credit' ? 'Credit' : 'Refund',
+                            'amount' => -1 * abs($amount),
                         ];
                         continue;
                     }

@@ -14,7 +14,6 @@ if (!$isAdmin) {
 $eventId = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
 $sortKey = $_GET['sort'] ?? 'placed';
 $sortDir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
-$manage = ($_GET['manage'] ?? '') === '1';
 $printMode = ($_GET['print'] ?? '') === 'ride_list';
 
 $sortFields = [
@@ -28,13 +27,18 @@ $sortFields = [
     'price' => 'bi.price',
 ];
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
+$siteSettings = getSiteSettings($pdo);
+if (empty($_SESSION['admin_entry_cancel_csrf'])) {
+    $_SESSION['admin_entry_cancel_csrf'] = bin2hex(random_bytes(24));
+}
+$adminEntryCancelCsrf = (string)$_SESSION['admin_entry_cancel_csrf'];
 
 // Ensure withdrawal columns exist before running entry list queries.
 if ($pdo && $eventId > 0) {
     ensure_bookings_tables($pdo);
 }
 
-function sort_link_entries(int $eventId, string $key, string $label, string $currentKey, string $currentDir, bool $manage): string
+function sort_link_entries(int $eventId, string $key, string $label, string $currentKey, string $currentDir): string
 {
     $dir = ($currentKey === $key && $currentDir === 'asc') ? 'desc' : 'asc';
     $arrow = '↕';
@@ -42,9 +46,6 @@ function sort_link_entries(int $eventId, string $key, string $label, string $cur
         $arrow = $currentDir === 'asc' ? '↑' : '↓';
     }
     $url = '?event_id=' . $eventId . '&sort=' . urlencode($key) . '&dir=' . urlencode($dir);
-    if ($manage) {
-        $url .= '&manage=1';
-    }
     return '<a class="text-decoration-none text-dark sort-link" href="' . h($url) . '">' . h($label) . '<span class="sort-arrow">' . h($arrow) . '</span></a>';
 }
 
@@ -184,7 +185,7 @@ if ($event && $pdo) {
             $q = $pdo->prepare("
                 SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) AS booking_item_id
                 FROM finance_transactions
-                WHERE type = 'entry_refund'
+                WHERE type IN ('entry_refund','entry_stripe_refund','entry_credit')
                   AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) IN ($placeholders)
             ");
             $q->execute($withdrawnIdsAll);
@@ -246,9 +247,9 @@ if ($event && $pdo && ($entries || $withdrawnEntries)) {
         if ($bookingTotals && ensure_finance_tables($pdo)) {
             try {
                 $stmt = $pdo->prepare("
-                    SELECT reference, SUM(amount) AS refund_total
+                    SELECT reference, SUM(ABS(amount)) AS refund_total
                     FROM finance_transactions
-                    WHERE type = 'entry_refund'
+                    WHERE type IN ('entry_refund','entry_stripe_refund','entry_credit')
                       AND reference IN ($placeholders)
                     GROUP BY reference
                 ");
@@ -270,7 +271,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $event && $pdo) {
     ensure_bookings_tables($pdo);
     $action = $_POST['action'] ?? '';
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
-    if ($itemId <= 0) {
+    if ($action === 'admin_cancel_entry') {
+        $alerts = [];
+        if (!hash_equals($adminEntryCancelCsrf, (string)($_POST['csrf'] ?? ''))) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Your cancellation form has expired. Please try again.'];
+        }
+        $row = $itemId > 0 ? fetch_entry_cancellation_record($pdo, $itemId) : null;
+        if (!$row || (int)($row['event_id'] ?? 0) !== $eventId) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Entry not found.'];
+        }
+        if (!$alerts) {
+            $actorName = trim((string)(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? '')));
+            if ($actorName === '') {
+                $actorName = (string)($currentUser['email'] ?? 'Admin');
+            }
+            $method = (string)($_POST['cancellation_method'] ?? 'refund');
+            $amount = price_to_number($_POST['cancellation_amount'] ?? 0);
+            $reason = trim((string)($_POST['reason'] ?? ''));
+            $result = cancel_event_entry($pdo, $config, $row, $method, $amount, $reason, (int)($currentUser['id'] ?? 0), $actorName, $alerts);
+            if ($result) {
+                $label = $result['method'] === 'credit' ? 'account credit' : 'Stripe refund';
+                $alerts[] = ['type' => 'success', 'message' => 'Entry cancelled and ' . format_price((float)$result['amount']) . ' recorded as ' . $label . '.'];
+            }
+        }
+        $_SESSION['flash_alerts'] = $alerts;
+    } elseif ($itemId <= 0) {
         $_SESSION['flash_alerts'] = [['type' => 'danger', 'message' => 'Invalid entry.']];
     } else {
         $stmt = $pdo->prepare("
@@ -332,9 +357,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $event && $pdo) {
         }
     }
     $redir = 'event_entries.php?event_id=' . $eventId;
-    if ($manage) {
-        $redir .= '&manage=1';
-    }
     $redir .= '&sort=' . urlencode((string)$sortKey) . '&dir=' . urlencode((string)$sortDir);
     header('Location: ' . $redir);
     exit;
@@ -554,11 +576,6 @@ admin_layout_start($pageTitle, 'events');
         <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
         <?php if ($event): ?>
             <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=ride_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Print Ride List</span></a>
-            <?php if (!$manage): ?>
-                <a class="btn btn-outline-secondary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&manage=1"><i class="fa-solid fa-sliders btn-icon"></i><span class="btn-label">Manage entries</span></a>
-            <?php else: ?>
-                <a class="btn btn-outline-secondary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-check btn-icon"></i><span class="btn-label">Done</span></a>
-            <?php endif; ?>
         <?php endif; ?>
         <?php if ($event): ?>
             <a class="btn btn-outline-success has-icon" href="event_edit.php?id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit event</span></a>
@@ -574,19 +591,20 @@ admin_layout_start($pageTitle, 'events');
         <table class="table table-sm align-middle entries-table">
 	            <thead>
 	                <tr>
-	                    <th><?php echo sort_link_entries((int)$eventId, 'booking_ref', 'Booking ref', $sortKey, $sortDir, $manage); ?></th>
-	                    <th><?php echo sort_link_entries((int)$eventId, 'placed', 'Placed', $sortKey, $sortDir, $manage); ?></th>
-	                    <th><?php echo sort_link_entries((int)$eventId, 'contact', 'Contact', $sortKey, $sortDir, $manage); ?></th>
-	                    <th><?php echo sort_link_entries((int)$eventId, 'entry', 'Entry', $sortKey, $sortDir, $manage); ?></th>
-	                    <th><?php echo sort_link_entries((int)$eventId, 'class', 'Class', $sortKey, $sortDir, $manage); ?></th>
-	                    <th><?php echo sort_link_entries((int)$eventId, 'rider', 'Rider', $sortKey, $sortDir, $manage); ?></th>
-	                    <th><?php echo sort_link_entries((int)$eventId, 'horse', 'Horse', $sortKey, $sortDir, $manage); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'booking_ref', 'Booking ref', $sortKey, $sortDir); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'placed', 'Placed', $sortKey, $sortDir); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'contact', 'Contact', $sortKey, $sortDir); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'entry', 'Entry', $sortKey, $sortDir); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'class', 'Class', $sortKey, $sortDir); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'rider', 'Rider', $sortKey, $sortDir); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'horse', 'Horse', $sortKey, $sortDir); ?></th>
                     <th>Rosette</th>
-                    <th><?php echo sort_link_entries((int)$eventId, 'price', 'Fees Due (£)', $sortKey, $sortDir, $manage); ?></th>
+                    <th><?php echo sort_link_entries((int)$eventId, 'price', 'Fees Due (£)', $sortKey, $sortDir); ?></th>
 	                    <th class="text-end">Actions</th>
 	                </tr>
-	            </thead>
+            </thead>
             <tbody>
+                <?php $adminCancellationModals = []; ?>
                 <?php foreach ($entries as $entry): ?>
                     <?php
                         $meta = $entry['metadata'] ?? [];
@@ -638,32 +656,27 @@ admin_layout_start($pageTitle, 'events');
                         <td class="small"><?php echo h($rosetteLabel); ?></td>
                         <td class="small"><span class="fee-badge <?php echo h($feeStatus['class']); ?>"><?php echo h($feeStatus['label']); ?></span></td>
                         <td class="text-end">
-                            <?php if (!$manage): ?>
-                                <div class="btn-group-mobile" role="group" aria-label="Entry actions">
-                                    <?php
-                                    $itemId = (int)($entry['id'] ?? 0);
-                                    $hubGuid = ($pdo && $itemId > 0) ? ensure_booking_item_guid($pdo, $itemId) : null;
-                                    ?>
-                                    <a class="btn btn-sm btn-outline-secondary has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span></a>
-                                    <a class="btn btn-sm btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&mode=edit&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a>
-                                    <?php if ($hubGuid): ?>
-                                        <a class="btn btn-sm btn-outline-primary has-icon" href="<?php echo h($siteBase . '/entry_hub.php?code=' . urlencode((string)$hubGuid)); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square btn-icon"></i><span class="btn-label">Hub</span></a>
-                                    <?php endif; ?>
-                                </div>
-                            <?php else: ?>
-                                <div class="btn-row-mobile justify-content-end">
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Withdraw this entry?');">
-                                        <input type="hidden" name="action" value="withdraw">
-                                        <input type="hidden" name="item_id" value="<?php echo (int)($entry['id'] ?? 0); ?>">
-                                        <button class="btn btn-sm btn-outline-secondary has-icon"><i class="fa-solid fa-ban btn-icon"></i><span class="btn-label">Withdraw</span></button>
-                                    </form>
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Withdraw and refund this entry as credit?');">
-                                        <input type="hidden" name="action" value="withdraw_refund">
-                                        <input type="hidden" name="item_id" value="<?php echo (int)($entry['id'] ?? 0); ?>">
-                                        <button class="btn btn-sm btn-outline-danger has-icon"><i class="fa-solid fa-money-bill-transfer btn-icon"></i><span class="btn-label">Withdraw + refund</span></button>
-                                    </form>
-                                </div>
-                            <?php endif; ?>
+                            <?php
+                            $itemId = (int)($entry['id'] ?? 0);
+                            $adminCancelModalId = 'admin-cancel-entry-' . $itemId;
+                            $entryCloseTs = strtotime((string)($event['entry_close_at'] ?? ''));
+                            $adminCancellationModals[] = [
+                                'id' => $adminCancelModalId,
+                                'item_id' => $itemId,
+                                'title' => (string)($entry['event_title'] ?? $event['title'] ?? 'Entry'),
+                                'rider' => (string)($rider ?: $contactName),
+                                'price' => $entryPrice,
+                                'refund_default' => max(0, $entryPrice - price_to_number($siteSettings['event_stripe_refund_fee'] ?? '5.00')),
+                                'refund_fee' => price_to_number($siteSettings['event_stripe_refund_fee'] ?? '5.00'),
+                                'closed' => $entryCloseTs !== false && $entryCloseTs <= time(),
+                                'close_label' => $entryCloseTs !== false ? format_display_datetime($event['entry_close_at'] ?? null, '') : '',
+                            ];
+                            ?>
+                            <div class="btn-group-mobile" role="group" aria-label="Entry actions">
+                                <a class="btn btn-sm btn-outline-secondary has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span></a>
+                                <a class="btn btn-sm btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&mode=edit&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a>
+                                <button type="button" class="btn btn-sm btn-outline-danger has-icon" data-bs-toggle="modal" data-bs-target="#<?php echo h($adminCancelModalId); ?>"><i class="fa-solid fa-ban btn-icon"></i><span class="btn-label">Cancel</span></button>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -674,6 +687,24 @@ admin_layout_start($pageTitle, 'events');
         </table>
         </div>
     </div>
+    <?php foreach ($adminCancellationModals as $modal): ?>
+        <div class="modal fade" id="<?php echo h($modal['id']); ?>" tabindex="-1" aria-labelledby="<?php echo h($modal['id']); ?>-label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+                <div class="modal-header"><div><div class="text-uppercase small fw-bold text-danger">Admin cancellation</div><h2 class="modal-title h5 mb-0" id="<?php echo h($modal['id']); ?>-label"><?php echo h($modal['title']); ?></h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <form method="post">
+                    <div class="modal-body">
+                        <p class="mb-2">Cancel this entry for <strong><?php echo h($modal['rider'] ?: 'the booking contact'); ?></strong>. The entry line price was <strong><?php echo format_price((float)$modal['price']); ?></strong>.</p>
+                        <?php if ($modal['closed']): ?><div class="alert alert-warning py-2 small">Entry closing time <?php echo h($modal['close_label']); ?> has passed. Customer cancellation is closed, but an administrator may still cancel this entry.</div><?php endif; ?>
+                        <div class="mb-3"><label class="form-label fw-semibold" for="<?php echo h($modal['id']); ?>-method">Cancellation method</label><select class="form-select" id="<?php echo h($modal['id']); ?>-method" name="cancellation_method" data-admin-cancel-method data-credit-default="<?php echo h(number_format((float)$modal['price'], 2, '.', '')); ?>" data-refund-default="<?php echo h(number_format((float)$modal['refund_default'], 2, '.', '')); ?>" data-amount-id="<?php echo h($modal['id']); ?>-amount"><option value="refund">Stripe refund</option><option value="credit">Account credit</option></select><div class="form-text">Stripe refund defaults to the entry amount less the <?php echo format_price((float)$modal['refund_fee']); ?> refund fee. Credit defaults to the full entry amount.</div></div>
+                        <div class="mb-3"><label class="form-label fw-semibold" for="<?php echo h($modal['id']); ?>-amount">Amount</label><input class="form-control" id="<?php echo h($modal['id']); ?>-amount" type="number" name="cancellation_amount" min="0.01" max="<?php echo h(number_format((float)$modal['price'], 2, '.', '')); ?>" step="0.01" value="<?php echo h(number_format((float)$modal['refund_default'], 2, '.', '')); ?>" required><div class="form-text">Maximum: <?php echo format_price((float)$modal['price']); ?>, the amount paid for this entry.</div></div>
+                        <div><label class="form-label fw-semibold" for="<?php echo h($modal['id']); ?>-reason">Reason (optional)</label><textarea class="form-control" id="<?php echo h($modal['id']); ?>-reason" name="reason" rows="2" placeholder="Add an internal cancellation note"></textarea></div>
+                        <input type="hidden" name="action" value="admin_cancel_entry"><input type="hidden" name="item_id" value="<?php echo (int)$modal['item_id']; ?>"><input type="hidden" name="csrf" value="<?php echo h($adminEntryCancelCsrf); ?>">
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-danger">Cancel entry and apply</button></div>
+                </form>
+            </div></div>
+        </div>
+    <?php endforeach; ?>
 <?php endif; ?>
 
 <?php if ($event && $withdrawnEntries): ?>
@@ -732,7 +763,7 @@ admin_layout_start($pageTitle, 'events');
 	                        <td class="small"><?php echo h($horse ?: '—'); ?></td>
                             <td class="small"><?php echo h($rosetteLabel); ?></td>
 	                        <td class="small"><span class="fee-badge <?php echo h($feeStatus['class']); ?>"><?php echo h($feeStatus['label']); ?></span></td>
-	                        <td class="text-end small text-muted"><?php echo $isRefunded ? 'Withdrawn &amp; refunded' : 'Withdrawn'; ?></td>
+                        <td class="text-end small text-muted"><div><?php echo $isRefunded ? 'Withdrawn &amp; refunded' : 'Withdrawn'; ?></div><button type="button" class="btn btn-sm btn-secondary disabled mt-1" disabled>Cancelled</button></td>
 	                    </tr>
 	                <?php endforeach; ?>
 	            </tbody>
@@ -740,6 +771,15 @@ admin_layout_start($pageTitle, 'events');
             </div>
 	    </div>
 <?php endif; ?>
+
+<script>
+document.querySelectorAll('[data-admin-cancel-method]').forEach((select) => {
+    select.addEventListener('change', () => {
+        const amount = document.getElementById(select.dataset.amountId);
+        if (amount) amount.value = select.value === 'credit' ? select.dataset.creditDefault : select.dataset.refundDefault;
+    });
+});
+</script>
 
 <?php
 admin_layout_end();

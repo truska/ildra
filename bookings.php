@@ -23,8 +23,32 @@ if (!$isLoggedIn) {
     header('Location: ' . $basePath . '/account');
     exit;
 }
+$userId=(int)($currentUser['id']??0);$userEmail=strtolower((string)($currentUser['email']??''));
+if(empty($_SESSION['booking_cancel_csrf']))$_SESSION['booking_cancel_csrf']=bin2hex(random_bytes(24));
+$bookingCancelCsrf=(string)$_SESSION['booking_cancel_csrf'];
+
+if(($_SERVER['REQUEST_METHOD']??'')==='POST' && in_array((string)($_POST['action']??''),['cancel_entry_credit','cancel_entry_refund'],true)){
+    $action=(string)$_POST['action'];$itemId=(int)($_POST['item_id']??0);$reason=trim((string)($_POST['reason']??''));$cancelAlerts=[];
+    if(!hash_equals($bookingCancelCsrf,(string)($_POST['csrf']??'')))$cancelAlerts[]=['type'=>'danger','message'=>'Your cancellation form has expired. Please try again.'];
+    ensure_bookings_tables($pdo,$cancelAlerts);ensure_finance_tables($pdo,$cancelAlerts);
+    $stmt=$pdo->prepare("SELECT bi.*,b.booking_ref,b.user_id,b.contact_name,b.contact_email,e.title AS live_title,e.event_date,e.entry_close_at FROM booking_items bi JOIN bookings b ON b.new_id=bi.booking_id JOIN events e ON e.id=bi.event_id WHERE bi.id=:id LIMIT 1");$stmt->execute([':id'=>$itemId]);$entry=$stmt->fetch();
+    $owns=$entry&&(((int)($entry['user_id']??0)>0&&(int)$entry['user_id']===$userId)||($userEmail!==''&&strtolower((string)($entry['contact_email']??''))===$userEmail));
+    $closeAt=$entry?strtotime((string)($entry['entry_close_at']??'')):false;
+    if(empty($cancelAlerts) && !$owns)$cancelAlerts[]=['type'=>'danger','message'=>'That entry is not available for cancellation.'];
+    elseif(empty($cancelAlerts) && !empty($entry['is_withdrawn']))$cancelAlerts[]=['type'=>'warning','message'=>'This entry has already been cancelled.'];
+    elseif(empty($cancelAlerts) && ($closeAt===false||$closeAt<=time()))$cancelAlerts[]=['type'=>'warning','message'=>'The entry close date/time has passed. Please contact an administrator.'];
+    elseif(empty($cancelAlerts)){
+        $entryPrice=price_to_number($entry['price']??0);$title=(string)($entry['live_title']??$entry['event_title']??'Entry');$date=format_display_date($entry['event_date']??null,'Date TBC');
+        $cancelMethod=$action==='cancel_entry_credit'?'credit':'refund';
+        $amount=$cancelMethod==='credit'?$entryPrice:max(0,$entryPrice-price_to_number($siteSettings['event_stripe_refund_fee']??'5.00'));
+        $result=cancel_event_entry($pdo,$config,$entry,$cancelMethod,$amount,$reason,$userId,'Customer',$cancelAlerts,'customer',$userId);
+        if($result)$_SESSION['entry_cancellation_summary']=['title'=>$title,'date'=>$date,'method'=>$result['method']==='credit'?'Credited':'Refunded','amount'=>$result['amount']];
+    }
+    if($cancelAlerts)$_SESSION['flash_alerts']=$cancelAlerts;header('Location: '.$basePath.'/bookings');exit;
+}
 
 $orders = [];
+$cancellationSummary=$_SESSION['entry_cancellation_summary']??null;unset($_SESSION['entry_cancellation_summary']);
 $allOrders = load_all_bookings($pdo);
 $userId = (int)($currentUser['id'] ?? 0);
 $userEmail = strtolower((string)($currentUser['email'] ?? ''));
@@ -142,6 +166,13 @@ if ($pdo) {
             padding: 4px 10px;
             font-weight: 700;
         }
+        .booking-cancelled-pill {
+            background: #f8d7da;
+            border: 1px solid #e6aeb5;
+            color: #842029;
+            opacity: 1;
+            font-weight: 700;
+        }
         .small-link {
             font-size: 0.9rem;
             font-weight: 700;
@@ -204,12 +235,17 @@ if ($pdo) {
                         $detailsId = 'booking-items-' . h($order['id'] ?? $order['booking_ref'] ?? uniqid('bk'));
                         $nowTs = time();
                         $eventNames = [];
+                        $cancelledItemCount = 0;
                         foreach ($items as $item) {
                             $eventName = trim((string)($item['event_title'] ?? $item['event_name'] ?? ''));
                             if ($eventName !== '' && !in_array($eventName, $eventNames, true)) {
                                 $eventNames[] = $eventName;
                             }
+                            if (!empty($item['is_withdrawn'])) {
+                                $cancelledItemCount++;
+                            }
                         }
+                        $bookingCancellationLabel = $cancelledItemCount >= count($items) ? 'Cancelled' : 'Partially cancelled';
                         ?>
                         <div class="booking-card p-4 mb-3">
                             <div class="d-flex flex-wrap justify-content-between gap-3">
@@ -238,9 +274,12 @@ if ($pdo) {
                                 </div>
                                 <div class="text-end">
                                     <div class="text-muted small mb-1">Booking #<?php echo h($order['booking_ref'] ?? $order['id']); ?></div>
-                                    <button class="btn btn-outline-secondary btn-sm collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#<?php echo $detailsId; ?>" aria-expanded="false" aria-controls="<?php echo $detailsId; ?>">
+                                    <button class="btn btn-success btn-sm collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#<?php echo $detailsId; ?>" aria-expanded="false" aria-controls="<?php echo $detailsId; ?>">
                                         View items
                                     </button>
+                                    <?php if ($cancelledItemCount > 0): ?>
+                                        <div class="mt-2"><span class="btn btn-sm booking-cancelled-pill disabled" aria-disabled="true"><?php echo h($bookingCancellationLabel); ?></span></div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <div class="mt-3 collapse" id="<?php echo $detailsId; ?>">
@@ -265,19 +304,20 @@ if ($pdo) {
                                         }
                                         $itemCancelModalId = 'cancel-item-' . preg_replace('/[^a-zA-Z0-9_-]/', '-', (string)($item['id'] ?? ($order['booking_ref'] ?? 'bk') . '-' . $idx));
                                         $eventId = (int)($item['event_id'] ?? 0);
-                                        $isCancelableItem = !in_array($bookingType, ['membership', 'horse_logbook'], true)
+                                        $isCancelableItem = empty($item['is_withdrawn']) && !in_array($bookingType, ['membership', 'horse_logbook'], true)
                                             && $eventId > 0
                                             && isset($eventCloseMap[$eventId]);
                                         $cancelBlocked = false;
                                         $closeLabel = '';
+                                        $itemPrice=price_to_number($item['price']??0);$refundFee=price_to_number($siteSettings['event_stripe_refund_fee']??'5.00');$refundPreview=max(0,$itemPrice-$refundFee);
                                         $cancelEventTitle = trim((string)($eventCloseMap[$eventId]['title'] ?? ($item['event_title'] ?? 'this event')));
                                         if ($isCancelableItem) {
                                             $entryCloseAt = trim((string)($eventCloseMap[$eventId]['entry_close_at'] ?? ''));
                                             if ($entryCloseAt !== '') {
                                                 $closeLabel = format_display_datetime($entryCloseAt, '');
                                                 $closeTs = strtotime($entryCloseAt);
-                                                $cancelBlocked = $closeTs !== false && $closeTs <= $nowTs;
-                                            }
+                                                $cancelBlocked = $closeTs === false || $closeTs <= $nowTs;
+                                            } else $cancelBlocked = true;
                                         }
                                         ?>
                                         <div class="list-group-item booking-item">
@@ -294,7 +334,7 @@ if ($pdo) {
                                                     <?php if ($entryLink !== '#'): ?>
                                                         <a class="btn btn-outline-success btn-sm" href="<?php echo h($entryLink); ?>">View details</a>
                                                     <?php endif; ?>
-                                                    <?php if ($isCancelableItem): ?>
+                                                    <?php if ($isCancelableItem && !$cancelBlocked): ?>
                                                         <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#<?php echo h($itemCancelModalId); ?>">
                                                             Cancel
                                                         </button>
@@ -302,7 +342,7 @@ if ($pdo) {
                                                 </div>
                                             </div>
                                         </div>
-                                        <?php if ($isCancelableItem): ?>
+                                        <?php if ($isCancelableItem && !$cancelBlocked): ?>
                                             <div class="modal fade" id="<?php echo h($itemCancelModalId); ?>" tabindex="-1" aria-labelledby="<?php echo h($itemCancelModalId); ?>Label" aria-hidden="true">
                                                 <div class="modal-dialog modal-dialog-centered">
                                                     <div class="modal-content border-0" style="border-radius: 18px;">
@@ -314,15 +354,7 @@ if ($pdo) {
                                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                         </div>
                                                         <div class="modal-body pt-3">
-                                                            <?php if ($cancelBlocked): ?>
-                                                                <p class="mb-2">This entry can no longer be cancelled because the entry close date/time has already passed.</p>
-                                                                <?php if ($cancelEventTitle !== ''): ?>
-                                                                    <div class="text-muted small mb-2">Event: <?php echo h($cancelEventTitle); ?></div>
-                                                                <?php endif; ?>
-                                                                <?php if ($closeLabel !== ''): ?>
-                                                                    <div class="text-muted small">Entry close time: <?php echo h($closeLabel); ?></div>
-                                                                <?php endif; ?>
-                                                            <?php else: ?>
+                                                            <?php if (!$cancelBlocked): ?>
                                                                 <p class="mb-2">This entry is still within the cancellation window.</p>
                                                                 <?php if ($cancelEventTitle !== ''): ?>
                                                                     <div class="text-muted small mb-3">Event: <?php echo h($cancelEventTitle); ?></div>
@@ -330,21 +362,21 @@ if ($pdo) {
                                                                 <?php if ($closeLabel !== ''): ?>
                                                                     <div class="text-muted small mb-3">Entries close at: <?php echo h($closeLabel); ?></div>
                                                                 <?php endif; ?>
-                                                                <p class="small text-muted mb-3">Choose how you would like this cancellation handled. The actions will be connected next.</p>
+                                                                <p class="small text-muted mb-3">Credit returns the full entry amount to your ILDRA account for future purchases. A refund is sent to the original Stripe payment, less the <?php echo format_price($refundFee); ?> refund fee.</p>
                                                                 <div class="mb-3">
                                                                     <label class="form-label fw-semibold" for="<?php echo h($itemCancelModalId); ?>-reason">Reason (Optional)</label>
-                                                                    <textarea class="form-control" id="<?php echo h($itemCancelModalId); ?>-reason" rows="3" placeholder="Add a short note about why you are cancelling"></textarea>
+                                                                    <textarea class="form-control" id="<?php echo h($itemCancelModalId); ?>-reason" form="<?php echo h($itemCancelModalId); ?>-form" name="reason" rows="3" placeholder="Add a short note about why you are cancelling"></textarea>
                                                                 </div>
-                                                                <div class="d-grid gap-2">
-                                                                    <button type="button" class="btn btn-success cancel-choice">
+                                                                <form method="post" id="<?php echo h($itemCancelModalId); ?>-form"><input type="hidden" name="item_id" value="<?php echo (int)$item['id']; ?>"><input type="hidden" name="csrf" value="<?php echo h($bookingCancelCsrf); ?>"><div class="d-grid gap-2" id="<?php echo h($itemCancelModalId); ?>-choices">
+                                                                    <button type="button" class="btn btn-success cancel-choice" data-credit-choice="<?php echo h($itemCancelModalId); ?>">
                                                                         <strong>Get Credit</strong>
-                                                                        <span>Keep the value on your account for a future booking.</span>
+                                                                        <span>Full entry amount applied to your account for future ILDRA purchases.</span>
                                                                     </button>
-                                                                    <button type="button" class="btn btn-outline-secondary cancel-choice">
+                                                                    <button type="button" class="btn btn-outline-secondary cancel-choice" data-refund-choice="<?php echo h($itemCancelModalId); ?>">
                                                                         <strong>Get Refund</strong>
-                                                                        <span>Request the amount back instead of keeping account credit.</span>
+                                                                        <span>Refund <?php echo format_price($refundPreview); ?> after the <?php echo format_price($refundFee); ?> refund fee.</span>
                                                                     </button>
-                                                                </div>
+                                                                </div><div class="d-none" id="<?php echo h($itemCancelModalId); ?>-credit-confirm"><p class="mb-2 fw-semibold">Confirm credit of <?php echo format_price($itemPrice); ?></p><p class="small text-muted">This will cancel the entry and apply the full amount to your ILDRA account for a future purchase.</p><div class="d-flex gap-2"><button type="submit" name="action" value="cancel_entry_credit" class="btn btn-success">Confirm credit</button><button type="button" class="btn btn-outline-secondary" data-credit-back="<?php echo h($itemCancelModalId); ?>">Back</button></div></div><div class="d-none" id="<?php echo h($itemCancelModalId); ?>-refund-confirm"><p class="mb-2 fw-semibold">Confirm refund of <?php echo format_price($refundPreview); ?></p><p class="small text-muted">This will cancel the entry and ask Stripe to return the funds to the original payment method. It can take up to five days to show on your statement.</p><div class="d-flex gap-2"><button type="submit" name="action" value="cancel_entry_refund" class="btn btn-danger">Confirm refund</button><button type="button" class="btn btn-outline-secondary" data-refund-back="<?php echo h($itemCancelModalId); ?>">Back</button></div></div></form><p class="small text-muted border-top pt-3 mt-3 mb-0">If you want to change your entry (for example, rider, horse, class, or rosette selection), please cancel it by selecting <strong>Credit</strong>, then re-enter with the new details and use your new credit balance to pay.</p>
                                                             <?php endif; ?>
                                                         </div>
                                                         <div class="modal-footer border-0 pt-0">
@@ -381,11 +413,67 @@ if ($pdo) {
         </div>
     </main>
 
+    <?php if(is_array($cancellationSummary)): ?>
+        <div class="modal fade" id="entry-cancellation-complete" tabindex="-1" aria-labelledby="entry-cancellation-complete-label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0" style="border-radius:18px;">
+                    <div class="modal-header border-0 pb-0">
+                        <div>
+                            <div class="text-uppercase small fw-bold text-success">Cancellation complete</div>
+                            <h2 class="modal-title h5 mb-0" id="entry-cancellation-complete-label">Entry cancelled</h2>
+                        </div>
+                    </div>
+                    <div class="modal-body">
+                        <p>ENTRY for <strong><?php echo h($cancellationSummary['title']??''); ?></strong> on <strong><?php echo h($cancellationSummary['date']??''); ?></strong> has been cancelled.</p>
+                        <?php if(($cancellationSummary['method']??'')==='Credited'): ?>
+                            <p class="mb-0">You have been credited <strong><?php echo format_price((float)($cancellationSummary['amount']??0)); ?></strong>. Your credit has been applied to your account for future ILDRA purchases.</p>
+                        <?php else: ?>
+                            <p class="mb-0">Your refund of <strong><?php echo format_price((float)($cancellationSummary['amount']??0)); ?></strong> has been initiated. It may take up to 5 days to show on your statement.</p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="modal-footer border-0 pt-0"><button type="button" class="btn btn-success" data-bs-dismiss="modal">Close</button></div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <?php include __DIR__ . '/views/footer.php'; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+        document.querySelectorAll('[data-refund-choice]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.refundChoice;
+                document.getElementById(id + '-choices').classList.add('d-none');
+                document.getElementById(id + '-refund-confirm').classList.remove('d-none');
+            });
+        });
+        document.querySelectorAll('[data-credit-choice]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.creditChoice;
+                document.getElementById(id + '-choices').classList.add('d-none');
+                document.getElementById(id + '-credit-confirm').classList.remove('d-none');
+            });
+        });
+        document.querySelectorAll('[data-credit-back]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.creditBack;
+                document.getElementById(id + '-credit-confirm').classList.add('d-none');
+                document.getElementById(id + '-choices').classList.remove('d-none');
+            });
+        });
+        document.querySelectorAll('[data-refund-back]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const id = button.dataset.refundBack;
+                document.getElementById(id + '-refund-confirm').classList.add('d-none');
+                document.getElementById(id + '-choices').classList.remove('d-none');
+            });
+        });
+        const completionModal = document.getElementById('entry-cancellation-complete');
+        if (completionModal) new bootstrap.Modal(completionModal).show();
+    </script>
 </body>
 </html>

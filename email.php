@@ -858,7 +858,7 @@ function php_mail_send(array $settings, string $fromEmail, string $fromName, str
 /**
  * Sends and logs an email. Never throws.
  */
-function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $htmlBody, string $textBody, array $meta = [], array $attachments = []): bool
+function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $htmlBody, string $textBody, array $meta = [], array $attachments = [], array $additionalCc = []): bool
 {
     if (!$pdo) {
         return false;
@@ -868,7 +868,7 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
     $enabled = ((string)($settings['email_enabled'] ?? '0')) === '1';
     $provider = (string)($settings['email_provider'] ?? 'smtp');
 
-    $ccEmails = parseEmailList((string)($settings['email_cc_default'] ?? ''));
+    $ccEmails = array_values(array_unique(array_merge(parseEmailList((string)($settings['email_cc_default'] ?? '')), $additionalCc)));
     $bccEmails = parseEmailList((string)($settings['email_bcc_default'] ?? ''));
     $fromName = (string)($settings['email_from_name'] ?? '');
     $fromEmail = (string)($settings['email_from_email'] ?? '');
@@ -1165,4 +1165,40 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         . "Total: {$total}");
 
     return ['subject' => $subject, 'html' => $html, 'text' => $text];
+}
+
+function render_entry_cancellation_email(array $entry, array $siteSettings, array $emailSettings, string $method, float $amount): array
+{
+    $bookingRef = (string)($entry['booking_ref'] ?? '');
+    $contactName = (string)($entry['contact_name'] ?? '');
+    $contactEmail = (string)($entry['contact_email'] ?? '');
+    $title = (string)($entry['live_title'] ?? $entry['event_title'] ?? 'Entry');
+    $eventDate = format_display_date($entry['event_date'] ?? null, 'Date TBC');
+    $meta = is_array($entry['metadata'] ?? null) ? $entry['metadata'] : [];
+    $details = [];
+    foreach (['class_label' => 'Class', 'rider_name' => 'Rider', 'horse_name' => 'Horse'] as $key => $label) {
+        if (!empty($meta[$key])) {
+            $details[] = $label . ': ' . (string)$meta[$key];
+        }
+    }
+    $methodLabel = $method === 'credit' ? 'Account Credit' : 'Stripe Refund';
+    $amountText = format_price($amount);
+    $subject = subject_with_prefix($emailSettings, 'Entry Cancellation Confirmation ' . $bookingRef);
+    $detailsHtml = $details ? '<div style="margin-top:4px;color:#476146;">' . h(implode(' · ', $details)) . '</div>' : '';
+    $htmlInner = '<div style="font-size:16px;font-weight:800;color:#0c2a12;">Entry Cancellation Confirmation</div>'
+        . '<div style="margin-top:6px;color:#476146;">Reference: <strong>' . h($bookingRef) . '</strong></div>'
+        . '<div style="margin-top:4px;color:#476146;">Contact: ' . h($contactName) . ' · ' . h($contactEmail) . '</div>'
+        . '<div style="margin-top:16px;border-top:1px solid rgba(0,0,0,0.06);padding-top:14px;">'
+        . '<div style="font-weight:700;color:#0c2a12;">' . h($title) . '</div>'
+        . '<div style="color:#476146;">Event date: ' . h($eventDate) . '</div>'
+        . $detailsHtml
+        . '<div style="margin-top:14px;padding:12px;border-radius:8px;background:#f3f7f1;color:#0c2a12;">'
+        . 'This entry has been cancelled.<br><strong>' . h($methodLabel) . ' applied: ' . h($amountText) . '</strong>'
+        . ($method === 'refund' ? '<div style="margin-top:4px;color:#476146;">Your refund has been initiated and may take up to 5 days to appear on your statement.</div>' : '<div style="margin-top:4px;color:#476146;">Your credit is available for a future purchase on the ILDRA website.</div>')
+        . '</div></div>';
+    $text = "Entry Cancellation Confirmation\nReference: {$bookingRef}\nContact: {$contactName} · {$contactEmail}\n\n{$title}\nEvent date: {$eventDate}"
+        . ($details ? "\n" . implode(' · ', $details) : '')
+        . "\n\nThis entry has been cancelled.\n{$methodLabel} applied: {$amountText}"
+        . ($method === 'refund' ? "\nYour refund has been initiated and may take up to 5 days to appear on your statement." : "\nYour credit is available for a future purchase on the ILDRA website.");
+    return ['subject' => $subject, 'html' => wrap_user_email_html($siteSettings, $emailSettings, $htmlInner), 'text' => wrap_user_email_text($siteSettings, $emailSettings, $text)];
 }

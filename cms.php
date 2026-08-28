@@ -100,6 +100,7 @@ function defaultSiteSettings(): array
         'event_entry_close_weeks' => 0,
         'event_entry_close_weekday' => 4,
         'event_entry_close_time' => '23:59',
+        'event_stripe_refund_fee' => '5.00',
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days
         'admin_manual_filename' => '',

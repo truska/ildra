@@ -24,7 +24,7 @@ function finance_event_payout_capacity(PDO $pdo,int $eventId):array{
     $payments=0.0;$fees=0.0;
     $stmt=$pdo->prepare("SELECT ft.amount,ft.metadata,SUM(CASE WHEN bi.event_id=:event_id THEN bi.price ELSE 0 END) event_amount,SUM(bi.price) booking_amount FROM finance_transactions ft JOIN bookings b ON b.booking_ref=ft.reference JOIN booking_items bi ON bi.booking_id=b.new_id WHERE ft.type='payment_stripe' GROUP BY ft.id,ft.amount,ft.metadata HAVING event_amount>0");$stmt->execute([':event_id'=>$eventId]);
     foreach($stmt->fetchAll()?:[] as$row){$total=(float)($row['booking_amount']??0);if($total<=0)continue;$share=min(1,max(0,(float)$row['event_amount']/$total));$payments+=(float)$row['amount']*$share;$meta=json_decode((string)($row['metadata']??''),true);$fees+=(is_array($meta)&&isset($meta['stripe_fee'])?(float)$meta['stripe_fee']:0)*$share;}
-    $stmt=$pdo->prepare("SELECT COALESCE(SUM(ft.amount),0) FROM finance_transactions ft JOIN booking_items bi ON bi.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata,'$.booking_item_id')) AS UNSIGNED) WHERE ft.type='entry_refund' AND bi.event_id=:event_id");$stmt->execute([':event_id'=>$eventId]);$refunds=(float)$stmt->fetchColumn();
+    $stmt=$pdo->prepare("SELECT COALESCE(SUM(ABS(ft.amount)),0) FROM finance_transactions ft JOIN booking_items bi ON bi.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata,'$.booking_item_id')) AS UNSIGNED) WHERE ft.type IN ('entry_refund','entry_stripe_refund','entry_credit') AND bi.event_id=:event_id");$stmt->execute([':event_id'=>$eventId]);$refunds=(float)$stmt->fetchColumn();
     $stmt=$pdo->prepare("SELECT COALESCE(SUM(ABS(amount)),0) FROM finance_transactions WHERE type='stripe_payout' AND CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata,'$.event_id')) AS UNSIGNED)=:event_id");$stmt->execute([':event_id'=>$eventId]);$paid=(float)$stmt->fetchColumn();
     $net=$payments-$refunds-$fees;return['payments'=>$payments,'refunds'=>$refunds,'stripe_fee'=>$fees,'net'=>$net,'paid'=>$paid,'remaining'=>max(0,$net-$paid)];
 }
@@ -161,11 +161,11 @@ if ($pdo) {
                 $stmt = $pdo->query("
                     SELECT
                         bi.event_id AS event_id,
-                        SUM(ft.amount) AS refunds_total
+                        SUM(ABS(ft.amount)) AS refunds_total
                     FROM finance_transactions ft
                     JOIN booking_items bi
                         ON bi.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.booking_item_id')) AS UNSIGNED)
-                    WHERE ft.type = 'entry_refund'
+                    WHERE ft.type IN ('entry_refund','entry_stripe_refund','entry_credit')
                     GROUP BY bi.event_id
                 ");
                 foreach ($stmt->fetchAll() ?: [] as $row) {

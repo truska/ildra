@@ -195,6 +195,7 @@ function record_finance_transaction(?PDO $pdo, array $data, array &$alerts = [])
     }
 
     $userId = isset($data['user_id']) ? (int)$data['user_id'] : null;
+    $affectsCredit = !array_key_exists('affects_credit', $data) || !empty($data['affects_credit']);
     $type = trim((string)($data['type'] ?? 'manual'));
     $amountRaw = $data['amount'] ?? 0;
     $amount = round((float)$amountRaw, 2);
@@ -211,7 +212,7 @@ function record_finance_transaction(?PDO $pdo, array $data, array &$alerts = [])
         $pdo->beginTransaction();
 
         $balanceBefore = 0.0;
-        if ($userId) {
+        if ($userId && $affectsCredit) {
             $select = $pdo->prepare("SELECT balance FROM user_credits WHERE user_id = :user_id FOR UPDATE");
             $select->execute([':user_id' => $userId]);
             $existing = $select->fetchColumn();
@@ -224,7 +225,7 @@ function record_finance_transaction(?PDO $pdo, array $data, array &$alerts = [])
         }
 
         $balanceAfter = $balanceBefore + $amount;
-        if ($userId) {
+        if ($userId && $affectsCredit) {
             $update = $pdo->prepare("UPDATE user_credits SET balance = :balance, updated_at = NOW() WHERE user_id = :user_id");
             $update->execute([':balance' => $balanceAfter, ':user_id' => $userId]);
         }
@@ -238,7 +239,7 @@ function record_finance_transaction(?PDO $pdo, array $data, array &$alerts = [])
             ':type' => $type,
             ':direction' => $direction,
             ':amount' => $amount,
-            ':balance_after' => $userId ? $balanceAfter : null,
+            ':balance_after' => ($userId && $affectsCredit) ? $balanceAfter : null,
             ':reference' => $reference !== '' ? $reference : null,
             ':notes' => $notes !== '' ? $notes : null,
             ':metadata' => $metadata ? json_encode($metadata) : null,

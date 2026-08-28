@@ -98,6 +98,12 @@ function stripe_create_payout(array $stripeConfig, array $params, string $idempo
     return stripe_api_request($stripeConfig, 'POST', '/v1/payouts', $params, $headers);
 }
 
+function stripe_create_refund(array $stripeConfig, array $params, string $idempotencyKey = ''): array
+{
+    $headers = $idempotencyKey !== '' ? ['Idempotency-Key: ' . $idempotencyKey] : [];
+    return stripe_api_request($stripeConfig, 'POST', '/v1/refunds', $params, $headers);
+}
+
 function stripe_available_balance(array $balance, string $currency = 'gbp'): float
 {
     $currency = strtolower($currency);

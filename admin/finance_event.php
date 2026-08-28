@@ -86,9 +86,9 @@ if ($event && $pdo) {
     $stmt = $pdo->prepare("
         SELECT
             CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) AS UNSIGNED) AS booking_item_id,
-            SUM(amount) AS refund_total
+            SUM(ABS(amount)) AS refund_total
         FROM finance_transactions
-        WHERE type = 'entry_refund'
+        WHERE type IN ('entry_refund','entry_stripe_refund','entry_credit')
         GROUP BY booking_item_id
     ");
     $stmt->execute();
@@ -165,7 +165,7 @@ if ($event && $pdo) {
             ON bi.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.booking_item_id')) AS UNSIGNED)
         LEFT JOIN bookings b ON b.new_id = bi.booking_id
         LEFT JOIN users u ON u.id = ft.user_id
-        WHERE ft.type = 'entry_refund'
+        WHERE ft.type IN ('entry_refund','entry_stripe_refund','entry_credit')
           AND bi.event_id = :event_id
         ORDER BY ft.created_at DESC, ft.id DESC
     ");
@@ -182,7 +182,7 @@ if ($event && $pdo) {
     $stmt = $pdo->prepare("
         SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) AS booking_item_id
         FROM finance_transactions
-        WHERE type = 'entry_refund'
+        WHERE type IN ('entry_refund','entry_stripe_refund','entry_credit')
           AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) IN (
             SELECT id FROM booking_items WHERE event_id = :event_id AND COALESCE(is_withdrawn, 0) = 1
           )
