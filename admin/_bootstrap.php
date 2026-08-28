@@ -195,6 +195,10 @@ function admin_layout_start(string $title, string $activeKey): void
             background: rgba(255,255,255,0.12);
             color: #fff;
         }
+        .admin-inline-reorder-handle { border:0; background:transparent; color:#146118; padding:.35rem .55rem; border-radius:6px; cursor:grab; touch-action:none; }
+        .admin-inline-reorder-handle:active { cursor:grabbing; }
+        .admin-inline-reorder-dragging { opacity:.55; box-shadow:0 4px 14px rgba(15,45,23,.16); }
+        .admin-inline-reorder-column { width:42px; }
         .admin-page-actions {
             display: flex;
             flex-wrap: wrap;
@@ -397,6 +401,10 @@ function admin_layout_start(string $title, string $activeKey): void
                     flex: 1 1 auto;
                 }
             }
+            @media (max-width: 767.98px) {
+                .admin-inline-reorder-controls,
+                .admin-inline-reorder-column { display:none!important; }
+            }
             @media (max-width: 575.98px) {
                 .btn.has-icon {
                     min-width: 44px;
@@ -564,6 +572,30 @@ function admin_layout_end(): void
                     if (value.length < 3) return;
                     timer = setTimeout(() => submitControl(input), 450);
                 });
+            });
+        })();
+        (function() {
+            if (window.innerWidth < 768) return;
+            document.querySelectorAll('table[data-admin-inline-reorder]').forEach(table => {
+                const body = table.tBodies[0];
+                const rows = body ? [...body.querySelectorAll('tr[data-order-id]')] : [];
+                if (!body || rows.length < 2) return;
+                const wrapper = table.closest('.table-responsive') || table;
+                const controls = document.createElement('div');
+                controls.className = 'admin-inline-reorder-controls d-none d-md-flex flex-wrap align-items-center gap-2 mb-3';
+                controls.innerHTML = '<button class="btn btn-sm btn-outline-success" type="button" data-reorder-start><i class="fa-solid fa-arrow-down-up-across-line me-1"></i>Reorder</button><span class="d-none align-items-center gap-2" data-reorder-active><span class="small text-muted">Drag the handles, then use the existing Save button.</span><button class="btn btn-sm btn-outline-secondary" type="button" data-reorder-cancel>Cancel</button></span>';
+                wrapper.parentNode.insertBefore(controls, wrapper);
+                const headingRows = table.tHead ? [...table.tHead.rows] : [];
+                headingRows.forEach(row => { const cell=document.createElement('th'); cell.className='admin-inline-reorder-column d-none d-md-table-cell'; row.insertBefore(cell,row.firstChild); });
+                rows.forEach(row => { const cell=document.createElement('td');cell.className='admin-inline-reorder-column d-none d-md-table-cell';cell.innerHTML='<button class="admin-inline-reorder-handle" type="button" disabled aria-label="Move row"><i class="fa-solid fa-grip-vertical"></i></button>';row.insertBefore(cell,row.firstChild); });
+                const start=controls.querySelector('[data-reorder-start]'), active=controls.querySelector('[data-reorder-active]'), cancel=controls.querySelector('[data-reorder-cancel]'), handles=[...body.querySelectorAll('.admin-inline-reorder-handle')];
+                let dragged=null, original=[];
+                const orderInput=row=>row.querySelector('[data-display-order]');
+                const renumber=()=>[...body.querySelectorAll('tr[data-order-id]')].forEach((row,index)=>{const input=orderInput(row);if(input)input.value=String((index+1)*10);});
+                const finish=()=>{if(!dragged)return;dragged.classList.remove('admin-inline-reorder-dragging');dragged=null;renumber();};
+                start.addEventListener('click',()=>{original=[...body.querySelectorAll('tr[data-order-id]')].map(row=>({row,value:orderInput(row)?.value||''}));handles.forEach(handle=>handle.disabled=false);start.classList.add('d-none');active.classList.remove('d-none');active.classList.add('d-flex');});
+                cancel.addEventListener('click',()=>{original.forEach(item=>{body.appendChild(item.row);const input=orderInput(item.row);if(input)input.value=item.value;});finish();handles.forEach(handle=>handle.disabled=true);active.classList.add('d-none');active.classList.remove('d-flex');start.classList.remove('d-none');});
+                handles.forEach(handle=>{handle.addEventListener('pointerdown',event=>{if(handle.disabled)return;dragged=handle.closest('tr[data-order-id]');dragged.classList.add('admin-inline-reorder-dragging');handle.setPointerCapture(event.pointerId);event.preventDefault();});handle.addEventListener('pointermove',event=>{if(!dragged)return;const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('tr[data-order-id]');if(!target||target===dragged||target.parentElement!==body)return;const rect=target.getBoundingClientRect();body.insertBefore(dragged,event.clientY<rect.top+rect.height/2?target:target.nextSibling);});handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);});
             });
         })();
     </script>
