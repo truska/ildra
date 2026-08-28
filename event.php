@@ -957,7 +957,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                         <?php endforeach; ?>
                                                     </select>
                                                     <div class="small helper-text" id="classPriceHint">Price will show when you pick a class. To unlock member rates, choose a member above.</div>
-                                                    <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="memberRateUsedNotice"></div>
+                                                    <div class="alert alert-danger fw-bold py-2 px-3 mt-2 mb-0 d-none" id="memberRateUsedNotice"></div>
                                                     <div class="validation-message small d-none" data-validation-for="class_code">Please choose a class.</div>
                                                 </div>
                                             </div>

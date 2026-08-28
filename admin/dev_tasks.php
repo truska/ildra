@@ -4,6 +4,23 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 ensureDevTaskTables($pdo);
+
+$listStateKey = 'admin_dev_tasks_list_state';
+$listStateFields = [
+    'status', 'priority', 'task', 'next_action', 'raised_by', 'updated_by',
+    'conversation', 'updated', 'task_status', 'sort', 'dir', 'p', 'per_page',
+];
+if (!$_GET && !empty($_SESSION[$listStateKey]) && is_array($_SESSION[$listStateKey])) {
+    $_GET = $_SESSION[$listStateKey];
+}
+$listState = [];
+foreach ($listStateFields as $field) {
+    if (isset($_GET[$field]) && is_scalar($_GET[$field])) {
+        $listState[$field] = (string)$_GET[$field];
+    }
+}
+$_SESSION[$listStateKey] = $listState;
+
 $requestedStatus = (string)($_GET['status'] ?? 'open');
 $filter = in_array($requestedStatus, ['open','completed','future','closed','all'], true) ? $requestedStatus : 'open';
 $params = [];
