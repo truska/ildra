@@ -7,6 +7,7 @@ if (!in_array($role, ['superadmin', 'admin', 'manager', 'organiser'], true)) {
     header('Location: account');
     exit;
 }
+$canEditHelpArticles = in_array($role, ['superadmin', 'admin'], true) || (int)($currentUser['level'] ?? 0) >= 4;
 
 ensureHelpTables($pdo);
 $stmt = $pdo->prepare("SELECT a.*, g.name AS group_name, g.description AS group_description, g.display_order AS group_order
@@ -40,8 +41,8 @@ foreach ($articles as $article) {
     <title>Admin Manual · ILDRA</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <style>
-        :root{--green:#0f2d17;--light:#f5f7f3;--accent:#1f7c24}html{scroll-behavior:smooth}body{background:var(--light);color:#142018}.manual-shell{max-width:1000px}.manual-header,.manual-section{background:#fff;border:1px solid rgba(15,45,23,.09);border-radius:14px;box-shadow:0 10px 30px rgba(15,45,23,.07)}.manual-kicker{color:var(--accent);letter-spacing:.08em}.contents a{color:#165e1c}.manual-article{scroll-margin-top:1rem}.manual-article+.manual-article{border-top:1px solid #dfe8dd}.manual-body img{max-width:100%;height:auto}.manual-hidden{display:none!important}.manual-section-title{color:var(--green)}
-        @media print{body{background:#fff;font-size:11pt}.manual-shell{max-width:none}.manual-header,.manual-section{border:0;box-shadow:none;padding-left:0!important;padding-right:0!important}.manual-actions,.manual-search{display:none!important}.manual-section{break-before:page}.manual-section:first-of-type{break-before:auto}.manual-article{break-inside:avoid}.manual-article a{color:inherit;text-decoration:none}}
+        :root{--green:#0f2d17;--light:#f5f7f3;--accent:#1f7c24}html{scroll-behavior:smooth}body{background:var(--light);color:#142018}.manual-shell{max-width:1000px}.manual-header,.manual-section{background:#fff;border:1px solid rgba(15,45,23,.09);border-radius:14px;box-shadow:0 10px 30px rgba(15,45,23,.07)}.manual-kicker{color:var(--accent);letter-spacing:.08em}.contents a{color:#165e1c}.manual-article{scroll-margin-top:1rem}.manual-article+.manual-article{border-top:1px solid #dfe8dd}.manual-body img{max-width:100%;height:auto}.manual-hidden{display:none!important}.manual-section-title{color:var(--green)}.manual-article-tool{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:36px;padding:.35rem .7rem;border:1px solid rgba(20,97,24,.35);border-radius:999px;background:#fff;color:#146118;font-size:.82rem;font-weight:700;text-decoration:none;white-space:nowrap;box-shadow:0 4px 12px rgba(15,45,23,.1)}.manual-article-tool svg{width:14px;height:14px;fill:currentColor}.manual-article-tool:hover,.manual-article-tool:focus-visible{background:#146118;color:#fff}
+        @media print{body{background:#fff;font-size:11pt}.manual-shell{max-width:none}.manual-header,.manual-section{border:0;box-shadow:none;padding-left:0!important;padding-right:0!important}.manual-actions,.manual-search,.manual-article-actions{display:none!important}.manual-section{break-before:page}.manual-section:first-of-type{break-before:auto}.manual-article{break-inside:avoid}.manual-article a{color:inherit;text-decoration:none}}
     </style>
 </head>
 <body>
@@ -64,7 +65,14 @@ foreach ($articles as $article) {
             <?php if (trim($section['description']) !== ''): ?><p class="text-muted"><?php echo h($section['description']); ?></p><?php endif; ?>
             <?php foreach ($section['articles'] as $article): ?>
                 <article class="manual-article py-4" data-search="<?php echo h(strtolower(strip_tags((string)$article['title'].' '.(string)$article['summary'].' '.(string)$article['keywords'].' '.(string)$article['body_html']))); ?>">
-                    <h3 class="h4 fw-bold"><?php echo h($article['title']); ?></h3>
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <h3 class="h4 fw-bold"><?php echo h($article['title']); ?></h3>
+                        <?php if ($canEditHelpArticles): ?>
+                            <div class="manual-article-actions flex-shrink-0">
+                                <a class="manual-article-tool" href="admin/help_edit.php?id=<?php echo (int)$article['id']; ?>" target="_blank" rel="noopener" title="Edit this help article" aria-label="Edit this help article"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M471.6 21.7c-28.9-28.9-75.7-28.9-104.6 0L344.9 43.8l123.3 123.3 22.1-22.1c28.9-28.9 28.9-75.7 0-104.6L471.6 21.7zM322.3 66.4 48.8 339.9c-8.2 8.2-14.3 18.3-17.8 29.3L.9 464.7c-3.2 10.1-.5 21.2 7 28.7s18.6 10.2 28.7 7l95.5-30.1c11-3.5 21.1-9.6 29.3-17.8L434.9 189 322.3 66.4z"/></svg><span>Edit</span></a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                     <?php if (trim((string)$article['summary']) !== ''): ?><p class="lead fs-6 text-muted"><?php echo h($article['summary']); ?></p><?php endif; ?>
                     <div class="manual-body"><?php echo render_wysiwyg((string)$article['body_html']); ?></div>
                 </article>
