@@ -190,7 +190,7 @@ $footerSocialIcons = [
                 <div class="site-footer-title mb-3">Member services</div>
                 <ul class="site-footer-links site-footer-links--mobile-columns small">
                     <li><a href="<?php echo h($footerBasePath); ?>/memberships">Memberships</a></li>
-                    <li><a href="<?php echo h($footerBasePath); ?>/logbooks">Horse logbooks</a></li>
+                    <li><a href="<?php echo h($footerBasePath); ?>/logbooks">Horse Logbooks</a></li>
                     <li><a href="<?php echo h($footerBasePath); ?>/bookings">Bookings</a></li>
                     <li><a href="<?php echo h($footerBasePath); ?>/basket">Basket</a></li>
                 </ul>

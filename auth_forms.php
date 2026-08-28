@@ -2,11 +2,11 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <div class="text-uppercase small text-secondary">Access Portal</div>
-            <h4 class="fw-semibold mb-0">Sign in or create</h4>
+            <h4 class="fw-semibold mb-0">Sign in or create an account</h4>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-toggle <?php echo $activeTab === 'login' ? 'active' : ''; ?>" data-target="login">Login</button>
-            <button class="btn btn-toggle <?php echo $activeTab === 'register' ? 'active' : ''; ?>" data-target="register">Sign up</button>
+            <button class="btn btn-toggle <?php echo $activeTab === 'register' ? 'active' : ''; ?>" data-target="register">Sign Up</button>
         </div>
     </div>
     <div id="login" class="tab-pane <?php echo $activeTab === 'login' ? '' : 'd-none'; ?>">
@@ -39,7 +39,7 @@
                     <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" autocomplete="username" autocapitalize="none" spellcheck="false" required>
                 </div>
                 <div class="col-12 col-sm-auto d-grid">
-                    <button class="btn btn-outline-success btn-lg">Send link</button>
+                    <button class="btn btn-outline-success btn-lg">Send Link</button>
                 </div>
             </form>
         </div>
@@ -69,7 +69,7 @@
                     <input type="password" name="confirm_password" class="form-control placeholder-muted" placeholder="Confirm password" autocomplete="new-password" required>
                 </div>
                 <div class="col-12 d-grid">
-                    <button class="btn btn-success btn-lg" style="background: var(--accent); border-color: var(--accent);">Create account</button>
+                    <button class="btn btn-success btn-lg" style="background: var(--accent); border-color: var(--accent);">Create Account</button>
                 </div>
             </div>
         </form>

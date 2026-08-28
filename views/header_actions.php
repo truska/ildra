@@ -38,8 +38,8 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><span class="dropdown-header">Signed in as <strong><?php echo h($headerUserName); ?></strong></span></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">My bookings</a></li>
-                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account#my-memberships">My memberships</a></li>
+                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">My Bookings</a></li>
+                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account#my-memberships">My Memberships</a></li>
                         <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/basket">Basket</a></li>
                         <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account">Account</a></li>
                         <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account?view=my-account">My Account</a></li>

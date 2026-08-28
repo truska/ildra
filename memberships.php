@@ -330,8 +330,8 @@ $navItemEventsUrl = $basePath . '/events';
 	                                                </div>
 	                                                <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100">
 	                                                    <div class="d-flex gap-2 w-100">
-	                                                        <button class="btn btn-success btn-enter w-100" type="submit">Add membership</button>
-	                                                        <a class="btn btn-outline-secondary btn-secondary-quiet w-100" href="<?php echo h($basePath); ?>/account#my-memberships">View memberships</a>
+	                                                        <button class="btn btn-success btn-enter w-100" type="submit">Add Membership</button>
+	                                                        <a class="btn btn-outline-secondary btn-secondary-quiet w-100" href="<?php echo h($basePath); ?>/account#my-memberships">View Memberships</a>
 	                                                    </div>
 	                                                </div>
 	                                            </div>

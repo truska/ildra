@@ -371,6 +371,13 @@ a:visited {
     align-items: center;
     color: #0f2d17;
     font-weight: 700;
+    border-radius: 8px;
+    transition: background-color .15s ease, color .15s ease;
+}
+.nav-submenu .dropdown-item:hover,
+.nav-submenu .dropdown-item:focus {
+    background-color: #198754;
+    color: #fff;
 }
 .nav-submenu .dropdown-divider {
     height: 2px;

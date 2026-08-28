@@ -164,7 +164,7 @@ function requestExternalRecognitionVerification(PDO $pdo, int $applicationId, in
     $subject='External '.$subjectType.' credential verification request';
     $html='<p>Please verify the following credential presented to the Irish Long Distance Riding Association.</p>'
         .'<p><strong>'.h(ucfirst($subjectType)).':</strong> '.h($subjectName).'<br><strong>Organisation:</strong> '.h((string)$row['organisation_name']).'<br><strong>Credential number:</strong> '.h((string)$row['credential_number']).'<br><strong>Valid until:</strong> '.h(format_display_date($row['valid_until'])).'</p>'
-        .'<p><a href="'.h($url).'">Review this verification request</a></p><p>This link expires after 14 days.</p>';
+        .'<p><a href="'.h($url).'">Review this Verification Request</a></p><p>This link expires after 14 days.</p>';
     $text="Please verify this external $subjectType credential.\n\n$subjectType: $subjectName\nOrganisation: ".$row['organisation_name']."\nCredential: ".$row['credential_number']."\nValid until: ".$row['valid_until']."\n\nReview: $url\n";
     if(!send_logged_email($pdo,$email,$subject,$html,$text,['type'=>'external_recognition_verification','application_id'=>$applicationId])){$alerts[]=['type'=>'danger','message'=>'The verification email could not be sent. Check the email log.'];return false;}
     $upd=$pdo->prepare("UPDATE external_recognition_applications SET status='awaiting_verification',verification_token_hash=:hash,verification_requested_at=NOW(),reviewed_by_user_id=:reviewer,reviewed_at=NOW() WHERE id=:id");

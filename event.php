@@ -682,7 +682,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     <?php endif; ?>
                 </div>
                 <div class="d-flex flex-column align-items-end gap-2">
-                    <a class="btn btn-outline-light btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                    <a class="btn btn-outline-light btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
                     <?php if ($showRideNotesLink): ?><a class="btn btn-light btn-sm text-success" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
                 </div>
             </div>
@@ -727,7 +727,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <span class="fw-bold"><?php echo h($event['title']); ?></span>
                         </div>
                         <div class="d-flex flex-column align-items-end gap-2">
-                            <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                            <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
                             <?php if ($showRideNotesLink): ?><a class="btn btn-outline-success btn-sm" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
                         </div>
                     </div>
@@ -867,7 +867,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                    <?php else: ?>
 	                                                        No saved people yet.
 	                                                    <?php endif; ?>
-	                                                    <a href="<?php echo h($basePath); ?>/account?view=people">Manage people</a>
+	                                                    <a href="<?php echo h($basePath); ?>/account?view=people">Manage People</a>
 	                                                </div>
 	                                            </div>
 	                                            <div class="col-12 col-md-6">
@@ -891,7 +891,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                    <?php else: ?>
 	                                                        No saved horses yet.
 	                                                    <?php endif; ?>
-	                                                    <a href="<?php echo h($basePath); ?>/account?view=horses">Manage horses</a>
+	                                                    <a href="<?php echo h($basePath); ?>/account?view=horses">Manage Horses</a>
 	                                                </div>
 	                                            </div>
 	                                        </div>

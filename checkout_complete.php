@@ -296,7 +296,7 @@ if ($order) {
                             <div class="fw-bold">Booking reference</div>
                             <div class="text-muted small"><?php echo h($order['booking_ref'] ?? $order['id']); ?></div>
                         </div>
-                        <a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/bookings">View all bookings</a>
+                        <a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/bookings">View all Bookings</a>
                     </div>
                     <div class="row mt-3">
                         <div class="col-md-4">
@@ -350,7 +350,7 @@ if ($order) {
                 <div class="card-soft p-4">
                     <div class="fw-bold mb-1">Booking not found</div>
                     <div class="text-muted mb-3">Try selecting an order from the list.</div>
-                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/bookings">Back to bookings</a>
+                    <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/bookings">Back to Bookings</a>
                 </div>
             <?php endif; ?>
         </div>

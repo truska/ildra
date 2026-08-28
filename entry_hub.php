@@ -344,7 +344,7 @@ if ($item && $pdo) {
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div></div>
-                    <a class="btn btn-outline-success btn-sm" href="<?php echo h($backUrl); ?>">Back to bookings</a>
+                    <a class="btn btn-outline-success btn-sm" href="<?php echo h($backUrl); ?>">Back to Bookings</a>
                 </div>
 
                 <div class="card-soft p-4 mb-4 status-banner">

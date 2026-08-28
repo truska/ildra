@@ -247,7 +247,7 @@ $navItemEventsUrl = $basePath . '/events';
                             <div class="d-flex gap-2">
                                 <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/basket">Basket<?php echo $basketCount ? ' (' . $basketCount . ')' : ''; ?></a>
                                 <?php if ($canViewAdmin): ?>
-                                    <a class="btn btn-sm btn-outline-success" href="<?php echo h($siteBase); ?>/admin/events.php">Manage events</a>
+                                    <a class="btn btn-sm btn-outline-success" href="<?php echo h($siteBase); ?>/admin/events.php">Manage Events</a>
                                 <?php endif; ?>
                             </div>
                         </div>

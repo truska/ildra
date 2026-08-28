@@ -214,7 +214,7 @@ if ($pdo) {
             <div class="card-soft p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="section-title mb-0">Bookings</div>
-                    <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                    <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
                 </div>
             <?php if (!$orders): ?>
                 <div class="text-muted small">No bookings yet. Add entries and checkout.</div>
@@ -332,7 +332,7 @@ if ($pdo) {
                                                 </div>
                                                 <div class="d-flex align-items-center gap-2">
                                                     <?php if ($entryLink !== '#'): ?>
-                                                        <a class="btn btn-outline-success btn-sm" href="<?php echo h($entryLink); ?>">View details</a>
+                                                        <a class="btn btn-outline-success btn-sm" href="<?php echo h($entryLink); ?>">View Details</a>
                                                     <?php endif; ?>
                                                     <?php if ($isCancelableItem && !$cancelBlocked): ?>
                                                         <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#<?php echo h($itemCancelModalId); ?>">
@@ -376,7 +376,7 @@ if ($pdo) {
                                                                         <strong>Get Refund</strong>
                                                                         <span>Refund <?php echo format_price($refundPreview); ?> after the <?php echo format_price($refundFee); ?> refund fee.</span>
                                                                     </button>
-                                                                </div><div class="d-none" id="<?php echo h($itemCancelModalId); ?>-credit-confirm"><p class="mb-2 fw-semibold">Confirm credit of <?php echo format_price($itemPrice); ?></p><p class="small text-muted">This will cancel the entry and apply the full amount to your ILDRA account for a future purchase.</p><div class="d-flex gap-2"><button type="submit" name="action" value="cancel_entry_credit" class="btn btn-success">Confirm credit</button><button type="button" class="btn btn-outline-secondary" data-credit-back="<?php echo h($itemCancelModalId); ?>">Back</button></div></div><div class="d-none" id="<?php echo h($itemCancelModalId); ?>-refund-confirm"><p class="mb-2 fw-semibold">Confirm refund of <?php echo format_price($refundPreview); ?></p><p class="small text-muted">This will cancel the entry and ask Stripe to return the funds to the original payment method. It can take up to five days to show on your statement.</p><div class="d-flex gap-2"><button type="submit" name="action" value="cancel_entry_refund" class="btn btn-danger">Confirm refund</button><button type="button" class="btn btn-outline-secondary" data-refund-back="<?php echo h($itemCancelModalId); ?>">Back</button></div></div></form><p class="small text-muted border-top pt-3 mt-3 mb-0">If you want to change your entry (for example, rider, horse, class, or rosette selection), please cancel it by selecting <strong>Credit</strong>, then re-enter with the new details and use your new credit balance to pay.</p>
+                                                                </div><div class="d-none" id="<?php echo h($itemCancelModalId); ?>-credit-confirm"><p class="mb-2 fw-semibold">Confirm credit of <?php echo format_price($itemPrice); ?></p><p class="small text-muted">This will cancel the entry and apply the full amount to your ILDRA account for a future purchase.</p><div class="d-flex gap-2"><button type="submit" name="action" value="cancel_entry_credit" class="btn btn-success">Confirm Credit</button><button type="button" class="btn btn-outline-secondary" data-credit-back="<?php echo h($itemCancelModalId); ?>">Back</button></div></div><div class="d-none" id="<?php echo h($itemCancelModalId); ?>-refund-confirm"><p class="mb-2 fw-semibold">Confirm refund of <?php echo format_price($refundPreview); ?></p><p class="small text-muted">This will cancel the entry and ask Stripe to return the funds to the original payment method. It can take up to five days to show on your statement.</p><div class="d-flex gap-2"><button type="submit" name="action" value="cancel_entry_refund" class="btn btn-danger">Confirm Refund</button><button type="button" class="btn btn-outline-secondary" data-refund-back="<?php echo h($itemCancelModalId); ?>">Back</button></div></div></form><p class="small text-muted border-top pt-3 mt-3 mb-0">If you want to change your entry (for example, rider, horse, class, or rosette selection), please cancel it by selecting <strong>Credit</strong>, then re-enter with the new details and use your new credit balance to pay.</p>
                                                             <?php endif; ?>
                                                         </div>
                                                         <div class="modal-footer border-0 pt-0">

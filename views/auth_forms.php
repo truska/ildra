@@ -16,8 +16,8 @@
                 <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'password_reset_request') ? ($_POST['email'] ?? '') : $loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
             </div>
             <div class="d-grid gap-2">
-                <button class="btn btn-success btn-lg">Email reset link</button>
-                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account">Back to login</a>
+                <button class="btn btn-success btn-lg">Email Reset Link</button>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account">Back to Login</a>
             </div>
         </form>
     <?php elseif (($authView ?? 'default') === 'magic'): ?>
@@ -33,8 +33,8 @@
                 <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'magic_link') ? ($_POST['email'] ?? '') : $loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
             </div>
             <div class="d-grid gap-2">
-                <button class="btn btn-success btn-lg">Send sign-in link</button>
-                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account">Back to login</a>
+                <button class="btn btn-success btn-lg">Send Sign-in Link</button>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account">Back to Login</a>
             </div>
         </form>
     <?php elseif (($authView ?? 'default') === 'choose' && $loginMethods): ?>
@@ -94,11 +94,11 @@
             </div>
             <div class="d-grid gap-2">
                 <button class="btn btn-success btn-lg">Login</button>
-                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=choose">Back to options</a>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=choose">Back to Options</a>
             </div>
         </form>
         <div class="mt-3 pt-3 border-top auth-link-row">
-            <a class="btn btn-outline-success btn-sm auth-link-btn" href="<?php echo h($basePath); ?>/account?auth=forgot">Forgot password</a>
+            <a class="btn btn-outline-success btn-sm auth-link-btn" href="<?php echo h($basePath); ?>/account?auth=forgot">Forgot Password</a>
         </div>
     <?php elseif (($authView ?? 'default') === 'app'): ?>
         <div class="mb-3">
@@ -118,8 +118,8 @@
                 <label class="form-check-label" for="rememberMeApp">Keep me signed in on this device</label>
             </div>
             <div class="d-grid gap-2">
-                <button class="btn btn-success btn-lg">Verify code</button>
-                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=choose">Back to options</a>
+                <button class="btn btn-success btn-lg">Verify Code</button>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=choose">Back to Options</a>
             </div>
         </form>
     <?php elseif (($authView ?? 'default') === 'reset'): ?>
@@ -141,8 +141,8 @@
                     <input type="password" class="form-control" name="confirm_password" placeholder="Confirm password" required>
                 </div>
                 <div class="col-12 d-grid gap-2">
-                    <button class="btn btn-success btn-lg">Set new password</button>
-                    <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=forgot">Back to reset help</a>
+                    <button class="btn btn-success btn-lg">Set New Password</button>
+                    <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=forgot">Back to Reset Help</a>
                 </div>
             </form>
         <?php else: ?>
@@ -152,7 +152,7 @@
                 <div class="text-muted small">This reset link is invalid or has already been used.</div>
             </div>
             <div class="d-grid">
-                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=forgot">Request a new reset link</a>
+                <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=forgot">Request a New Reset Link</a>
             </div>
         <?php endif; ?>
     <?php else: ?>
@@ -163,7 +163,7 @@
             </div>
             <div class="d-flex gap-2">
                 <button class="btn btn-toggle <?php echo $activeTab === 'login' ? 'active' : ''; ?>" data-target="login">Login</button>
-                <button class="btn btn-toggle <?php echo $activeTab === 'register' ? 'active' : ''; ?>" data-target="register">Sign up</button>
+                <button class="btn btn-toggle <?php echo $activeTab === 'register' ? 'active' : ''; ?>" data-target="register">Sign Up</button>
             </div>
         </div>
         <div id="login" class="tab-pane <?php echo $activeTab === 'login' ? '' : 'd-none'; ?>">
@@ -209,7 +209,7 @@
                         <div class="form-text">You can change these choices in your account. Essential messages about your own entries are sent separately.</div>
                     </div>
                     <div class="col-12 d-grid">
-                        <button class="btn btn-success btn-lg">Create account</button>
+                        <button class="btn btn-success btn-lg">Create Account</button>
                     </div>
                 </div>
             </form>

@@ -1024,20 +1024,20 @@ $accountIntroAutoOpen = false;
                                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="user_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($_POST['renewal_reminder_opt_in'] ?? $currentUser['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="user_renewal_reminder">Renewal reminders</label></div>
                                             <div class="form-text">These choices do not stop essential emails about events you have entered.</div>
                                         </div>
-                                        <div class="col-12"><button class="btn btn-success">Save login details</button></div>
+                                        <div class="col-12"><button class="btn btn-success">Save Login Details</button></div>
                                     </form>
                                 </div>
 
                                 <div class="card-soft p-4 mt-4">
                                     <div class="text-uppercase small text-muted">Security</div>
-                                    <h4 class="fw-bold mb-1">Change password</h4>
+                                    <h4 class="fw-bold mb-1">Change Password</h4>
                                     <p class="text-muted small">Enter your new password twice so it can be checked before saving.</p>
                                     <form method="POST" class="row g-3">
                                         <input type="hidden" name="action" value="change_own_password">
                                         <div class="col-md-4"><label class="form-label" for="password_current">Current password</label><input class="form-control" type="password" id="password_current" name="current_password" autocomplete="current-password" required></div>
                                         <div class="col-md-4"><label class="form-label" for="password_new">New password</label><input class="form-control" type="password" id="password_new" name="new_password" minlength="8" autocomplete="new-password" required></div>
                                         <div class="col-md-4"><label class="form-label" for="password_confirm">Repeat new password</label><input class="form-control" type="password" id="password_confirm" name="confirm_password" minlength="8" autocomplete="new-password" required></div>
-                                        <div class="col-12"><button class="btn btn-success">Change password</button></div>
+                                        <div class="col-12"><button class="btn btn-success">Change Password</button></div>
                                     </form>
                                 </div>
 
@@ -1060,13 +1060,13 @@ $accountIntroAutoOpen = false;
                                         <p class="text-muted small mb-3">Confirmed <?php echo h(format_display_date($authAppStatus['confirmed_at'] ?? null, 'recently')); ?>.</p>
                                         <form method="POST" onsubmit="return confirm('Disable authenticator app login for this account?');">
                                             <input type="hidden" name="action" value="auth_app_disable">
-                                            <button class="btn btn-outline-danger">Disable authenticator app</button>
+                                            <button class="btn btn-outline-danger">Disable Authenticator App</button>
                                         </form>
                                     <?php else: ?>
                                         <?php if (!$authAppSetup): ?>
                                             <form method="POST">
                                                 <input type="hidden" name="action" value="auth_app_begin_setup">
-                                                <button class="btn btn-success">Set up authenticator app</button>
+                                                <button class="btn btn-success">Set Up Authenticator App</button>
                                             </form>
                                         <?php else: ?>
                                             <div class="row g-4 align-items-start">
@@ -1088,7 +1088,7 @@ $accountIntroAutoOpen = false;
                                                             <input type="text" name="code" class="form-control" placeholder="123456" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" required>
                                                         </div>
                                                         <div class="col-12">
-                                                            <button class="btn btn-success">Verify and enable</button>
+                                                            <button class="btn btn-success">Verify and Enable</button>
                                                         </div>
                                                     </form>
                                                 </div>
@@ -1120,7 +1120,7 @@ $accountIntroAutoOpen = false;
                                                 <div class="col-md-7"><label class="form-label">External membership or registration number</label><input class="form-control" name="credential_number" required></div>
                                                 <div class="col-md-5"><label class="form-label">Valid until</label><input class="form-control" type="date" name="valid_until" required></div>
                                                 <div class="col-12"><label class="form-label">Notes <span class="text-muted">(optional)</span></label><textarea class="form-control" name="applicant_notes" rows="2"></textarea></div>
-                                                <div class="col-12"><button class="btn btn-success">Submit for review</button></div>
+                                                <div class="col-12"><button class="btn btn-success">Submit for Review</button></div>
                                             </form>
                                         </div>
                                     </div>
@@ -1149,6 +1149,7 @@ $accountIntroAutoOpen = false;
                                     $editPerson = null;
                                 }
                                 $accountIntroAutoOpen = !$activePeople && !$editPerson && !(($action ?? '') === 'save_person' && !empty($alerts));
+                                $riderQualifications = fetchHorseQualifications($pdo);
                                 ?>
 
 	                                <div class="card-soft p-4 mt-4">
@@ -1159,7 +1160,7 @@ $accountIntroAutoOpen = false;
 	                                        </div>
 	                                        <div class="d-flex gap-2">
                                                 <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
-	                                            <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#personEditorModal">Add person</button>
+	                                            <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#personEditorModal">Add Person</button>
                                             </div>
 	                                    </div>
                                     <div class="table-responsive">
@@ -1202,7 +1203,7 @@ $accountIntroAutoOpen = false;
                                                                         <input type="hidden" name="action" value="unlink_shared_record">
                                                                         <input type="hidden" name="entity_type" value="person">
                                                                         <input type="hidden" name="entity_id" value="<?php echo (int)$p['id']; ?>">
-                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked person from your account?');">Remove link</button>
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked person from your account?');">Remove Link</button>
                                                                     </form>
                                                                 <?php else: ?>
                                                                     <?php if (!empty($membershipState['action_enabled'])): ?>
@@ -1227,7 +1228,7 @@ $accountIntroAutoOpen = false;
                                                                         <input type="hidden" name="action" value="unlink_shared_record">
                                                                         <input type="hidden" name="entity_type" value="person">
                                                                         <input type="hidden" name="entity_id" value="<?php echo (int)$p['id']; ?>">
-                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked person from your account?');">Remove link</button>
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked person from your account?');">Remove Link</button>
                                                                     </form>
                                                                 <?php else: ?>
                                                                     <?php if (!empty($membershipState['action_enabled'])): ?>
@@ -1315,6 +1316,15 @@ $accountIntroAutoOpen = false;
                                             <label class="form-label fw-bold">Phone <span class="text-danger">*</span></label>
                                             <input class="form-control" name="phone" placeholder="+44..." value="<?php echo h($editPerson['phone'] ?? ''); ?>" required>
                                         </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label fw-bold">Rider qualification level</label>
+                                            <select class="form-select" name="qualification_id">
+                                                <option value="">None</option>
+                                                <?php foreach ($riderQualifications as $qualification): ?>
+                                                    <option value="<?php echo (int)($qualification['id'] ?? 0); ?>" <?php echo ((int)($editPerson['qualification_id'] ?? 0) === (int)($qualification['id'] ?? 0)) ? 'selected' : ''; ?>><?php echo h($qualification['name'] ?? ''); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
                                         <div class="col-12">
                                             <label class="form-label fw-bold">Address <span class="text-danger">*</span></label>
                                             <textarea class="form-control" name="address" rows="2" placeholder="House number, street, town" required><?php echo h($editPerson['address'] ?? ''); ?></textarea>
@@ -1397,7 +1407,7 @@ $accountIntroAutoOpen = false;
                                             <form method="post" class="d-flex flex-column flex-sm-row gap-2">
                                                 <input type="hidden" name="action" value="accept_share_code">
                                                 <input class="form-control" name="share_code" placeholder="Share code" style="min-width: 180px;" required>
-                                                <button class="btn btn-outline-success fw-bold text-nowrap" type="submit">Accept code</button>
+                                                <button class="btn btn-outline-success fw-bold text-nowrap" type="submit">Accept Code</button>
                                             </form>
                                             <div class="divider share-accept-divider mb-0"></div>
                                         </div>
@@ -1430,8 +1440,8 @@ $accountIntroAutoOpen = false;
                                             <input class="form-control" name="recipient" placeholder="Email address or member number">
                                         </div>
                                         <div class="col-12 d-flex flex-column flex-sm-row gap-2">
-                                            <button class="btn btn-success fw-bold" type="submit" name="action" value="create_share">Send invite</button>
-                                            <button class="btn btn-outline-success fw-bold" type="submit" name="action" value="create_external_share_code">Create code</button>
+                                            <button class="btn btn-success fw-bold" type="submit" name="action" value="create_share">Send Invite</button>
+                                            <button class="btn btn-outline-success fw-bold" type="submit" name="action" value="create_external_share_code">Create Code</button>
                                         </div>
                                         <div class="col-12 text-muted small">
                                             Send invite uses the recipient's dashboard when their account is recognised; otherwise it emails them a code. Create code lets you pass the code on yourself.
@@ -1621,7 +1631,7 @@ $accountIntroAutoOpen = false;
                                                                     <input type="hidden" name="entity_type" value="horse">
                                                                     <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
                                                                     <input type="hidden" name="entity_id" value="<?php echo (int)$h['id']; ?>">
-                                                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked horse from your account?');">Remove link</button>
+                                                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked horse from your account?');">Remove Link</button>
                                                                 </form>
                                                             <?php else: ?>
                                                                 <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=horses&horse_id=<?php echo (int)$h['id']; ?>">Edit</a>
@@ -1650,7 +1660,7 @@ $accountIntroAutoOpen = false;
                                                                         <input type="hidden" name="entity_type" value="horse">
                                                                         <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
                                                                         <input type="hidden" name="entity_id" value="<?php echo (int)$h['id']; ?>">
-                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked horse from your account?');">Remove link</button>
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked horse from your account?');">Remove Link</button>
                                                                     </form>
                                                                 <?php else: ?>
                                                                     <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=horses&amp;horse_id=<?php echo (int)$h['id']; ?>">Edit</a>
@@ -1750,8 +1760,13 @@ $accountIntroAutoOpen = false;
 	                                            </select>
 	                                        </div>
 	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Height (cm)</label>
-	                                            <input class="form-control" name="height_cm" inputmode="numeric" pattern="[0-9]*" value="<?php echo h($editHorse['height_cm'] ?? ''); ?>">
+	                                            <label class="form-label fw-bold">Height</label>
+	                                            <select class="form-select" name="height_cm">
+	                                                <option value="">Select...</option>
+	                                                <?php foreach ([102=>'10.0',112=>'11.0',122=>'12.0',127=>'12.2',132=>'13.0',137=>'13.2',142=>'14.0',145=>'14.1',147=>'14.2',150=>'14.3',152=>'15.0',155=>'15.1',157=>'15.2',160=>'15.3',163=>'16.0',165=>'16.1',168=>'16.2',170=>'16.3',173=>'17.0',175=>'17.1',178=>'17.2',180=>'17.3',183=>'18.0'] as $heightCm => $heightHands): ?>
+	                                                    <option value="<?php echo $heightCm; ?>" <?php echo ((int)($editHorse['height_cm'] ?? 0) === $heightCm) ? 'selected' : ''; ?>><?php echo $heightCm; ?> cm [<?php echo h($heightHands); ?> hh]</option>
+	                                                <?php endforeach; ?>
+	                                            </select>
 	                                        </div>
 	                                        <div class="col-12 col-md-6">
 	                                            <label class="form-label fw-bold">Qualification</label>
@@ -1799,8 +1814,8 @@ $accountIntroAutoOpen = false;
                                 ?>
                                 <div class="card-soft p-4 mt-4" id="horse-logbooks">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <div class="fw-bold">Horse logbooks</div>
-                                        <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/logbooks">Buy / renew</a>
+                                        <div class="fw-bold">Horse Logbooks</div>
+                                        <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/logbooks">Buy / Renew</a>
                                     </div>
                                     <?php if (!$logbooks): ?>
                                         <div class="text-muted small">No logbooks yet.</div>
@@ -1878,7 +1893,7 @@ $accountIntroAutoOpen = false;
                                 <div class="card-soft p-4 mt-4" id="my-memberships">
 	                            <div class="d-flex justify-content-between align-items-center mb-3">
 	                                <div class="fw-bold">Memberships</div>
-	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships">Buy / renew</a>
+	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships">Buy / Renew</a>
 	                            </div>
 
 	                            <?php
@@ -2024,7 +2039,7 @@ $accountIntroAutoOpen = false;
 	                        <div class="card-soft p-4 mt-4">
 	                            <div class="d-flex justify-content-between align-items-center mb-3">
 	                                <div class="fw-bold">Recent Purchases</div>
-	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/bookings">View all purchases</a>
+	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/bookings">View all Purchases</a>
 	                            </div>
 
 	                            <?php if (!$recentBookings): ?>
@@ -2191,8 +2206,8 @@ $accountIntroAutoOpen = false;
                                 <input type="date" class="form-control" name="dob" value="<?php echo h($promptPerson['dob'] ?? ''); ?>">
                             </div>
                             <div class="col-12 d-flex gap-2">
-                                <button class="btn btn-success fw-bold" type="submit">Save details</button>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Not now</button>
+                                <button class="btn btn-success fw-bold" type="submit">Save Details</button>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Not Now</button>
                             </div>
                         </form>
                     </div>

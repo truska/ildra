@@ -179,7 +179,7 @@ foreach ($basket as $item) {
                     <div class="card-soft p-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <div class="section-title mb-0">Basket</div>
-                            <a class="btn btn-sm btn-outline-success" href="<?php echo h($navItemEventsUrl); ?>">Back to events</a>
+                            <a class="btn btn-sm btn-outline-success" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
                         </div>
                         <?php if (!$basket): ?>
                             <div class="text-muted small">No entries yet. Start from an event page.</div>
@@ -212,7 +212,7 @@ foreach ($basket as $item) {
                                                 ?>
                                                 <div class="fw-semibold"><?php echo h($item['event_title']); ?><?php echo $chips ? ' (' . h(implode(' • ', $chips)) . ')' : ''; ?></div>
                                                 <?php if ($bookingType !== 'membership'): ?>
-                                                    <a class="small" href="<?php echo h(event_url_local($item, $basePath)); ?>">View event</a>
+                                                    <a class="small" href="<?php echo h(event_url_local($item, $basePath)); ?>">View Event</a>
                                                 <?php endif; ?>
                                                 <div class="text-muted small">Price: <?php echo h(format_price($item['price'] ?? 0)); ?></div>
                                                 <div class="text-muted small">Type: <?php echo h($bookingTypeLabel); ?></div>
@@ -237,8 +237,8 @@ foreach ($basket as $item) {
                             <div class="fw-semibold">Total (approx)</div>
                             <div class="fs-5"><?php echo $totalAmount > 0 ? '£' . number_format($totalAmount, 2) : '—'; ?></div>
                         </div>
-                        <a class="btn btn-success w-100<?php echo !$basket ? ' disabled' : ''; ?>" href="<?php echo h($basePath); ?>/checkout">Go to checkout</a>
-                        <a class="btn btn-outline-success w-100 mt-2" href="<?php echo h($navItemEventsUrl); ?>">Add more entries</a>
+                        <a class="btn btn-success w-100<?php echo !$basket ? ' disabled' : ''; ?>" href="<?php echo h($basePath); ?>/checkout">Go to Checkout</a>
+                        <a class="btn btn-outline-success w-100 mt-2" href="<?php echo h($navItemEventsUrl); ?>">Add more Entries</a>
                     </div>
                 </div>
             </div>

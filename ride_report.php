@@ -78,13 +78,13 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
 <header class="page-hero">
     <div class="container d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div><p class="mb-1 text-uppercase small fw-bold text-white-50">Ride Report and Results</p><h1 class="fw-bold mb-1"><?php echo $event ? h($event['title']) : 'Report not found'; ?></h1><?php if ($event): ?><div class="text-white-50"><?php echo h($dateRange); ?><?php echo !empty($event['venue']) ? ' • ' . h($event['venue']) : ''; ?></div><?php endif; ?></div>
-        <a class="btn btn-outline-light btn-sm" href="<?php echo h($basePath); ?>/pages/ildra-reports-results">Back to reports</a>
+        <a class="btn btn-outline-light btn-sm" href="<?php echo h($basePath); ?>/pages/ildra-reports-results">Back to Reports</a>
     </div>
 </header>
 <main class="py-5"><div class="container">
     <?php if ($event && $report): ?>
     <section class="card-soft p-4 mb-4">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3"><div class="meta-chip"><span class="fw-bold"><?php echo h($event['title']); ?></span></div><a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/pages/ildra-reports-results">Back to reports</a></div>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3"><div class="meta-chip"><span class="fw-bold"><?php echo h($event['title']); ?></span></div><a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/pages/ildra-reports-results">Back to Reports</a></div>
         <?php if (!empty($event['description'])): ?><p class="mb-3"><?php echo h($event['description']); ?></p><?php endif; ?>
         <div class="row g-3">
             <div class="col-md-6"><div class="fw-semibold mb-2">Event details</div><ul class="list-unstyled mb-0 text-muted small"><li><strong class="text-dark">Dates:</strong> <?php echo h($eventDateText); ?><?php echo $endDateText ? ' to ' . h($endDateText) : ''; ?></li><li><strong class="text-dark">Venue:</strong> <?php echo h($event['venue'] ?: 'Venue TBC'); ?></li><?php if (!empty($event['organiser'])): ?><li><strong class="text-dark">Organiser:</strong> <?php echo h($event['organiser']); ?></li><?php endif; ?></ul></div>
@@ -95,7 +95,7 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
     <section class="card-soft p-4"><h2 class="h3 mb-3">Ride Results</h2><div class="page-body"><?php echo render_wysiwyg((string)($report['results_html'] ?? '')); ?></div></section>
     <?php if ($galleryImages && $galleryBatch): ?>
     <section class="report-gallery-shell mt-4" aria-labelledby="ride-gallery-heading">
-        <div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-3"><div><h2 class="h3 mb-1" id="ride-gallery-heading">Gallery Snapshot</h2><div class="gallery-intro small">Scenes from <?php echo h((string)$event['title']); ?>. Select any photograph to expand it.</div></div><button type="button" class="btn btn-sm btn-outline-light" data-open-full-gallery>View full gallery</button></div>
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-3"><div><h2 class="h3 mb-1" id="ride-gallery-heading">Gallery Snapshot</h2><div class="gallery-intro small">Scenes from <?php echo h((string)$event['title']); ?>. Select any photograph to expand it.</div></div><button type="button" class="btn btn-sm btn-outline-light" data-open-full-gallery>View Full Gallery</button></div>
         <div class="report-gallery-stage" id="report-gallery">
             <?php foreach (array_slice($galleryImages, 0, 7) as $galleryIndex => $galleryImage): ?>
             <button type="button" class="report-gallery-thumb" data-gallery-index="<?php echo (int)$galleryIndex; ?>" aria-label="Open <?php echo h((string)($galleryImage['title'] ?: $galleryImage['alt_text'] ?: 'gallery image')); ?>">

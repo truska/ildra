@@ -2755,6 +2755,7 @@ function ensureMembershipTables(PDO $pdo): void
             address TEXT NULL,
             postcode VARCHAR(40) NULL,
             junior_or_senior VARCHAR(20) NULL,
+            qualification_id INT UNSIGNED NULL,
             emergency_contact_name VARCHAR(255) NULL,
             emergency_contact_phone VARCHAR(60) NULL,
             is_archived TINYINT(1) NOT NULL DEFAULT 0,
@@ -2778,6 +2779,7 @@ function ensureMembershipTables(PDO $pdo): void
         "ALTER TABLE people ADD COLUMN address TEXT NULL",
         "ALTER TABLE people ADD COLUMN postcode VARCHAR(40) NULL",
         "ALTER TABLE people ADD COLUMN junior_or_senior VARCHAR(20) NULL",
+        "ALTER TABLE people ADD COLUMN qualification_id INT UNSIGNED NULL",
         "ALTER TABLE people ADD COLUMN emergency_contact_name VARCHAR(255) NULL",
         "ALTER TABLE people ADD COLUMN emergency_contact_phone VARCHAR(60) NULL",
         "ALTER TABLE people ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0",
@@ -2935,11 +2937,8 @@ function ensureHorsesTables(?PDO $pdo): void
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     try {
-        $count = (int)$pdo->query("SELECT COUNT(*) FROM horse_qualifications")->fetchColumn();
-        if ($count === 0) {
-            $seed = $pdo->prepare("INSERT INTO horse_qualifications (name) VALUES ('Bronze'), ('Silver'), ('Gold')");
-            $seed->execute();
-        }
+        $seed = $pdo->prepare("INSERT IGNORE INTO horse_qualifications (name) VALUES ('Bronze'), ('Silver'), ('Gold'), ('Platinum'), ('Diamond')");
+        $seed->execute();
     } catch (PDOException $e) {
         // ignore
     }
@@ -3054,6 +3053,7 @@ function fetchMembersForUser(?PDO $pdo, int $ownerUserId, bool $includeArchived 
             address,
             postcode,
             junior_or_senior,
+            qualification_id,
             emergency_contact_name,
             emergency_contact_phone,
             is_archived,
@@ -3080,6 +3080,7 @@ function fetchMembersForUser(?PDO $pdo, int $ownerUserId, bool $includeArchived 
             NULL AS address,
             NULL AS postcode,
             p.junior_or_senior,
+            p.qualification_id,
             NULL AS emergency_contact_name,
             NULL AS emergency_contact_phone,
             p.is_archived,
@@ -3173,6 +3174,7 @@ function fetchPersonForUserById(?PDO $pdo, int $ownerUserId, int $personId): ?ar
             address,
             postcode,
             junior_or_senior,
+            qualification_id,
             emergency_contact_name,
             emergency_contact_phone,
             is_archived,
@@ -3200,6 +3202,7 @@ function fetchPersonForUserById(?PDO $pdo, int $ownerUserId, int $personId): ?ar
             NULL AS address,
             NULL AS postcode,
             p.junior_or_senior,
+            p.qualification_id,
             NULL AS emergency_contact_name,
             NULL AS emergency_contact_phone,
             p.is_archived,
@@ -3286,6 +3289,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
     $address = trim((string)($data['address'] ?? ''));
     $postcode = trim((string)($data['postcode'] ?? ''));
     $juniorSenior = trim((string)($data['junior_or_senior'] ?? ''));
+    $qualificationId = isset($data['qualification_id']) ? (int)$data['qualification_id'] : null;
     $emergencyName = trim((string)($data['emergency_contact_name'] ?? ''));
     $emergencyPhone = trim((string)($data['emergency_contact_phone'] ?? ''));
     if (!in_array($juniorSenior, ['Junior', 'Senior'], true)) {
@@ -3353,6 +3357,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
                     address = :address,
                     postcode = :postcode,
                     junior_or_senior = :junior_senior,
+                    qualification_id = :qualification_id,
                     emergency_contact_name = :emergency_name,
                     emergency_contact_phone = :emergency_phone,
                     updated_at = NOW()
@@ -3371,6 +3376,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
                 ':address' => $address !== '' ? $address : null,
                 ':postcode' => $postcode !== '' ? $postcode : null,
                 ':junior_senior' => $juniorSenior !== '' ? $juniorSenior : null,
+                ':qualification_id' => $qualificationId ?: null,
                 ':emergency_name' => $emergencyName !== '' ? $emergencyName : null,
                 ':emergency_phone' => $emergencyPhone !== '' ? $emergencyPhone : null,
                 ':id' => $personId,
@@ -3380,8 +3386,8 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO people (owner_user_id, member_number, first_name, last_name, dob, email, general_email_opt_in, ride_notice_opt_in, renewal_reminder_opt_in, phone, address, postcode, junior_or_senior, emergency_contact_name, emergency_contact_phone, is_archived, created_at, updated_at)
-            VALUES (:uid, NULL, :first_name, :last_name, :dob, :email, :general_opt_in, :ride_notice_opt_in, :renewal_opt_in, :phone, :address, :postcode, :junior_senior, :emergency_name, :emergency_phone, 0, NOW(), NOW())
+            INSERT INTO people (owner_user_id, member_number, first_name, last_name, dob, email, general_email_opt_in, ride_notice_opt_in, renewal_reminder_opt_in, phone, address, postcode, junior_or_senior, qualification_id, emergency_contact_name, emergency_contact_phone, is_archived, created_at, updated_at)
+            VALUES (:uid, NULL, :first_name, :last_name, :dob, :email, :general_opt_in, :ride_notice_opt_in, :renewal_opt_in, :phone, :address, :postcode, :junior_senior, :qualification_id, :emergency_name, :emergency_phone, 0, NOW(), NOW())
         ");
         $stmt->execute([
             ':uid' => $ownerUserId,
@@ -3396,6 +3402,7 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
             ':address' => $address !== '' ? $address : null,
             ':postcode' => $postcode !== '' ? $postcode : null,
             ':junior_senior' => $juniorSenior !== '' ? $juniorSenior : null,
+            ':qualification_id' => $qualificationId ?: null,
             ':emergency_name' => $emergencyName !== '' ? $emergencyName : null,
             ':emergency_phone' => $emergencyPhone !== '' ? $emergencyPhone : null,
         ]);
@@ -4507,7 +4514,7 @@ function fetchHorseQualifications(?PDO $pdo): array
     }
     ensureHorsesTables($pdo);
     try {
-        $stmt = $pdo->query("SELECT id, name FROM horse_qualifications ORDER BY name ASC");
+        $stmt = $pdo->query("SELECT id, name FROM horse_qualifications ORDER BY FIELD(name, 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'), name ASC");
         return $stmt->fetchAll() ?: [];
     } catch (PDOException $e) {
         return [];
@@ -4536,7 +4543,7 @@ function loadBasketForSession(?PDO $pdo, string $sessionId): array
     if (!$pdo || $sessionId === '') {
         return [null, null, null];
     }
-    $stmt = $pdo->prepare("SELECT basket_json, last_added_at, user_id FROM baskets WHERE session_id = :sid LIMIT 1");
+    $stmt = $pdo->prepare("SELECT basket_json, UNIX_TIMESTAMP(last_added_at) AS last_added_ts, user_id FROM baskets WHERE session_id = :sid LIMIT 1");
     $stmt->execute([':sid' => $sessionId]);
     $row = $stmt->fetch();
     if (!$row) {
@@ -4546,7 +4553,7 @@ function loadBasketForSession(?PDO $pdo, string $sessionId): array
     if (!is_array($basket)) {
         $basket = [];
     }
-    $lastAdded = $row['last_added_at'] ? strtotime((string)$row['last_added_at']) : null;
+    $lastAdded = !empty($row['last_added_ts']) ? (int)$row['last_added_ts'] : null;
     $userId = $row['user_id'] ?? null;
     return [$basket, $lastAdded, $userId];
 }
@@ -4565,13 +4572,13 @@ function saveBasketForSession(?PDO $pdo, string $sessionId, array $basket, ?int 
     }
     $stmt = $pdo->prepare("
         REPLACE INTO baskets (session_id, user_id, basket_json, last_added_at, updated_at)
-        VALUES (:sid, :uid, :basket_json, :last_added_at, NOW())
+        VALUES (:sid, :uid, :basket_json, FROM_UNIXTIME(:last_added_ts), NOW())
     ");
     $stmt->execute([
         ':sid' => $sessionId,
         ':uid' => $userId ?: null,
         ':basket_json' => json_encode($basket, JSON_UNESCAPED_UNICODE),
-        ':last_added_at' => $lastAddedTs ? date('Y-m-d H:i:s', $lastAddedTs) : null,
+        ':last_added_ts' => $lastAddedTs ?: null,
     ]);
 }
 
