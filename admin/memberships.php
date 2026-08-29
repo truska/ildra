@@ -207,10 +207,10 @@ admin_layout_start('Memberships', 'memberships');
 </style>
 <section class="page-header card-soft p-3">
     <div>
-        <div class="eyebrow">Membership catalog</div>
+        <div class="eyebrow">Membership Catalogue</div>
         <div class="d-flex align-items-center gap-2">
             <h5 class="mb-0 fw-bold">Membership Types</h5>
-            <span class="chip">Products for sale</span>
+            <span class="chip">Products for Sale</span>
         </div>
         <div class="notes">Quickly scan offers, adjust sale windows, and publish with confidence.</div>
     </div>
