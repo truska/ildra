@@ -185,6 +185,7 @@ $now = app_local_datetime();
 $memberEntryOpenDt = $entryOpenAt ? app_local_datetime((string)$entryOpenAt) : null;
 $nonMemberEntryOpenDt = $nonMemberEntryOpenAt ? app_local_datetime((string)$nonMemberEntryOpenAt) : null;
 $entryCloseDt = $entryCloseAt ? app_local_datetime((string)$entryCloseAt) : null;
+$nonMemberEntriesOpenNow = !$nonMemberEntryOpenDt || $now >= $nonMemberEntryOpenDt;
 $entryOpenDt = $hasAnyActiveMembership ? $memberEntryOpenDt : $nonMemberEntryOpenDt;
 $entriesOpenNow = true;
 $entryStateMessage = '';
@@ -310,6 +311,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $selectedPersonHasActiveMembership = !empty($peopleWithActiveMembership[$personId]);
                 $selectedPersonHasExternalRecognition = !empty($externallyRecognisedPeople[$personId]);
             }
+        }
+        if (!$canViewAdmin && $personId > 0 && !$selectedPersonHasActiveMembership && !$nonMemberEntriesOpenNow) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Non-member entries open on ' . $nonMemberEntryOpenDt->format('jS M Y \\a\\t H:i') . '. Choose a rider with active membership or return after that date.'];
         }
         if ($horseId > 0) {
             if ($horseId === $notRegisteredHorseId) {
@@ -854,10 +858,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                             $pLabel = personRecordTypeMarker($personType) . ' ' . $pLabel;
 	                                                        if (!empty($peopleWithActiveMembership[$pId])) {
 	                                                            $pLabel .= ' (membership active)';
+	                                                        } else {
+	                                                            $pLabel .= ' (non-member';
+	                                                            if (!$nonMemberEntriesOpenNow && $nonMemberEntryOpenDt) {
+	                                                                $pLabel .= ' — opens ' . $nonMemberEntryOpenDt->format('jS M H:i');
+	                                                            }
+	                                                            $pLabel .= ')';
 	                                                        }
                                                             $isJuniorPerson = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
+	                                                        $disableNonMemberRider = !$canViewAdmin && empty($peopleWithActiveMembership[$pId]) && !$nonMemberEntriesOpenNow;
 	                                                        ?>
-                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>"><?php echo h($pLabel); ?></option>
+                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>" <?php echo $disableNonMemberRider ? 'disabled' : ''; ?>><?php echo h($pLabel); ?></option>
 	                                                    <?php endforeach; ?>
 	                                                </select>
 	                                                <div class="validation-message small d-none" data-validation-for="prefill_person">Please choose a rider.</div>
