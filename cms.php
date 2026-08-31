@@ -3848,6 +3848,10 @@ function sendShareCodeEmail(?PDO $pdo, array $request): bool
     $text = $creator . " has shared " . $entityLabel . " with you for event entries.\n\n"
         . "Log in and enter this share code: " . $code . "\n"
         . "Expires: " . (string)($request['expires_at'] ?? '') . "\n";
+    $siteSettings = getSiteSettings($pdo);
+    $emailSettings = getEmailSettings($pdo);
+    $html = wrap_user_email_html($siteSettings, $emailSettings, $html);
+    $text = wrap_user_email_text($siteSettings, $emailSettings, $text);
     return send_logged_email($pdo, $to, $subject, $html, $text, ['share_request_id' => (int)($request['id'] ?? 0)]);
 }
 

@@ -1005,6 +1005,29 @@ function email_brand_logo_url(array $siteSettings): string
     return trim((string)($siteSettings['sponsor_image_url'] ?? ''));
 }
 
+function email_public_asset_url(string $path, array $siteSettings = []): string
+{
+    $path = '/' . ltrim($path, '/');
+    $config = email_environment_config();
+    $host = PHP_SAPI === 'cli'
+        ? trim((string)($config['cli_host'] ?? ''))
+        : trim((string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+
+    if ($host === '' || !preg_match('/^[a-z0-9.-]+(?::\d+)?$/i', $host)) {
+        $websiteUrl = trim((string)($siteSettings['company_website_url'] ?? ''));
+        $host = (string)(parse_url($websiteUrl, PHP_URL_HOST) ?: '');
+    }
+    if ($host === '') {
+        return $path;
+    }
+
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    $scheme = in_array($forwardedProto, ['http', 'https'], true)
+        ? $forwardedProto
+        : 'https';
+    return $scheme . '://' . $host . $path;
+}
+
 function email_cta_button_html(string $url, string $label): string
 {
     return '<a href="' . h($url) . '" target="_blank" style="display:inline-block;padding:13px 20px;background:#146118;border:1px solid #146118;border-radius:6px;color:#ffffff !important;text-decoration:none;font-weight:700;font-size:14px;line-height:20px;text-align:center;">' . h($label) . '</a>';
@@ -1013,7 +1036,7 @@ function email_cta_button_html(string $url, string $label): string
 function email_signature_html(array $siteSettings, array $emailSettings): string
 {
     $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
-    $logoUrl = email_brand_logo_url($siteSettings);
+    $logoUrl = email_public_asset_url('/filestore/images/logos/ildra-email-footer.png', $siteSettings);
     $websiteUrl = trim((string)($siteSettings['company_website_url'] ?? ''));
     $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
@@ -1027,7 +1050,7 @@ function email_signature_html(array $siteSettings, array $emailSettings): string
 
     $logoHtml = '';
     if ($logoUrl !== '') {
-        $logoHtml = '<div style="margin-top:18px;"><img src="' . h($logoUrl) . '" alt="' . h($brandName) . '" style="max-width:100px;max-height:100px;width:auto;height:auto;display:block;"></div>';
+        $logoHtml = '<div style="margin-top:18px;"><img src="' . h($logoUrl) . '" width="600" height="115" alt="' . h($brandName) . '" style="display:block;width:100%;max-width:600px;height:auto;border:0;"></div>';
     }
 
     return '<div style="margin-top:24px;padding-top:18px;border-top:1px solid rgba(20,97,24,0.12);background:#ffffff;">'

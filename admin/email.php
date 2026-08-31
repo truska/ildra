@@ -101,24 +101,24 @@ if ($view === 'settings') {
                 ? 'SMTP via ' . $smtpHost . ':' . $smtpPort . ' (' . $smtpSecure . ')'
                 : 'PHP mail()';
 
-            $html = '<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;">'
-                . '<h2 style="margin:0 0 8px;">ILDRA email test</h2>'
+            $htmlInner = '<h2 style="margin:0 0 8px;">ILDRA email test</h2>'
                 . '<div style="color:#555;margin-bottom:14px;">Sent at ' . h($now) . '</div>'
                 . '<div style="padding:12px;border:1px solid rgba(0,0,0,0.08);border-radius:12px;background:#fff;">'
                 . '<div><strong>From:</strong> ' . h($fromName) . ' &lt;' . h($fromEmail) . '&gt;</div>'
                 . '<div><strong>To:</strong> ' . h($to) . '</div>'
                 . '<div><strong>Delivery:</strong> ' . h($delivery) . '</div>'
                 . '</div>'
-                . '<p style="color:#476146;margin-top:14px;">This test uses the site\'s current outbound email configuration and logs the result.</p>'
-                . '</body></html>';
+                . '<p style="color:#476146;margin-top:14px;">This test uses the site\'s current outbound email configuration and logs the result.</p>';
+            $html = wrap_user_email_html($siteSettings, $emailSettings, $htmlInner);
 
-            $text = "ILDRA email test\n"
+            $textInner = "ILDRA email test\n"
                 . "Sent at {$now}\n"
                 . "From: {$fromName} <{$fromEmail}>\n"
                 . "To: {$to}\n"
                 . "Delivery: {$delivery}"
                 . "\n\n"
                 . "This test uses the site's current outbound email configuration and logs the result.\n";
+            $text = wrap_user_email_text($siteSettings, $emailSettings, $textInner);
 
             $ok = send_logged_email($pdo, $to, $subject, $html, $text, [
                 'type' => 'test',
