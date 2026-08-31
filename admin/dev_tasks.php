@@ -21,11 +21,11 @@ foreach ($listStateFields as $field) {
 }
 $_SESSION[$listStateKey] = $listState;
 
-$requestedStatus = (string)($_GET['status'] ?? 'open');
-$filter = in_array($requestedStatus, ['open','completed','future','closed','all'], true) ? $requestedStatus : 'open';
+$requestedStatus = (string)($_GET['status'] ?? 'default');
+$filter = in_array($requestedStatus, ['default','open','completed','future','closed','all'], true) ? $requestedStatus : 'default';
 $params = [];
 $where = '';
-if ($filter === 'open') {
+if ($filter === 'default') {
     $where = "WHERE t.status IN ('open','completed')";
 } elseif ($filter !== 'all') {
     $where = 'WHERE t.status=:status';
@@ -90,13 +90,13 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
 </div>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-sm <?php echo $filter==='open'?'btn-success':'btn-outline-secondary'; ?>" href="?status=open">Open <span class="badge text-bg-light ms-1"><?php echo $counts['open']; ?></span></a>
-        <a class="btn btn-sm <?php echo $filter==='completed'?'btn-success':'btn-outline-secondary'; ?>" href="?status=completed">Completed <span class="badge text-bg-light ms-1"><?php echo $counts['completed']; ?></span></a>
+        <a class="btn btn-sm <?php echo in_array($filter, ['default','open'], true)?'btn-success':'btn-outline-secondary'; ?>" href="?status=open">Open <span class="badge text-bg-light ms-1"><?php echo $counts['open']; ?></span></a>
+        <a class="btn btn-sm <?php echo in_array($filter, ['default','completed'], true)?'btn-success':'btn-outline-secondary'; ?>" href="?status=completed">Completed <span class="badge text-bg-light ms-1"><?php echo $counts['completed']; ?></span></a>
         <a class="btn btn-sm <?php echo $filter==='future'?'btn-success':'btn-outline-secondary'; ?>" href="?status=future">Future <span class="badge text-bg-light ms-1"><?php echo $counts['future']; ?></span></a>
         <a class="btn btn-sm <?php echo $filter==='closed'?'btn-success':'btn-outline-secondary'; ?>" href="?status=closed">Closed <span class="badge text-bg-light ms-1"><?php echo $counts['closed']; ?></span></a>
         <a class="btn btn-sm <?php echo $filter==='all'?'btn-success':'btn-outline-secondary'; ?>" href="?status=all">All</a>
     </div>
-    <a class="btn btn-sm btn-outline-secondary" href="dev_tasks.php?status=<?php echo h($filter); ?>">Clear filters</a>
+    <a class="btn btn-sm btn-outline-secondary" href="dev_tasks.php?status=default">Clear filters</a>
 </div>
 <form method="get" id="<?php echo h($filterForm); ?>"><input type="hidden" name="status" value="<?php echo h($filter); ?>"></form>
 <style>
@@ -134,6 +134,6 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
     <td><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?>"><?php echo ucfirst(h($task['status'])); ?></span></td>
 </tr></tbody>
 <?php endforeach; ?>
-<?php if (!$tasks): ?><tbody><tr><td colspan="<?php echo count($tableColumns); ?>" class="text-muted py-4 text-center">No <?php echo h($filter==='all'?'':$filter); ?> tasks found.</td></tr></tbody><?php endif; ?>
+<?php if (!$tasks): ?><tbody><tr><td colspan="<?php echo count($tableColumns); ?>" class="text-muted py-4 text-center">No <?php echo h(in_array($filter, ['all','default'], true)?'':$filter); ?> tasks found.</td></tr></tbody><?php endif; ?>
 </table></div><?php echo admin_table_pagination($table); ?></div>
 <?php admin_layout_end(); ?>
