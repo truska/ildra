@@ -312,7 +312,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $selectedPersonHasExternalRecognition = !empty($externallyRecognisedPeople[$personId]);
             }
         }
-        if (!$canViewAdmin && $personId > 0 && !$selectedPersonHasActiveMembership && !$nonMemberEntriesOpenNow) {
+        if ($personId > 0 && !$selectedPersonHasActiveMembership && !$nonMemberEntriesOpenNow) {
             $alerts[] = ['type' => 'danger', 'message' => 'Non-member entries open on ' . $nonMemberEntryOpenDt->format('jS M Y \\a\\t H:i') . '. Choose a rider with active membership or return after that date.'];
         }
         if ($horseId > 0) {
@@ -866,7 +866,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                            $pLabel .= ')';
 	                                                        }
                                                             $isJuniorPerson = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
-	                                                        $disableNonMemberRider = !$canViewAdmin && empty($peopleWithActiveMembership[$pId]) && !$nonMemberEntriesOpenNow;
+	                                                        $disableNonMemberRider = empty($peopleWithActiveMembership[$pId]) && !$nonMemberEntriesOpenNow;
 	                                                        ?>
                                                         <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>" <?php echo $disableNonMemberRider ? 'disabled' : ''; ?>><?php echo h($pLabel); ?></option>
 	                                                    <?php endforeach; ?>
