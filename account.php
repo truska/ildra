@@ -2161,6 +2161,9 @@ $accountIntroAutoOpen = false;
                             <input type="hidden" name="action" value="save_person">
                             <input type="hidden" name="person_id" value="<?php echo (int)($promptPerson['id'] ?? 0); ?>">
                             <input type="hidden" name="require_contact_details" value="1">
+                            <input type="hidden" name="general_email_opt_in" value="<?php echo !empty($promptPerson['general_email_opt_in']) ? '1' : '0'; ?>">
+                            <input type="hidden" name="ride_notice_opt_in" value="<?php echo !empty($promptPerson['ride_notice_opt_in']) ? '1' : '0'; ?>">
+                            <input type="hidden" name="renewal_reminder_opt_in" value="<?php echo !empty($promptPerson['renewal_reminder_opt_in']) ? '1' : '0'; ?>">
                             <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold">First name <span class="text-danger">*</span></label>
                                 <input class="form-control" name="first_name" required value="<?php echo h($promptPerson['first_name'] ?? ''); ?>">
