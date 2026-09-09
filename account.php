@@ -1367,7 +1367,7 @@ $accountIntroAutoOpen = false;
                                             <button class="btn btn-success fw-bold" type="submit"><?php echo $editPerson ? 'Save changes' : 'Add person'; ?></button>
 	                                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                                             <?php if ($editPerson): ?>
-                                                <a class="btn btn-outline-success ms-md-auto" href="<?php echo h($basePath); ?>/account?view=recognition&amp;person_id=<?php echo (int)$editPerson['id']; ?>">Apply for Foreign Recognition</a>
+                                                <a class="btn btn-outline-success ms-md-auto" href="<?php echo h($basePath); ?>/account?view=recognition&amp;person_id=<?php echo (int)$editPerson['id']; ?>">Apply as a Non-ILDRA Member</a>
                                             <?php endif; ?>
 	                                        </div>
 	                                    </form>

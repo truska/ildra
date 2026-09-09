@@ -430,7 +430,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <div class="small text-muted">
-                    <span class="fw-bold">Tip:</span> Foreign Recognition is optional on member-price rows; blank uses the member rate. Changing the event type will reset pricing to that type’s default scheme.
+                    <span class="fw-bold">Tip:</span> Non-ILDRA Member pricing is optional on member-price rows; blank uses the member rate. Changing the event type will reset pricing to that type’s default scheme.
                 </div>
                 <button class="btn btn-sm btn-outline-secondary has-icon" type="button" id="addPricingRowBtn"><i class="fa-solid fa-plus btn-icon"></i><span class="btn-label">Add row</span></button>
             </div>
@@ -446,7 +446,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                             <th>Class name</th>
                             <th class="compact">£ Price</th>
                             <th class="compact">Member</th>
-                            <th class="compact">£ Foreign</th>
+                            <th class="compact">£ Non-ILDRA Member</th>
                             <th class="compact">Junior</th>
                             <th class="compact"></th>
                         </tr>

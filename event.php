@@ -1248,7 +1248,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 const optionEligible = eligible || competitiveRecognition;
                 const useForeignPrice = selectedPersonExternalRecognition() && !selectedPersonActiveMember() && opt.dataset.foreignPrice !== '';
                 const effectivePrice = useForeignPrice ? opt.dataset.foreignPrice : opt.dataset.memberPriceValue;
-                const rateLabel = useForeignPrice ? ', Foreign Recognition' : (['CTR', 'ER'].includes(opt.dataset.classGroup || '') ? ', recognised rider' : ', member');
+                const rateLabel = useForeignPrice ? ', Non-ILDRA Member' : (['CTR', 'ER'].includes(opt.dataset.classGroup || '') ? ', recognised rider' : ', member');
                 const baseLabel = `${opt.dataset.classLabel} (${effectivePrice}${rateLabel})`;
                 const lockedLabel = `${baseLabel} 🔒`;
                 opt.dataset.price = effectivePrice;
@@ -1309,7 +1309,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             let memberNote = 'To unlock member rates, choose a member above.';
             if (personId) {
                 if (selectedPersonExternalRecognition() && !selectedPersonActiveMember()) {
-                    memberNote = 'Foreign Recognition rate applied where one has been set.';
+                    memberNote = 'Non-ILDRA Member rate applied where one has been set.';
                 } else if (!memberActiveByPerson?.[personId]) {
                     memberNote = 'Selected person does not have an active membership.';
                 } else if (memberPriceUsedByPerson?.[personId]) {
