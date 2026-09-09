@@ -63,6 +63,14 @@ filestore/files/documents/*
 vendor/
 node_modules/
 
+# Local Playwright development workspace and generated media.
+/package.json
+/package-lock.json
+/playwright.config.js
+/playwright/
+/public-test-videos/
+/test-results/
+
 # IDE/editor files
 .vscode/
 .idea/
