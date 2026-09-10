@@ -100,6 +100,10 @@ function defaultSiteSettings(): array
         'event_entry_close_weeks' => 0,
         'event_entry_close_weekday' => 4,
         'event_entry_close_time' => '23:59',
+        'event_late_entries_enabled' => '0',
+        'event_late_entry_close_days' => 1,
+        'event_late_entry_close_time' => '18:00',
+        'event_late_entry_fee' => '0.00',
         'event_stripe_refund_fee' => '5.00',
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days
@@ -224,7 +228,7 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
     $settings['remember_me_ttl_seconds'] = $rememberTtl;
     $settings['auth_app_login_enabled'] = !empty($settings['auth_app_login_enabled']) && (string)$settings['auth_app_login_enabled'] !== '0' ? '1' : '0';
 
-    foreach (['event_default_end_days'] as $dayKey) {
+    foreach (['event_default_end_days', 'event_late_entry_close_days'] as $dayKey) {
         $settings[$dayKey] = max(0, min(365, (int)($settings[$dayKey] ?? 0)));
     }
     foreach (['event_member_open_weeks', 'event_non_member_open_weeks', 'event_entry_close_weeks'] as $weekKey) {
@@ -233,11 +237,13 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
     foreach (['event_member_open_weekday', 'event_non_member_open_weekday', 'event_entry_close_weekday'] as $weekdayKey) {
         $settings[$weekdayKey] = max(0, min(6, (int)($settings[$weekdayKey] ?? 0)));
     }
-    foreach (['event_default_start_time', 'event_default_end_time', 'event_member_open_time', 'event_non_member_open_time', 'event_entry_close_time'] as $timeKey) {
+    foreach (['event_default_start_time', 'event_default_end_time', 'event_member_open_time', 'event_non_member_open_time', 'event_entry_close_time', 'event_late_entry_close_time'] as $timeKey) {
         if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string)($settings[$timeKey] ?? ''))) {
             $settings[$timeKey] = (string)defaultSiteSettings()[$timeKey];
         }
     }
+    $settings['event_late_entries_enabled'] = !empty($settings['event_late_entries_enabled']) && (string)$settings['event_late_entries_enabled'] !== '0' ? '1' : '0';
+    $settings['event_late_entry_fee'] = number_format(max(0, price_to_number($settings['event_late_entry_fee'] ?? 0)), 2, '.', '');
 
     try {
         ensureSiteSettingsTable($pdo);
@@ -5004,6 +5010,15 @@ function ensureEntryWindowColumns(?PDO $pdo): void
             // ignore
         }
     }
+    if (!table_column_exists($pdo, 'events', 'late_entries_enabled')) {
+        try { $pdo->exec("ALTER TABLE events ADD COLUMN late_entries_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER entry_close_at"); } catch (PDOException $e) { }
+    }
+    if (!table_column_exists($pdo, 'events', 'late_entry_close_at')) {
+        try { $pdo->exec("ALTER TABLE events ADD COLUMN late_entry_close_at DATETIME NULL DEFAULT NULL AFTER late_entries_enabled"); } catch (PDOException $e) { }
+    }
+    if (!table_column_exists($pdo, 'events', 'late_entry_fee')) {
+        try { $pdo->exec("ALTER TABLE events ADD COLUMN late_entry_fee DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER late_entry_close_at"); } catch (PDOException $e) { }
+    }
 }
 
 function event_date_defaults(string $eventDate, array $settings): ?array
@@ -5035,6 +5050,7 @@ function event_date_defaults(string $eventDate, array $settings): ?array
     $open = $previousWeekday($start, (int)$defaults['event_member_open_weekday'], (int)$defaults['event_member_open_weeks']);
     $nonMemberOpen = $previousWeekday($start, (int)$defaults['event_non_member_open_weekday'], (int)$defaults['event_non_member_open_weeks']);
     $close = $previousWeekday($start, (int)$defaults['event_entry_close_weekday'], (int)$defaults['event_entry_close_weeks']);
+    $lateClose = $start->modify('-' . max(0, (int)$defaults['event_late_entry_close_days']) . ' days');
 
     return [
         'event_date' => $start->format('Y-m-d'),
@@ -5047,6 +5063,8 @@ function event_date_defaults(string $eventDate, array $settings): ?array
         'non_member_entry_open_time' => (string)$defaults['event_non_member_open_time'],
         'entry_close_date' => $close->format('Y-m-d'),
         'entry_close_time' => (string)$defaults['event_entry_close_time'],
+        'late_entry_close_date' => $lateClose->format('Y-m-d'),
+        'late_entry_close_time' => (string)$defaults['event_late_entry_close_time'],
     ];
 }
 
@@ -5308,6 +5326,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return false;
     }
+    ensureEntryWindowColumns($pdo);
 
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
     $title = trim((string)($data['title'] ?? ''));
@@ -5364,6 +5383,10 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $nonMemberEntryOpenTime = trim((string)($data['non_member_entry_open_time'] ?? ''));
     $entryCloseDate = trim((string)($data['entry_close_date'] ?? ''));
     $entryCloseTime = trim((string)($data['entry_close_time'] ?? ''));
+    $lateEntriesEnabled = !empty($data['late_entries_enabled']) ? 1 : 0;
+    $lateEntryCloseDate = trim((string)($data['late_entry_close_date'] ?? ''));
+    $lateEntryCloseTime = trim((string)($data['late_entry_close_time'] ?? ''));
+    $lateEntryFee = max(0, price_to_number($data['late_entry_fee'] ?? 0));
     $entryFormJson = trim((string)($data['entry_form_json'] ?? ''));
     $entryFormValue = $entryFormJson !== '' ? $entryFormJson : null;
     if ($hasLegacyClassInputs && is_array($selectedClasses)) {
@@ -5428,10 +5451,13 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
         $nonMemberEntryOpenTime = $nonMemberEntryOpenTime !== '' ? $nonMemberEntryOpenTime : $dateDefaults['non_member_entry_open_time'];
         $entryCloseDate = $entryCloseDate !== '' ? $entryCloseDate : $dateDefaults['entry_close_date'];
         $entryCloseTime = $entryCloseTime !== '' ? $entryCloseTime : $dateDefaults['entry_close_time'];
+        $lateEntryCloseDate = $lateEntryCloseDate !== '' ? $lateEntryCloseDate : $dateDefaults['late_entry_close_date'];
+        $lateEntryCloseTime = $lateEntryCloseTime !== '' ? $lateEntryCloseTime : $dateDefaults['late_entry_close_time'];
     }
     $entryOpenAt = $entryOpenDate !== '' ? trim($entryOpenDate . ' ' . $entryOpenTime) : null;
     $nonMemberEntryOpenAt = $nonMemberEntryOpenDate !== '' ? trim($nonMemberEntryOpenDate . ' ' . $nonMemberEntryOpenTime) : null;
     $entryCloseAt = $entryCloseDate !== '' ? trim($entryCloseDate . ' ' . $entryCloseTime) : null;
+    $lateEntryCloseAt = $lateEntryCloseDate !== '' ? trim($lateEntryCloseDate . ' ' . $lateEntryCloseTime) : null;
     $capacityEnabled = !empty($data['capacity_enabled']) ? 1 : 0;
     $capacityLimit = (int)($data['capacity_limit'] ?? 50);
     if ($capacityLimit < 1) {
@@ -5455,6 +5481,9 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                     entry_open_at = :entry_open_at,
                     non_member_entry_open_at = :non_member_entry_open_at,
                     entry_close_at = :entry_close_at,
+                    late_entries_enabled = :late_entries_enabled,
+                    late_entry_close_at = :late_entry_close_at,
+                    late_entry_fee = :late_entry_fee,
                     entry_form = :entry_form,
                     status = :status,
                     description = :description,
@@ -5478,6 +5507,9 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                 ':entry_open_at' => $entryOpenAt ?: null,
                 ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
                 ':entry_close_at' => $entryCloseAt ?: null,
+                ':late_entries_enabled' => $lateEntriesEnabled,
+                ':late_entry_close_at' => $lateEntryCloseAt ?: null,
+                ':late_entry_fee' => $lateEntryFee,
                 ':entry_form' => $entryFormValue,
                 ':status' => $status,
                 ':description' => $description,
@@ -5489,8 +5521,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             return $eventId;
         }
         $stmt = $pdo->prepare("
-            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, entry_form, status, description, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
-            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :entry_form, :status, :description, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
+            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
+            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
         ");
         $stmt->execute([
             ':title' => $title,
@@ -5506,6 +5538,9 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             ':entry_open_at' => $entryOpenAt ?: null,
             ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
             ':entry_close_at' => $entryCloseAt ?: null,
+            ':late_entries_enabled' => $lateEntriesEnabled,
+            ':late_entry_close_at' => $lateEntryCloseAt ?: null,
+            ':late_entry_fee' => $lateEntryFee,
             ':entry_form' => $entryFormValue,
             ':status' => $status,
             ':description' => $description,

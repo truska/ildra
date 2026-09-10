@@ -116,6 +116,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'event_entry_close_weeks' => max(0, (int)($_POST['event_entry_close_weeks'] ?? 0)),
             'event_entry_close_weekday' => max(0, min(6, (int)($_POST['event_entry_close_weekday'] ?? 4))),
             'event_entry_close_time' => trim((string)($_POST['event_entry_close_time'] ?? '')),
+            'event_late_entries_enabled' => !empty($_POST['event_late_entries_enabled']) ? '1' : '0',
+            'event_late_entry_close_days' => max(0, min(365, (int)($_POST['event_late_entry_close_days'] ?? 1))),
+            'event_late_entry_close_time' => trim((string)($_POST['event_late_entry_close_time'] ?? '18:00')),
+            'event_late_entry_fee' => number_format(max(0, price_to_number($_POST['event_late_entry_fee'] ?? '0')), 2, '.', ''),
             'event_stripe_refund_fee' => number_format(max(0, price_to_number($_POST['event_stripe_refund_fee'] ?? '5.00')), 2, '.', ''),
         ];
         if (saveSiteSettings($pdo, $payload, $alerts)) {
@@ -271,6 +275,22 @@ admin_layout_start('Settings', 'settings');
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_entry_close_time">Time</label>
                     <input type="time" class="form-control" id="event_entry_close_time" name="event_entry_close_time" required value="<?php echo h((string)$siteSettings['event_entry_close_time']); ?>">
+                </div>
+                <div class="w-100"></div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_late_entry_close_days">Late entries close</label>
+                    <div class="input-group"><input type="number" min="0" max="365" class="form-control" id="event_late_entry_close_days" name="event_late_entry_close_days" required value="<?php echo (int)$siteSettings['event_late_entry_close_days']; ?>"><span class="input-group-text">days before ride</span></div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_late_entry_close_time">Late close time</label>
+                    <input type="time" class="form-control" id="event_late_entry_close_time" name="event_late_entry_close_time" required value="<?php echo h((string)$siteSettings['event_late_entry_close_time']); ?>">
+                </div>
+                <div class="col-md-4 pt-4">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="event_late_entries_enabled" name="event_late_entries_enabled" value="1" <?php echo !empty($siteSettings['event_late_entries_enabled']) ? 'checked' : ''; ?>><label class="form-check-label fw-semibold" for="event_late_entries_enabled">Allow late entries by default</label></div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="event_late_entry_fee">Late entry fee (£)</label>
+                    <input type="number" min="0" step="0.01" class="form-control" id="event_late_entry_fee" name="event_late_entry_fee" required value="<?php echo h((string)$siteSettings['event_late_entry_fee']); ?>">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_stripe_refund_fee">Stripe refund fee (£)</label>

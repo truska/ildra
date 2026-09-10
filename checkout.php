@@ -344,6 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                 'user_id' => $userId ? (int)$userId : null,
             ]
         );
+        send_late_entry_alerts($pdo, $order, $siteSettings, $emailSettings);
 
         $_SESSION['basket'] = [];
         unset($_SESSION['basket_last_added']);

@@ -1099,6 +1099,21 @@ function wrap_user_email_text(array $siteSettings, array $emailSettings, string 
     return $wrapped . "\n";
 }
 
+function send_late_entry_alerts(?PDO $pdo, array $order, array $siteSettings, array $emailSettings): void
+{
+    foreach ((array)($order['items'] ?? []) as $item) {
+        $meta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+        if (empty($meta['is_late_entry'])) continue;
+        $ride = (string)($item['event_title'] ?? 'Ride');
+        $rider = (string)($meta['rider_name'] ?? 'Rider not specified');
+        $subject = 'LATE ENTRY - ' . $ride . ' - ' . $rider;
+        $lines = ['Ride: ' . $ride, 'Rider: ' . $rider, 'Class: ' . (string)($meta['class_label'] ?? '—'), 'Horse: ' . (string)($meta['horse_name'] ?? '—'), 'Contact: ' . (string)($meta['contact_email'] ?? '—'), 'Phone: ' . (string)($meta['contact_phone'] ?? '—'), 'Emergency contact: ' . (string)($meta['emergency_contact_name'] ?? '—'), 'Emergency phone: ' . (string)($meta['emergency_contact_phone'] ?? '—')];
+        $text = implode("\n", $lines);
+        $html = '<p><strong>Late entry received.</strong></p><p>' . implode('<br>', array_map('h', $lines)) . '</p>';
+        send_logged_email($pdo, 'webmaster@enduranceridingireland.com', $subject, wrap_user_email_html($siteSettings, $emailSettings, $html), wrap_user_email_text($siteSettings, $emailSettings, $text), ['type' => 'late_entry_alert', 'booking_ref' => (string)($order['booking_ref'] ?? ''), 'event_id' => (int)($item['event_id'] ?? 0)]);
+    }
+}
+
 function render_booking_confirmation_email(array $order, array $siteSettings, array $emailSettings): array
 {
     $bookingRef = (string)($order['booking_ref'] ?? '');

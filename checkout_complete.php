@@ -189,6 +189,7 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                         'source' => 'stripe_checkout_complete',
                     ]
                 );
+                send_late_entry_alerts($pdo, $order, $siteSettings, $emailSettings);
                 $_SESSION['basket'] = [];
                 unset($_SESSION['basket_last_added']);
                 saveBasketForSession($pdo, session_id(), [], $currentUser['id'] ?? null, null);

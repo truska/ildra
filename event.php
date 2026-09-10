@@ -160,6 +160,7 @@ $navItemEventsUrl = $basePath . '/events';
 $classOptions = [];
 $eventTypeId = (int)($event['event_type_id'] ?? 0);
 $entryComponents = $event ? fetchEventEntryComponents($pdo, (int)$event['id'], $eventTypeId) : [];
+ensureEntryWindowColumns($pdo);
 $entryForm = $event ? event_entry_form($event, $entryComponents) : [];
 $entryComponentsById = [];
 foreach ($entryComponents as $c) {
@@ -172,6 +173,8 @@ $hasAnyActiveMembership = !empty($peopleWithActiveMembership);
 $entryOpenAt = $event['entry_open_at'] ?? null;
 $nonMemberEntryOpenAt = $event['non_member_entry_open_at'] ?? null;
 $entryCloseAt = $event['entry_close_at'] ?? null;
+$lateEntryCloseAt = $event['late_entry_close_at'] ?? null;
+$lateEntryFee = max(0, price_to_number($event['late_entry_fee'] ?? 0));
 if (!$entryOpenAt && !empty($event['event_date'])) {
     $entryOpenAt = date('Y-m-d 00:00:00', strtotime($event['event_date'] . ' -1 month'));
 }
@@ -185,6 +188,7 @@ $now = app_local_datetime();
 $memberEntryOpenDt = $entryOpenAt ? app_local_datetime((string)$entryOpenAt) : null;
 $nonMemberEntryOpenDt = $nonMemberEntryOpenAt ? app_local_datetime((string)$nonMemberEntryOpenAt) : null;
 $entryCloseDt = $entryCloseAt ? app_local_datetime((string)$entryCloseAt) : null;
+$lateEntryCloseDt = $lateEntryCloseAt ? app_local_datetime((string)$lateEntryCloseAt) : null;
 $nonMemberEntriesOpenNow = !$nonMemberEntryOpenDt || $now >= $nonMemberEntryOpenDt;
 $entryOpenDt = $hasAnyActiveMembership ? $memberEntryOpenDt : $nonMemberEntryOpenDt;
 $entriesOpenNow = true;
@@ -218,6 +222,9 @@ if ($entryCloseDt && $now > $entryCloseDt) {
     $entryStateMessage = $entryCloseDt ? 'Entries are open until ' . $entryCloseDt->format('jS M Y \a\t H:i') : 'Entries are open';
 }
 $entriesAvailable = ($entriesOpenNow && !$isFull) || $canViewAdmin;
+$lateEntriesOpenNow = !$entriesOpenNow && !empty($event['late_entries_enabled']) && !$isFull && $lateEntryCloseDt && $now <= $lateEntryCloseDt;
+$isLateEntry = $lateEntriesOpenNow && $entryCloseDt && $now > $entryCloseDt;
+$entriesAvailable = ($entriesOpenNow || $lateEntriesOpenNow) && !$isFull || $canViewAdmin;
 $eventPricingRows = $event ? fetchEventPricingRows($pdo, (int)($event['id'] ?? 0)) : [];
 if ($eventPricingRows) {
     foreach ($eventPricingRows as $row) {
@@ -281,7 +288,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         if ($isFull) {
             $alerts[] = ['type' => 'danger', 'message' => 'This event is now full. No more entries can be added.'];
         }
-        if (!$canViewAdmin && !$entriesOpenNow) {
+        if (!$canViewAdmin && !$entriesOpenNow && !$lateEntriesOpenNow) {
             $alerts[] = ['type' => 'danger', 'message' => $entryStateMessage];
         }
         $classCode = trim((string)($_POST['class_code'] ?? ''));
@@ -467,12 +474,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 'base_price' => $basePrice,
                 'components' => $componentsSelected,
                 'components_total' => $componentsTotal,
+                'late_entry_fee' => $isLateEntry ? $lateEntryFee : 0.0,
+                'is_late_entry' => $isLateEntry,
             ];
             $entry = [
                 'id' => uniqid('bk', true),
                 'event_id' => $event['id'],
                 'event_title' => $event['title'],
-                'price' => $basePrice + $componentsTotal,
+                'price' => $basePrice + $componentsTotal + ($isLateEntry ? $lateEntryFee : 0.0),
                 'booking_type' => $bookingTypeSlug !== '' ? $bookingTypeSlug : 'ride',
                     'booking_type_id' => $bookingTypeId ?: null,
                     'booking_type_label' => $bookingTypeLabel,
@@ -814,6 +823,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     <br/>
                             <?php endif; ?>
 
+                            <?php if ($isLateEntry): ?>
+                                <div class="alert alert-danger mt-2 py-2 mb-3"><strong>Late entry fee: <?php echo h(format_price($lateEntryFee)); ?></strong><br><span class="small">This fee is added because standard entries have closed. Late entries close at <?php echo h($lateEntryCloseDt->format('jS M Y \a\t H:i')); ?>.</span></div>
+                            <?php endif; ?>
+
                             <div class="section-title mb-1">Enter this event</div>
                             <?php if ($isLoggedIn): ?>
                                 <div class="text-muted small">Enter your details to take part in this event. Fields marked <span class="text-danger">*</span> are required.</div>
@@ -1098,6 +1111,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     <div class="row g-2 align-items-center cta-row">
                                         <div class="col-12 text-danger fw-semibold d-none" id="formErrorSummary" role="alert"></div>
                                         <div class="col-12 col-md-6 text-md-start entry-fee-total" id="classPriceSummary">Total Entry Fee £0.00</div>
+                                        <?php if ($isLateEntry): ?><div class="col-12 text-danger fw-semibold">Late entry fee: <?php echo h(format_price($lateEntryFee)); ?></div><?php endif; ?>
                                         <div class="col-12 col-md-6 text-md-end">
                                             <button class="btn btn-success btn-enter w-100 w-md-auto" id="submitEntry" type="submit" <?php echo $isFull ? 'disabled' : ''; ?>>
                                                 <?php echo $isFull ? 'Event full' : 'Enter Event'; ?>
@@ -1444,7 +1458,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         };
 
         const updateTotal = () => {
-            let total = 0;
+            let total = <?php echo $isLateEntry ? number_format($lateEntryFee, 2, '.', '') : '0'; ?>;
             const selectedOpt = classSelect?.selectedOptions?.[0];
             if (selectedOpt?.dataset?.price) {
                 total += parsePrice(selectedOpt.dataset.price);

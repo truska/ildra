@@ -112,6 +112,9 @@ $event = $event ?? [
     'entry_open_at' => null,
     'non_member_entry_open_at' => null,
     'entry_close_at' => null,
+    'late_entries_enabled' => !empty($eventSettings['event_late_entries_enabled']) ? 1 : 0,
+    'late_entry_close_at' => null,
+    'late_entry_fee' => (string)$eventSettings['event_late_entry_fee'],
     'status' => 'draft',
     'description' => '',
     'event_type' => $defaultEventType['name'] ?? 'Ride',
@@ -136,22 +139,28 @@ $entryFormConfig = event_entry_form($event, $eventComponents);
 $entryOpenAt = $event['entry_open_at'] ?? null;
 $nonMemberEntryOpenAt = $event['non_member_entry_open_at'] ?? null;
 $entryCloseAt = $event['entry_close_at'] ?? null;
+$lateEntryCloseAt = $event['late_entry_close_at'] ?? null;
 $entryOpenDate = $entryOpenAt ? date('Y-m-d', strtotime((string)$entryOpenAt)) : '';
 $entryOpenTime = $entryOpenAt ? date('H:i', strtotime((string)$entryOpenAt)) : '';
 $nonMemberEntryOpenDate = $nonMemberEntryOpenAt ? date('Y-m-d', strtotime((string)$nonMemberEntryOpenAt)) : '';
 $nonMemberEntryOpenTime = $nonMemberEntryOpenAt ? date('H:i', strtotime((string)$nonMemberEntryOpenAt)) : '';
 $entryCloseDate = $entryCloseAt ? date('Y-m-d', strtotime((string)$entryCloseAt)) : '';
 $entryCloseTime = $entryCloseAt ? date('H:i', strtotime((string)$entryCloseAt)) : '';
+$lateEntryCloseDate = $lateEntryCloseAt ? date('Y-m-d', strtotime((string)$lateEntryCloseAt)) : '';
+$lateEntryCloseTime = $lateEntryCloseAt ? date('H:i', strtotime((string)$lateEntryCloseAt)) : '';
 $scheduleDefaults = $event['event_date'] ? event_date_defaults((string)$event['event_date'], $eventSettings) : null;
 $entryOpenDefaultDate = (string)($scheduleDefaults['entry_open_date'] ?? '');
 $nonMemberEntryOpenDefaultDate = (string)($scheduleDefaults['non_member_entry_open_date'] ?? '');
 $entryCloseDefaultDate = (string)($scheduleDefaults['entry_close_date'] ?? '');
+$lateEntryCloseDefaultDate = (string)($scheduleDefaults['late_entry_close_date'] ?? '');
 $displayOpenDate = $entryOpenDate ?: $entryOpenDefaultDate;
 $displayNonMemberOpenDate = $nonMemberEntryOpenDate ?: $nonMemberEntryOpenDefaultDate;
 $displayCloseDate = $entryCloseDate ?: $entryCloseDefaultDate;
 $displayOpenTime = $entryOpenTime ?: (string)$eventSettings['event_member_open_time'];
 $displayNonMemberOpenTime = $nonMemberEntryOpenTime ?: (string)$eventSettings['event_non_member_open_time'];
 $displayCloseTime = $entryCloseTime ?: (string)$eventSettings['event_entry_close_time'];
+$displayLateEntryCloseDate = $lateEntryCloseDate ?: $lateEntryCloseDefaultDate;
+$displayLateEntryCloseTime = $lateEntryCloseTime ?: (string)$eventSettings['event_late_entry_close_time'];
 $weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Pricing schemes + per-event pricing rows (Option A: classes live inside schemes, events get a copy)
@@ -421,6 +430,12 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <label class="form-label">Entries close time</label>
                     <input type="time" name="entry_close_time" class="form-control" value="<?php echo h($displayCloseTime); ?>">
                 </div>
+            </div>
+            <div class="row g-3 mt-2 align-items-end">
+                <div class="col-md-3"><label class="form-label">Late entries close date</label><input type="date" name="late_entry_close_date" class="form-control" value="<?php echo h($displayLateEntryCloseDate); ?>"></div>
+                <div class="col-md-3"><label class="form-label">Late close time</label><input type="time" name="late_entry_close_time" class="form-control" value="<?php echo h($displayLateEntryCloseTime); ?>"></div>
+                <div class="col-md-3"><label class="form-label">Late entry fee (£)</label><input type="number" min="0" step="0.01" name="late_entry_fee" class="form-control" value="<?php echo h((string)($event['late_entry_fee'] ?? $eventSettings['event_late_entry_fee'])); ?>"></div>
+                <div class="col-md-3 pb-2"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="late_entries_enabled" id="late_entries_enabled" value="1" <?php echo !empty($event['late_entries_enabled']) ? 'checked' : ''; ?>><label class="form-check-label" for="late_entries_enabled">Allow late entries</label></div></div>
             </div>
         </div>
 
