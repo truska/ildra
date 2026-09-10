@@ -1,6 +1,7 @@
 # Environment and secrets
 config.php
 config.local.php
+views/development_banner.local.php
 .env
 .env.*
 !.env.example

@@ -53,7 +53,7 @@ $targetName = is_array($targetUser) ? trim((string)($targetUser['first_name'] ??
 $targetLabel = $targetName !== '' ? $targetName : ($targetEmail !== '' ? $targetEmail : 'user');
 $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($basePath ?? '') . '/admin/users.php');
 ?>
-<?php include __DIR__ . '/development_banner.php'; ?>
+<?php $developmentBanner = __DIR__ . '/development_banner.local.php'; if (is_file($developmentBanner)) include $developmentBanner; ?>
 <?php if ($isActingAs): ?>
     <style>
         body { padding-bottom: 44px; }
