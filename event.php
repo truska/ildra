@@ -169,6 +169,7 @@ foreach ($entryComponents as $c) {
 $componentSelections = $_POST['component'] ?? [];
 $componentValues = $_POST['component_value'] ?? [];
 $componentSelectFlags = $_POST['component_select'] ?? [];
+$componentChoices = $_POST['component_choice'] ?? [];
 $hasAnyActiveMembership = !empty($peopleWithActiveMembership);
 $entryOpenAt = $event['entry_open_at'] ?? null;
 $nonMemberEntryOpenAt = $event['non_member_entry_open_at'] ?? null;
@@ -407,6 +408,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     continue;
                 }
                 $inputKind = $component['input_kind'] ?? 'checkbox';
+                $isChoiceGroup = in_array($inputKind, ['choice_single', 'choice_multiple'], true);
+                $choiceIds = $isChoiceGroup ? array_values(array_unique(array_filter(array_map('intval', (array)($componentChoices[$compId] ?? []))))) : [];
+                if ($inputKind === 'choice_single' && isset($componentChoices[$compId]) && !is_array($componentChoices[$compId])) $choiceIds = [(int)$componentChoices[$compId]];
+                $optionMap = []; foreach ((array)($component['options'] ?? []) as $option) $optionMap[(int)($option['id'] ?? 0)] = $option;
+                $selectedOptions = [];
+                foreach ($choiceIds as $choiceId) if (isset($optionMap[$choiceId])) $selectedOptions[] = $optionMap[$choiceId];
+                if ($isChoiceGroup && !empty($component['is_required']) && !$selectedOptions) {
+                    $alerts[] = ['type'=>'danger','message'=>'Please choose an option for ' . h($component['name'] ?? 'this question') . '.']; break;
+                }
                 $rawValue = $inputKind === 'checkbox' ? (isset($componentSelections[$compId]) ? 'on' : '') : trim((string)($componentValues[$compId] ?? ''));
                 $quantity = $inputKind === 'quantity' ? max(0, (int)$rawValue) : 0;
                 $type = $component['type'] ?? 'product';
@@ -416,11 +426,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $hasCost = $isProduct && $price !== 0.0;
                 $isRequiredProduct = $isProduct && $hasCost && $isRequiredFlag;
                 $isRequiredConsent = !$hasCost && $isRequiredFlag && $inputKind === 'checkbox';
-                $selectedFlag = $isRequiredProduct
+                $selectedFlag = $isChoiceGroup ? !empty($selectedOptions) : ($isRequiredProduct
                     ? true
                     : ($inputKind === 'quantity'
                         ? $quantity > 0
-                        : ($isProduct ? isset($componentSelectFlags[$compId]) : ($inputKind === 'checkbox' ? $rawValue !== '' : $rawValue !== '')));
+                        : ($isProduct ? isset($componentSelectFlags[$compId]) : ($inputKind === 'checkbox' ? $rawValue !== '' : $rawValue !== ''))));
                 if ($isRequiredConsent && !$selectedFlag) {
                     $alerts[] = ['type' => 'danger', 'message' => 'Please accept ' . h($component['name'] ?? 'the required option') . ' to continue.'];
                     break;
@@ -429,9 +439,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     continue;
                 }
                 $label = $component['label_override'] ?? ($component['name'] ?? 'Extra');
-                $lineTotal = $isProduct && $price !== 0.0
+                $choiceTotal = array_sum(array_map(static fn(array $option): float => price_to_number($option['price_adjustment'] ?? 0), $selectedOptions));
+                $lineTotal = $isChoiceGroup ? $choiceTotal : ($isProduct && $price !== 0.0
                     ? ($inputKind === 'quantity' ? ($price * $quantity) : $price)
-                    : 0.0;
+                    : 0.0);
                 if ($lineTotal !== 0.0) {
                     $componentsTotal += $lineTotal;
                 }
@@ -442,7 +453,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     'type' => $type,
                     'price' => $price,
                     'input_kind' => $inputKind,
-                    'value' => $inputKind === 'checkbox' ? null : ($inputKind === 'quantity' ? (string)$quantity : $rawValue),
+                    'value' => $isChoiceGroup ? array_map(static fn(array $option): array => ['id'=>(int)$option['id'],'label'=>(string)$option['label'],'note'=>(string)($option['note'] ?? ''),'price_adjustment'=>price_to_number($option['price_adjustment'] ?? 0)], $selectedOptions) : ($inputKind === 'checkbox' ? null : ($inputKind === 'quantity' ? (string)$quantity : $rawValue)),
                     'quantity' => $inputKind === 'quantity' ? $quantity : null,
                     'line_total' => $lineTotal !== 0.0 ? round($lineTotal, 2) : null,
                 ];
@@ -1051,7 +1062,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                 <?php if ($descriptionHtml !== ''): ?>
                                                     <div class="text-muted small mb-3"><?php echo $descriptionHtml; ?></div>
                                                 <?php endif; ?>
-                                                <?php if ($inputKind === 'none'): ?>
+                                                <?php if (in_array($inputKind, ['choice_single', 'choice_multiple'], true)): ?>
+                                                    <?php $selectedChoiceIds = array_map('intval', (array)($componentChoices[$compId] ?? [])); if ($inputKind === 'choice_single' && !is_array($componentChoices[$compId] ?? null)) $selectedChoiceIds = [(int)($componentChoices[$compId] ?? 0)]; ?>
+                                                    <div class="vstack gap-2">
+                                                        <?php foreach ((array)($component['options'] ?? []) as $option): ?>
+                                                            <?php $optionId = (int)($option['id'] ?? 0); $adjustment = price_to_number($option['price_adjustment'] ?? 0); $choiceId = 'component_choice_' . $compId . '_' . $optionId; ?>
+                                                            <div class="form-check border rounded p-2 mb-0">
+                                                                <input class="form-check-input ms-0 me-2 component-choice" data-price-adjustment="<?php echo h((string)$adjustment); ?>" type="<?php echo $inputKind === 'choice_single' ? 'radio' : 'checkbox'; ?>" id="<?php echo h($choiceId); ?>" name="component_choice[<?php echo $compId; ?>]<?php echo $inputKind === 'choice_multiple' ? '[]' : ''; ?>" value="<?php echo $optionId; ?>" <?php echo in_array($optionId, $selectedChoiceIds, true) ? 'checked' : ''; ?> <?php echo $isRequiredFlag && $inputKind === 'choice_single' ? 'required' : ''; ?>><label class="form-check-label" for="<?php echo h($choiceId); ?>"><span class="fw-semibold"><?php echo h((string)($option['label'] ?? '')); ?></span><?php if ($adjustment != 0.0): ?> <span class="text-muted small"><?php echo $adjustment > 0 ? '+' : '−'; ?><?php echo h(format_price(abs($adjustment))); ?></span><?php endif; ?><?php if (!empty($option['note'])): ?><span class="d-block text-muted small mt-1"><?php echo h((string)$option['note']); ?></span><?php endif; ?></label>
+                                                            </div>
+                                                        <?php endforeach; ?>
+                                                    </div>
+                                                <?php elseif ($inputKind === 'none'): ?>
                                                     <?php if ($hasCost && !$showSelector): ?><div class="small text-muted mt-1">+<?php echo h(format_price($price)); ?></div><?php endif; ?>
                                                 <?php elseif ($inputKind === 'quantity'): ?>
                                                     <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -1489,6 +1510,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     });
                 }
             });
+            document.querySelectorAll('.component-choice:checked').forEach((choice) => { total += parsePrice(choice.dataset.priceAdjustment || '0'); });
             if (priceSummary) {
                 priceSummary.textContent = `Total Entry Fee £${total.toFixed(2)}`;
             }
@@ -1504,7 +1526,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 if (target?.classList?.contains('component-consent-required')) {
                     validateForm();
                 }
-                if (target?.classList?.contains('component-toggle') || target?.classList?.contains('component-quantity') || target === classSelect) {
+                if (target?.classList?.contains('component-toggle') || target?.classList?.contains('component-quantity') || target?.classList?.contains('component-choice') || target === classSelect) {
                     updateTotal();
                 }
                 if (target === classSelect) {
@@ -1517,7 +1539,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     validateField(target);
                     validateForm();
                 }
-                if (target?.classList?.contains('component-toggle') || target?.classList?.contains('component-quantity') || target === classSelect) {
+                if (target?.classList?.contains('component-toggle') || target?.classList?.contains('component-quantity') || target?.classList?.contains('component-choice') || target === classSelect) {
                     updateTotal();
                 }
                 if (target === classSelect) {

@@ -4264,6 +4264,20 @@ function ensureEntryComponentsTables(?PDO $pdo): void
             INDEX (component_id)
         )
     ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS entry_component_options (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            component_id INT UNSIGNED NOT NULL,
+            label VARCHAR(255) NOT NULL,
+            note TEXT DEFAULT NULL,
+            price_adjustment DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            display_order INT UNSIGNED NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_component_options (component_id, is_active, display_order)
+        )
+    ");
     // Backfill required column if missing
     if (!table_column_exists($pdo, 'entry_components', 'is_required')) {
         try {
@@ -4760,7 +4774,20 @@ function fetchEntryComponents(?PDO $pdo, ?int $eventTypeId = null, bool $activeO
     if ($eventTypeId !== null) {
         $rows = array_values(array_filter($rows, fn($c) => componentAllowedForType($c, $eventTypeId)));
     }
+    foreach ($rows as &$row) $row['options'] = fetchEntryComponentOptions($pdo, (int)($row['id'] ?? 0));
+    unset($row);
     return $rows;
+}
+
+function fetchEntryComponentOptions(?PDO $pdo, int $componentId, bool $activeOnly = true): array
+{
+    if (!$pdo || $componentId <= 0) return [];
+    ensureEntryComponentsTables($pdo);
+    $sql = 'SELECT * FROM entry_component_options WHERE component_id=:component_id';
+    if ($activeOnly) $sql .= ' AND is_active=1';
+    $sql .= ' ORDER BY display_order ASC, id ASC';
+    $stmt = $pdo->prepare($sql); $stmt->execute([':component_id' => $componentId]);
+    return $stmt->fetchAll() ?: [];
 }
 
 function fetchEventEntryComponents(?PDO $pdo, int $eventId, ?int $eventTypeId = null): array
@@ -4785,7 +4812,10 @@ function fetchEventEntryComponents(?PDO $pdo, int $eventId, ?int $eventTypeId = 
         $rows = array_values(array_filter($rows, fn($c) => componentAllowedForType($c, $eventTypeId)));
     }
     // Only return enabled rows
-    return array_values(array_filter($rows, fn($row) => (int)($row['is_enabled'] ?? 0) === 1));
+    $rows = array_values(array_filter($rows, fn($row) => (int)($row['is_enabled'] ?? 0) === 1));
+    foreach ($rows as &$row) $row['options'] = fetchEntryComponentOptions($pdo, (int)($row['id'] ?? 0));
+    unset($row);
+    return $rows;
 }
 
 function saveEventEntryComponents(?PDO $pdo, int $eventId, array $data, array &$alerts): bool
@@ -4848,7 +4878,9 @@ function fetchEntryComponentById(?PDO $pdo, int $id): ?array
     ensureEntryComponentsTables($pdo);
     $stmt = $pdo->prepare("SELECT * FROM entry_components WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $id]);
-    return $stmt->fetch() ?: null;
+    $component = $stmt->fetch() ?: null;
+    if ($component) $component['options'] = fetchEntryComponentOptions($pdo, $id, false);
+    return $component;
 }
 
 /**
@@ -4865,14 +4897,14 @@ function saveEntryComponent(?PDO $pdo, array $data, array &$alerts)
     $name = trim((string)($data['name'] ?? ''));
     $type = in_array(($data['type'] ?? 'product'), ['product', 'question'], true) ? $data['type'] : 'product';
     $inputKind = trim((string)($data['input_kind'] ?? 'checkbox')) ?: 'checkbox';
-    if (!in_array($inputKind, ['checkbox', 'text', 'textarea', 'quantity', 'none'], true)) {
+    if (!in_array($inputKind, ['checkbox', 'text', 'textarea', 'quantity', 'none', 'choice_single', 'choice_multiple'], true)) {
         $inputKind = 'checkbox';
     }
     $hasCost = isset($data['has_cost']) && (int)$data['has_cost'] === 1;
     $price = ($type === 'product' && $hasCost) ? price_to_number($data['price'] ?? 0) : 0.0;
     $allowed = parseAllowedEventTypeIds($data['allowed_event_type_ids'] ?? []);
-    $canRequire = $inputKind === 'checkbox';
-    $isRequired = $canRequire && !empty($data['is_required']);
+    $canRequire = in_array($inputKind, ['checkbox', 'choice_single', 'choice_multiple'], true);
+    $isRequired = $canRequire && (!empty($data['is_required']) || !empty($data['choice_required']));
     $isActive = 1; // deprecated flag; always treated as active
     $description = trim((string)($data['description'] ?? ''));
 
@@ -4885,7 +4917,12 @@ function saveEntryComponent(?PDO $pdo, array $data, array &$alerts)
         return false;
     }
 
+    $optionLabels = (array)($data['option_label'] ?? []);
+    $optionNotes = (array)($data['option_note'] ?? []);
+    $optionPrices = (array)($data['option_price_adjustment'] ?? []);
+    $optionOrders = (array)($data['option_order'] ?? []);
     try {
+        $pdo->beginTransaction();
         if ($id > 0) {
             $stmt = $pdo->prepare("
                 UPDATE entry_components
@@ -4904,23 +4941,30 @@ function saveEntryComponent(?PDO $pdo, array $data, array &$alerts)
                 ':description' => $description !== '' ? $description : null,
                 ':id' => $id,
             ]);
-            return $id;
+            $componentId = $id;
+        } else {
+            $stmt = $pdo->prepare("
+                INSERT INTO entry_components (name, type, input_kind, price, allowed_event_type_ids, is_required, description, is_active, created_at, updated_at)
+                VALUES (:name, :type, :input_kind, :price, :allowed, :is_required, :description, 1, NOW(), NOW())
+            ");
+            $stmt->execute([
+                ':name' => $name, ':type' => $type, ':input_kind' => $inputKind, ':price' => $price,
+                ':allowed' => json_encode($allowed), ':is_required' => $isRequired ? 1 : 0, ':description' => $description !== '' ? $description : null,
+            ]);
+            $componentId = (int)$pdo->lastInsertId();
         }
-        $stmt = $pdo->prepare("
-            INSERT INTO entry_components (name, type, input_kind, price, allowed_event_type_ids, is_required, description, is_active, created_at, updated_at)
-            VALUES (:name, :type, :input_kind, :price, :allowed, :is_required, :description, 1, NOW(), NOW())
-        ");
-        $stmt->execute([
-            ':name' => $name,
-            ':type' => $type,
-            ':input_kind' => $inputKind,
-            ':price' => $price,
-            ':allowed' => json_encode($allowed),
-            ':is_required' => $isRequired ? 1 : 0,
-            ':description' => $description !== '' ? $description : null,
-        ]);
-        return (int)$pdo->lastInsertId();
+        $pdo->prepare('DELETE FROM entry_component_options WHERE component_id=:component_id')->execute([':component_id' => $componentId]);
+        if (in_array($inputKind, ['choice_single', 'choice_multiple'], true)) {
+            $insertOption = $pdo->prepare('INSERT INTO entry_component_options (component_id,label,note,price_adjustment,display_order,is_active) VALUES (:component_id,:label,:note,:price,:display_order,1)');
+            foreach ($optionLabels as $key => $optionLabel) {
+                $optionLabel = trim((string)$optionLabel); if ($optionLabel === '') continue;
+                $insertOption->execute([':component_id'=>$componentId, ':label'=>$optionLabel, ':note'=>trim((string)($optionNotes[$key] ?? '')) ?: null, ':price'=>price_to_number($optionPrices[$key] ?? 0), ':display_order'=>(int)($optionOrders[$key] ?? 0)]);
+            }
+        }
+        $pdo->commit();
+        return $componentId;
     } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
         $alerts[] = ['type' => 'danger', 'message' => 'Could not save entry component.'];
         return false;
     }
@@ -4938,6 +4982,7 @@ function deleteEntryComponent(?PDO $pdo, int $id, array &$alerts): bool
     ensureEntryComponentsTables($pdo);
     try {
         $pdo->prepare("DELETE FROM event_entry_components WHERE component_id = :id")->execute([':id' => $id]);
+        $pdo->prepare("DELETE FROM entry_component_options WHERE component_id = :id")->execute([':id' => $id]);
         $pdo->prepare("DELETE FROM entry_components WHERE id = :id")->execute([':id' => $id]);
         return true;
     } catch (PDOException $e) {

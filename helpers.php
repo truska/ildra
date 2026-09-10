@@ -302,14 +302,22 @@ function entry_components_summary(array $metadata): string
         $label = $comp['label'] ?? ($comp['name'] ?? 'Extra');
         $type = $comp['type'] ?? 'product';
         $price = $comp['price'] ?? 0;
-        $value = trim((string)($comp['value'] ?? ''));
         $inputKind = (string)($comp['input_kind'] ?? 'checkbox');
+        $rawValue = $comp['value'] ?? '';
+        $value = is_array($rawValue) ? '' : trim((string)$rawValue);
         $quantity = max(0, (int)($comp['quantity'] ?? ($inputKind === 'quantity' ? $value : 0)));
         $suffix = '';
         if ($inputKind === 'quantity') {
             if ($quantity > 0) {
                 $lineTotal = price_to_number($comp['line_total'] ?? ($quantity * price_to_number($price)));
                 $suffix = ' x' . $quantity . ' (+' . format_price($lineTotal) . ')';
+            }
+        } elseif (in_array($inputKind, ['choice_single', 'choice_multiple'], true) && is_array($rawValue)) {
+            $choices = array_map(static fn(array $choice): string => (string)($choice['label'] ?? ''), $rawValue);
+            $choices = array_values(array_filter($choices, static fn(string $choice): bool => $choice !== ''));
+            if ($choices) {
+                $lineTotal = price_to_number($comp['line_total'] ?? 0);
+                $suffix = ': ' . implode(' / ', $choices) . ($lineTotal !== 0.0 ? ' (' . ($lineTotal > 0 ? '+' : '−') . format_price(abs($lineTotal)) . ')' : '');
             }
         } elseif ($type === 'product' && price_to_number($price) !== 0.0) {
             $suffix = ' (+' . format_price($price) . ')';

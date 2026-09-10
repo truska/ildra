@@ -172,6 +172,8 @@ admin_layout_start('Entry Components', 'entry_components');
                                 <option value="text" <?php echo ($inputVal === 'text') ? 'selected' : ''; ?>>Text input</option>
                                 <option value="textarea" <?php echo ($inputVal === 'textarea') ? 'selected' : ''; ?>>Textarea</option>
                                 <option value="quantity" <?php echo ($inputVal === 'quantity') ? 'selected' : ''; ?>>Quantity</option>
+                                <option value="choice_single" <?php echo ($inputVal === 'choice_single') ? 'selected' : ''; ?>>Choose one option</option>
+                                <option value="choice_multiple" <?php echo ($inputVal === 'choice_multiple') ? 'selected' : ''; ?>>Choose one or more options</option>
                                 <option value="none" <?php echo ($inputVal === 'none') ? 'selected' : ''; ?>>No input (info only)</option>
                             </select>
                         </div>
@@ -181,6 +183,16 @@ admin_layout_start('Entry Components', 'entry_components');
                             <textarea name="description" class="form-control wysiwyg-field" rows="3" placeholder="Shown on the entry form to explain this option"><?php echo h($editComponent['description'] ?? ''); ?></textarea>
                         </div>
                     </div>
+                </div>
+                <div class="sub-card" id="choice-options-card">
+                    <div class="sub-heading">Choice options</div>
+                    <div class="sub-desc">Add the choices shown to entrants. Price adjustment is added to the event price; leave it at 0 to show no price.</div>
+                    <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="choice_required" value="1" id="choice_required" <?php echo !empty($editComponent['is_required']) ? 'checked' : ''; ?>><label class="form-check-label" for="choice_required">A choice is required</label></div>
+                    <div id="choice-options-list">
+                        <?php $choiceOptions = (array)($editComponent['options'] ?? []); if (!$choiceOptions) $choiceOptions = [['label'=>'','note'=>'','price_adjustment'=>'0','display_order'=>10]]; ?>
+                        <?php foreach ($choiceOptions as $index => $option): ?><div class="row g-2 align-items-end choice-option-row mb-2"><div class="col-md-4"><label class="form-label small">Choice</label><input class="form-control" name="option_label[<?php echo (int)$index; ?>]" value="<?php echo h((string)($option['label'] ?? '')); ?>"></div><div class="col-md-4"><label class="form-label small">Optional note</label><input class="form-control" name="option_note[<?php echo (int)$index; ?>]" value="<?php echo h((string)($option['note'] ?? '')); ?>" placeholder="Allergens or detail"></div><div class="col-md-2"><label class="form-label small">Adjustment (£)</label><input class="form-control" type="number" step="0.01" name="option_price_adjustment[<?php echo (int)$index; ?>]" value="<?php echo h((string)($option['price_adjustment'] ?? '0')); ?>"></div><div class="col-md-1"><label class="form-label small">Order</label><input class="form-control" type="number" name="option_order[<?php echo (int)$index; ?>]" value="<?php echo (int)($option['display_order'] ?? (($index + 1) * 10)); ?>"></div><div class="col-md-1"><button class="btn btn-outline-danger w-100 js-remove-choice" type="button">×</button></div></div><?php endforeach; ?>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" id="add-choice-option">Add choice</button>
                 </div>
                 <div class="sub-card" id="pricing-card">
                     <div class="sub-heading d-flex justify-content-between align-items-center">
@@ -263,6 +275,9 @@ admin_layout_start('Entry Components', 'entry_components');
         const priceGroup = document.getElementById('price-group');
         const isRequired = document.getElementById('is_required');
         const pricingCard = document.getElementById('pricing-card');
+        const choiceOptionsCard = document.getElementById('choice-options-card');
+        const choiceOptionsList = document.getElementById('choice-options-list');
+        const addChoiceOption = document.getElementById('add-choice-option');
         const pricingMode = document.getElementById('pricing_mode');
         const previewBox = document.getElementById('componentPreview');
         const nameInput = document.querySelector('input[name="name"]');
@@ -286,6 +301,7 @@ admin_layout_start('Entry Components', 'entry_components');
             if (pricingCard) {
                 pricingCard.style.display = typeVal === 'product' ? '' : 'none';
             }
+            if (choiceOptionsCard) choiceOptionsCard.style.display = ['choice_single', 'choice_multiple'].includes(inputVal) ? '' : 'none';
             // Required without price only makes sense for checkboxes
             if (inputVal !== 'checkbox' && mode === 'required_no_price') {
                 mode = 'no_price';
@@ -417,6 +433,15 @@ admin_layout_start('Entry Components', 'entry_components');
             syncPricingUI();
             renderPreview();
         });
+        addChoiceOption?.addEventListener('click', () => {
+            if (!choiceOptionsList) return;
+            const index = choiceOptionsList.querySelectorAll('.choice-option-row').length;
+            const row = document.createElement('div');
+            row.className = 'row g-2 align-items-end choice-option-row mb-2';
+            row.innerHTML = `<div class="col-md-4"><label class="form-label small">Choice</label><input class="form-control" name="option_label[${index}]"></div><div class="col-md-4"><label class="form-label small">Optional note</label><input class="form-control" name="option_note[${index}]" placeholder="Allergens or detail"></div><div class="col-md-2"><label class="form-label small">Adjustment (£)</label><input class="form-control" type="number" step="0.01" name="option_price_adjustment[${index}]" value="0"></div><div class="col-md-1"><label class="form-label small">Order</label><input class="form-control" type="number" name="option_order[${index}]" value="${(index + 1) * 10}"></div><div class="col-md-1"><button class="btn btn-outline-danger w-100 js-remove-choice" type="button">×</button></div>`;
+            choiceOptionsList.appendChild(row);
+        });
+        choiceOptionsList?.addEventListener('click', (event) => event.target.closest('.js-remove-choice')?.closest('.choice-option-row')?.remove());
 
         const initWysiwyg = () => {
             if (!window.tinymce) {
