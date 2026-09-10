@@ -1232,7 +1232,7 @@ function fetchAllUsersForAdmin(?PDO $pdo, array &$alerts): array
     try {
         $stmt = $pdo->query("
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at, u.created_at,
-                   u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in
+                   u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in, u.is_tester
             FROM users u
             JOIN roles r ON r.id = u.role_id
             ORDER BY u.created_at DESC

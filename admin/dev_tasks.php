@@ -57,8 +57,15 @@ foreach ($tasks as $task) {
     $raisedByOptions[(string)$task['created_by']] = trim(($task['first_name'] ?? '').' '.($task['last_name'] ?? '')) ?: ($task['email'] ?? 'Unknown');
 }
 asort($raisedByOptions, SORT_NATURAL | SORT_FLAG_CASE);
-$nextActionOptions = ['0'=>'Unassigned'];
+$nextActionOptions = ['0'=>'Unassigned', 'group:testers'=>'Test Group'];
 foreach (devTaskAssignableUsers($pdo) as $user) $nextActionOptions[(string)$user['id']] = devTaskAuthorName($user);
+$testerUserIds = [];
+foreach (devTaskTesterUsers($pdo) as $tester) {
+    $testerUserIds[] = (int)$tester['id'];
+    $nextActionOptions[(string)$tester['id']] = devTaskAuthorName($tester) . ' (Tester)';
+}
+asort($nextActionOptions, SORT_NATURAL | SORT_FLAG_CASE);
+$nextActionOptions = ['0'=>'Unassigned'] + $nextActionOptions;
 $priorityOptions = ['1'=>'1 — Urgent','2'=>'2 — High','3'=>'3 — Normal','4'=>'4 — Low','5'=>'5 — When possible'];
 $updatedByOptions = [];
 foreach ($tasks as $task) {
@@ -72,7 +79,7 @@ $tableColumns = [
     'task_id' => ['label'=>'Task ID','sortable'=>true,'compare'=>'number','filter'=>'text','placeholder'=>'ID','search_min_length'=>1,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['id'],'filter_match'=>static fn(array $row,string $needle,string $value):bool=>$value===ltrim($needle, '#')],
     'priority' => ['label'=>'Priority','sortable'=>true,'compare'=>'number','filter'=>'select','options'=>$priorityOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['priority']],
     'task' => ['label'=>'Task','sortable'=>true,'filter'=>'text','placeholder'=>'Search task','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['title']],
-    'next_action' => ['label'=>'Next action by','sortable'=>true,'filter'=>'select','options'=>$nextActionOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['next_action_by'] ?? 0),'sort_value'=>static fn(array $row):string=>empty($row['next_action_by'])?'1 Unassigned':'0 '.(trim(($row['assignee_first_name']??'').' '.($row['assignee_last_name']??'')) ?: ($row['assignee_email']??'Unknown'))],
+    'next_action' => ['label'=>'Next action by','sortable'=>true,'filter'=>'select','options'=>$nextActionOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(($row['next_action_group']??'')==='test_group'?'group:testers':(string)($row['next_action_by'] ?? 0)),'filter_match'=>static function(array $row,string $needle,string $value) use ($testerUserIds): bool { if ($needle === 'group:testers') return ($row['next_action_group']??'') === 'test_group'; if (($row['next_action_group']??'') === 'test_group') return in_array((int)$needle, $testerUserIds, true); return $value === $needle; },'sort_value'=>static fn(array $row):string=>(($row['next_action_group']??'')==='test_group')?'0 Test Group':(empty($row['next_action_by'])?'1 Unassigned':'0 '.(trim(($row['assignee_first_name']??'').' '.($row['assignee_last_name']??'')) ?: ($row['assignee_email']??'Unknown')))],
     'raised_by' => ['label'=>'Raised by','sortable'=>true,'filter'=>'select','options'=>$raisedByOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['created_by'],'sort_value'=>static fn(array $row):string=>trim(($row['first_name']??'').' '.($row['last_name']??'')) ?: ($row['email']??'Unknown')],
     'updated_by' => ['label'=>'Last edited by','sortable'=>true,'filter'=>'select','options'=>$updatedByOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['updated_by']??0),'sort_value'=>static fn(array $row):string=>trim(($row['updated_first_name']??'').' '.($row['updated_last_name']??'')) ?: ($row['updated_email']??'')],
     'conversation' => ['label'=>'Conversation','sortable'=>true,'filter'=>'text','placeholder'=>'Search conversation','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['conversation_search']??''),'sort_value'=>static fn(array $row):int=>(int)$row['message_count'],'compare'=>'number'],
@@ -121,7 +128,7 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
 <div class="card-soft p-3"><div class="dev-task-record-count"><?php echo admin_table_record_count($table,'task','tasks'); ?></div><div class="table-responsive"><table class="table table-striped table-sm admin-data-table dev-task-table align-middle mb-0">
 <thead class="table-light"><tr><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_heading($key,$column,$table['sort_key'],$table['sort_dir']); ?></th><?php endforeach; ?></tr>
 <tr class="admin-table-filter-row"><?php foreach($tableColumns as $key=>$column): ?><th><?php echo admin_table_filter($key,$column,$table['filters']); ?></th><?php endforeach; ?></tr></thead>
-<?php foreach ($tasks as $taskIndex=>$task): $name=trim(($task['first_name']??'').' '.($task['last_name']??'')) ?: ($task['email']??'Unknown'); $assigneeName=trim(($task['assignee_first_name']??'').' '.($task['assignee_last_name']??'')) ?: ($task['assignee_email']??'Unassigned'); $updatedBy=trim(($task['updated_first_name']??'').' '.($task['updated_last_name']??'')) ?: ($task['updated_email']??'Not recorded'); ?>
+<?php foreach ($tasks as $taskIndex=>$task): $name=trim(($task['first_name']??'').' '.($task['last_name']??'')) ?: ($task['email']??'Unknown'); $assigneeName=($task['next_action_group']??'')==='test_group'?'Test Group':(trim(($task['assignee_first_name']??'').' '.($task['assignee_last_name']??'')) ?: ($task['assignee_email']??'Unassigned')); $updatedBy=trim(($task['updated_first_name']??'').' '.($task['updated_last_name']??'')) ?: ($task['updated_email']??'Not recorded'); ?>
 <tbody class="dev-task-group<?php echo $taskIndex % 2 === 0 ? ' dev-task-group-striped' : ''; ?>">
 <tr class="dev-task-title-row"><td colspan="<?php echo count($tableColumns); ?>"><a class="fw-semibold text-decoration-none" href="dev_task.php?id=<?php echo (int)$task['id']; ?>"><?php echo h($task['title']); ?></a></td></tr>
 <tr class="dev-task-details-row">

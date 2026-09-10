@@ -4,6 +4,8 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
+ensureDevTaskTables($pdo);
+
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageUsers = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
@@ -25,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $generalEmailOptIn = !empty($_POST['general_email_opt_in']) ? 1 : 0;
             $rideNoticeOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
             $renewalReminderOptIn = !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0;
+            $isTester = !empty($_POST['is_tester']) ? 1 : 0;
 
             if ($userId <= 0) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Invalid user.'];
@@ -43,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($duplicate->fetch()) {
                         $alerts[] = ['type' => 'danger', 'message' => 'That email address is already in use.'];
                     } else {
-                        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, updated_at = NOW() WHERE id = :id LIMIT 1');
+                        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, is_tester = :is_tester, updated_at = NOW() WHERE id = :id LIMIT 1');
                         $update->execute([
                             ':first_name' => $firstName,
                             ':last_name' => $lastName,
@@ -51,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ':general_opt_in' => $generalEmailOptIn,
                             ':ride_notice_opt_in' => $rideNoticeOptIn,
                             ':renewal_opt_in' => $renewalReminderOptIn,
+                            ':is_tester' => $isTester,
                             ':id' => $userId,
                         ]);
                         if ((int)($currentUser['id'] ?? 0) === $userId && isset($_SESSION['user'])) {
@@ -60,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $_SESSION['user']['general_email_opt_in'] = $generalEmailOptIn;
                             $_SESSION['user']['ride_notice_opt_in'] = $rideNoticeOptIn;
                             $_SESSION['user']['renewal_reminder_opt_in'] = $renewalReminderOptIn;
+                            $_SESSION['user']['is_tester'] = $isTester;
                         }
                         $successMessage = 'User details updated.';
                     }
@@ -253,6 +258,7 @@ admin_layout_start('Users', 'users');
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="userGeneralEmail<?php echo (int)$userRow['id']; ?>" name="general_email_opt_in" value="1" <?php echo !empty($userRow['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="userGeneralEmail<?php echo (int)$userRow['id']; ?>">Subscribed to general news and announcements</label></div>
                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="userRideNotice<?php echo (int)$userRow['id']; ?>" name="ride_notice_opt_in" value="1" <?php echo !empty($userRow['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="userRideNotice<?php echo (int)$userRow['id']; ?>">Subscribed to the weekly Ride Notice</label></div>
                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="userRenewalReminder<?php echo (int)$userRow['id']; ?>" name="renewal_reminder_opt_in" value="1" <?php echo !empty($userRow['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="userRenewalReminder<?php echo (int)$userRow['id']; ?>">Receives renewal reminders</label></div>
+                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="userTester<?php echo (int)$userRow['id']; ?>" name="is_tester" value="1" <?php echo !empty($userRow['is_tester']) ? 'checked' : ''; ?>><label class="form-check-label" for="userTester<?php echo (int)$userRow['id']; ?>">Member of the Test Group</label></div>
                             <div class="form-text">Only record a subscription where the user has agreed to receive it. Essential entry-related messages are separate.</div>
                         </div>
                     </div>

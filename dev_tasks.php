@@ -13,6 +13,7 @@ function ensureDevTaskTables(?PDO $pdo): void
         updated_by INT UNSIGNED DEFAULT NULL,
         task_notes MEDIUMTEXT NOT NULL,
         next_action_by INT UNSIGNED DEFAULT NULL,
+        next_action_group VARCHAR(32) DEFAULT NULL,
         closed_by INT UNSIGNED DEFAULT NULL,
         closed_at DATETIME DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -27,9 +28,12 @@ function ensureDevTaskTables(?PDO $pdo): void
         $pdo->exec("ALTER TABLE dev_tasks MODIFY COLUMN status ENUM('open','completed','future','closed') NOT NULL DEFAULT 'open'");
     }
     $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS next_action_by INT UNSIGNED DEFAULT NULL AFTER created_by");
+    $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS next_action_group VARCHAR(32) DEFAULT NULL AFTER next_action_by");
     $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS updated_by INT UNSIGNED DEFAULT NULL AFTER created_by");
     $pdo->exec("ALTER TABLE dev_tasks ADD COLUMN IF NOT EXISTS task_notes MEDIUMTEXT NOT NULL AFTER updated_by");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dev_tasks_updated_by ON dev_tasks (updated_by)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_dev_tasks_next_action_group ON dev_tasks (next_action_group)");
+    $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_tester TINYINT(1) NOT NULL DEFAULT 0");
     $pdo->exec("CREATE TABLE IF NOT EXISTS dev_task_messages (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         task_id INT UNSIGNED NOT NULL,
@@ -58,6 +62,20 @@ function devTaskAssignableUsers(?PDO $pdo): array
         WHERE LOWER(r.name) IN ('superadmin','admin','manager','organiser')
         ORDER BY COALESCE(NULLIF(u.first_name,''),u.email),u.last_name,u.email");
     return $stmt->fetchAll() ?: [];
+}
+
+function devTaskTesterUsers(?PDO $pdo): array
+{
+    if (!$pdo) return [];
+    $stmt = $pdo->query("SELECT id,first_name,last_name,email FROM users WHERE is_tester=1
+        ORDER BY COALESCE(NULLIF(first_name,''),email),last_name,email");
+    return $stmt->fetchAll() ?: [];
+}
+
+function devTaskAllocation(PDO $pdo, mixed $value, array &$alerts): array
+{
+    if ((string)$value === 'group:testers') return ['user_id'=>null, 'group'=>'test_group'];
+    return ['user_id'=>devTaskAssigneeId($pdo, $value, $alerts), 'group'=>null];
 }
 
 function devTaskAssigneeId(PDO $pdo, mixed $value, array &$alerts): ?int
@@ -96,7 +114,7 @@ function devTaskCreate(PDO $pdo, array $data, array $file, array $user, array &$
     $title = trim((string)($data['title'] ?? ''));
     $message = trim((string)($data['message'] ?? ''));
     $priority = (int)($data['priority'] ?? 3);
-    $nextActionBy = devTaskAssigneeId($pdo, $data['next_action_by'] ?? 0, $alerts);
+    $allocation = devTaskAllocation($pdo, $data['next_action_by'] ?? 0, $alerts);
     if ($title === '') $alerts[] = ['type' => 'danger', 'message' => 'Please enter a task title.'];
     if ($message === '') $alerts[] = ['type' => 'danger', 'message' => 'Please describe the task, question or fault.'];
     if ($priority < 1 || $priority > 5) $alerts[] = ['type' => 'danger', 'message' => 'Priority must be between 1 and 5.'];
@@ -105,8 +123,8 @@ function devTaskCreate(PDO $pdo, array $data, array $file, array $user, array &$
     if ($alerts) return null;
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by, updated_by, task_notes, next_action_by) VALUES (:title,:priority,'open',:user,:user,'',:next_action_by)");
-        $stmt->execute([':title'=>$title, ':priority'=>$priority, ':user'=>(int)$user['id'], ':next_action_by'=>$nextActionBy]);
+        $stmt = $pdo->prepare("INSERT INTO dev_tasks (title, priority, status, created_by, updated_by, task_notes, next_action_by, next_action_group) VALUES (:title,:priority,'open',:user,:user,'',:next_action_by,:next_action_group)");
+        $stmt->execute([':title'=>$title, ':priority'=>$priority, ':user'=>(int)$user['id'], ':next_action_by'=>$allocation['user_id'], ':next_action_group'=>$allocation['group']]);
         $id = (int)$pdo->lastInsertId();
         $stmt = $pdo->prepare('INSERT INTO dev_task_messages (task_id,user_id,author_name,message,image_filename) VALUES (:task,:user,:author,:message,:image)');
         $stmt->execute([':task'=>$id, ':user'=>(int)$user['id'], ':author'=>devTaskAuthorName($user), ':message'=>$message, ':image'=>$image]);
