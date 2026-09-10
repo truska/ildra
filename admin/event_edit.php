@@ -32,9 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newEventTypeId = (int)(findEventType($eventTypes, (int)($_POST['event_type_id'] ?? 0))['id'] ?? 0);
         $typeChanged = $originalEventTypeId > 0 && $newEventTypeId > 0 && $originalEventTypeId !== $newEventTypeId;
 
-        // Validate pricing rows unless the event type is changing (type change always resets to defaults).
+        // A confirmed browser-side type/template change posts its replacement rows.
+        // Without that marker, retain the server-side default fallback for a type change.
         $pricingRows = [];
-        if (!$typeChanged) {
+        $pricingRowsWereReplaced = !empty($_POST['pricing_rows_replaced']);
+        if (!$typeChanged || $pricingRowsWereReplaced) {
             $pricingRows = parseEventPricingRowsFromPost($_POST, $alerts);
             if (!$pricingRows) {
                 // Don't save the event if the pricing rows are invalid/empty.
@@ -43,12 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($typeChanged || $pricingRows) {
+        if (($typeChanged && !$pricingRowsWereReplaced) || $pricingRows) {
             $savedEventId = saveEvent($pdo, $_POST, $alerts);
             if ($savedEventId) {
                 $savedEventId = (int)$savedEventId;
 
-                if ($typeChanged) {
+                if ($typeChanged && !$pricingRowsWereReplaced) {
                     $schemeId = fetchDefaultPricingSchemeIdForEventType($pdo, $newEventTypeId);
                     if ($schemeId) {
                         copyPricingSchemeToEvent($pdo, $schemeId, $savedEventId);
@@ -170,6 +172,7 @@ ensureDefaultPricingSchemes($pdo);
 
 // Default scheme rows per event type (used for client-side reset when event type changes).
 $defaultPricingRowsByType = [];
+$defaultPricingSchemeIdsByType = [];
 foreach ($eventTypes as $t) {
     $tid = (int)($t['id'] ?? 0);
     if ($tid <= 0) {
@@ -179,6 +182,7 @@ foreach ($eventTypes as $t) {
     if (!$sid) {
         continue;
     }
+    $defaultPricingSchemeIdsByType[$tid] = $sid;
     $rows = fetchPricingSchemeRows($pdo, (int)$sid);
         $defaultPricingRowsByType[$tid] = array_values(array_map(static function (array $r): array {
             return [
@@ -193,6 +197,31 @@ foreach ($eventTypes as $t) {
                 'enabled' => 1,
             ];
         }, $rows));
+}
+
+// Templates offered in the event editor. A template is copied into the event,
+// so later edits to the template never alter an existing event.
+$pricingSchemeOptions = [];
+foreach (fetchPricingSchemes($pdo) as $scheme) {
+    $schemeId = (int)($scheme['id'] ?? 0);
+    $typeIds = array_map('intval', array_column((array)($scheme['event_types'] ?? []), 'id'));
+    if ($schemeId <= 0 || !$typeIds) {
+        continue;
+    }
+    $schemeRows = array_values(array_map(static function (array $r): array {
+        return [
+            'sort_order' => (int)($r['sort_order'] ?? 10),
+            'class_code' => (string)($r['class_code'] ?? ''),
+            'class_group' => (string)($r['class_group'] ?? ''),
+            'class_name' => (string)($r['class_name'] ?? ''),
+            'price' => (string)($r['price'] ?? '0'),
+            'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (string)$r['foreign_recognition_price'] : '',
+            'is_member_price' => !empty($r['is_member_price']) ? 1 : 0,
+            'is_junior_ride' => !empty($r['is_junior_ride']) ? 1 : 0,
+            'enabled' => 1,
+        ];
+    }, fetchPricingSchemeRows($pdo, $schemeId)));
+    $pricingSchemeOptions[] = ['id' => $schemeId, 'name' => (string)($scheme['name'] ?? ''), 'event_type_ids' => $typeIds, 'rows' => $schemeRows];
 }
 
 // Pricing rows for this event (persisted copy), or defaults for new events.
@@ -299,6 +328,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
 <div class="card-soft p-4">
     <form method="POST">
+        <input type="hidden" name="pricing_rows_replaced" id="pricingRowsReplaced" value="0">
         <input type="hidden" name="action" value="save_event">
         <input type="hidden" name="event_id" value="<?php echo h((string)$event['id']); ?>">
         <input type="hidden" name="venue" id="venue_name_input" value="<?php echo h($event['venue']); ?>">
@@ -441,11 +471,26 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         <div class="section-card">
             <div class="section-title">Classes &amp; Pricing</div>
-            <div class="section-sub">Prices are copied from the default pricing scheme for this event type. Editing here affects this event only.</div>
+            <div class="section-sub">Choose a pricing template for this event, then make any event-specific adjustments below. Applying a template replaces the current rows; later template edits do not affect this event.</div>
+
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-8 col-lg-7">
+                    <label class="form-label mb-1" for="pricingSchemeSelect">Pricing template</label>
+                    <div class="d-flex align-items-stretch gap-2">
+                        <select class="form-select" id="pricingSchemeSelect">
+                            <?php foreach ($pricingSchemeOptions as $scheme): ?>
+                                <option value="<?php echo (int)$scheme['id']; ?>" data-event-type-ids="<?php echo h(json_encode($scheme['event_type_ids'])); ?>"><?php echo h($scheme['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button class="btn btn-outline-success text-nowrap" type="button" id="applyPricingSchemeBtn"><i class="fa-solid fa-table-list me-1"></i>Apply template</button>
+                    </div>
+                    <div class="form-text" id="pricingSchemeHint">Only templates assigned to this event type are available.</div>
+                </div>
+            </div>
 
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <div class="small text-muted">
-                    <span class="fw-bold">Tip:</span> Non-ILDRA Member pricing is optional on member-price rows; blank uses the member rate. Changing the event type will reset pricing to that type’s default scheme.
+                    <span class="fw-bold">Tip:</span> Non-ILDRA Member pricing is optional on member-price rows; blank uses the member rate. Changing the event type loads its default pricing template.
                 </div>
                 <button class="btn btn-sm btn-outline-secondary has-icon" type="button" id="addPricingRowBtn"><i class="fa-solid fa-plus btn-icon"></i><span class="btn-label">Add row</span></button>
             </div>
@@ -764,9 +809,15 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         // Pricing rows editor (per-event copy of a pricing scheme)
         const defaultPricingRowsByType = <?php echo json_encode($defaultPricingRowsByType, JSON_UNESCAPED_UNICODE); ?>;
+        const defaultPricingSchemeIdsByType = <?php echo json_encode($defaultPricingSchemeIdsByType, JSON_UNESCAPED_UNICODE); ?>;
+        const pricingSchemes = <?php echo json_encode($pricingSchemeOptions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
         const eventTypeSelect = document.querySelector('select[name="event_type_id"]');
         const pricingTbody = document.getElementById('pricingRowsTbody');
         const addPricingRowBtn = document.getElementById('addPricingRowBtn');
+        const pricingSchemeSelect = document.getElementById('pricingSchemeSelect');
+        const applyPricingSchemeBtn = document.getElementById('applyPricingSchemeBtn');
+        const pricingSchemeHint = document.getElementById('pricingSchemeHint');
+        const pricingRowsReplaced = document.getElementById('pricingRowsReplaced');
         let pricingRowCounter = 0;
 
         const normalizePrice = (value) => {
@@ -836,6 +887,46 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 pricingTbody.appendChild(createPricingRow(rowKey, { ...row, sort_order: sortOrder }));
             });
         };
+
+        const pricingSchemeForId = (id) => pricingSchemes.find((scheme) => String(scheme.id) === String(id));
+        const refreshPricingSchemeChoices = (preferredId = '') => {
+            if (!pricingSchemeSelect || !eventTypeSelect) return;
+            const eventTypeId = String(eventTypeSelect.value || '');
+            const defaultId = String(defaultPricingSchemeIdsByType[eventTypeId] || defaultPricingSchemeIdsByType[Number(eventTypeId)] || '');
+            let available = 0;
+            Array.from(pricingSchemeSelect.options).forEach((option) => {
+                const scheme = pricingSchemeForId(option.value);
+                const isAvailable = !!scheme && (scheme.event_type_ids || []).map(String).includes(eventTypeId);
+                option.hidden = !isAvailable;
+                option.disabled = !isAvailable;
+                if (isAvailable) available += 1;
+            });
+            const requested = String(preferredId || '');
+            const selectedIsAvailable = pricingSchemeForId(requested)?.event_type_ids?.map(String).includes(eventTypeId);
+            pricingSchemeSelect.value = selectedIsAvailable ? requested : defaultId;
+            if (!pricingSchemeSelect.value || pricingSchemeSelect.selectedOptions[0]?.disabled) {
+                const firstAvailable = Array.from(pricingSchemeSelect.options).find((option) => !option.disabled);
+                pricingSchemeSelect.value = firstAvailable ? firstAvailable.value : '';
+            }
+            pricingSchemeSelect.disabled = available === 0;
+            if (applyPricingSchemeBtn) applyPricingSchemeBtn.disabled = available === 0;
+            if (pricingSchemeHint) pricingSchemeHint.textContent = available
+                ? 'Applying a template replaces the rows below. Save the event to keep the new pricing.'
+                : 'No pricing templates are assigned to this event type.';
+        };
+
+        if (pricingSchemeSelect && applyPricingSchemeBtn && pricingTbody) {
+            applyPricingSchemeBtn.addEventListener('click', () => {
+                const scheme = pricingSchemeForId(pricingSchemeSelect.value);
+                if (!scheme) return;
+                const hasRows = Array.from(pricingTbody.querySelectorAll('tr')).some((row) => !row.querySelector('td[colspan="9"]'));
+                if (hasRows && !window.confirm(`Apply “${scheme.name}”? This will replace the current classes and prices.`)) return;
+                renderPricingRows(scheme.rows || []);
+                if (pricingRowsReplaced) pricingRowsReplaced.value = '1';
+            });
+        }
+
+        refreshPricingSchemeChoices();
 
         if (pricingTbody) {
             pricingTbody.addEventListener('click', (e) => {
@@ -910,6 +1001,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 eventTypeSelect.value = lastEventTypeId;
                 const rows = defaultPricingRowsByType[lastEventTypeId] || defaultPricingRowsByType[Number(lastEventTypeId)] || [];
                 renderPricingRows(rows);
+                if (pricingRowsReplaced) pricingRowsReplaced.value = '1';
+                refreshPricingSchemeChoices(defaultPricingSchemeIdsByType[lastEventTypeId] || defaultPricingSchemeIdsByType[Number(lastEventTypeId)] || '');
                 pendingEventTypeId = '';
                 getEventTypeChangeModal()?.hide();
             });
