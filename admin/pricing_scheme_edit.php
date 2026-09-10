@@ -131,7 +131,11 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                 <div class="text-muted small">Non-ILDRA Member price is optional on member-price rows; leave it blank to use the member rate.</div>
                 <div class="text-muted small">Code is optional.</div>
             </div>
-            <button class="btn btn-sm btn-outline-primary" type="button" id="addRowBtn">Add row</button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-success d-none d-md-inline-block" type="button" id="pricingReorderStart"><i class="fa-solid fa-arrow-down-up-across-line me-1"></i>Reorder</button>
+                <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="pricingReorderCancel">Cancel reorder</button>
+                <button class="btn btn-sm btn-outline-primary" type="button" id="addRowBtn">Add row</button>
+            </div>
         </div>
 
         <div class="table-responsive">
@@ -144,6 +148,13 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                 #rowsTable thead tr:last-child > th {
                     border-bottom: 3px solid #212529;
                 }
+                #rowsTable .pricing-drag-handle { border: 0; background: transparent; color: #98a098; padding: .35rem .3rem; border-radius: 6px; }
+                #rowsTable .pricing-drag-handle:not(:disabled) { color: #146118; cursor: grab; touch-action: none; }
+                #rowsTable .pricing-drag-handle:not(:disabled):active { cursor: grabbing; }
+                #rowsTable.pricing-reorder-active .js-pricing-primary,
+                #rowsTable.pricing-reorder-active .js-pricing-secondary { background: #f5faf3; }
+                #rowsTable .pricing-row-dragging { opacity: .55; box-shadow: 0 4px 14px rgba(15,45,23,.16); }
+                @media (max-width: 767.98px) { #pricingReorderStart, #pricingReorderCancel { display: none !important; } }
             </style>
             <table class="table table-sm align-middle" id="rowsTable">
                 <colgroup><col style="width:12%"><col style="width:18%"><col style="width:36%"><col style="width:14%"><col style="width:20%"></colgroup>
@@ -169,7 +180,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                 <?php endif; ?>
                 <?php foreach ($rows as $i => $r): ?>
                     <tr class="js-pricing-primary">
-                        <td><input type="hidden" data-row-field="id" name="row_id[<?php echo (int)$i; ?>]" value="<?php echo (int)($r['id'] ?? 0); ?>"><input class="form-control form-control-sm" data-row-field="sort" name="row_sort[<?php echo (int)$i; ?>]" type="number" value="<?php echo (int)($r['sort_order'] ?? (($i + 1) * 10)); ?>" step="1"></td>
+                        <td><div class="d-flex align-items-center"><button class="pricing-drag-handle" type="button" disabled aria-label="Move pricing row"><i class="fa-solid fa-grip-vertical"></i></button><input type="hidden" data-row-field="id" name="row_id[<?php echo (int)$i; ?>]" value="<?php echo (int)($r['id'] ?? 0); ?>"><input class="form-control form-control-sm" data-row-field="sort" name="row_sort[<?php echo (int)$i; ?>]" type="number" value="<?php echo (int)($r['sort_order'] ?? (($i + 1) * 10)); ?>" step="1"></div></td>
                         <td><?php $selectedRideClass = strtoupper(trim((string)($r['class_group'] ?? ''))); ?><select class="form-select form-select-sm" data-row-field="group" name="row_class_group[<?php echo (int)$i; ?>]"><option value="">Select</option><?php foreach ($rideClassOptions as $option): ?><option value="<?php echo h($option); ?>" <?php echo $selectedRideClass === $option ? 'selected' : ''; ?>><?php echo h($option); ?></option><?php endforeach; ?><?php if ($selectedRideClass !== '' && !in_array($selectedRideClass, $rideClassOptions, true)): ?><option value="<?php echo h($selectedRideClass); ?>" selected><?php echo h($selectedRideClass); ?> (existing)</option><?php endif; ?></select></td>
                         <td><input class="form-control form-control-sm" data-row-field="name" name="row_class_name[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_name'] ?? '')); ?>" required></td>
                         <td><input class="form-control form-control-sm" data-row-field="price" name="row_price[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['price'] ?? '0')); ?>" inputmode="decimal"></td>
@@ -196,7 +207,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
 
 <template id="rowTemplate">
     <tr class="js-pricing-primary">
-        <td><input type="hidden" data-row-field="id" name="row_id[0]" value="0"><input class="form-control form-control-sm" data-row-field="sort" name="row_sort[0]" type="number" value="10" step="1"></td>
+        <td><div class="d-flex align-items-center"><button class="pricing-drag-handle" type="button" disabled aria-label="Move pricing row"><i class="fa-solid fa-grip-vertical"></i></button><input type="hidden" data-row-field="id" name="row_id[0]" value="0"><input class="form-control form-control-sm" data-row-field="sort" name="row_sort[0]" type="number" value="10" step="1"></div></td>
         <td><select class="form-select form-select-sm" data-row-field="group" name="row_class_group[0]"><option value="">Select</option><?php foreach ($rideClassOptions as $option): ?><option value="<?php echo h($option); ?>"><?php echo h($option); ?></option><?php endforeach; ?></select></td>
         <td><input class="form-control form-control-sm" data-row-field="name" name="row_class_name[0]" value="" required></td>
         <td><input class="form-control form-control-sm" data-row-field="price" name="row_price[0]" value="0" inputmode="decimal"></td>
@@ -228,7 +239,13 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         const tableBody = document.querySelector('#rowsTable tbody');
         const tpl = document.getElementById('rowTemplate');
         const filters = document.querySelectorAll('.js-row-filter');
+        const reorderStart = document.getElementById('pricingReorderStart');
+        const reorderCancel = document.getElementById('pricingReorderCancel');
+        const rowsTable = document.getElementById('rowsTable');
         let activeSort = { field: '', direction: 'asc' };
+        let draggedRow = null;
+        let originalOrder = [];
+        let originalSortValues = new Map();
 
         function pairFields(primary) {
             return [primary, primary.nextElementSibling];
@@ -303,6 +320,74 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
             });
         }
 
+        function syncSortValues() {
+            tableBody.querySelectorAll('.js-pricing-primary').forEach((row, idx) => {
+                const sort = pairField(row, 'sort');
+                if (sort) sort.value = String((idx + 1) * 10);
+            });
+        }
+
+        function finishDragging() {
+            if (!draggedRow) return;
+            pairFields(draggedRow).forEach((row) => row && row.classList.remove('pricing-row-dragging'));
+            draggedRow = null;
+        }
+
+        function wireDragHandles() {
+            tableBody.querySelectorAll('.pricing-drag-handle').forEach((handle) => {
+                if (handle.dataset.wired) return;
+                handle.dataset.wired = '1';
+                handle.addEventListener('pointerdown', (event) => {
+                    if (handle.disabled) return;
+                    draggedRow = handle.closest('.js-pricing-primary');
+                    if (!draggedRow) return;
+                    pairFields(draggedRow).forEach((row) => row && row.classList.add('pricing-row-dragging'));
+                    handle.setPointerCapture(event.pointerId);
+                    event.preventDefault();
+                });
+                handle.addEventListener('pointermove', (event) => {
+                    if (!draggedRow) return;
+                    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.js-pricing-primary');
+                    if (!target || target === draggedRow || target.parentElement !== tableBody) return;
+                    const rect = target.getBoundingClientRect();
+                    const draggedSecondary = draggedRow.nextElementSibling;
+                    if (event.clientY < rect.top + rect.height / 2) {
+                        tableBody.insertBefore(draggedRow, target);
+                        tableBody.insertBefore(draggedSecondary, target);
+                    } else {
+                        const nextPair = target.nextElementSibling.nextElementSibling;
+                        if (nextPair === draggedRow) return;
+                        tableBody.insertBefore(draggedRow, nextPair);
+                        tableBody.insertBefore(draggedSecondary, draggedRow.nextElementSibling);
+                    }
+                });
+                handle.addEventListener('pointerup', finishDragging);
+                handle.addEventListener('pointercancel', finishDragging);
+            });
+        }
+
+        reorderStart.addEventListener('click', () => {
+            originalOrder = Array.from(tableBody.querySelectorAll('.js-pricing-primary'));
+            originalSortValues = new Map(originalOrder.map((row) => [row, pairField(row, 'sort')?.value || '']));
+            filters.forEach((filter) => { filter.value = ''; });
+            applyRowFilters();
+            rowsTable.classList.add('pricing-reorder-active');
+            tableBody.querySelectorAll('.pricing-drag-handle').forEach((handle) => { handle.disabled = false; });
+            reorderStart.classList.add('d-none');
+            reorderCancel.classList.remove('d-none');
+        });
+
+        reorderCancel.addEventListener('click', () => {
+            originalOrder.forEach((primary) => pairFields(primary).forEach((row) => tableBody.appendChild(row)));
+            originalSortValues.forEach((value, primary) => { const sort = pairField(primary, 'sort'); if (sort) sort.value = value; });
+            finishDragging();
+            tableBody.querySelectorAll('.pricing-drag-handle').forEach((handle) => { handle.disabled = true; });
+            rowsTable.classList.remove('pricing-reorder-active');
+            reorderCancel.classList.add('d-none');
+            reorderStart.classList.remove('d-none');
+            syncRowIndexes();
+        });
+
         function nextSortValue() {
             const inputs = tableBody.querySelectorAll('[data-row-field="sort"]');
             let max = 0;
@@ -331,6 +416,10 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
             tableBody.appendChild(clone);
             syncRowIndexes();
             wireRemoveButtons();
+            wireDragHandles();
+            if (rowsTable.classList.contains('pricing-reorder-active')) {
+                tableBody.querySelectorAll('.pricing-drag-handle').forEach((handle) => { handle.disabled = false; });
+            }
             applyRowFilters();
         });
 
@@ -344,6 +433,9 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         });
         tableBody.addEventListener('input', applyRowFilters);
         tableBody.addEventListener('change', applyRowFilters);
+        tableBody.closest('form').addEventListener('submit', () => {
+            if (rowsTable.classList.contains('pricing-reorder-active')) syncSortValues();
+        });
         tableBody.closest('form').addEventListener('invalid', (event) => {
             const row = event.target.closest('tr');
             if (!row || !row.hidden) return;
@@ -352,6 +444,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         }, true);
 
         wireRemoveButtons();
+        wireDragHandles();
         syncRowIndexes();
         applyRowFilters();
     })();
