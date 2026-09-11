@@ -114,6 +114,7 @@ $event = $event ?? [
     'entry_open_at' => null,
     'non_member_entry_open_at' => null,
     'entry_close_at' => null,
+    'send_reminder_emails' => 0,
     'late_entries_enabled' => !empty($eventSettings['event_late_entries_enabled']) ? 1 : 0,
     'late_entry_close_at' => null,
     'late_entry_fee' => (string)$eventSettings['event_late_entry_fee'],
@@ -460,6 +461,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <label class="form-label">Entries close time</label>
                     <input type="time" name="entry_close_time" class="form-control" value="<?php echo h($displayCloseTime); ?>">
                 </div>
+                <div class="col-md-6 d-flex align-items-end pb-2"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="send_reminder_emails" id="send_reminder_emails" value="1" <?php echo !empty($event['send_reminder_emails']) ? 'checked' : ''; ?>><label class="form-check-label" for="send_reminder_emails">Send entry reminder emails</label><div class="form-text">Schedules emails when member entries open, non-member entries open, and 48 hours before entries close.</div></div></div>
             </div>
             <div class="row g-3 mt-2 align-items-end">
                 <div class="col-md-3"><label class="form-label">Late entries close date</label><input type="date" name="late_entry_close_date" class="form-control" value="<?php echo h($displayLateEntryCloseDate); ?>"></div>

@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['intros']) && is_array
         if (isset($intros[$key]) && is_array($postedIntro)) $intros[$key] = array_merge($intros[$key], $postedIntro);
     }
 }
-$labels = ['people' => 'People', 'horses' => 'Horses', 'shares' => 'Shares', 'my-account' => 'My Account'];
+$labels = ['people' => 'People', 'horses' => 'Horses', 'shares' => 'Shares', 'my-account' => 'My Account', 'person_general_email' => 'Person consent: General news', 'person_ride_notice' => 'Person consent: Ride Notice', 'person_renewal_reminder' => 'Person consent: Renewal reminders'];
 
 admin_layout_start('Account Help', 'help_accounts');
 ?>
@@ -27,7 +27,7 @@ admin_layout_start('Account Help', 'help_accounts');
     <a class="btn btn-outline-secondary" href="help.php">Back to Help</a>
 </div>
 <div class="card-soft p-4">
-    <p class="text-muted small">These introductions appear from the information button on each account page. People and Horses also open automatically when the user has no records.</p>
+    <p class="text-muted small">These introductions appear from the information button on each account page. The person-consent entries appear beside the matching email checkbox. People and Horses also open automatically when the user has no records.</p>
     <form method="post">
         <div class="accordion" id="account-intro-editor">
             <?php foreach ($labels as $viewKey => $label): $intro = $intros[$viewKey] ?? ['heading' => '', 'body_html' => '', 'is_active' => 1]; ?>

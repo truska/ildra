@@ -262,8 +262,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } elseif ($action === 'save_person') {
             $personId = (int)($_POST['person_id'] ?? 0);
             $savedId = savePersonForUser($pdo, $userId, $_POST, $alerts, $personId > 0 ? $personId : null);
-            if ($savedId && !$alerts) {
+            $hasSaveError = (bool)array_filter($alerts, static fn(array $alert): bool => ($alert['type'] ?? '') === 'danger' && empty($alert['non_blocking']));
+            if ($savedId && !$hasSaveError) {
                 $_SESSION['flash_success'] = $personId > 0 ? 'Person updated.' : 'Person added.';
+                if ($alerts) {
+                    $_SESSION['flash_alerts'] = $alerts;
+                }
                 header('Location: ' . $basePath . '/account?view=people');
                 exit;
             }
@@ -432,6 +436,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
 $isLoggedIn = !empty($currentUser);
 $accountIntroModal = $isLoggedIn && $isAccountManagementView ? fetchAccountIntroModal($pdo, $accountView) : null;
+$personConsentModals = $isLoggedIn ? [
+    'general_email' => fetchAccountIntroModal($pdo, 'person_general_email'),
+    'ride_notice' => fetchAccountIntroModal($pdo, 'person_ride_notice'),
+    'renewal_reminder' => fetchAccountIntroModal($pdo, 'person_renewal_reminder'),
+] : [];
 $accountIntroAutoOpen = false;
 ?>
 <!DOCTYPE html>
@@ -1338,9 +1347,9 @@ $accountIntroAutoOpen = false;
                                             <input type="email" class="form-control" name="email" value="<?php echo h($editPerson['email'] ?? ''); ?>">
                                         </div>
                                         <div class="col-12">
-                                            <div class="form-check"><input class="form-check-input" type="checkbox" id="person_general_email" name="general_email_opt_in" value="1" <?php echo !empty($editPerson['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="person_general_email">This person agrees to general news and announcements</label></div>
-                                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="person_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($editPerson['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="person_ride_notice">This person agrees to the weekly Ride Notice calendar update</label></div>
-                                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="person_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($editPerson['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="person_renewal_reminder">This person receives renewal reminders</label></div>
+                                            <div class="form-check d-flex align-items-center gap-1"><input class="form-check-input" type="checkbox" id="person_general_email" name="general_email_opt_in" value="1" <?php echo !empty($editPerson['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="person_general_email">I/this person agrees to receive general news and announcements.</label><?php if (!empty($personConsentModals['general_email'])): ?><button class="btn btn-sm btn-outline-success py-0" type="button" data-person-consent-info data-bs-toggle="modal" data-bs-target="#personGeneralEmailInfoModal" aria-label="Information about general news emails"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><?php endif; ?></div>
+                                            <div class="form-check mt-2 d-flex align-items-center gap-1"><input class="form-check-input" type="checkbox" id="person_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($editPerson['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label fw-bold" for="person_ride_notice">I/this person agrees to receive Ride Notice emails. Recommended</label><?php if (!empty($personConsentModals['ride_notice'])): ?><button class="btn btn-sm btn-outline-success py-0" type="button" data-person-consent-info data-bs-toggle="modal" data-bs-target="#personRideNoticeInfoModal" aria-label="Information about Ride Notice emails"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><?php endif; ?></div>
+                                            <div class="form-check mt-2 d-flex align-items-center gap-1"><input class="form-check-input" type="checkbox" id="person_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($editPerson['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="person_renewal_reminder">I/this person agrees to receive renewal reminders.</label><?php if (!empty($personConsentModals['renewal_reminder'])): ?><button class="btn btn-sm btn-outline-success py-0" type="button" data-person-consent-info data-bs-toggle="modal" data-bs-target="#personRenewalReminderInfoModal" aria-label="Information about renewal reminders"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><?php endif; ?></div>
                                             <div class="form-text">Only select these where the person has agreed. Essential emails about their own entries are handled separately.</div>
                                         </div>
                                         <div class="col-12 col-md-6">
@@ -2219,6 +2228,14 @@ $accountIntroAutoOpen = false;
         </div>
     <?php endif; ?>
 
+    <?php foreach (['general_email' => ['id' => 'personGeneralEmailInfoModal', 'label' => 'General news and announcements'], 'ride_notice' => ['id' => 'personRideNoticeInfoModal', 'label' => 'Ride Notice emails'], 'renewal_reminder' => ['id' => 'personRenewalReminderInfoModal', 'label' => 'Renewal reminders']] as $consentKey => $consentModal): ?>
+        <?php if (!empty($personConsentModals[$consentKey])): $modalContent = $personConsentModals[$consentKey]; ?>
+            <div class="modal fade" id="<?php echo h($consentModal['id']); ?>" data-person-consent-info-modal tabindex="-1" aria-labelledby="<?php echo h($consentModal['id']); ?>Label" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h4 class="modal-title fw-bold" id="<?php echo h($consentModal['id']); ?>Label"><?php echo h((string)$modalContent['heading']); ?></h4><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body account-intro-content"><?php echo (string)$modalContent['body_html']; ?></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div></div></div>
+            </div>
+        <?php endif; ?>
+    <?php endforeach; ?>
+
     <?php if ($accountIntroModal): ?>
         <div class="modal fade" id="accountIntroModal" tabindex="-1" aria-labelledby="accountIntroModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -2284,12 +2301,23 @@ $accountIntroAutoOpen = false;
             const syncDobJunior = () => {
                 const age = calculateAgeAtCutoff(dobInput.value);
                 if (age !== null && age < 18) {
+                    if (levelSelect.value === 'Senior') {
+                        form.dataset.juniorSeniorAutoCorrected = '1';
+                    }
                     levelSelect.value = 'Junior';
                 }
                 dobInput.required = levelSelect.value === 'Junior';
             };
             levelSelect.addEventListener('change', syncDobJunior);
             dobInput.addEventListener('change', syncDobJunior);
+            form.addEventListener('submit', () => {
+                if (form.dataset.juniorSeniorAutoCorrected !== '1') return;
+                const correctionField = document.createElement('input');
+                correctionField.type = 'hidden';
+                correctionField.name = 'junior_senior_auto_corrected';
+                correctionField.value = '1';
+                form.appendChild(correctionField);
+            });
             syncDobJunior();
         });
 
@@ -2355,6 +2383,17 @@ $accountIntroAutoOpen = false;
             personEditorModalEl.addEventListener('hidden.bs.modal', clearPersonEditorUrl);
         }
         <?php endif; ?>
+        const personEditorForConsent = document.getElementById('personEditorModal');
+        document.querySelectorAll('[data-person-consent-info]').forEach(button => {
+            button.addEventListener('click', () => { button.dataset.returnToPersonEditor = '1'; });
+        });
+        document.querySelectorAll('[data-person-consent-info-modal]').forEach(infoModalEl => {
+            infoModalEl.addEventListener('hidden.bs.modal', () => {
+                const openedFromInfoButton = Array.from(document.querySelectorAll('[data-person-consent-info]')).some(button => button.dataset.returnToPersonEditor === '1');
+                document.querySelectorAll('[data-person-consent-info]').forEach(button => { delete button.dataset.returnToPersonEditor; });
+                if (openedFromInfoButton && personEditorForConsent) bootstrap.Modal.getOrCreateInstance(personEditorForConsent).show();
+            });
+        });
         <?php if ($accountView === 'horses' && (!empty($editHorse) || (($action ?? '') === 'save_horse' && !empty($alerts)))): ?>
         const horseEditorModalEl = document.getElementById('horseEditorModal');
         if (horseEditorModalEl) {

@@ -59,6 +59,9 @@ function ensureHelpTables(?PDO $pdo): void
         'shares' => ['Managing Shares', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Shares allow approved account holders to select people or horses without changing their private details.</p>'],
         'security' => ['Account Security', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Use this area to manage your password and additional sign-in security.</p>'],
         'my-account' => ['My Account', '<p>Use this page to update your website login details, change your password and manage authenticator app access. These details belong to your user account and are separate from people and membership records.</p>'],
+        'person_general_email' => ['General news and announcements', '<p>Choose this only when you or this person agree to receive general ILDRA news and announcements by email.</p>'],
+        'person_ride_notice' => ['Ride Notice emails', '<p>Choose this only when you or this person agree to receive Ride Notice emails, including automated event-entry opening and closing reminders.</p>'],
+        'person_renewal_reminder' => ['Renewal reminders', '<p>Choose this only when you or this person agree to receive membership and renewal reminder emails.</p>'],
     ];
     foreach ($defaults as $viewKey => [$heading, $bodyHtml]) {
         $seed->execute([':view_key' => $viewKey, ':heading' => $heading, ':body_html' => $bodyHtml]);
@@ -67,7 +70,7 @@ function ensureHelpTables(?PDO $pdo): void
 
 function fetchAccountIntroModal(?PDO $pdo, string $viewKey, bool $activeOnly = true): ?array
 {
-    if (!$pdo || !in_array($viewKey, ['people', 'horses', 'shares', 'security', 'my-account'], true)) return null;
+    if (!$pdo || !in_array($viewKey, ['people', 'horses', 'shares', 'security', 'my-account', 'person_general_email', 'person_ride_notice', 'person_renewal_reminder'], true)) return null;
     try {
         ensureHelpTables($pdo);
         $sql = 'SELECT view_key, heading, body_html, is_active FROM account_intro_modals WHERE view_key = :view_key';
@@ -96,7 +99,7 @@ function saveAccountIntroModals(?PDO $pdo, array $data, array &$alerts): bool
     $posted = isset($data['intros']) && is_array($data['intros']) ? $data['intros'] : [];
     try {
         $stmt = $pdo->prepare("UPDATE account_intro_modals SET heading = :heading, body_html = :body_html, is_active = :active WHERE view_key = :view_key");
-        foreach (['people', 'horses', 'shares', 'my-account'] as $viewKey) {
+        foreach (['people', 'horses', 'shares', 'my-account', 'person_general_email', 'person_ride_notice', 'person_renewal_reminder'] as $viewKey) {
             $row = isset($posted[$viewKey]) && is_array($posted[$viewKey]) ? $posted[$viewKey] : [];
             $heading = trim((string)($row['heading'] ?? ''));
             $bodyHtml = trim((string)($row['body_html'] ?? ''));

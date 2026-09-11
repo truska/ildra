@@ -39,6 +39,27 @@ function campaign_admin_send_limited_test(PDO $pdo,array $campaign,int $userId):
     return ['ok'=>$ok,'message'=>$ok?'Limited test sent to '.$email.'.':'Limited test was not sent. Check the email log and delivery safety settings.'];
 }
 
+function campaign_admin_send_template_test(PDO $pdo, array $template, array $currentUser): array
+{
+    $email = strtolower(trim((string)($currentUser['email'] ?? '')));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'message' => 'Your administrator account needs a valid email address before a test can be sent.'];
+    $eventStmt = $pdo->query("SELECT id FROM events WHERE status='published' AND event_date >= CURDATE() ORDER BY event_date ASC, id ASC LIMIT 1");
+    $eventId = (int)($eventStmt->fetchColumn() ?: 0);
+    if ($eventId <= 0) return ['ok' => false, 'message' => 'There is no upcoming published event available for this test.'];
+    $settings = getSiteSettings($pdo); $base = emailCampaignBaseUrl($settings);
+    $campaign = array_merge($template, ['name' => (string)$template['name'], 'membership_year' => date('Y')]);
+    $merge = array_merge(emailCampaignEventMerge($pdo, $eventId, $base), [
+        'campaign_name' => (string)$template['name'], 'first_name' => (string)($currentUser['first_name'] ?? 'Test'), 'last_name' => (string)($currentUser['last_name'] ?? ''),
+        'full_name' => trim((string)($currentUser['first_name'] ?? '') . ' ' . (string)($currentUser['last_name'] ?? '')), 'email' => $email,
+        'member_number' => 'TEST', 'membership_year' => date('Y'), 'current_date' => emailCampaignLocalNow()->format('j F Y'),
+        'membership_url' => $base . '/memberships', 'logbook_url' => $base . '/logbooks', 'message' => 'This is a template test using the next upcoming event.',
+    ]);
+    $recipient = ['merge_json' => json_encode($merge, JSON_UNESCAPED_SLASHES), 'tracking_token' => sha1(random_bytes(32)), 'unsubscribe_token' => sha1(random_bytes(32))];
+    $payload = emailCampaignRenderRecipient($campaign, $recipient, $settings); $emailSettings = getEmailSettings($pdo);
+    $ok = send_logged_email($pdo, $email, subject_with_prefix($emailSettings, $payload['subject']), wrap_user_email_html($settings, $emailSettings, $payload['html'], $payload['after_footer_html']), wrap_user_email_text($settings, $emailSettings, $payload['text'], $payload['after_footer_text']), ['kind' => 'campaign_template_test', 'template_id' => (int)$template['id'], 'event_id' => $eventId, 'admin_user_id' => (int)($currentUser['id'] ?? 0)]);
+    return ['ok' => $ok, 'message' => $ok ? 'Template test sent to ' . $email . ' using the next upcoming event.' : 'Template test was not sent. Check the email log and delivery safety settings.'];
+}
+
 if($_SERVER['REQUEST_METHOD']==='POST'){
     if(!hash_equals($csrf,(string)($_POST['csrf']??'')))$alerts[]=['type'=>'danger','message'=>'Your session token expired. Please try again.'];
     else{
@@ -53,8 +74,12 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 if($templateId)$stmt=$pdo->prepare('UPDATE email_campaign_templates SET template_key=:key,name=:name,category=:category,renderer_key=:renderer,audience_preset=:audience,intro_html=:intro,outro_html=:outro,subject_template=:subject,html_template=:html,text_template=:text,is_active=:active WHERE id=:id');
                 else $stmt=$pdo->prepare('INSERT INTO email_campaign_templates (template_key,name,category,renderer_key,audience_preset,intro_html,outro_html,subject_template,html_template,text_template,is_system,is_active) VALUES (:key,:name,:category,:renderer,:audience,:intro,:outro,:subject,:html,:text,0,:active)');
                 $params=[':key'=>$key,':name'=>$name,':category'=>$category,':renderer'=>$renderer,':audience'=>$preset,':intro'=>trim((string)($_POST['intro_html']??'')),':outro'=>trim((string)($_POST['outro_html']??'')),':subject'=>$subject,':html'=>$html,':text'=>trim((string)($_POST['text_template']??''))?:null,':active'=>!empty($_POST['is_active'])?1:0];if($templateId)$params[':id']=$templateId;
-                try{$stmt->execute($params);if(!$templateId)$templateId=(int)$pdo->lastInsertId();campaign_template_redirect($templateId,'Template saved.');}catch(PDOException $e){$alerts[]=['type'=>'danger','message'=>'The template could not be saved. Check that its key is unique.'];}
+                try{$stmt->execute($params);if(!$templateId)$templateId=(int)$pdo->lastInsertId();$refresh=$pdo->prepare("UPDATE email_campaigns SET renderer_key=:renderer,intro_html=:intro,outro_html=:outro,subject_template=:subject,html_template=:html,text_template=:text WHERE template_id=:template_id AND campaign_type IN ('event_entries_open_members','event_entries_open_non_members','event_entries_closing') AND status IN ('draft','scheduled','paused')");$refresh->execute([':renderer'=>$renderer,':intro'=>trim((string)($_POST['intro_html']??'')),':outro'=>trim((string)($_POST['outro_html']??'')),':subject'=>$subject,':html'=>$html,':text'=>trim((string)($_POST['text_template']??''))?:null,':template_id'=>$templateId]);campaign_template_redirect($templateId,'Template saved. Unsent automated event reminders have been refreshed.');}catch(PDOException $e){$alerts[]=['type'=>'danger','message'=>'The template could not be saved. Check that its key is unique.'];}
             }
+        } elseif($action==='send_template_test'){
+            $templateId=max(0,(int)($_POST['template_id']??0));$stmt=$pdo->prepare('SELECT * FROM email_campaign_templates WHERE id=:id LIMIT 1');$stmt->execute([':id'=>$templateId]);$template=$stmt->fetch()?:null;
+            if(!$template)$alerts[]=['type'=>'danger','message'=>'Save the template before sending a test.'];
+            else{$result=campaign_admin_send_template_test($pdo,$template,$currentUser);$alerts[]=['type'=>$result['ok']?'success':'warning','message'=>$result['message']];}
         } elseif($action==='save'){
             $validationAlertCount=count($alerts);
             $name=trim((string)($_POST['name']??''));$subject=trim((string)($_POST['subject_template']??''));$html=trim((string)($_POST['html_template']??''));$renderer=in_array((string)($_POST['renderer_key']??''),['freeform','membership_renewal'],true)?(string)$_POST['renderer_key']:'freeform';$templateId=max(0,(int)($_POST['template_id']??0));
@@ -97,7 +122,7 @@ if($view==='new'&&isset($_GET['template'])){$key=(string)$_GET['template'];$s=$p
 if($view==='template_select'){
     admin_layout_start('Choose Campaign Template','email_campaigns');?>
     <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0">Choose a template</h5><a class="btn btn-outline-secondary" href="campaigns.php">Back</a></div>
-    <div class="card-soft p-4"><div class="list-group list-group-flush"><?php foreach($templates as $templateRow): ?><a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="campaigns.php?view=new&amp;template=<?php echo h((string)$templateRow['template_key']); ?>"><span><strong><?php echo h((string)$templateRow['name']); ?></strong><span class="d-block small text-muted"><?php echo h(ucwords(str_replace('_',' ',(string)$templateRow['category']))); ?></span></span><span class="btn btn-sm btn-outline-success">Use template</span></a><?php endforeach; ?></div></div>
+    <div class="card-soft p-4"><div class="list-group list-group-flush"><?php foreach($templates as $templateRow): $automatedEntryTemplate=in_array((string)$templateRow['template_key'],['entries_open_members','entries_open_non_members','entries_closing'],true); ?><?php if($automatedEntryTemplate): ?><div class="list-group-item d-flex justify-content-between align-items-center"><span><strong><?php echo h((string)$templateRow['name']); ?></strong><span class="d-block small text-muted">Automated from Event Details — enable “Send entry reminder emails” on the event. Dates and audiences are set from that event automatically.</span></span><a class="btn btn-sm btn-outline-secondary" href="campaigns.php?view=template_edit&amp;template_id=<?php echo (int)$templateRow['id']; ?>">Edit template</a></div><?php else: ?><a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="campaigns.php?view=new&amp;template=<?php echo h((string)$templateRow['template_key']); ?>"><span><strong><?php echo h((string)$templateRow['name']); ?></strong><span class="d-block small text-muted"><?php echo h(ucwords(str_replace('_',' ',(string)$templateRow['category']))); ?></span></span><span class="btn btn-sm btn-outline-success">Use template</span></a><?php endif; ?><?php endforeach; ?></div></div>
     <?php admin_layout_end();exit;
 }
 
@@ -119,7 +144,9 @@ if($view==='template_edit'){
       <div class="col-12"><label class="form-label">Opening text</label><textarea class="form-control wysiwyg-field" rows="6" name="intro_html"><?php echo h((string)$templateRow['intro_html']); ?></textarea></div><div class="col-12"><label class="form-label">Closing text</label><textarea class="form-control wysiwyg-field" rows="6" name="outro_html"><?php echo h((string)$templateRow['outro_html']); ?></textarea></div>
       <div class="col-12"><label class="form-label">Free-form HTML message</label><textarea class="form-control wysiwyg-field" rows="10" name="html_template"><?php echo h((string)$templateRow['html_template']); ?></textarea><div class="form-text">Used by Free-form templates. Structured templates use the opening and closing text around their system block.</div></div><div class="col-12"><label class="form-label">Free-form plain text</label><textarea class="form-control" rows="5" name="text_template"><?php echo h((string)$templateRow['text_template']); ?></textarea></div>
       <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="templateActive" name="is_active" value="1" <?php echo !empty($templateRow['is_active'])?'checked':''; ?>><label class="form-check-label" for="templateActive">Template active</label></div></div><div class="col-12"><button class="btn btn-success">Save template</button></div>
-    </div></form><?php render_tinymce_bootstrap(); ?><script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script>
+    </div></form>
+    <div class="card-soft p-4 mt-3"><h6>Test with next event</h6><p class="small text-muted mb-3">Sends this saved template to your administrator email using the next upcoming published event, including its title, date, venue, closing date and entry link.</p><?php if($templateId): ?><form method="post"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="send_template_test"><input type="hidden" name="template_id" value="<?php echo $templateId; ?>"><button class="btn btn-outline-primary">Send test to <?php echo h((string)($currentUser['email']??'')); ?></button></form><?php else: ?><div class="small text-muted">Save the template first to enable testing.</div><?php endif; ?></div>
+    <div class="small text-muted mt-3">Personalisation tags: {{first_name}}, {{last_name}}, {{full_name}}, {{email}}, {{event_title}}, {{event_date}}, {{event_venue}}, {{entry_close_date}}, {{entry_close_time}}, {{event_url}}, {{ride_notes_url}}, {{current_date}}.</div><?php render_tinymce_bootstrap(); ?><script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script>
     <?php admin_layout_end();exit;
 }
 

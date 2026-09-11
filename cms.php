@@ -3363,7 +3363,11 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
         $cutoff = new DateTimeImmutable(date('Y') . '-01-01');
         $age = $dobDate->diff($cutoff)->y;
         if ($age < 18) {
+            $wasChangedToJunior = $juniorSenior === 'Senior' || !empty($data['junior_senior_auto_corrected']);
             $juniorSenior = 'Junior';
+            if ($wasChangedToJunior) {
+                $alerts[] = ['type' => 'danger', 'non_blocking' => true, 'message' => 'This person has been saved as Junior because their date of birth makes them under 18 on 1 January ' . $cutoff->format('Y') . '.'];
+            }
         }
     }
 
@@ -5097,6 +5101,9 @@ function ensureEntryWindowColumns(?PDO $pdo): void
     if (!table_column_exists($pdo, 'events', 'late_entry_fee')) {
         try { $pdo->exec("ALTER TABLE events ADD COLUMN late_entry_fee DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER late_entry_close_at"); } catch (PDOException $e) { }
     }
+    if (!table_column_exists($pdo, 'events', 'send_reminder_emails')) {
+        try { $pdo->exec("ALTER TABLE events ADD COLUMN send_reminder_emails TINYINT(1) NOT NULL DEFAULT 0 AFTER entry_close_at"); } catch (PDOException $e) { }
+    }
 }
 
 function event_date_defaults(string $eventDate, array $settings): ?array
@@ -5461,6 +5468,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $nonMemberEntryOpenTime = trim((string)($data['non_member_entry_open_time'] ?? ''));
     $entryCloseDate = trim((string)($data['entry_close_date'] ?? ''));
     $entryCloseTime = trim((string)($data['entry_close_time'] ?? ''));
+    $sendReminderEmails = !empty($data['send_reminder_emails']) ? 1 : 0;
     $lateEntriesEnabled = !empty($data['late_entries_enabled']) ? 1 : 0;
     $lateEntryCloseDate = trim((string)($data['late_entry_close_date'] ?? ''));
     $lateEntryCloseTime = trim((string)($data['late_entry_close_time'] ?? ''));
@@ -5559,6 +5567,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                     entry_open_at = :entry_open_at,
                     non_member_entry_open_at = :non_member_entry_open_at,
                     entry_close_at = :entry_close_at,
+                    send_reminder_emails = :send_reminder_emails,
                     late_entries_enabled = :late_entries_enabled,
                     late_entry_close_at = :late_entry_close_at,
                     late_entry_fee = :late_entry_fee,
@@ -5585,6 +5594,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                 ':entry_open_at' => $entryOpenAt ?: null,
                 ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
                 ':entry_close_at' => $entryCloseAt ?: null,
+                ':send_reminder_emails' => $sendReminderEmails,
                 ':late_entries_enabled' => $lateEntriesEnabled,
                 ':late_entry_close_at' => $lateEntryCloseAt ?: null,
                 ':late_entry_fee' => $lateEntryFee,
@@ -5596,11 +5606,12 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                 ':capacity_limit' => $capacityLimit,
                 ':id' => $eventId,
             ]);
+            if (function_exists('syncEventReminderCampaigns')) syncEventReminderCampaigns($pdo, $eventId);
             return $eventId;
         }
         $stmt = $pdo->prepare("
-            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
-            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
+            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, send_reminder_emails, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
+            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :send_reminder_emails, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
         ");
         $stmt->execute([
             ':title' => $title,
@@ -5616,6 +5627,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             ':entry_open_at' => $entryOpenAt ?: null,
             ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
             ':entry_close_at' => $entryCloseAt ?: null,
+            ':send_reminder_emails' => $sendReminderEmails,
             ':late_entries_enabled' => $lateEntriesEnabled,
             ':late_entry_close_at' => $lateEntryCloseAt ?: null,
             ':late_entry_fee' => $lateEntryFee,
@@ -5626,7 +5638,9 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             ':capacity_enabled' => $capacityEnabled,
             ':capacity_limit' => $capacityLimit,
         ]);
-        return (int)$pdo->lastInsertId();
+        $newEventId = (int)$pdo->lastInsertId();
+        if (function_exists('syncEventReminderCampaigns')) syncEventReminderCampaigns($pdo, $newEventId);
+        return $newEventId;
     } catch (PDOException $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not save event.'];
         return false;

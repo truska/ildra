@@ -78,6 +78,11 @@ function ensureEmailCampaignTables(?PDO $pdo): void
         foreach($columns as $column=>$definition){if(!table_column_exists($pdo,$table,$column))$pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");}
     }
     $pdo->exec("UPDATE email_campaign_templates SET category='renewal_reminder' WHERE template_key IN ('membership_renewal','logbook_renewal')");
+    $pdo->exec("INSERT IGNORE INTO email_campaign_templates (template_key,name,category,renderer_key,audience_preset,subject_template,html_template,text_template,is_system,is_active) VALUES
+        ('entries_open_members','Ride Entries Open - Members','ride_notice','freeform','all_members','Member entries open: {{event_title}}','<h2>Member entries are open</h2><p>Hello {{first_name}},</p><p>Member entries are now open for <strong>{{event_title}}</strong> on {{event_date}}.</p><p><a href=\"{{event_url}}\">View ride and enter</a></p>','Hello {{first_name}},\\n\\nMember entries are now open for {{event_title}} on {{event_date}}.\\n\\n{{event_url}}',1,1),
+        ('entries_open_non_members','Ride Entries Open - Non-Members','ride_notice','freeform','non_members','Entries open: {{event_title}}','<h2>Entries are open</h2><p>Hello {{first_name}},</p><p>Entries are now open for <strong>{{event_title}}</strong> on {{event_date}}.</p><p><a href=\"{{event_url}}\">View ride and enter</a></p>','Hello {{first_name}},\\n\\nEntries are now open for {{event_title}} on {{event_date}}.\\n\\n{{event_url}}',1,1),
+        ('entries_closing','Ride Entries Closing Soon','ride_notice','freeform','all_users','Entries closing soon: {{event_title}}','<h2>Entries close soon</h2><p>Hello {{first_name}},</p><p>Entries for <strong>{{event_title}}</strong> close on {{entry_close_date}}.</p><p><a href=\"{{event_url}}\">View ride and enter</a></p>','Hello {{first_name}},\\n\\nEntries for {{event_title}} close on {{entry_close_date}}.\\n\\n{{event_url}}',1,1)");
+    $pdo->exec("UPDATE email_campaign_templates SET category='ride_notice', audience_preset=CASE template_key WHEN 'entries_open_members' THEN 'all_members' WHEN 'entries_open_non_members' THEN 'non_members' ELSE 'all_users' END WHERE template_key IN ('entries_open_members','entries_open_non_members','entries_closing')");
     $pdo->exec("UPDATE email_campaign_templates SET renderer_key='membership_renewal',audience_preset='expired_members',intro_html=COALESCE(NULLIF(intro_html,''),'<p>Your membership is ready to renew.</p>'),outro_html=COALESCE(outro_html,'') WHERE template_key='membership_renewal'");
     $setting=$pdo->prepare("INSERT IGNORE INTO site_settings (setting_key,setting_value,updated_at) VALUES (:key,:value,NOW())");
     foreach(['campaign_live_sending_enabled'=>'0','campaign_default_batch_size'=>'25','campaign_public_base_url'=>''] as $key=>$value)$setting->execute([':key'=>$key,':value'=>$value]);
@@ -92,6 +97,43 @@ function emailCampaignPresets(): array
         'all_users' => 'All registered users',
         'event_entrants' => 'Entrants for a specific event',
     ];
+}
+
+function syncEventReminderCampaigns(PDO $pdo, int $eventId): void
+{
+    if ($eventId <= 0) return;
+    ensureEmailCampaignTables($pdo);
+    $eventStmt = $pdo->prepare("SELECT id,title,status,send_reminder_emails,entry_open_at,non_member_entry_open_at,entry_close_at FROM events WHERE id=:id LIMIT 1");
+    $eventStmt->execute([':id' => $eventId]);
+    $event = $eventStmt->fetch();
+    $types = ['event_entries_open_members', 'event_entries_open_non_members', 'event_entries_closing'];
+    $placeholders = implode(',', array_fill(0, count($types), '?'));
+    $delete = $pdo->prepare("DELETE FROM email_campaigns WHERE event_id=? AND campaign_type IN ({$placeholders}) AND status IN ('draft','scheduled','paused')");
+    if (!$event || empty($event['send_reminder_emails']) || (string)$event['status'] !== 'published') {
+        $delete->execute(array_merge([$eventId], $types));
+        return;
+    }
+    $delete->execute(array_merge([$eventId], $types));
+    $templateStmt = $pdo->prepare("SELECT * FROM email_campaign_templates WHERE template_key=:key AND is_active=1 LIMIT 1");
+    $existingStmt = $pdo->prepare("SELECT id FROM email_campaigns WHERE event_id=:event_id AND campaign_type=:type LIMIT 1");
+    $insert = $pdo->prepare("INSERT INTO email_campaigns (name,campaign_type,category,template_id,audience_preset,event_id,membership_year,address_strategy,renderer_key,intro_html,outro_html,subject_template,html_template,text_template,status,scheduled_at,batch_size,live_send_approved) VALUES (:name,:type,'ride_notice',:template_id,:audience,:event_id,:year,'person_first',:renderer,:intro,:outro,:subject,:html,:text,'scheduled',:scheduled,:batch,1)");
+    $now = emailCampaignLocalNow();
+    $definitions = [
+        ['type' => 'event_entries_open_members', 'template' => 'entries_open_members', 'audience' => 'all_members', 'at' => $event['entry_open_at'], 'name' => 'Member entries open'],
+        ['type' => 'event_entries_open_non_members', 'template' => 'entries_open_non_members', 'audience' => 'non_members', 'at' => $event['non_member_entry_open_at'], 'name' => 'Non-member entries open'],
+        ['type' => 'event_entries_closing', 'template' => 'entries_closing', 'audience' => 'all_users', 'at' => !empty($event['entry_close_at']) ? (new DateTimeImmutable((string)$event['entry_close_at'], new DateTimeZone('Europe/London')))->modify('-48 hours')->format('Y-m-d H:i:s') : null, 'name' => 'Entries closing soon'],
+    ];
+    $settings = getSiteSettings($pdo);
+    foreach ($definitions as $definition) {
+        if (empty($definition['at'])) continue;
+        $scheduled = new DateTimeImmutable((string)$definition['at'], new DateTimeZone('Europe/London'));
+        if ($scheduled <= $now) continue;
+        $existingStmt->execute([':event_id' => $eventId, ':type' => $definition['type']]);
+        if ($existingStmt->fetchColumn()) continue;
+        $templateStmt->execute([':key' => $definition['template']]); $template = $templateStmt->fetch();
+        if (!$template) continue;
+        $insert->execute([':name' => $definition['name'] . ' - ' . (string)$event['title'], ':type' => $definition['type'], ':template_id' => (int)$template['id'], ':audience' => $definition['audience'], ':event_id' => $eventId, ':year' => (int)$scheduled->format('Y'), ':renderer' => (string)$template['renderer_key'], ':intro' => $template['intro_html'], ':outro' => $template['outro_html'], ':subject' => (string)$template['subject_template'], ':html' => (string)$template['html_template'], ':text' => $template['text_template'], ':scheduled' => $scheduled->format('Y-m-d H:i:s'), ':batch' => max(1, (int)($settings['campaign_default_batch_size'] ??25))]);
+    }
 }
 
 function emailCampaignLocalNow(): DateTimeImmutable
@@ -153,9 +195,10 @@ function emailCampaignEventMerge(?PDO $pdo, int $eventId, string $baseUrl): arra
     $stmt = $pdo->prepare('SELECT id,title,event_date,venue,entry_close_at FROM events WHERE id=:id LIMIT 1');
     $stmt->execute([':id'=>$eventId]); $event=$stmt->fetch(); if(!$event) return [];
     $eventUrl=$baseUrl.'/event.php?id='.(int)$event['id'];
+    $entryClose = !empty($event['entry_close_at']) ? app_local_datetime((string)$event['entry_close_at']) : null;
     return [
         'event_title'=>(string)$event['title'], 'event_date'=>format_display_date($event['event_date']??null,''),
-        'event_venue'=>(string)($event['venue']??''), 'entry_close_date'=>format_display_date($event['entry_close_at']??null,''),
+        'event_venue'=>(string)($event['venue']??''), 'entry_close_date'=>$entryClose ? $entryClose->format('j F Y \a\t H:i') : '', 'entry_close_time'=>$entryClose ? $entryClose->format('H:i') : '',
         'event_url'=>$eventUrl, 'ride_notes_url'=>$baseUrl.'/ride_notes.php?event_id='.(int)$event['id'],
     ];
 }
@@ -263,6 +306,18 @@ function processEmailCampaignBatch(PDO $pdo,int $campaignId): array
     if((string)($settings['campaign_live_sending_enabled']??'0')!=='1') return ['sent'=>0,'failed'=>0,'blocked'=>'Campaign live sending is disabled.'];
     $stmt=$pdo->prepare("SELECT * FROM email_campaigns WHERE id=:id AND status IN ('scheduled','sending') AND live_send_approved=1 LIMIT 1"); $stmt->execute([':id'=>$campaignId]); $campaign=$stmt->fetch();
     if(!$campaign)return ['sent'=>0,'failed'=>0,'blocked'=>'Campaign is not approved for sending.'];
+    $automatedEventTypes=['event_entries_open_members','event_entries_open_non_members','event_entries_closing'];
+    if(in_array((string)$campaign['campaign_type'],$automatedEventTypes,true)){
+        $eventStmt=$pdo->prepare("SELECT status,send_reminder_emails FROM events WHERE id=:id LIMIT 1");$eventStmt->execute([':id'=>(int)$campaign['event_id']]);$event=$eventStmt->fetch()?:[];
+        if((string)($event['status']??'')!=='published'||empty($event['send_reminder_emails'])){
+            $pdo->prepare("UPDATE email_campaigns SET status='cancelled' WHERE id=:id")->execute([':id'=>$campaignId]);
+            return ['sent'=>0,'failed'=>0,'blocked'=>'Automated event reminders are disabled or the event is not published.'];
+        }
+        if((int)($campaign['recipient_count']??0)===0){
+            emailCampaignSnapshotRecipients($pdo,$campaignId);
+            $stmt->execute([':id'=>$campaignId]);$campaign=$stmt->fetch()?:$campaign;
+        }
+    }
     $limit=max(1,min(500,(int)$campaign['batch_size'])); $pdo->prepare("UPDATE email_campaigns SET status='sending',started_at=COALESCE(started_at,NOW()) WHERE id=:id")->execute([':id'=>$campaignId]);
     $rec=$pdo->prepare("SELECT * FROM email_campaign_recipients WHERE campaign_id=:id AND status='pending' ORDER BY id LIMIT {$limit}");$rec->execute([':id'=>$campaignId]);$sent=0;$failed=0;
     foreach($rec->fetchAll() as $recipient){
