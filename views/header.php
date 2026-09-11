@@ -150,9 +150,11 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                 <strong>Endurance Riding</strong>
             </div>
             </a>
-            <?php if ($headerIsHome): ?>
+            <?php /*
+            if ($headerIsHome): ?>
                 <div class="home-banner-identity">I L D R A</div>
-            <?php endif; ?>
+            <?php endif;
+            */ ?>
             <?php include __DIR__ . '/header_actions.php'; ?>
         </div>
     </div>
