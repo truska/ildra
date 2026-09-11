@@ -164,10 +164,13 @@ foreach ($pageElements as &$pageElement) {
             <?php foreach ($faqs as $index => $faq): ?>
                 <?php $collapseId = 'faqCollapse' . (int)$index; ?>
                 <div class="accordion-item">
-                    <h2 class="accordion-header" id="faqHeading<?php echo (int)$index; ?>">
+                    <h2 class="accordion-header faq-editor-header" id="faqHeading<?php echo (int)$index; ?>">
                         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#<?php echo h($collapseId); ?>" aria-expanded="false" aria-controls="<?php echo h($collapseId); ?>">
                             <?php echo h((string)($faq['question'] ?? '')); ?>
                         </button>
+                        <?php if ($canEditPublicPages): ?>
+                            <a class="faq-editor-tool" href="<?php echo h($basePath); ?>/admin/faq_edit.php?id=<?php echo (int)$faq['id']; ?>" target="_blank" rel="noopener" title="Edit this FAQ" aria-label="Edit this FAQ"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span class="visually-hidden">Edit this FAQ</span></a>
+                        <?php endif; ?>
                     </h2>
                     <div id="<?php echo h($collapseId); ?>" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
                         <div class="accordion-body"><?php echo render_wysiwyg((string)($faq['answer'] ?? '')); ?></div>
@@ -546,6 +549,10 @@ if (!$renderPage) {
         .page-editor-section-tool:hover,
         .page-editor-section-tool:focus-visible { background:var(--green); border-color:var(--green); color:#fff; }
         .page-editor-section-tool { position:absolute; z-index:2; top:.65rem; right:.65rem; width:1.8rem; height:1.8rem; font-size:.8rem; }
+        .faq-editor-header { display:flex; align-items:stretch; }
+        .faq-editor-header .accordion-button { flex:1 1 auto; }
+        .faq-editor-tool { display:inline-flex; flex:0 0 1.8rem; width:1.8rem; height:1.8rem; align-self:center; align-items:center; justify-content:center; margin-right:.65rem; border:1px solid rgba(20,97,24,.35); border-radius:999px; background:rgba(255,255,255,.94); color:var(--green); box-shadow:0 3px 10px rgba(0,0,0,.16); font-size:.8rem; text-decoration:none; }
+        .faq-editor-tool:hover, .faq-editor-tool:focus-visible { background:var(--green); color:#fff; }
         @media (max-width: 767.98px) { .page-lightbox { padding:1rem; } .page-lightbox-nav { width:2.5rem; height:2.5rem; } .page-lightbox-prev { left:.25rem; } .page-lightbox-next { right:.25rem; } }
         @media (max-width: 575.98px) { .page-advertising { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     </style>
