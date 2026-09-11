@@ -29,6 +29,7 @@ $sortFields = [
     'price' => 'bi.price',
 ];
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
+$isAttendeeEvent = $event && (($event['form_profile'] ?? 'ride') === 'attendees');
 $siteSettings = getSiteSettings($pdo);
 if (empty($_SESSION['admin_entry_cancel_csrf'])) {
     $_SESSION['admin_entry_cancel_csrf'] = bin2hex(random_bytes(24));
@@ -602,8 +603,12 @@ admin_layout_start($pageTitle, 'events');
     <div class="admin-page-actions">
         <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
         <?php if ($event): ?>
-            <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=organiser_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Organiser List</span></a>
-            <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=rider_info_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Rider Info List</span></a>
+            <?php if ($isAttendeeEvent): ?>
+                <a class="btn btn-outline-primary has-icon" href="attendee_report.php?event_id=<?php echo (int)$eventId; ?>" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Event Organiser List</span></a>
+            <?php else: ?>
+                <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=organiser_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Organiser List</span></a>
+                <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=rider_info_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Rider Info List</span></a>
+            <?php endif; ?>
         <?php endif; ?>
         <?php if ($event): ?>
             <a class="btn btn-outline-success has-icon" href="event_edit.php?id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit event</span></a>
@@ -624,10 +629,12 @@ admin_layout_start($pageTitle, 'events');
                     <th><?php echo sort_link_entries((int)$eventId, 'contact', 'Contact', $sortKey, $sortDir); ?></th>
                     <th><?php echo sort_link_entries((int)$eventId, 'entry', 'Entry', $sortKey, $sortDir); ?></th>
                     <th>Attendees / selections</th>
-                    <th><?php echo sort_link_entries((int)$eventId, 'class', 'Class', $sortKey, $sortDir); ?></th>
-                    <th><?php echo sort_link_entries((int)$eventId, 'rider', 'Rider', $sortKey, $sortDir); ?></th>
-                    <th><?php echo sort_link_entries((int)$eventId, 'horse', 'Horse', $sortKey, $sortDir); ?></th>
-                    <th>Rosette</th>
+                    <?php if (!$isAttendeeEvent): ?>
+                        <th><?php echo sort_link_entries((int)$eventId, 'class', 'Class', $sortKey, $sortDir); ?></th>
+                        <th><?php echo sort_link_entries((int)$eventId, 'rider', 'Rider', $sortKey, $sortDir); ?></th>
+                        <th><?php echo sort_link_entries((int)$eventId, 'horse', 'Horse', $sortKey, $sortDir); ?></th>
+                        <th>Rosette</th>
+                    <?php endif; ?>
                     <th><?php echo sort_link_entries((int)$eventId, 'price', 'Fees Due (£)', $sortKey, $sortDir); ?></th>
 	                    <th class="text-end">Actions</th>
 	                </tr>
@@ -687,10 +694,12 @@ admin_layout_start($pageTitle, 'events');
                                 <?php endforeach; ?>
                             <?php else: ?>—<?php endif; ?>
                         </td>
-                        <td class="small"><?php echo h($classLabel ?: '—'); ?></td>
-                        <td class="small"><?php echo h($rider ?: '—'); ?></td>
-                        <td class="small"><?php echo h($horse ?: '—'); ?></td>
-                        <td class="small"><?php echo h($rosetteLabel); ?></td>
+                        <?php if (!$isAttendeeEvent): ?>
+                            <td class="small"><?php echo h($classLabel ?: '—'); ?></td>
+                            <td class="small"><?php echo h($rider ?: '—'); ?></td>
+                            <td class="small"><?php echo h($horse ?: '—'); ?></td>
+                            <td class="small"><?php echo h($rosetteLabel); ?></td>
+                        <?php endif; ?>
                         <td class="small"><span class="fee-badge <?php echo h($feeStatus['class']); ?>"><?php echo h($feeStatus['label']); ?></span></td>
                         <td class="text-end">
                             <?php
@@ -711,7 +720,7 @@ admin_layout_start($pageTitle, 'events');
                             ?>
                             <div class="btn-group-mobile" role="group" aria-label="Entry actions">
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span></a>
-                                <a class="btn btn-sm btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&mode=edit&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a>
+                                <?php if (!$isAttendeeEvent): ?><a class="btn btn-sm btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&mode=edit&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a><?php endif; ?>
                                 <button type="button" class="btn btn-sm btn-outline-danger has-icon" data-bs-toggle="modal" data-bs-target="#<?php echo h($adminCancelModalId); ?>"><i class="fa-solid fa-ban btn-icon"></i><span class="btn-label">Cancel</span></button>
                             </div>
                         </td>

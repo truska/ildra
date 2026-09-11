@@ -459,9 +459,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($mode === 'edit') && (($_POST['act
         <?php else: ?>
             <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
         <?php endif; ?>
-        <?php if ($mode === 'view'): ?>
+        <?php if ($mode === 'view' && !$attendeeDetails): ?>
             <a class="btn btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo (int)$itemId; ?>&mode=edit<?php echo $returnEventId ? '&event_id=' . (int)$returnEventId : ''; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a>
-        <?php else: ?>
+        <?php elseif ($mode !== 'view'): ?>
             <a class="btn btn-outline-secondary has-icon" href="entry_item.php?item_id=<?php echo (int)$itemId; ?><?php echo $returnEventId ? '&event_id=' . (int)$returnEventId : ''; ?>"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span></a>
         <?php endif; ?>
     </div>
@@ -495,6 +495,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($mode === 'edit') && (($_POST['act
         <?php foreach ($attendeeDetails as $attendee): ?><tr><td><?php echo h($attendee['name']); ?></td><td><?php echo h($attendee['ticket'] ?: '—'); ?></td><td><?php echo h($attendee['choices'] ? implode(' · ', $attendee['choices']) : '—'); ?></td></tr><?php endforeach; ?>
     </tbody></table></div>
 </div>
+<?php if ($mode === 'view'): ?><div class="alert alert-info py-2">Attendee selections are stored as booking snapshots and are currently view-only.</div><?php endif; ?>
 <?php endif; ?>
 
 <?php if ($storedVsComputedMismatch): ?>
