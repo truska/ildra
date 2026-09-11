@@ -329,6 +329,42 @@ function entry_components_summary(array $metadata): string
     return implode(', ', $parts);
 }
 
+/**
+ * @return array<int, array{name:string,ticket:string,choices:array<int,string>}>
+ */
+function attendee_booking_details(array $metadata): array
+{
+    $attendees = $metadata['attendees'] ?? [];
+    if (!is_array($attendees)) {
+        return [];
+    }
+    $details = [];
+    foreach ($attendees as $attendee) {
+        if (!is_array($attendee)) {
+            continue;
+        }
+        $name = trim((string)($attendee['name'] ?? trim((string)($attendee['first_name'] ?? '') . ' ' . (string)($attendee['last_name'] ?? ''))));
+        $ticket = trim((string)($attendee['ticket']['label'] ?? ''));
+        $choices = [];
+        foreach ((array)($attendee['components'] ?? []) as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+            $selected = [];
+            foreach ((array)($component['value'] ?? []) as $choice) {
+                if (is_array($choice) && trim((string)($choice['label'] ?? '')) !== '') {
+                    $selected[] = trim((string)$choice['label']);
+                }
+            }
+            if ($selected) {
+                $choices[] = trim((string)($component['label'] ?? 'Choice')) . ': ' . implode(', ', $selected);
+            }
+        }
+        $details[] = ['name' => $name !== '' ? $name : 'Attendee', 'ticket' => $ticket, 'choices' => $choices];
+    }
+    return $details;
+}
+
 function format_display_date($value, string $fallback = '—'): string
 {
     if ($value instanceof DateTimeInterface) {

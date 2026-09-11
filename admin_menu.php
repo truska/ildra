@@ -10,6 +10,7 @@ function defaultAdminMenuItems(): array
         ['advertising', 'Advertising', 'advertising.php', 'fa-solid fa-rectangle-ad'],
         ['asset_library', 'Document & Image Library', 'asset_library.php', 'fa-solid fa-photo-film'],
         ['events', 'Events', 'events.php', 'fa-solid fa-calendar-days'],
+        ['event_types', 'Event Types', 'event_types.php', 'fa-solid fa-list-check'],
         ['venues', 'Venues', 'venues.php', 'fa-solid fa-location-dot'],
         ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php', 'fa-solid fa-tags'],
         ['bookings', 'Bookings', 'bookings.php', 'fa-solid fa-ticket'],
@@ -57,7 +58,7 @@ function adminMenuFixedRoles(string $key): array
     if (in_array($key, ['tech', 'tech_email', 'image_folders'], true)) {
         return ['superadmin'];
     }
-    if (in_array($key, ['users', 'email', 'email_campaigns', 'pricing_schemes', 'people', 'horses', 'external_recognition', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
+    if (in_array($key, ['users', 'email', 'email_campaigns', 'pricing_schemes', 'event_types', 'people', 'horses', 'external_recognition', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
         return ['superadmin', 'admin', 'manager'];
     }
     return ['superadmin', 'admin', 'manager', 'organiser'];

@@ -182,6 +182,11 @@ admin_layout_start('Entry Components', 'entry_components');
                             <label class="form-label">Description</label>
                             <textarea name="description" class="form-control wysiwyg-field" rows="3" placeholder="Shown on the entry form to explain this option"><?php echo h($editComponent['description'] ?? ''); ?></textarea>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Applies to</label>
+                            <select name="component_scope" class="form-select"><option value="booking" <?php echo ($editComponent['component_scope'] ?? 'booking') === 'booking' ? 'selected' : ''; ?>>The whole booking</option><option value="attendee" <?php echo ($editComponent['component_scope'] ?? 'booking') === 'attendee' ? 'selected' : ''; ?>>Each attendee</option></select>
+                            <div class="form-text">Use “each attendee” for menu choices or ticket add-ons.</div>
+                        </div>
                     </div>
                 </div>
                 <div class="sub-card" id="choice-options-card">

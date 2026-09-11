@@ -220,7 +220,7 @@ if ($pdo) {
                 <div class="text-muted small">No bookings yet. Add entries and checkout.</div>
                 <?php else: ?>
                     <?php
-                        $pageSize = 3;
+                        $pageSize = 10;
                         $page = max(1, (int)($_GET['page'] ?? 1));
                         $totalOrders = count($orders);
                         $totalPages = (int)max(1, ceil($totalOrders / $pageSize));
@@ -236,6 +236,7 @@ if ($pdo) {
                         $nowTs = time();
                         $eventNames = [];
                         $cancelledItemCount = 0;
+                        $attendeeCount = 0;
                         foreach ($items as $item) {
                             $eventName = trim((string)($item['event_title'] ?? $item['event_name'] ?? ''));
                             if ($eventName !== '' && !in_array($eventName, $eventNames, true)) {
@@ -244,6 +245,8 @@ if ($pdo) {
                             if (!empty($item['is_withdrawn'])) {
                                 $cancelledItemCount++;
                             }
+                            $meta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+                            $attendeeCount += count(attendee_booking_details($meta));
                         }
                         $bookingCancellationLabel = $cancelledItemCount >= count($items) ? 'Cancelled' : 'Partially cancelled';
                         ?>
@@ -259,8 +262,8 @@ if ($pdo) {
                                         <div class="fw-semibold"><?php echo h($total); ?></div>
                                     </div>
                                     <div>
-                                        <div class="meta-label">Items</div>
-                                        <div class="fw-semibold"><?php echo count($items); ?></div>
+                                        <div class="meta-label"><?php echo $attendeeCount > 0 ? 'Attendees' : 'Items'; ?></div>
+                                        <div class="fw-semibold"><?php echo $attendeeCount > 0 ? $attendeeCount : count($items); ?></div>
                                     </div>
                                     <div>
                                         <div class="meta-label">Contact</div>

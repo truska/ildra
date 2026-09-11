@@ -543,7 +543,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                                         <input type="hidden" name="event_row_is_member_price[<?php echo h($rowKey); ?>]" value="0">
                                         <input class="form-check-input" type="checkbox" value="1" name="event_row_is_member_price[<?php echo h($rowKey); ?>]" <?php echo $memberChecked ? 'checked' : ''; ?> aria-label="Member price">
                                     </td>
-                                    <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[<?php echo h($rowKey); ?>]" value="<?php echo h((string)($row['foreign_recognition_price'] ?? '')); ?>" placeholder="Member"></td>
+                                    <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[<?php echo h($rowKey); ?>]" value="<?php echo h((string)($row['foreign_recognition_price'] ?? '')); ?>" placeholder="£ ##.##"></td>
                                     <td class="compact">
                                         <input type="hidden" name="event_row_is_junior_ride[<?php echo h($rowKey); ?>]" value="0">
                                         <input class="form-check-input" type="checkbox" value="1" name="event_row_is_junior_ride[<?php echo h($rowKey); ?>]" <?php echo $juniorChecked ? 'checked' : ''; ?> aria-label="Junior ride">
@@ -576,15 +576,19 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         <div class="section-card">
             <div class="section-title">Entry form builder</div>
-            <div class="section-sub">Order controls the public entry form. Classes stay required.</div>
+            <div class="section-sub">Order controls the public entry form. <?php echo ($selectedEventType['form_profile'] ?? 'ride') === 'attendees' ? 'Booking contact and attendee list are required.' : 'Classes stay required.'; ?></div>
             <input type="hidden" name="entry_form_json" id="entry_form_json">
             <div class="d-flex flex-wrap gap-2 mb-3">
                 <div class="input-group input-group-sm" style="max-width: 420px;">
                     <select class="form-select" id="addFormItemSelect">
                         <option value="" data-label="Add form item...">Add form item...</option>
                         <optgroup label="Form sections">
+                            <?php if (($selectedEventType['form_profile'] ?? 'ride') === 'attendees'): ?>
+                            <option value="block:attendee_list" data-label="Attendees">Attendees</option>
+                            <?php else: ?>
                             <option value="block:rider_details" data-label="Rider details">Rider details</option>
                             <option value="block:horse_details" data-label="Horse details">Horse details</option>
+                            <?php endif; ?>
                             <option value="block:contact" data-label="Contact info">Contact info</option>
                         </optgroup>
                         <optgroup label="Components">
@@ -860,7 +864,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <input type="hidden" name="event_row_is_member_price[${rowKey}]" value="0">
                     <input class="form-check-input" type="checkbox" value="1" name="event_row_is_member_price[${rowKey}]" ${isMemberPrice ? 'checked' : ''} aria-label="Member price">
                 </td>
-                <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[${rowKey}]" value="${foreignPrice}" placeholder="Member"></td>
+                <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[${rowKey}]" value="${foreignPrice}" placeholder="£ ##.##"></td>
                 <td class="compact">
                     <input type="hidden" name="event_row_is_junior_ride[${rowKey}]" value="0">
                     <input class="form-check-input" type="checkbox" value="1" name="event_row_is_junior_ride[${rowKey}]" ${isJuniorRide ? 'checked' : ''} aria-label="Junior ride">
@@ -1021,9 +1025,11 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         const formEl = document.querySelector('form');
         const components = <?php echo json_encode(array_values($entryComponentsAll), JSON_UNESCAPED_UNICODE); ?>;
         const componentMap = new Map(components.map((c) => [String(c.id), c]));
+        const requiresClasses = <?php echo ($selectedEventType['form_profile'] ?? 'ride') === 'ride' ? 'true' : 'false'; ?>;
         let entryForm = <?php echo json_encode($entryFormConfig, JSON_UNESCAPED_UNICODE); ?>;
 
         const ensureClassesBlock = () => {
+            if (!requiresClasses) return;
             const hasClasses = entryForm.some((b) => b.type === 'classes');
             if (!hasClasses) {
                 entryForm.unshift({ type: 'classes', label: 'Classes', enabled: true });
@@ -1080,14 +1086,14 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <div class="form-check mb-0">
-                            <input class="form-check-input toggle-enabled" type="checkbox" ${block.type === 'classes' ? 'checked disabled' : (block.enabled !== false ? 'checked' : '')}>
+                            <input class="form-check-input toggle-enabled" type="checkbox" ${(requiresClasses && block.type === 'classes') ? 'checked disabled' : (block.enabled !== false ? 'checked' : '')}>
                             <label class="form-check-label">Enabled</label>
                         </div>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary move-up"${idx === 0 ? ' disabled' : ''}>↑</button>
                             <button type="button" class="btn btn-outline-secondary move-down"${idx === entryForm.length - 1 ? ' disabled' : ''}>↓</button>
                         </div>
-                        ${block.type === 'classes' ? '' : '<button type="button" class="btn btn-outline-danger btn-sm remove-block">Remove</button>'}
+                        ${(requiresClasses && block.type === 'classes') ? '' : '<button type="button" class="btn btn-outline-danger btn-sm remove-block">Remove</button>'}
                     </div>
                 `;
                 entryFormList.appendChild(item);

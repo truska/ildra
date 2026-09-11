@@ -623,6 +623,7 @@ admin_layout_start($pageTitle, 'events');
                     <th><?php echo sort_link_entries((int)$eventId, 'placed', 'Placed', $sortKey, $sortDir); ?></th>
                     <th><?php echo sort_link_entries((int)$eventId, 'contact', 'Contact', $sortKey, $sortDir); ?></th>
                     <th><?php echo sort_link_entries((int)$eventId, 'entry', 'Entry', $sortKey, $sortDir); ?></th>
+                    <th>Attendees / selections</th>
                     <th><?php echo sort_link_entries((int)$eventId, 'class', 'Class', $sortKey, $sortDir); ?></th>
                     <th><?php echo sort_link_entries((int)$eventId, 'rider', 'Rider', $sortKey, $sortDir); ?></th>
                     <th><?php echo sort_link_entries((int)$eventId, 'horse', 'Horse', $sortKey, $sortDir); ?></th>
@@ -663,6 +664,7 @@ admin_layout_start($pageTitle, 'events');
                         }
                         $feeStatus = format_fee_status($paidForEntry, $feeDue);
                         $rosetteLabel = entry_rosette_label($entry);
+                        $attendeeDetails = attendee_booking_details(is_array($meta) ? $meta : []);
                     ?>
                     <tr class="<?php echo !empty($entry['is_withdrawn']) ? 'withdrawn-row' : ''; ?>">
                         <td class="fw-semibold text-muted text-dark"><?php echo h($entry['booking_ref'] ?? ''); ?></td>
@@ -677,6 +679,13 @@ admin_layout_start($pageTitle, 'events');
                             <?php if (!empty($entry['is_withdrawn'])): ?>
                                 <span class="badge bg-light text-dark border ms-2">Withdrawn</span>
                             <?php endif; ?>
+                        </td>
+                        <td class="small">
+                            <?php if ($attendeeDetails): ?>
+                                <?php foreach ($attendeeDetails as $attendee): ?>
+                                    <div class="mb-1"><span class="fw-semibold"><?php echo h($attendee['name']); ?></span><?php echo $attendee['ticket'] !== '' ? ' · ' . h($attendee['ticket']) : ''; ?><?php foreach ($attendee['choices'] as $choice): ?><div class="text-muted"><?php echo h($choice); ?></div><?php endforeach; ?></div>
+                                <?php endforeach; ?>
+                            <?php else: ?>—<?php endif; ?>
                         </td>
                         <td class="small"><?php echo h($classLabel ?: '—'); ?></td>
                         <td class="small"><?php echo h($rider ?: '—'); ?></td>

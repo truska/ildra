@@ -87,6 +87,7 @@ $meta = $item['metadata'] ?? [];
 if (!is_array($meta)) {
     $meta = [];
 }
+$attendeeDetails = attendee_booking_details($meta);
 
 $eventTitle = (string)($item['event_title_live'] ?? $item['event_title'] ?? 'Entry');
 $pageTitle = $eventTitle;
@@ -486,6 +487,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($mode === 'edit') && (($_POST['act
         </div>
     </div>
 </div>
+
+<?php if ($attendeeDetails): ?>
+<div class="card-soft p-3 mb-3">
+    <div class="fw-bold mb-2">Attendees and selections</div>
+    <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Attendee</th><th>Ticket</th><th>Selections</th></tr></thead><tbody>
+        <?php foreach ($attendeeDetails as $attendee): ?><tr><td><?php echo h($attendee['name']); ?></td><td><?php echo h($attendee['ticket'] ?: '—'); ?></td><td><?php echo h($attendee['choices'] ? implode(' · ', $attendee['choices']) : '—'); ?></td></tr><?php endforeach; ?>
+    </tbody></table></div>
+</div>
+<?php endif; ?>
 
 <?php if ($storedVsComputedMismatch): ?>
     <div class="alert alert-warning py-2">

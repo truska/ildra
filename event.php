@@ -276,6 +276,13 @@ if (!$classOptions) {
     }
 }
 
+// Non-ride Event Types use the attendee profile. Keep the established ride
+// controller below untouched so its validation and recognition rules remain exact.
+if ($event && (($event['form_profile'] ?? 'ride') === 'attendees')) {
+    require __DIR__ . '/event_attendees.php';
+    exit;
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_booking') {
     if (!$event) {
         $alerts[] = ['type' => 'danger', 'message' => 'Event not found.'];

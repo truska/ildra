@@ -62,6 +62,7 @@ $entryPrice = $item ? price_to_number($item['price'] ?? 0) : 0.0;
 $price = $item ? format_price($entryPrice) : '£0.00';
 $eventType = $item ? (string)($item['event_type_name'] ?? $item['booking_type_label'] ?? ucfirst((string)($item['booking_type'] ?? 'entry'))) : 'Entry';
 $componentsSummary = entry_components_summary($meta);
+$attendeeDetails = attendee_booking_details($meta);
 $eventDateText = $item && !empty($item['event_date']) ? format_display_date($item['event_date'], 'Date TBC') : 'Date TBC';
 $eventVenue = $item ? (string)($item['venue'] ?? '') : '';
 $organiser = $item ? (string)($item['organiser'] ?? '') : '';
@@ -397,6 +398,20 @@ if ($item && $pdo) {
                         </div>
                     </div>
                 </div>
+
+                <?php if ($attendeeDetails): ?>
+                    <div class="card-soft p-4 mb-4">
+                        <div class="fw-bold mb-3">Attendees and selections</div>
+                        <div class="list-group list-group-flush">
+                            <?php foreach ($attendeeDetails as $attendee): ?>
+                                <div class="list-group-item px-0">
+                                    <div class="fw-semibold"><?php echo h($attendee['name']); ?><?php echo $attendee['ticket'] !== '' ? ' — ' . h($attendee['ticket']) : ''; ?></div>
+                                    <?php foreach ($attendee['choices'] as $choice): ?><div class="text-muted small"><?php echo h($choice); ?></div><?php endforeach; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <div class="row g-4">
                     <div class="col-lg-7">

@@ -837,9 +837,9 @@ function deletePage(?PDO $pdo, int $id, array &$alerts): bool
 function defaultEventTypes(): array
 {
     return [
-        ['id' => 1, 'name' => 'Ride', 'quick_view_fields' => ['class_label', 'rider_name', 'horse_name']],
-        ['id' => 2, 'name' => 'Awards', 'quick_view_fields' => ['class_label']],
-        ['id' => 3, 'name' => 'Training', 'quick_view_fields' => ['class_label']],
+        ['id' => 1, 'name' => 'Ride', 'form_profile' => 'ride', 'quick_view_fields' => ['class_label', 'rider_name', 'horse_name']],
+        ['id' => 2, 'name' => 'Awards', 'form_profile' => 'attendees', 'quick_view_fields' => ['class_label']],
+        ['id' => 3, 'name' => 'Training', 'form_profile' => 'attendees', 'quick_view_fields' => ['class_label']],
     ];
 }
 
@@ -856,6 +856,8 @@ function fetchEventTypes(?PDO $pdo): array
                 name VARCHAR(120) NOT NULL UNIQUE,
                 quick_view_fields JSON NULL,
                 default_pricing_scheme_id INT UNSIGNED NULL DEFAULT NULL,
+                form_profile VARCHAR(32) NOT NULL DEFAULT 'ride',
+                default_attendee_limit INT UNSIGNED NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
@@ -867,6 +869,8 @@ function fetchEventTypes(?PDO $pdo): array
                 // ignore (column may already exist)
             }
         }
+        if (!table_column_exists($pdo, 'event_types', 'form_profile')) $pdo->exec("ALTER TABLE event_types ADD COLUMN form_profile VARCHAR(32) NOT NULL DEFAULT 'ride'");
+        if (!table_column_exists($pdo, 'event_types', 'default_attendee_limit')) $pdo->exec("ALTER TABLE event_types ADD COLUMN default_attendee_limit INT UNSIGNED NOT NULL DEFAULT 0");
         if (!table_index_on_column_exists($pdo, 'event_types', 'default_pricing_scheme_id')) {
             try {
                 if (table_index_count($pdo, 'event_types') < 64) {
@@ -879,14 +883,14 @@ function fetchEventTypes(?PDO $pdo): array
 
         foreach (defaultEventTypes() as $type) {
             $stmt = $pdo->prepare("
-                INSERT INTO event_types (id, name, quick_view_fields, created_at, updated_at)
-                VALUES (:id, :name, :qv, NOW(), NOW())
-                ON DUPLICATE KEY UPDATE name = VALUES(name), quick_view_fields = VALUES(quick_view_fields), updated_at = NOW()
+                INSERT IGNORE INTO event_types (id, name, quick_view_fields, form_profile, created_at, updated_at)
+                VALUES (:id, :name, :qv, :profile, NOW(), NOW())
             ");
             $stmt->execute([
                 ':id' => $type['id'],
                 ':name' => $type['name'],
                 ':qv' => json_encode($type['quick_view_fields'], JSON_UNESCAPED_UNICODE),
+                ':profile' => $type['form_profile'],
             ]);
         }
 
@@ -895,6 +899,18 @@ function fetchEventTypes(?PDO $pdo): array
     } catch (PDOException $e) {
         return defaultEventTypes();
     }
+}
+
+function saveEventType(?PDO $pdo, array $data, array &$alerts): int|false
+{
+    if (!$pdo) { $alerts[] = ['type'=>'danger','message'=>'Database unavailable.']; return false; }
+    fetchEventTypes($pdo);
+    $id=(int)($data['id']??0); $name=trim((string)($data['name']??''));
+    $profile=in_array($data['form_profile']??'', ['ride','attendees'], true) ? $data['form_profile'] : 'ride';
+    if ($name==='') { $alerts[]=['type'=>'danger','message'=>'Event Type name is required.']; return false; }
+    try { if($id){$s=$pdo->prepare('UPDATE event_types SET name=:name, form_profile=:profile, updated_at=NOW() WHERE id=:id');$s->execute([':name'=>$name,':profile'=>$profile,':id'=>$id]);return $id;}
+        $s=$pdo->prepare('INSERT INTO event_types (name,form_profile,quick_view_fields,created_at,updated_at) VALUES (:name,:profile,:qv,NOW(),NOW())');$s->execute([':name'=>$name,':profile'=>$profile,':qv'=>'[]']);return (int)$pdo->lastInsertId();
+    } catch(PDOException $e){$alerts[]=['type'=>'danger','message'=>'Could not save Event Type. Names must be unique.'];return false;}
 }
 
 /**
@@ -2274,7 +2290,7 @@ function fetchEvents(?PDO $pdo, bool $upcomingOnly = false): array
             $venueJoin = "LEFT JOIN venues v ON v.id = e.venue_id";
         }
         $columns = array_merge(
-            ['e.*', 'et.name AS event_type_name', 'et.quick_view_fields'],
+            ['e.*', 'et.name AS event_type_name', 'et.quick_view_fields', 'et.form_profile', 'et.default_attendee_limit'],
             $venueColumns,
             [
                 "(SELECT COUNT(*) FROM booking_items bi WHERE bi.event_id = e.id AND COALESCE(bi.is_withdrawn, 0) = 0) AS entry_count",
@@ -2358,7 +2374,7 @@ function fetchEventById(?PDO $pdo, int $id): ?array
             $venueJoin = "LEFT JOIN venues v ON v.id = e.venue_id";
         }
         $columns = array_merge(
-            ['e.*', 'et.name AS event_type_name', 'et.quick_view_fields', 'ou.email AS organiser_email', 'ou.first_name AS organiser_first_name', 'ou.last_name AS organiser_last_name'],
+            ['e.*', 'et.name AS event_type_name', 'et.quick_view_fields', 'et.form_profile', 'et.default_attendee_limit', 'ou.email AS organiser_email', 'ou.first_name AS organiser_first_name', 'ou.last_name AS organiser_last_name'],
             $venueColumns,
             [
                 "(SELECT COUNT(*) FROM booking_items bi WHERE bi.event_id = e.id AND COALESCE(bi.is_withdrawn, 0) = 0) AS entry_count",
@@ -2383,7 +2399,7 @@ function fetchEventById(?PDO $pdo, int $id): ?array
         return hydrateVenueForRow(hydrateEventTypeForRow($row, $eventTypes));
     } catch (PDOException $e) {
         try {
-            $columns = array_merge(['e.*', 'et.name AS event_type_name', 'et.quick_view_fields'], $venueColumns ?? []);
+            $columns = array_merge(['e.*', 'et.name AS event_type_name', 'et.quick_view_fields', 'et.form_profile', 'et.default_attendee_limit'], $venueColumns ?? []);
             $sql = "
                 SELECT " . implode(",\n                    ", $columns) . "
                 FROM events e
@@ -4243,6 +4259,7 @@ function ensureEntryComponentsTables(?PDO $pdo): void
             allowed_event_type_ids TEXT DEFAULT NULL,
             description TEXT DEFAULT NULL,
             is_required TINYINT(1) NOT NULL DEFAULT 0,
+            component_scope VARCHAR(20) NOT NULL DEFAULT 'booking',
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -4293,6 +4310,7 @@ function ensureEntryComponentsTables(?PDO $pdo): void
             // ignore
         }
     }
+    if (!table_column_exists($pdo, 'entry_components', 'component_scope')) $pdo->exec("ALTER TABLE entry_components ADD COLUMN component_scope VARCHAR(20) NOT NULL DEFAULT 'booking'");
     if (!table_column_exists($pdo, 'events', 'capacity_enabled')) {
         try {
             $pdo->exec("ALTER TABLE events ADD COLUMN capacity_enabled TINYINT(1) NOT NULL DEFAULT 0");
@@ -4314,6 +4332,7 @@ function ensureEntryComponentsTables(?PDO $pdo): void
             // ignore
         }
     }
+    if (!table_column_exists($pdo, 'events', 'attendee_limit')) $pdo->exec("ALTER TABLE events ADD COLUMN attendee_limit INT UNSIGNED NOT NULL DEFAULT 0");
     if (!table_column_exists($pdo, 'event_entry_components', 'is_required')) {
         try {
             $pdo->exec("ALTER TABLE event_entry_components ADD COLUMN is_required TINYINT(1) NOT NULL DEFAULT 0");
@@ -4659,6 +4678,17 @@ function defaultEntryComponents(): array
 
 function build_default_entry_form(array $event, array $eventComponents): array
 {
+    if (($event['form_profile'] ?? '') === 'attendees') {
+        $blocks = [
+            ['type' => 'contact', 'label' => 'Booking contact', 'enabled' => true],
+            ['type' => 'attendee_list', 'label' => 'Attendees', 'enabled' => true],
+        ];
+        foreach ($eventComponents as $comp) {
+            if (($comp['component_scope'] ?? 'booking') !== 'booking') continue;
+            $blocks[] = ['type'=>'component','component_id'=>(int)$comp['id'],'label'=>$comp['name']??'Component','enabled'=>true];
+        }
+        return $blocks;
+    }
     $blocks = [
         ['type' => 'classes', 'label' => 'Classes', 'enabled' => true],
         ['type' => 'rider_details', 'label' => 'Rider details', 'enabled' => true],
@@ -4680,9 +4710,9 @@ function build_default_entry_form(array $event, array $eventComponents): array
     return array_values($blocks);
 }
 
-function normalize_entry_form(array $raw, array $eventComponents): array
+function normalize_entry_form(array $raw, array $eventComponents, bool $requiresClasses = true): array
 {
-    $allowedTypes = ['classes', 'rider_details', 'horse_details', 'contact', 'component'];
+    $allowedTypes = ['classes', 'rider_details', 'horse_details', 'contact', 'attendee_list', 'component'];
     $componentMap = [];
     foreach ($eventComponents as $c) {
         $componentMap[(int)($c['id'] ?? 0)] = $c;
@@ -4706,10 +4736,10 @@ function normalize_entry_form(array $raw, array $eventComponents): array
             'type' => $type,
             'component_id' => isset($block['component_id']) ? (int)$block['component_id'] : null,
             'label' => $block['label'] ?? null,
-            'enabled' => $type === 'classes' ? true : (isset($block['enabled']) ? (bool)$block['enabled'] : true),
+            'enabled' => ($requiresClasses && $type === 'classes') ? true : (isset($block['enabled']) ? (bool)$block['enabled'] : true),
         ];
     }
-    // Ensure classes block exists
+    // Ride forms always need a class; attendee forms deliberately do not.
     $hasClasses = false;
     foreach ($out as $b) {
         if ($b['type'] === 'classes') {
@@ -4717,7 +4747,7 @@ function normalize_entry_form(array $raw, array $eventComponents): array
             break;
         }
     }
-    if (!$hasClasses) {
+    if ($requiresClasses && !$hasClasses) {
         array_unshift($out, ['type' => 'classes', 'label' => 'Classes', 'enabled' => true]);
     }
     return array_values($out);
@@ -4735,7 +4765,7 @@ function event_entry_form(array $event, array $eventComponents): array
     if (!$raw) {
         return build_default_entry_form($event, $eventComponents);
     }
-    return normalize_entry_form($raw, $eventComponents);
+    return normalize_entry_form($raw, $eventComponents, ($event['form_profile'] ?? 'ride') === 'ride');
 }
 
 function fetchEntryComponents(?PDO $pdo, ?int $eventTypeId = null, bool $activeOnly = true): array
@@ -4907,6 +4937,7 @@ function saveEntryComponent(?PDO $pdo, array $data, array &$alerts)
     $isRequired = $canRequire && (!empty($data['is_required']) || !empty($data['choice_required']));
     $isActive = 1; // deprecated flag; always treated as active
     $description = trim((string)($data['description'] ?? ''));
+    $scope = in_array($data['component_scope'] ?? '', ['booking', 'attendee'], true) ? $data['component_scope'] : 'booking';
 
     if ($name === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Name is required.'];
@@ -4927,7 +4958,7 @@ function saveEntryComponent(?PDO $pdo, array $data, array &$alerts)
             $stmt = $pdo->prepare("
                 UPDATE entry_components
                 SET name = :name, type = :type, input_kind = :input_kind, price = :price,
-                    allowed_event_type_ids = :allowed, is_required = :is_required, description = :description,
+                    allowed_event_type_ids = :allowed, is_required = :is_required, description = :description, component_scope = :scope,
                     is_active = 1, updated_at = NOW()
                 WHERE id = :id
             ");
@@ -4939,17 +4970,19 @@ function saveEntryComponent(?PDO $pdo, array $data, array &$alerts)
                 ':allowed' => json_encode($allowed),
                 ':is_required' => $isRequired ? 1 : 0,
                 ':description' => $description !== '' ? $description : null,
+                ':scope' => $scope,
                 ':id' => $id,
             ]);
             $componentId = $id;
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO entry_components (name, type, input_kind, price, allowed_event_type_ids, is_required, description, is_active, created_at, updated_at)
-                VALUES (:name, :type, :input_kind, :price, :allowed, :is_required, :description, 1, NOW(), NOW())
+                INSERT INTO entry_components (name, type, input_kind, price, allowed_event_type_ids, is_required, description, component_scope, is_active, created_at, updated_at)
+                VALUES (:name, :type, :input_kind, :price, :allowed, :is_required, :description, :scope, 1, NOW(), NOW())
             ");
             $stmt->execute([
                 ':name' => $name, ':type' => $type, ':input_kind' => $inputKind, ':price' => $price,
                 ':allowed' => json_encode($allowed), ':is_required' => $isRequired ? 1 : 0, ':description' => $description !== '' ? $description : null,
+                ':scope' => $scope,
             ]);
             $componentId = (int)$pdo->lastInsertId();
         }
