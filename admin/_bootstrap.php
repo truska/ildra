@@ -145,11 +145,11 @@ function admin_layout_start(string $title, string $activeKey): void
             color: #0f2d17 !important;
         }
         .admin-tabs .nav-link:not(.active):hover {
-            background: #146c35;
-            border-color: #146c35;
+            background: #404040;
+            border-color: #404040;
             color: #fff;
             transform: translateY(-3px);
-            box-shadow: 0 5px 0 rgba(20,108,53,.24);
+            box-shadow: 0 5px 0 rgba(0,0,0,.24);
         }
         .admin-tabs .nav-link:focus-visible {
             outline: 3px solid #f0b429;
