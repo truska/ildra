@@ -120,6 +120,43 @@ function admin_layout_start(string $title, string $activeKey): void
             background: var(--nav-active);
             color: #fff;
         }
+        .admin-tabs {
+            gap: .35rem;
+            border-bottom: 2px solid #cbd5c9;
+        }
+        .admin-tabs .nav-link {
+            margin-bottom: -2px;
+            border: 1px solid #cbd5c9;
+            border-bottom: 0;
+            border-radius: .5rem .5rem 0 0;
+            background: #eef2ed;
+            color: #27412b;
+            font-weight: 700;
+            transition: background-color .14s ease, color .14s ease, border-color .14s ease, transform .14s ease, box-shadow .14s ease;
+        }
+        .admin-tabs .nav-link.active {
+            background: #198754;
+            border-color: #198754;
+            color: #fff;
+            box-shadow: 0 -3px 0 #0f5c32 inset;
+        }
+        .admin-tabs .nav-link.active .badge {
+            background: #fff !important;
+            color: #0f2d17 !important;
+        }
+        .admin-tabs .nav-link:not(.active):hover {
+            background: #0f2d17;
+            border-color: #0f2d17;
+            color: #fff;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 0 rgba(15,45,23,.22);
+        }
+        .admin-tabs .nav-link:focus-visible {
+            outline: 3px solid #f0b429;
+            outline-offset: 2px;
+            position: relative;
+            z-index: 1;
+        }
         .admin-nav-section { margin-bottom: 0.35rem; }
         .admin-nav-section summary {
             list-style: none;

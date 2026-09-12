@@ -290,9 +290,7 @@ admin_layout_start('Events', 'events');
     }
     .action-buttons .btn { white-space: nowrap; }
     .action-buttons form { margin: 0; }
-    .event-view-tabs { border-bottom: 2px solid #d7dfd5; gap: .35rem; }
-    .event-view-tabs .nav-link { border: 1px solid #cbd5c9; border-bottom: 0; background: #eef2ed; color: #405443; font-weight: 700; }
-    .event-view-tabs .nav-link:hover { background: #e1e9df; color: #183d20; }
+    .event-view-tabs .nav-link { color: #405443; }
     .event-view-tabs .nav-link.future-tab.active { background: #198754; border-color: #198754; color: #fff; }
     .event-view-tabs .nav-link.past-tab.active { background: #495057; border-color: #495057; color: #fff; }
     .event-view-tabs .nav-link.active .badge { background: #fff !important; color: #26352a !important; }
@@ -326,7 +324,7 @@ admin_layout_start('Events', 'events');
     </div>
 </div>
 
-<ul class="nav nav-tabs event-view-tabs mb-3" aria-label="Event date range">
+<ul class="nav nav-tabs admin-tabs event-view-tabs mb-3" aria-label="Event date range">
     <li class="nav-item">
         <a class="nav-link future-tab <?php echo $activeView === 'future' ? 'active' : ''; ?>" href="?<?php echo h(http_build_query(array_merge($_GET, ['view' => 'future']))); ?>">
             Current &amp; Future <span class="badge text-bg-light ms-1"><?php echo count($upcoming); ?></span>

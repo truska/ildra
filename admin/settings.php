@@ -167,7 +167,7 @@ $activeSettingsTab = in_array($requestedSettingsTab, $allowedSettingsTabs, true)
 admin_layout_start('Settings', 'settings');
 ?>
 <div class="card-soft p-4">
-    <ul class="nav nav-tabs mb-4" role="tablist">
+    <ul class="nav nav-tabs admin-tabs mb-4" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'home' ? 'active' : ''; ?>" id="home-tab" data-bs-toggle="tab" data-bs-target="#home-settings" type="button" role="tab" aria-controls="home-settings" aria-selected="<?php echo $activeSettingsTab === 'home' ? 'true' : 'false'; ?>">Home Page</button>
         </li>
