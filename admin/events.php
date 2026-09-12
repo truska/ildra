@@ -504,6 +504,11 @@ admin_layout_start('Events', 'events');
                                     <a class="btn btn-sm btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$event['id']; ?>">
                                         <i class="fa-solid fa-list-check btn-icon"></i><span class="btn-label">Entry list</span>
                                     </a>
+                                    <?php if ($currentRole === 'superadmin'): ?>
+                                    <a class="btn btn-sm btn-outline-success has-icon" href="event_results.php?event_id=<?php echo (int)$event['id']; ?>">
+                                        <i class="fa-solid fa-clipboard-check btn-icon"></i><span class="btn-label">Record Results</span>
+                                    </a>
+                                    <?php endif; ?>
                                     <a class="btn btn-sm btn-outline-dark has-icon" href="event_duplicate.php?source_id=<?php echo (int)$event['id']; ?>">
                                         <i class="fa-solid fa-copy btn-icon"></i><span class="btn-label">Copy</span>
                                     </a>

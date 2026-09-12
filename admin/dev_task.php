@@ -19,7 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($newId) { $_SESSION['flash_success']='Dev task created.'; header('Location: dev_task.php?id='.$newId); exit; }
         } elseif ($action === 'reply' && $taskId > 0) {
             if (devTaskAddMessage($pdo, $taskId, (string)($_POST['message'] ?? ''), $_FILES['image'] ?? [], $currentUser, $alerts)) {
-                $_SESSION['flash_success']='Reply added.'; header('Location: dev_task.php?id='.$taskId.'#conversation'); exit;
+                // Return to the task header after adding a reply so the assignment controls
+                // and Back to tasks button remain in view.
+                $_SESSION['flash_success']='Reply added.'; header('Location: dev_task.php?id='.$taskId); exit;
             }
         } elseif ($action === 'save_notes' && $taskId > 0) {
             if (devTaskSaveNotes($pdo, $taskId, (string)($_POST['task_notes'] ?? ''), $currentUser)) {
