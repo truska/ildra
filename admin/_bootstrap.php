@@ -120,6 +120,7 @@ function admin_layout_start(string $title, string $activeKey): void
             background: var(--nav-active);
             color: #fff;
         }
+        /* Standard admin tabs: add the admin-tabs class to every new tab list. */
         .admin-tabs {
             gap: .35rem;
             border-bottom: 2px solid #cbd5c9;
