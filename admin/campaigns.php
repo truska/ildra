@@ -20,9 +20,10 @@ function campaign_admin_back_link(array $campaign): array
 }
 function campaign_template_back_link(array $template): array
 {
-    if(in_array((string)($template['template_key']??''),['entries_open_members','entries_open_non_members','entries_closing','weekly_ride_notice'],true))return ['campaigns.php?tab=automatic','Back to automatic campaigns'];
+    if(in_array((string)($template['template_key']??''),campaign_automated_template_keys(),true))return ['campaigns.php?tab=automatic','Back to automatic campaigns'];
     return ['campaigns.php?view=templates','Back to templates'];
 }
+function campaign_automated_template_keys(): array { return ['entries_open_members','entries_open_non_members','entries_closing','weekly_ride_notice']; }
 function campaign_admin_send_limited_test(PDO $pdo,array $campaign,int $userId): array
 {
     $userStmt=$pdo->prepare("SELECT u.id,u.email,u.first_name,u.last_name FROM users u WHERE u.id=:id AND (u.is_tester=1 OR LOWER(u.email) LIKE '%@truska.com') LIMIT 1");
@@ -132,20 +133,21 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     }
 }
 
-$templates=$pdo->query('SELECT * FROM email_campaign_templates WHERE is_active=1 ORDER BY name')->fetchAll()?:[];
+$automatedTemplateSql="'entries_open_members','entries_open_non_members','entries_closing','weekly_ride_notice'";
+$templates=$pdo->query("SELECT * FROM email_campaign_templates WHERE is_active=1 AND template_key NOT IN ({$automatedTemplateSql}) ORDER BY name")->fetchAll()?:[];
 $events=$pdo->query("SELECT id,title,event_date FROM events WHERE event_date>=DATE_SUB(CURDATE(),INTERVAL 3 MONTH) ORDER BY event_date DESC")->fetchAll()?:[];
-if($view==='new'&&isset($_GET['template'])){$key=(string)$_GET['template'];$s=$pdo->prepare('SELECT * FROM email_campaign_templates WHERE template_key=:key LIMIT 1');$s->execute([':key'=>$key]);$template=$s->fetch()?:null;}else$template=null;
+if($view==='new'&&isset($_GET['template'])){$key=(string)$_GET['template'];$s=$pdo->prepare("SELECT * FROM email_campaign_templates WHERE template_key=:key AND template_key NOT IN ({$automatedTemplateSql}) LIMIT 1");$s->execute([':key'=>$key]);$template=$s->fetch()?:null;}else$template=null;
 
 if($view==='template_select'){
     admin_layout_start('Choose Campaign Template','email_campaigns');?>
     <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0">Choose a template</h5><a class="btn btn-outline-secondary" href="campaigns.php?tab=manual">Back to manual campaigns</a></div>
-    <div class="card-soft p-4"><div class="list-group list-group-flush"><?php foreach($templates as $templateRow): $automatedEntryTemplate=in_array((string)$templateRow['template_key'],['entries_open_members','entries_open_non_members','entries_closing'],true); ?><?php if($automatedEntryTemplate): ?><div class="list-group-item d-flex justify-content-between align-items-center"><span><strong><?php echo h((string)$templateRow['name']); ?></strong><span class="d-block small text-muted">Automated from Event Details — enable “Send entry reminder emails” on the event. Dates and audiences are set from that event automatically.</span></span><a class="btn btn-sm btn-outline-secondary" href="campaigns.php?view=template_edit&amp;template_id=<?php echo (int)$templateRow['id']; ?>">Edit template</a></div><?php else: ?><a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="campaigns.php?view=new&amp;template=<?php echo h((string)$templateRow['template_key']); ?>"><span><strong><?php echo h((string)$templateRow['name']); ?></strong><span class="d-block small text-muted"><?php echo h(ucwords(str_replace('_',' ',(string)$templateRow['category']))); ?></span></span><span class="btn btn-sm btn-outline-success">Use template</span></a><?php endif; ?><?php endforeach; ?></div></div>
+    <div class="card-soft p-4"><div class="list-group list-group-flush"><?php foreach($templates as $templateRow): ?><a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="campaigns.php?view=new&amp;template=<?php echo h((string)$templateRow['template_key']); ?>"><span><strong><?php echo h((string)$templateRow['name']); ?></strong><span class="d-block small text-muted"><?php echo h(ucwords(str_replace('_',' ',(string)$templateRow['category']))); ?></span></span><span class="btn btn-sm btn-outline-success">Use template</span></a><?php endforeach; ?></div></div>
     <?php admin_layout_end();exit;
 }
 
 if($view==='templates'){
-    $allTemplates=$pdo->query('SELECT * FROM email_campaign_templates ORDER BY name')->fetchAll()?:[];admin_layout_start('Campaign Templates','email_campaigns');?>
-    <div class="d-flex justify-content-between align-items-center mb-3"><div><div class="small text-muted">Email campaigns</div><h5 class="mb-0">Campaign templates</h5></div><div class="d-flex gap-2"><a class="btn btn-success" href="campaigns.php?view=template_edit">New template</a><a class="btn btn-outline-secondary" href="campaigns.php?tab=automatic">Back to campaigns</a></div></div>
+    $allTemplates=$pdo->query("SELECT * FROM email_campaign_templates WHERE template_key NOT IN ({$automatedTemplateSql}) ORDER BY name")->fetchAll()?:[];admin_layout_start('Campaign Templates','email_campaigns');?>
+    <div class="d-flex justify-content-between align-items-center mb-3"><div><div class="small text-muted">Email campaigns</div><h5 class="mb-0">Manual campaign templates</h5></div><div class="d-flex gap-2"><a class="btn btn-success" href="campaigns.php?view=template_edit">New template</a><a class="btn btn-outline-secondary" href="campaigns.php?tab=manual">Back to manual campaigns</a></div></div>
     <div class="card-soft p-4"><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Template</th><th>Structure</th><th>Category</th><th>Audience</th><th>Status</th><th></th></tr></thead><tbody><?php foreach($allTemplates as $templateRow): ?><tr><td><strong><?php echo h((string)$templateRow['name']); ?></strong><div class="small text-muted"><?php echo h((string)$templateRow['template_key']); ?></div></td><td><?php echo h(ucwords(str_replace('_',' ',(string)$templateRow['renderer_key']))); ?></td><td><?php echo h(ucwords(str_replace('_',' ',(string)$templateRow['category']))); ?></td><td><?php echo h(emailCampaignPresets()[$templateRow['audience_preset']]??(string)$templateRow['audience_preset']); ?></td><td><?php echo !empty($templateRow['is_active'])?'Active':'Inactive'; ?></td><td><a class="btn btn-sm btn-outline-secondary" href="campaigns.php?view=template_edit&amp;template_id=<?php echo (int)$templateRow['id']; ?>">Edit</a></td></tr><?php endforeach; ?></tbody></table></div></div>
     <?php admin_layout_end();exit;
 }
