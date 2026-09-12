@@ -26,6 +26,7 @@ function defaultMembershipTypes(): array
             'type' => 'senior',
             'allows_ride_entries' => 1,
             'allows_competitive_rides' => 1,
+            'has_voting_rights' => 1,
             'status' => 'published',
         ],
         [
@@ -36,6 +37,7 @@ function defaultMembershipTypes(): array
             'type' => 'junior',
             'allows_ride_entries' => 1,
             'allows_competitive_rides' => 1,
+            'has_voting_rights' => 0,
             'status' => 'published',
         ],
     ];
@@ -2480,6 +2482,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
     $status = $data['status'] ?? 'draft';
     $allowsCompetitiveRides = !empty($data['allows_competitive_rides']) ? 1 : 0;
     $allowsRideEntries = !empty($data['allows_ride_entries']) ? 1 : 0;
+    $hasVotingRights = !empty($data['has_voting_rights']) ? 1 : 0;
     if ($allowsCompetitiveRides) $allowsRideEntries = 1;
 
     if ($name === '' || $cost === '') {
@@ -2506,6 +2509,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                     type = :type,
                     allows_ride_entries = :allows_ride_entries,
                     allows_competitive_rides = :allows_competitive_rides,
+                    has_voting_rights = :has_voting_rights,
                     status = :status,
                     updated_at = NOW()
                 WHERE id = :id
@@ -2517,13 +2521,14 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                 ':type' => $type ?: 'standard',
                 ':allows_ride_entries' => $allowsRideEntries,
                 ':allows_competitive_rides' => $allowsCompetitiveRides,
+                ':has_voting_rights' => $hasVotingRights,
                 ':status' => $status,
                 ':id' => $id,
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO membership_types (name, description, membership_year, cost, type, allows_ride_entries, allows_competitive_rides, status, created_at, updated_at)
-                VALUES (:name, :description, 0, :cost, :type, :allows_ride_entries, :allows_competitive_rides, :status, NOW(), NOW())
+                INSERT INTO membership_types (name, description, membership_year, cost, type, allows_ride_entries, allows_competitive_rides, has_voting_rights, status, created_at, updated_at)
+                VALUES (:name, :description, 0, :cost, :type, :allows_ride_entries, :allows_competitive_rides, :has_voting_rights, :status, NOW(), NOW())
             ");
             $stmt->execute([
                 ':name' => $name,
@@ -2532,6 +2537,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                 ':type' => $type ?: 'standard',
                 ':allows_ride_entries' => $allowsRideEntries,
                 ':allows_competitive_rides' => $allowsCompetitiveRides,
+                ':has_voting_rights' => $hasVotingRights,
                 ':status' => $status,
             ]);
         }
@@ -2556,6 +2562,7 @@ function ensureMembershipTypesTable(PDO $pdo): void
                 type VARCHAR(80) NOT NULL DEFAULT 'senior',
             allows_ride_entries TINYINT(1) NOT NULL DEFAULT 0,
             allows_competitive_rides TINYINT(1) NOT NULL DEFAULT 0,
+            has_voting_rights TINYINT(1) NOT NULL DEFAULT 0,
             status VARCHAR(20) NOT NULL DEFAULT 'draft',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -2569,6 +2576,9 @@ function ensureMembershipTypesTable(PDO $pdo): void
     }
     if (!table_column_exists($pdo, 'membership_types', 'allows_ride_entries')) {
         $pdo->exec("ALTER TABLE membership_types ADD COLUMN allows_ride_entries TINYINT(1) NOT NULL DEFAULT 0");
+    }
+    if (!table_column_exists($pdo, 'membership_types', 'has_voting_rights')) {
+        $pdo->exec("ALTER TABLE membership_types ADD COLUMN has_voting_rights TINYINT(1) NOT NULL DEFAULT 0");
     }
 }
 
@@ -2619,6 +2629,7 @@ function fetchMemberships(?PDO $pdo): array
                 mt.type AS membership_type_key,
                 COALESCE(mp.allows_ride_entries_snapshot, mt.allows_ride_entries, 0) AS allows_ride_entries,
                 COALESCE(mp.allows_competitive_rides_snapshot, mt.allows_competitive_rides, 0) AS allows_competitive_rides,
+                COALESCE(mp.has_voting_rights_snapshot, mt.has_voting_rights, 0) AS has_voting_rights,
                 u.email AS user_email,
                 TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS user_name,
                 m.member_number AS member_number,
@@ -2777,8 +2788,8 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
             )
         ");
         $stmt = $pdo->prepare("
-            INSERT INTO membership_purchases (purchased_by_user_id, member_id, membership_type_id, membership_year, amount, status, allows_ride_entries_snapshot, allows_competitive_rides_snapshot, purchased_at, created_at, updated_at)
-            VALUES (:purchased_by_user_id, :member_id, :membership_type_id, :membership_year, :amount, :status, :allows_ride_entries_snapshot, :allows_competitive_rides_snapshot, NOW(), NOW(), NOW())
+            INSERT INTO membership_purchases (purchased_by_user_id, member_id, membership_type_id, membership_year, amount, status, allows_ride_entries_snapshot, allows_competitive_rides_snapshot, has_voting_rights_snapshot, purchased_at, created_at, updated_at)
+            VALUES (:purchased_by_user_id, :member_id, :membership_type_id, :membership_year, :amount, :status, :allows_ride_entries_snapshot, :allows_competitive_rides_snapshot, :has_voting_rights_snapshot, NOW(), NOW(), NOW())
         ");
         $stmt->execute([
             ':purchased_by_user_id' => $purchasedByUserId ?: null,
@@ -2789,6 +2800,7 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
             ':status' => $status,
             ':allows_ride_entries_snapshot' => !empty($membershipType['allows_ride_entries']) ? 1 : 0,
             ':allows_competitive_rides_snapshot' => !empty($membershipType['allows_competitive_rides']) ? 1 : 0,
+            ':has_voting_rights_snapshot' => !empty($membershipType['has_voting_rights']) ? 1 : 0,
         ]);
         return true;
     } catch (PDOException $e) {
@@ -2953,6 +2965,9 @@ function ensureMembershipTables(PDO $pdo): void
     }
     if (!table_column_exists($pdo, 'membership_purchases', 'allows_ride_entries_snapshot')) {
         $pdo->exec("ALTER TABLE membership_purchases ADD COLUMN allows_ride_entries_snapshot TINYINT(1) NULL DEFAULT NULL");
+    }
+    if (!table_column_exists($pdo, 'membership_purchases', 'has_voting_rights_snapshot')) {
+        $pdo->exec("ALTER TABLE membership_purchases ADD COLUMN has_voting_rights_snapshot TINYINT(1) NULL DEFAULT NULL");
     }
     if (!table_index_on_column_exists($pdo, 'membership_purchases', 'purchased_by_user_id')) {
         try {

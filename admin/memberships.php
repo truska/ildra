@@ -64,6 +64,9 @@ $tableColumns = [
     'competitive' => ['label'=>'Competitive rides', 'sortable'=>true, 'filter'=>'select', 'options'=>['1'=>'Allowed','0'=>'Not allowed'], 'form'=>$filterForm,
         'value'=>static fn(array $row): string => !empty($row['allows_competitive_rides']) ? 'Allowed' : 'Not allowed',
         'sort_value'=>static fn(array $row): int => !empty($row['allows_competitive_rides']) ? 1 : 0],
+    'voting' => ['label'=>'Voting rights', 'sortable'=>true, 'filter'=>'select', 'options'=>['1'=>'Yes','0'=>'No'], 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => !empty($row['has_voting_rights']) ? 'Yes' : 'No',
+        'sort_value'=>static fn(array $row): int => !empty($row['has_voting_rights']) ? 1 : 0],
     'cost' => ['label'=>'Cost', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
         'value'=>static fn(array $row): string => number_format((float)($row['cost'] ?? 0), 2, '.', ''),
         'sort_value'=>static fn(array $row): float => (float)($row['cost'] ?? 0)],
@@ -87,6 +90,7 @@ $formValues = $editingType ?: [
     'type' => 'senior',
     'allows_ride_entries' => 0,
     'allows_competitive_rides' => 0,
+    'has_voting_rights' => 0,
     'status' => 'draft',
 ];
 
@@ -251,6 +255,7 @@ admin_layout_start('Memberships', 'memberships');
                             <td class="fw-semibold"><?php echo h($type['name'] ?? ''); ?></td>
                             <td class="text-muted"><?php echo !empty($type['allows_ride_entries']) ? 'Allowed' : 'Not allowed'; ?></td>
                             <td class="text-muted"><?php echo !empty($type['allows_competitive_rides']) ? 'Allowed' : 'Not allowed'; ?></td>
+                            <td class="text-muted"><?php echo !empty($type['has_voting_rights']) ? 'Yes' : 'No'; ?></td>
                             <td class="fw-semibold"><?php echo '£' . h(number_format((float)($type['cost'] ?? 0), 2)); ?></td>
                             <td>
                                 <span class="status-pill <?php echo (($type['status'] ?? '') === 'draft') ? 'draft' : ''; ?>">
@@ -267,6 +272,7 @@ admin_layout_start('Memberships', 'memberships');
                                         data-description="<?php echo h($type['description'] ?? ''); ?>"
                                         data-allows-competitive-rides="<?php echo !empty($type['allows_competitive_rides']) ? '1' : '0'; ?>"
                                         data-allows-ride-entries="<?php echo !empty($type['allows_ride_entries']) ? '1' : '0'; ?>"
+                                        data-has-voting-rights="<?php echo !empty($type['has_voting_rights']) ? '1' : '0'; ?>"
                                         data-cost="<?php echo h((string)($type['cost'] ?? '')); ?>"
                                         data-type="<?php echo h((string)($type['type'] ?? '')); ?>"
                                         data-status="<?php echo h((string)($type['status'] ?? 'draft')); ?>"
@@ -283,7 +289,7 @@ admin_layout_start('Memberships', 'memberships');
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$membershipTypes): ?>
-                        <tr><td colspan="6" class="text-muted">No membership types match these filters.</td></tr>
+                        <tr><td colspan="7" class="text-muted">No membership types match these filters.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -351,6 +357,10 @@ admin_layout_start('Memberships', 'memberships');
                             <input class="form-check-input" type="checkbox" role="switch" id="allows_competitive_rides" name="allows_competitive_rides" value="1" <?php echo !empty($formValues['allows_competitive_rides']) ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="allows_competitive_rides">Allows competitive rides (CTR and ER)</label>
                         </div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" role="switch" id="has_voting_rights" name="has_voting_rights" value="1" <?php echo !empty($formValues['has_voting_rights']) ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="has_voting_rights">Voting rights</label>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Status</label>
@@ -415,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
         type: form.querySelector('select[name="type"]'),
         allows_ride_entries: form.querySelector('input[name="allows_ride_entries"]'),
         allows_competitive_rides: form.querySelector('input[name="allows_competitive_rides"]'),
+        has_voting_rights: form.querySelector('input[name="has_voting_rights"]'),
         status: statusSelect,
     };
 
@@ -427,6 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
         type: 'senior',
         allows_ride_entries: false,
         allows_competitive_rides: false,
+        has_voting_rights: false,
         status: 'draft',
     };
 
@@ -468,6 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.type.value = data.type || '';
         fields.allows_ride_entries.checked = !!data.allows_ride_entries;
         fields.allows_competitive_rides.checked = !!data.allows_competitive_rides;
+        fields.has_voting_rights.checked = !!data.has_voting_rights;
         fields.status.value = data.status || 'draft';
 
         if (titleEl) {
@@ -501,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
         type: fields.type.value || '',
         allows_ride_entries: fields.allows_ride_entries.checked,
         allows_competitive_rides: fields.allows_competitive_rides.checked,
+        has_voting_rights: fields.has_voting_rights.checked,
         status: fields.status.value || 'draft',
     });
 
@@ -521,6 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             type: safeType,
             allows_ride_entries: btn.dataset.allowsRideEntries === '1',
             allows_competitive_rides: btn.dataset.allowsCompetitiveRides === '1',
+            has_voting_rights: btn.dataset.hasVotingRights === '1',
             status: btn.dataset.status || 'draft',
         };
         originalData = { ...data };
