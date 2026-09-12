@@ -150,7 +150,10 @@ function syncEventReminderCampaigns(PDO $pdo, int $eventId): void
         if ($existingStmt->fetchColumn()) continue;
         $templateStmt->execute([':key' => $definition['template']]); $template = $templateStmt->fetch();
         if (!$template) continue;
-        $insert->execute([':name' => $definition['name'] . ' - ' . (string)$event['title'], ':type' => $definition['type'], ':template_id' => (int)$template['id'], ':audience' => $definition['audience'], ':event_id' => $eventId, ':year' => (int)$scheduled->format('Y'), ':renderer' => (string)$template['renderer_key'], ':intro' => $template['intro_html'], ':outro' => $template['outro_html'], ':subject' => (string)$template['subject_template'], ':html' => (string)$template['html_template'], ':text' => $template['text_template'], ':scheduled' => $scheduled->format('Y-m-d H:i:s'), ':batch' => max(1, (int)($settings['campaign_default_batch_size'] ??25))]);
+        $audienceYear = $definition['audience'] === 'all_members'
+            ? membership_purchase_year($settings, $scheduled)
+            : (int)$scheduled->format('Y');
+        $insert->execute([':name' => $definition['name'] . ' - ' . (string)$event['title'], ':type' => $definition['type'], ':template_id' => (int)$template['id'], ':audience' => $definition['audience'], ':event_id' => $eventId, ':year' => $audienceYear, ':renderer' => (string)$template['renderer_key'], ':intro' => $template['intro_html'], ':outro' => $template['outro_html'], ':subject' => (string)$template['subject_template'], ':html' => (string)$template['html_template'], ':text' => $template['text_template'], ':scheduled' => $scheduled->format('Y-m-d H:i:s'), ':batch' => max(1, (int)($settings['campaign_default_batch_size'] ??25))]);
     }
 }
 
@@ -237,11 +240,12 @@ function emailCampaignRecipientRows(PDO $pdo, array $campaign): array
               WHERE bi.event_id=:event_id AND bi.is_withdrawn=0";
         $params=[':event_id'=>(int)($campaign['event_id']??0),':person_only'=>$strategy==='person_only'?'1':'0',':account_only'=>$strategy==='account_only'?'1':'0'];
     } else {
-        $membershipJoin="LEFT JOIN membership_purchases mp ON mp.member_id=p.id AND mp.membership_year=:active_year AND mp.status<>'expired'";
+        $membershipJoin="LEFT JOIN membership_purchases mp ON mp.member_id=p.id AND mp.membership_year=:active_year AND mp.status<>'expired'
+                         LEFT JOIN membership_types mt ON mt.id=mp.membership_type_id";
         $where=['u.email IS NOT NULL'];
-        if ($preset==='all_members') $where[]='mp.id IS NOT NULL';
+        if ($preset==='all_members') $where[]='mp.id IS NOT NULL AND COALESCE(mp.allows_ride_entries_snapshot, mt.allows_ride_entries, 0)=1';
         if ($preset==='expired_members') $where[]="EXISTS (SELECT 1 FROM membership_purchases oldmp WHERE oldmp.member_id=p.id AND oldmp.membership_year<:expired_before) AND mp.id IS NULL";
-        if ($preset==='non_members') $where[]='NOT EXISTS (SELECT 1 FROM membership_purchases anymp JOIN people anyp ON anyp.id=anymp.member_id WHERE anyp.owner_user_id=u.id AND anymp.membership_year=:nonmember_year AND anymp.status<>\'expired\')';
+        if ($preset==='non_members') $where[]="NOT EXISTS (SELECT 1 FROM membership_purchases anymp JOIN people anyp ON anyp.id=anymp.member_id LEFT JOIN membership_types anymt ON anymt.id=anymp.membership_type_id WHERE anyp.owner_user_id=u.id AND anymp.membership_year=:nonmember_year AND anymp.status<>'expired' AND COALESCE(anymp.allows_ride_entries_snapshot, anymt.allows_ride_entries, 0)=1)";
         $sql="SELECT u.id user_id,p.id person_id,COALESCE(NULLIF(p.first_name,''),u.first_name) first_name,
                     COALESCE(NULLIF(p.last_name,''),u.last_name) last_name,
                     CASE WHEN :person_only='1' THEN p.email WHEN :account_only='1' THEN u.email ELSE COALESCE(NULLIF(p.email,''),u.email) END email,

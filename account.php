@@ -1192,7 +1192,7 @@ $accountIntroAutoOpen = false;
 	                                                <?php foreach ($activePeople as $p): ?>
                                                         <?php
                                                         $personType = personRecordType($p, $currentUser ?? []);
-                                                        $membershipState = annual_renewal_state((int)($personMembershipYears[(int)$p['id']] ?? 0), 'Membership', 'Buy Membership', 'Renew', null, 'Current Member');
+                                                        $membershipState = membership_renewal_state((int)($personMembershipYears[(int)$p['id']] ?? 0), $siteSettings);
                                                         ?>
 	                                                    <tr class="people-data-row">
 	                                                        <td class="fw-semibold">
@@ -1277,7 +1277,7 @@ $accountIntroAutoOpen = false;
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($archivedPeople as $p): ?>
-                                                        <?php $personType = personRecordType($p, $currentUser ?? []); $archivedMembershipState = annual_renewal_state((int)($personMembershipYears[(int)$p['id']] ?? 0), 'Membership', 'Buy Membership', 'Renew', null, 'Current Member'); ?>
+                                                        <?php $personType = personRecordType($p, $currentUser ?? []); $archivedMembershipState = membership_renewal_state((int)($personMembershipYears[(int)$p['id']] ?? 0), $siteSettings); ?>
                                                         <tr class="text-muted">
                                                             <td>
                                                                 <span class="person-type-icon me-1" title="<?php echo h(ucfirst($personType)); ?>" aria-label="<?php echo h(ucfirst($personType)); ?>">
@@ -1906,7 +1906,7 @@ $accountIntroAutoOpen = false;
 	                            </div>
 
 	                            <?php
-	                            $renderMembershipRows = static function (array $purchases, bool $isPrevious = false) use ($userMembershipPurchases, $renewalMembershipTypes, $basePath): void {
+                            $renderMembershipRows = static function (array $purchases, bool $isPrevious = false) use ($userMembershipPurchases, $renewalMembershipTypes, $basePath, $siteSettings): void {
 	                                foreach ($purchases as $purchase) {
 	                                    $memberLabel = trim((string)($purchase['member_name'] ?? ''));
 	                                    $memberNumber = trim((string)($purchase['member_number'] ?? ''));
@@ -1921,7 +1921,7 @@ $accountIntroAutoOpen = false;
 	                                    $membershipIsActive = !$isPrevious && strtolower($membershipStatus) === 'active';
 	                                    $statusClass = $hasRenewed ? 'membership-status-renewed' : ($membershipIsActive ? 'membership-status-active' : 'membership-status-inactive');
 	                                    $statusIcon = $hasRenewed ? 'fa-arrows-rotate' : ($membershipIsActive ? 'fa-circle-check' : 'fa-circle-xmark');
-	                                    $renewalState = annual_renewal_state($purchaseYear, 'Membership', 'Buy Membership', 'Renew', null, 'Current Member');
+                                    $renewalState = membership_renewal_state($purchaseYear, $siteSettings);
 	                                    $renewalActionEnabled = $isPrevious ? !$hasRenewed : !empty($renewalState['action_enabled']);
 	                                    $renewalType = null;
 	                                    if ($renewalActionEnabled) {
@@ -1929,7 +1929,6 @@ $accountIntroAutoOpen = false;
 	                                        $sourceTypeKey = strtolower(trim((string)($purchase['membership_type_key'] ?? '')));
 	                                        $fallbackTypes = [];
 	                                        foreach ($renewalMembershipTypes as $candidateType) {
-	                                            if ((int)($candidateType['membership_year'] ?? 0) <= $purchaseYear) continue;
 	                                            $candidateNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($candidateType['name'] ?? ''))));
 	                                            if ($sourceNameKey !== '' && $candidateNameKey === $sourceNameKey) {
 	                                                $renewalType = $candidateType;

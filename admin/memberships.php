@@ -58,16 +58,18 @@ foreach ($membershipTypes as $membershipType) {
 natcasesort($statusOptions);
 $tableColumns = [
     'name' => ['label'=>'Name', 'field'=>'name', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm],
-    'sale_window' => ['label'=>'Sale window', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
-        'value'=>static fn(array $row): string => format_display_date($row['sale_starts'] ?? null, '') . ' ' . format_display_date($row['sale_ends'] ?? null, ''),
-        'sort_value'=>static fn(array $row): string => (string)($row['sale_starts'] ?? '')],
-    'membership_year' => ['label'=>'Membership year', 'field'=>'membership_year', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm],
+    'ride_entries' => ['label'=>'Ride benefits', 'sortable'=>true, 'filter'=>'select', 'options'=>['1'=>'Allowed','0'=>'Not allowed'], 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => !empty($row['allows_ride_entries']) ? 'Allowed' : 'Not allowed',
+        'sort_value'=>static fn(array $row): int => !empty($row['allows_ride_entries']) ? 1 : 0],
+    'competitive' => ['label'=>'Competitive rides', 'sortable'=>true, 'filter'=>'select', 'options'=>['1'=>'Allowed','0'=>'Not allowed'], 'form'=>$filterForm,
+        'value'=>static fn(array $row): string => !empty($row['allows_competitive_rides']) ? 'Allowed' : 'Not allowed',
+        'sort_value'=>static fn(array $row): int => !empty($row['allows_competitive_rides']) ? 1 : 0],
     'cost' => ['label'=>'Cost', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
         'value'=>static fn(array $row): string => number_format((float)($row['cost'] ?? 0), 2, '.', ''),
         'sort_value'=>static fn(array $row): float => (float)($row['cost'] ?? 0)],
     'status' => ['label'=>'Status', 'field'=>'status', 'sortable'=>true, 'filter'=>'select', 'options'=>$statusOptions, 'form'=>$filterForm],
 ];
-$table = admin_table_prepare($membershipTypes, $tableColumns, 'membership_year', 'desc');
+$table = admin_table_prepare($membershipTypes, $tableColumns, 'name');
 $membershipTypes = $table['rows'];
 
 $editId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -81,11 +83,10 @@ $formValues = $editingType ?: [
     'id' => 0,
     'name' => '',
     'description' => '',
-    'sale_starts' => '',
-    'sale_ends' => '',
-    'membership_year' => (int)date('Y'),
     'cost' => '0.00',
     'type' => 'senior',
+    'allows_ride_entries' => 0,
+    'allows_competitive_rides' => 0,
     'status' => 'draft',
 ];
 
@@ -248,11 +249,8 @@ admin_layout_start('Memberships', 'memberships');
                     <?php foreach ($membershipTypes as $type): ?>
                         <tr>
                             <td class="fw-semibold"><?php echo h($type['name'] ?? ''); ?></td>
-                            <td class="text-muted">
-                                <div><?php echo h(format_display_date($type['sale_starts'] ?? null, '')); ?></div>
-                                <div><?php echo h(format_display_date($type['sale_ends'] ?? null, '')); ?></div>
-                            </td>
-                            <td class="text-muted"><?php echo (int)($type['membership_year'] ?? 0); ?></td>
+                            <td class="text-muted"><?php echo !empty($type['allows_ride_entries']) ? 'Allowed' : 'Not allowed'; ?></td>
+                            <td class="text-muted"><?php echo !empty($type['allows_competitive_rides']) ? 'Allowed' : 'Not allowed'; ?></td>
                             <td class="fw-semibold"><?php echo '£' . h(number_format((float)($type['cost'] ?? 0), 2)); ?></td>
                             <td>
                                 <span class="status-pill <?php echo (($type['status'] ?? '') === 'draft') ? 'draft' : ''; ?>">
@@ -267,9 +265,8 @@ admin_layout_start('Memberships', 'memberships');
                                         data-id="<?php echo (int)$type['id']; ?>"
                                         data-name="<?php echo h($type['name'] ?? ''); ?>"
                                         data-description="<?php echo h($type['description'] ?? ''); ?>"
-                                        data-sale-starts="<?php echo h($type['sale_starts'] ?? ''); ?>"
-                                        data-sale-ends="<?php echo h($type['sale_ends'] ?? ''); ?>"
-                                        data-membership-year="<?php echo (int)($type['membership_year'] ?? 0); ?>"
+                                        data-allows-competitive-rides="<?php echo !empty($type['allows_competitive_rides']) ? '1' : '0'; ?>"
+                                        data-allows-ride-entries="<?php echo !empty($type['allows_ride_entries']) ? '1' : '0'; ?>"
                                         data-cost="<?php echo h((string)($type['cost'] ?? '')); ?>"
                                         data-type="<?php echo h((string)($type['type'] ?? '')); ?>"
                                         data-status="<?php echo h((string)($type['status'] ?? 'draft')); ?>"
@@ -339,30 +336,21 @@ admin_layout_start('Memberships', 'memberships');
             </div>
 
             <div class="fieldset">
-                <div class="legend">Dates</div>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Sale starts</label>
-                        <input type="date" name="sale_starts" class="form-control" value="<?php echo h($formValues['sale_starts']); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Sale ends</label>
-                        <input type="date" name="sale_ends" class="form-control" value="<?php echo h($formValues['sale_ends']); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Membership year</label>
-                        <input type="number" min="2000" max="2100" name="membership_year" class="form-control" value="<?php echo (int)$formValues['membership_year']; ?>" required>
-                    </div>
-                </div>
-                <div class="helper mt-1">The membership runs from 1 January to 31 December of this year. The sale window is independent.</div>
-            </div>
-
-            <div class="fieldset">
                 <div class="legend">Pricing & status</div>
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Cost</label>
                         <input type="number" step="0.01" min="0" name="cost" class="form-control" placeholder="e.g. 45.00" value="<?php echo h((string)$formValues['cost']); ?>" required>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" role="switch" id="allows_ride_entries" name="allows_ride_entries" value="1" <?php echo !empty($formValues['allows_ride_entries']) ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="allows_ride_entries">Eligible for member ride benefits (member pricing and early entry)</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="allows_competitive_rides" name="allows_competitive_rides" value="1" <?php echo !empty($formValues['allows_competitive_rides']) ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="allows_competitive_rides">Allows competitive rides (CTR and ER)</label>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Status</label>
@@ -423,11 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
         id: form.querySelector('#field-id'),
         name: form.querySelector('input[name="name"]'),
         description: form.querySelector('textarea[name="description"]'),
-        sale_starts: form.querySelector('input[name="sale_starts"]'),
-        sale_ends: form.querySelector('input[name="sale_ends"]'),
-        membership_year: form.querySelector('input[name="membership_year"]'),
         cost: form.querySelector('input[name="cost"]'),
         type: form.querySelector('select[name="type"]'),
+        allows_ride_entries: form.querySelector('input[name="allows_ride_entries"]'),
+        allows_competitive_rides: form.querySelector('input[name="allows_competitive_rides"]'),
         status: statusSelect,
     };
 
@@ -436,11 +423,10 @@ document.addEventListener('DOMContentLoaded', () => {
         id: '0',
         name: '',
         description: '',
-        sale_starts: '',
-        sale_ends: '',
-        membership_year: String(new Date().getFullYear()),
         cost: '0.00',
         type: 'senior',
+        allows_ride_entries: false,
+        allows_competitive_rides: false,
         status: 'draft',
     };
 
@@ -478,11 +464,10 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.id.value = data.id || '0';
         fields.name.value = data.name || '';
         fields.description.value = data.description || '';
-        fields.sale_starts.value = data.sale_starts || '';
-        fields.sale_ends.value = data.sale_ends || '';
-        fields.membership_year.value = data.membership_year || String(new Date().getFullYear());
         fields.cost.value = data.cost || '';
         fields.type.value = data.type || '';
+        fields.allows_ride_entries.checked = !!data.allows_ride_entries;
+        fields.allows_competitive_rides.checked = !!data.allows_competitive_rides;
         fields.status.value = data.status || 'draft';
 
         if (titleEl) {
@@ -512,11 +497,10 @@ document.addEventListener('DOMContentLoaded', () => {
         id: fields.id.value || '0',
         name: fields.name.value || '',
         description: fields.description.value || '',
-        sale_starts: fields.sale_starts.value || '',
-        sale_ends: fields.sale_ends.value || '',
-        membership_year: fields.membership_year.value || '',
         cost: fields.cost.value || '',
         type: fields.type.value || '',
+        allows_ride_entries: fields.allows_ride_entries.checked,
+        allows_competitive_rides: fields.allows_competitive_rides.checked,
         status: fields.status.value || 'draft',
     });
 
@@ -533,11 +517,10 @@ document.addEventListener('DOMContentLoaded', () => {
             id: btn.dataset.id || '0',
             name: btn.dataset.name || '',
             description: btn.dataset.description || '',
-            sale_starts: btn.dataset.saleStarts || '',
-            sale_ends: btn.dataset.saleEnds || '',
-            membership_year: btn.dataset.membershipYear || '',
             cost: btn.dataset.cost || '',
             type: safeType,
+            allows_ride_entries: btn.dataset.allowsRideEntries === '1',
+            allows_competitive_rides: btn.dataset.allowsCompetitiveRides === '1',
             status: btn.dataset.status || 'draft',
         };
         originalData = { ...data };

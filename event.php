@@ -36,6 +36,7 @@ if ($isLoggedIn && $pdo) {
     }
 }
 $peopleWithActiveMembership = [];
+$peopleWithCompetitiveMembership = [];
 $memberPriceEligibleByPerson = [];
 $memberPriceUsedByPerson = [];
 $externallyRecognisedPeople = [];
@@ -51,8 +52,11 @@ if ($isLoggedIn && $pdo && $people) {
             continue;
         }
         $status = strtolower((string)($membership['status'] ?? ''));
-        if ($status === 'active') {
+        if ($status === 'active' && !empty($membership['allows_ride_entries'])) {
             $peopleWithActiveMembership[$memberId] = true;
+            if (!empty($membership['allows_competitive_rides'])) {
+                $peopleWithCompetitiveMembership[$memberId] = true;
+            }
         }
     }
     if ($eventId > 0 && ensure_bookings_tables($pdo)) {
@@ -377,7 +381,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $alerts[] = ['type' => 'danger', 'message' => 'Choose a member above to use member pricing.'];
             } elseif (!$isCompetitiveClass && empty($memberPriceEligibleByPerson[$personId])) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Member pricing is not available for the selected person.'];
-            } elseif ($isCompetitiveClass && !$selectedPersonHasActiveMembership && !$selectedPersonHasExternalRecognition) {
+            } elseif ($isCompetitiveClass && empty($peopleWithCompetitiveMembership[$personId]) && !$selectedPersonHasExternalRecognition) {
                 $alerts[] = ['type' => 'danger', 'message' => 'CTR and ER classes require an ILDRA member or an externally recognised rider.'];
             }
         }
@@ -899,7 +903,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                             $isJuniorPerson = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
 	                                                        $disableNonMemberRider = empty($peopleWithActiveMembership[$pId]) && !$nonMemberEntriesOpenNow;
 	                                                        ?>
-                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>" <?php echo $disableNonMemberRider ? 'disabled' : ''; ?>><?php echo h($pLabel); ?></option>
+                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-member-competitive="<?php echo !empty($peopleWithCompetitiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>" <?php echo $disableNonMemberRider ? 'disabled' : ''; ?>><?php echo h($pLabel); ?></option>
 	                                                    <?php endforeach; ?>
 	                                                </select>
 	                                                <div class="validation-message small d-none" data-validation-for="prefill_person">Please choose a rider.</div>
@@ -1183,6 +1187,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const peopleData = <?php echo json_encode(array_values($people), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const memberEligibilityByPerson = <?php echo json_encode($memberPriceEligibleByPerson, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const memberActiveByPerson = <?php echo json_encode($peopleWithActiveMembership, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const memberCompetitiveByPerson = <?php echo json_encode($peopleWithCompetitiveMembership, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const memberPriceUsedByPerson = <?php echo json_encode($memberPriceUsedByPerson, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const horsesData = <?php echo json_encode(array_values($horses), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const prefillPerson = document.getElementById('prefillPerson');
@@ -1270,6 +1275,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             return !!(id && memberEligibilityByPerson && memberEligibilityByPerson[id]);
         };
         const selectedPersonActiveMember = () => prefillPerson?.selectedOptions?.[0]?.dataset?.memberActive === '1';
+        const selectedPersonCompetitiveMember = () => prefillPerson?.selectedOptions?.[0]?.dataset?.memberCompetitive === '1';
         const selectedPersonExternalRecognition = () => prefillPerson?.selectedOptions?.[0]?.dataset?.externalRecognition === '1';
         const selectedHorseRecognised = () => prefillHorse?.selectedOptions?.[0]?.dataset?.recognised === '1';
 
@@ -1286,7 +1292,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }
             const memberOptions = Array.from(classSelect.options || []).filter((opt) => opt.dataset.memberPrice === '1');
             memberOptions.forEach((opt) => {
-                const competitiveRecognition = ['CTR', 'ER'].includes(opt.dataset.classGroup || '') && (selectedPersonActiveMember() || selectedPersonExternalRecognition());
+                const competitiveRecognition = ['CTR', 'ER'].includes(opt.dataset.classGroup || '') && (selectedPersonCompetitiveMember() || selectedPersonExternalRecognition());
                 const optionEligible = eligible || competitiveRecognition;
                 const useForeignPrice = selectedPersonExternalRecognition() && !selectedPersonActiveMember() && opt.dataset.foreignPrice !== '';
                 const effectivePrice = useForeignPrice ? opt.dataset.foreignPrice : opt.dataset.memberPriceValue;
@@ -1298,7 +1304,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 opt.textContent = optionEligible ? baseLabel : lockedLabel;
             });
             const selectedOpt = classSelect.selectedOptions[0];
-            const selectedCompetitiveRecognition = ['CTR', 'ER'].includes(selectedOpt?.dataset?.classGroup || '') && (selectedPersonActiveMember() || selectedPersonExternalRecognition());
+            const selectedCompetitiveRecognition = ['CTR', 'ER'].includes(selectedOpt?.dataset?.classGroup || '') && (selectedPersonCompetitiveMember() || selectedPersonExternalRecognition());
             if (!eligible && !selectedCompetitiveRecognition && selectedOpt?.dataset?.memberPrice === '1') {
                 classSelect.value = '';
             }
@@ -1308,7 +1314,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             if (!classSelect || !rideTypeSelect) return;
             const personIsJunior = prefillPerson?.selectedOptions?.[0]?.dataset?.personJunior === '1';
             const personIsMember = selectedPersonActiveMember();
-            const competitiveAllowed = (personIsMember || selectedPersonExternalRecognition()) && selectedHorseRecognised();
+            const competitiveAllowed = (selectedPersonCompetitiveMember() || selectedPersonExternalRecognition()) && selectedHorseRecognised();
             Array.from(rideTypeSelect.options).forEach((option) => {
                 if (['CTR', 'ER'].includes(option.value)) option.disabled = !competitiveAllowed;
             });

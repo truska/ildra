@@ -270,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                         'purchased_by_user_id' => (int)$userId,
                         'member_id' => $memberId,
                         'membership_type_id' => $typeId,
-                        'membership_year' => (int)($basketItem['membership_year'] ?? $membershipType['membership_year'] ?? 0),
+                        'membership_year' => (int)($basketItem['membership_year'] ?? membership_purchase_year(getSiteSettings($pdo))),
                         'amount' => $basketItem['price'] ?? '0',
                         'status' => 'active',
                     ], $alerts);

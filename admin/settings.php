@@ -138,6 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'remember_me_ttl_seconds' => $rememberTtlSeconds,
             'admin_manual_asset_id' => (string)$manualAssetId,
             'auth_app_login_enabled' => $authAppLoginEnabled,
+            'membership_next_year_from' => trim((string)($_POST['membership_next_year_from'] ?? '11-01')),
         ];
         if (saveSiteSettings($pdo, $payload, $alerts)) {
             $_SESSION['flash_success'] = 'Global settings saved.';
@@ -349,6 +350,11 @@ admin_layout_start('Settings', 'settings');
                             <input class="form-check-input" type="checkbox" role="switch" id="authAppLoginEnabled" name="auth_app_login_enabled" value="1" <?php echo $authAppLoginEnabled ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="authAppLoginEnabled">Offer authenticator app codes as a login option when users have set them up.</label>
                         </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="membership_next_year_from">Membership rollover date</label>
+                        <input class="form-control" style="max-width:180px" id="membership_next_year_from" name="membership_next_year_from" type="text" pattern="(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])" placeholder="11-01" value="<?php echo h((string)($siteSettings['membership_next_year_from'] ?? '11-01')); ?>">
+                        <div class="form-text">Memberships purchased on or after this month-day apply to the following membership year and receive full rights immediately. Default: 11-01.</div>
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-semibold mb-2">CMS manual</label>

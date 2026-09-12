@@ -75,7 +75,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }
         }
 
-        $membershipYear = (int)($membership['membership_year'] ?? date('Y'));
+        $membershipYear = membership_purchase_year($siteSettings);
 
         // Prevent duplicates in basket for the same member/year.
         foreach ($basket as $item) {
@@ -270,7 +270,7 @@ $navItemEventsUrl = $basePath . '/events';
 	                                    ?>
 	                                        <div class="text-muted small mb-2"><?php echo h($description); ?></div>
 	                                    <?php endif; ?>
-	                                    <div class="text-muted small mb-3"><span class="field-hint">Membership year:</span> <?php echo (int)($type['membership_year'] ?? date('Y')); ?></div>
+                                    <div class="text-muted small mb-3"><span class="field-hint">Membership year:</span> <?php echo membership_purchase_year($siteSettings); ?></div>
 	                                    <?php if ($isLoggedIn): ?>
 	                                        <form method="POST">
 	                                            <input type="hidden" name="action" value="add_membership">

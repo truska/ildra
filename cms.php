@@ -22,22 +22,20 @@ function defaultMembershipTypes(): array
             'id' => 501,
             'name' => 'Adult Annual',
             'description' => 'Standard adult membership for the season.',
-            'sale_starts' => date('Y-01-01'),
-            'sale_ends' => date('Y-12-31'),
-            'membership_year' => (int)date('Y'),
             'cost' => '50.00',
             'type' => 'senior',
+            'allows_ride_entries' => 1,
+            'allows_competitive_rides' => 1,
             'status' => 'published',
         ],
         [
             'id' => 502,
             'name' => 'Junior Annual',
             'description' => 'Under 18 membership.',
-            'sale_starts' => date('Y-01-01'),
-            'sale_ends' => date('Y-12-31'),
-            'membership_year' => (int)date('Y'),
             'cost' => '25.00',
             'type' => 'junior',
+            'allows_ride_entries' => 1,
+            'allows_competitive_rides' => 1,
             'status' => 'published',
         ],
     ];
@@ -105,6 +103,7 @@ function defaultSiteSettings(): array
         'event_late_entry_close_time' => '18:00',
         'event_late_entry_fee' => '0.00',
         'event_stripe_refund_fee' => '5.00',
+        'membership_next_year_from' => '11-01',
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days
         'admin_manual_filename' => '',
@@ -197,6 +196,7 @@ function getSiteSettings(?PDO $pdo): array
         $settings['basket_timeout_seconds'] = max(300, (int)($settings['basket_timeout_seconds'] ?? 900));
         $settings['remember_me_ttl_seconds'] = (int)($settings['remember_me_ttl_seconds'] ?? (30 * 86400));
         $settings['auth_app_login_enabled'] = !empty($settings['auth_app_login_enabled']) && (string)$settings['auth_app_login_enabled'] !== '0' ? '1' : '0';
+        if (!preg_match('/^(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/', (string)($settings['membership_next_year_from'] ?? ''))) $settings['membership_next_year_from'] = '11-01';
         return $settings;
     } catch (PDOException $e) {
         return defaultSiteSettings();
@@ -227,6 +227,7 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
     }
     $settings['remember_me_ttl_seconds'] = $rememberTtl;
     $settings['auth_app_login_enabled'] = !empty($settings['auth_app_login_enabled']) && (string)$settings['auth_app_login_enabled'] !== '0' ? '1' : '0';
+    if (!preg_match('/^(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$/', (string)($settings['membership_next_year_from'] ?? ''))) $settings['membership_next_year_from'] = '11-01';
 
     foreach (['event_default_end_days', 'event_late_entry_close_days'] as $dayKey) {
         $settings[$dayKey] = max(0, min(365, (int)($settings[$dayKey] ?? 0)));
@@ -2434,7 +2435,7 @@ function fetchMembershipTypes(?PDO $pdo, bool $publishedOnly = false): array
         if ($publishedOnly) {
             $sql .= " WHERE status = 'published'";
         }
-        $sql .= " ORDER BY membership_year DESC, sale_starts ASC";
+        $sql .= " ORDER BY name ASC";
         $stmt = $pdo->query($sql);
         return $stmt->fetchAll();
     } catch (PDOException $e) {
@@ -2474,15 +2475,15 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
     $id = isset($data['membership_type_id']) ? (int)$data['membership_type_id'] : 0;
     $name = trim((string)($data['name'] ?? ''));
     $description = trim((string)($data['description'] ?? ''));
-    $saleStarts = trim((string)($data['sale_starts'] ?? ''));
-    $saleEnds = trim((string)($data['sale_ends'] ?? ''));
-    $membershipYear = (int)($data['membership_year'] ?? 0);
     $cost = trim((string)($data['cost'] ?? '0'));
     $type = trim((string)($data['type'] ?? 'senior'));
     $status = $data['status'] ?? 'draft';
+    $allowsCompetitiveRides = !empty($data['allows_competitive_rides']) ? 1 : 0;
+    $allowsRideEntries = !empty($data['allows_ride_entries']) ? 1 : 0;
+    if ($allowsCompetitiveRides) $allowsRideEntries = 1;
 
-    if ($name === '' || $cost === '' || $membershipYear < 2000 || $membershipYear > 2100) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Name, membership year and cost are required.'];
+    if ($name === '' || $cost === '') {
+        $alerts[] = ['type' => 'danger', 'message' => 'Name and cost are required.'];
         return false;
     }
     if (!in_array($status, ['draft', 'published'], true)) {
@@ -2501,11 +2502,10 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                 UPDATE membership_types SET
                     name = :name,
                     description = :description,
-                    sale_starts = :sale_starts,
-                    sale_ends = :sale_ends,
-                    membership_year = :membership_year,
                     cost = :cost,
                     type = :type,
+                    allows_ride_entries = :allows_ride_entries,
+                    allows_competitive_rides = :allows_competitive_rides,
                     status = :status,
                     updated_at = NOW()
                 WHERE id = :id
@@ -2513,27 +2513,25 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
             $stmt->execute([
                 ':name' => $name,
                 ':description' => $description,
-                ':sale_starts' => $saleStarts ?: null,
-                ':sale_ends' => $saleEnds ?: null,
-                ':membership_year' => $membershipYear,
                 ':cost' => $cost,
                 ':type' => $type ?: 'standard',
+                ':allows_ride_entries' => $allowsRideEntries,
+                ':allows_competitive_rides' => $allowsCompetitiveRides,
                 ':status' => $status,
                 ':id' => $id,
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO membership_types (name, description, sale_starts, sale_ends, membership_year, cost, type, status, created_at, updated_at)
-                VALUES (:name, :description, :sale_starts, :sale_ends, :membership_year, :cost, :type, :status, NOW(), NOW())
+                INSERT INTO membership_types (name, description, membership_year, cost, type, allows_ride_entries, allows_competitive_rides, status, created_at, updated_at)
+                VALUES (:name, :description, 0, :cost, :type, :allows_ride_entries, :allows_competitive_rides, :status, NOW(), NOW())
             ");
             $stmt->execute([
                 ':name' => $name,
                 ':description' => $description,
-                ':sale_starts' => $saleStarts ?: null,
-                ':sale_ends' => $saleEnds ?: null,
-                ':membership_year' => $membershipYear,
                 ':cost' => $cost,
                 ':type' => $type ?: 'standard',
+                ':allows_ride_entries' => $allowsRideEntries,
+                ':allows_competitive_rides' => $allowsCompetitiveRides,
                 ':status' => $status,
             ]);
         }
@@ -2556,6 +2554,8 @@ function ensureMembershipTypesTable(PDO $pdo): void
             membership_year SMALLINT UNSIGNED NOT NULL,
             cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 type VARCHAR(80) NOT NULL DEFAULT 'senior',
+            allows_ride_entries TINYINT(1) NOT NULL DEFAULT 0,
+            allows_competitive_rides TINYINT(1) NOT NULL DEFAULT 0,
             status VARCHAR(20) NOT NULL DEFAULT 'draft',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -2563,6 +2563,12 @@ function ensureMembershipTypesTable(PDO $pdo): void
     ");
     if (!table_index_on_column_exists($pdo, 'membership_types', 'membership_year') && table_index_count($pdo, 'membership_types') < 64) {
         $pdo->exec("ALTER TABLE membership_types ADD INDEX idx_membership_types_year (membership_year)");
+    }
+    if (!table_column_exists($pdo, 'membership_types', 'allows_competitive_rides')) {
+        $pdo->exec("ALTER TABLE membership_types ADD COLUMN allows_competitive_rides TINYINT(1) NOT NULL DEFAULT 0");
+    }
+    if (!table_column_exists($pdo, 'membership_types', 'allows_ride_entries')) {
+        $pdo->exec("ALTER TABLE membership_types ADD COLUMN allows_ride_entries TINYINT(1) NOT NULL DEFAULT 0");
     }
 }
 
@@ -2611,6 +2617,8 @@ function fetchMemberships(?PDO $pdo): array
                 mp.*,
                 mt.name AS membership_name,
                 mt.type AS membership_type_key,
+                COALESCE(mp.allows_ride_entries_snapshot, mt.allows_ride_entries, 0) AS allows_ride_entries,
+                COALESCE(mp.allows_competitive_rides_snapshot, mt.allows_competitive_rides, 0) AS allows_competitive_rides,
                 u.email AS user_email,
                 TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS user_name,
                 m.member_number AS member_number,
@@ -2624,8 +2632,9 @@ function fetchMemberships(?PDO $pdo): array
         ";
         $stmt = $pdo->query($sql);
         $rows = $stmt->fetchAll();
+        $membershipSettings = getSiteSettings($pdo);
         foreach ($rows as &$row) {
-            $row['status'] = membership_status_for_row($row);
+            $row['status'] = membership_status_for_row($row, $membershipSettings);
         }
         return $rows;
     } catch (PDOException $e) {
@@ -2633,16 +2642,35 @@ function fetchMemberships(?PDO $pdo): array
     }
 }
 
-function membership_status_for_row(array $row): string
+function membership_rollover_month_day(array $settings = []): string
+{
+    $value = (string)($settings['membership_next_year_from'] ?? '11-01');
+    return preg_match('/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/', $value) ? $value : '11-01';
+}
+
+function membership_purchase_year(array $settings = [], ?DateTimeInterface $date = null): int
+{
+    $date = $date ?? new DateTimeImmutable('today');
+    return (int)$date->format('Y') + ($date->format('m-d') >= membership_rollover_month_day($settings) ? 1 : 0);
+}
+
+function membership_purchase_is_current(array $purchase, array $settings = [], ?DateTimeInterface $date = null): bool
+{
+    if (!in_array(strtolower((string)($purchase['status'] ?? 'active')), ['active', 'pending'], true)) return false;
+    $date = $date ?? new DateTimeImmutable('today');
+    return (int)($purchase['membership_year'] ?? 0) === membership_purchase_year($settings, $date);
+}
+
+function membership_status_for_row(array $row, array $settings = []): string
 {
     $membershipYear = (int)($row['membership_year'] ?? 0);
     $statusRaw = strtolower(trim((string)($row['status'] ?? '')));
     $statusRaw = in_array($statusRaw, ['active', 'pending', 'expired'], true) ? $statusRaw : 'active';
     if ($membershipYear > 0) {
-        $currentYear = (int)date('Y');
-        if ($membershipYear < $currentYear) return 'expired';
-        if ($membershipYear > $currentYear) return 'pending';
-        return 'active';
+        $requiredYear = membership_purchase_year($settings);
+        if ($membershipYear < $requiredYear) return 'expired';
+        if ($membershipYear > $requiredYear) return 'pending';
+        return $statusRaw === 'expired' ? 'expired' : 'active';
     }
     return $statusRaw;
 }
@@ -2670,6 +2698,23 @@ function annual_renewal_state(int $latestYear, string $itemLabel, string $buyLab
     return $status;
 }
 
+function membership_renewal_state(int $latestYear, array $settings = [], ?DateTimeImmutable $today = null): array
+{
+    $today = $today ?? new DateTimeImmutable('today');
+    $requiredYear = membership_purchase_year($settings, $today);
+    if ($latestYear <= 0) return ['class'=>'text-danger','icon'=>'fa-solid fa-circle-xmark','label'=>'No membership','title'=>'No membership has been purchased','action_label'=>'Buy Membership','action_enabled'=>true,'action_title'=>'Buy Membership'];
+    $valid = $latestYear >= $requiredYear;
+    return [
+        'class'=>$valid ? 'text-success' : 'text-warning',
+        'icon'=>$valid ? 'fa-solid fa-circle-check' : 'fa-solid fa-triangle-exclamation',
+        'label'=>$valid ? 'Valid' : 'Renewal due',
+        'title'=>$valid ? 'Membership valid for ' . $latestYear : 'Membership renewal is due for ' . $requiredYear,
+        'action_label'=>$valid ? 'Current Member' : 'Renew',
+        'action_enabled'=>!$valid,
+        'action_title'=>$valid ? 'Already valid for ' . $latestYear . '.' : 'Renew membership',
+    ];
+}
+
 function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
 {
     if (!$pdo) {
@@ -2694,6 +2739,11 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
 
     try {
         ensureMembershipTables($pdo);
+        $membershipType = fetchMembershipTypeById($pdo, $typeId);
+        if (!$membershipType) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Membership type not found.'];
+            return false;
+        }
         if ($memberId && $memberId > 0) {
             $duplicate = $pdo->prepare("SELECT 1 FROM membership_purchases WHERE member_id = :member_id AND membership_year = :membership_year LIMIT 1");
             $duplicate->execute([":member_id" => $memberId, ":membership_year" => $membershipYear]);
@@ -2727,8 +2777,8 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
             )
         ");
         $stmt = $pdo->prepare("
-            INSERT INTO membership_purchases (purchased_by_user_id, member_id, membership_type_id, membership_year, amount, status, purchased_at, created_at, updated_at)
-            VALUES (:purchased_by_user_id, :member_id, :membership_type_id, :membership_year, :amount, :status, NOW(), NOW(), NOW())
+            INSERT INTO membership_purchases (purchased_by_user_id, member_id, membership_type_id, membership_year, amount, status, allows_ride_entries_snapshot, allows_competitive_rides_snapshot, purchased_at, created_at, updated_at)
+            VALUES (:purchased_by_user_id, :member_id, :membership_type_id, :membership_year, :amount, :status, :allows_ride_entries_snapshot, :allows_competitive_rides_snapshot, NOW(), NOW(), NOW())
         ");
         $stmt->execute([
             ':purchased_by_user_id' => $purchasedByUserId ?: null,
@@ -2737,6 +2787,8 @@ function saveMembershipPurchase(?PDO $pdo, array $data, array &$alerts): bool
             ':membership_year' => $membershipYear,
             ':amount' => $amount,
             ':status' => $status,
+            ':allows_ride_entries_snapshot' => !empty($membershipType['allows_ride_entries']) ? 1 : 0,
+            ':allows_competitive_rides_snapshot' => !empty($membershipType['allows_competitive_rides']) ? 1 : 0,
         ]);
         return true;
     } catch (PDOException $e) {
@@ -2895,6 +2947,12 @@ function ensureMembershipTables(PDO $pdo): void
         if (!table_index_on_column_exists($pdo, 'membership_purchases', 'membership_year') && table_index_count($pdo, 'membership_purchases') < 64) {
             $pdo->exec("ALTER TABLE membership_purchases ADD INDEX idx_membership_purchases_year (membership_year)");
         }
+    }
+    if (!table_column_exists($pdo, 'membership_purchases', 'allows_competitive_rides_snapshot')) {
+        $pdo->exec("ALTER TABLE membership_purchases ADD COLUMN allows_competitive_rides_snapshot TINYINT(1) NULL DEFAULT NULL");
+    }
+    if (!table_column_exists($pdo, 'membership_purchases', 'allows_ride_entries_snapshot')) {
+        $pdo->exec("ALTER TABLE membership_purchases ADD COLUMN allows_ride_entries_snapshot TINYINT(1) NULL DEFAULT NULL");
     }
     if (!table_index_on_column_exists($pdo, 'membership_purchases', 'purchased_by_user_id')) {
         try {

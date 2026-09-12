@@ -330,7 +330,6 @@ foreach ($pageElements as &$pageElement) {
                                 <span class="badge text-bg-success fs-6"><?php echo h(format_price($membershipType['cost'] ?? 0)); ?></span>
                             </div>
                             <?php if (trim((string)($membershipType['description'] ?? '')) !== ''): ?><div class="text-muted small mt-2"><?php echo h((string)$membershipType['description']); ?></div><?php endif; ?>
-                            <?php if (!empty($membershipType['membership_year'])): ?><div class="text-muted small mt-3"><strong>Membership year:</strong> <?php echo (int)$membershipType['membership_year']; ?></div><?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
