@@ -509,6 +509,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     'booking_type_label' => $bookingTypeLabel,
                     'metadata' => $metadata,
                 ];
+                if (!empty($_POST['save_emergency_contact']) && $personId > 0 && $p
+                    && (trim((string)($p['emergency_contact_name'] ?? '')) === '' || trim((string)($p['emergency_contact_phone'] ?? '')) === '')) {
+                    $saveEmergency = $pdo->prepare("UPDATE people SET emergency_contact_name=:name, emergency_contact_phone=:phone, updated_at=NOW() WHERE id=:id AND owner_user_id=:owner");
+                    $saveEmergency->execute([':name'=>$emergencyContactName, ':phone'=>$emergencyContactPhone, ':id'=>$personId, ':owner'=>(int)$currentUser['id']]);
+                }
                 $basket[] = $entry;
                 $_SESSION['basket'] = $basket;
                 $_SESSION['basket_last_added'] = time();
@@ -871,6 +876,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                 <input type="hidden" name="action" value="add_booking">
                                 <input type="hidden" name="person_id" id="personId" value="">
                                 <input type="hidden" name="horse_id" id="horseId" value="">
+                                <input type="hidden" name="save_emergency_contact" id="saveEmergencyContact" value="0">
                                 <input type="hidden" name="rider_name" id="riderName" value="" data-prefill="person.full_name">
                                 <input type="hidden" name="horse_name" id="horseName" value="" data-prefill="horse.name">
 
@@ -1152,6 +1158,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     </div>
                                 </div>
                             </form>
+                            <div class="modal fade" id="saveEmergencyContactModal" tabindex="-1" aria-labelledby="saveEmergencyContactModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header"><h5 class="modal-title" id="saveEmergencyContactModalLabel">Save emergency contact?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                                        <div class="modal-body">This rider does not have a complete emergency contact saved. Would you like to save these details to their profile for future entries?</div>
+                                        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="saveEmergencyContactNo" data-bs-dismiss="modal">No, just use for this entry</button><button type="button" class="btn btn-success" id="saveEmergencyContactYes">Yes, save to profile</button></div>
+                                    </div>
+                                </div>
+                            </div>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
@@ -1182,6 +1197,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const juniorRideFields = document.getElementById('juniorRideFields');
         const juniorRideSection = document.getElementById('juniorRideSection');
         const accompanyingAdult = document.getElementById('accompanyingAdult');
+        const saveEmergencyContactInput = document.getElementById('saveEmergencyContact');
+        const emergencyNameInput = document.getElementById('emergencyContactName');
+        const emergencyPhoneInput = document.getElementById('emergencyContactPhone');
+        const saveEmergencyContactModalEl = document.getElementById('saveEmergencyContactModal');
+        const saveEmergencyContactYes = document.getElementById('saveEmergencyContactYes');
+        const saveEmergencyContactNo = document.getElementById('saveEmergencyContactNo');
+        let emergencyContactPromptResolved = false;
 
         // Optional person/horse prefills (data is baked into the page; no API calls).
         const peopleData = <?php echo json_encode(array_values($people), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -1564,9 +1586,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 if (!validateForm()) {
                     e.preventDefault();
                     focusFirstInvalid();
+                    return;
+                }
+                const person = peopleData.find((p) => parseInt(p.id, 10) === selectedPersonId());
+                const profileEmergencyMissing = person && !person.is_linked && (!(person.emergency_contact_name || '').trim() || !(person.emergency_contact_phone || '').trim());
+                const enteredEmergency = (emergencyNameInput?.value || '').trim() !== '' && (emergencyPhoneInput?.value || '').trim() !== '';
+                if (!emergencyContactPromptResolved && profileEmergencyMissing && enteredEmergency && saveEmergencyContactModalEl && window.bootstrap?.Modal) {
+                    e.preventDefault();
+                    new bootstrap.Modal(saveEmergencyContactModalEl).show();
                 }
             });
         }
+
+        const continueEntryAfterEmergencyPrompt = (saveToProfile) => {
+            emergencyContactPromptResolved = true;
+            if (saveEmergencyContactInput) saveEmergencyContactInput.value = saveToProfile ? '1' : '0';
+            window.bootstrap?.Modal.getInstance(saveEmergencyContactModalEl)?.hide();
+            form?.requestSubmit();
+        };
+        saveEmergencyContactYes?.addEventListener('click', () => continueEntryAfterEmergencyPrompt(true));
+        saveEmergencyContactNo?.addEventListener('click', () => continueEntryAfterEmergencyPrompt(false));
 
         if (submitEntry) {
             submitEntry.addEventListener('click', () => {
