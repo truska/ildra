@@ -83,6 +83,7 @@ function ensureEmailCampaignTables(?PDO $pdo): void
         ('entries_open_non_members','Ride Entries Open - Non-Members','ride_notice','freeform','non_members','Entries open: {{event_title}}','<h2>Entries are open</h2><p>Hello {{first_name}},</p><p>Entries are now open for <strong>{{event_title}}</strong> on {{event_date}}.</p><p><a href=\"{{event_url}}\">View ride and enter</a></p>','Hello {{first_name}},\\n\\nEntries are now open for {{event_title}} on {{event_date}}.\\n\\n{{event_url}}',1,1),
         ('entries_closing','Ride Entries Closing Soon','ride_notice','freeform','all_users','Entries closing soon: {{event_title}}','<h2>Entries close soon</h2><p>Hello {{first_name}},</p><p>Entries for <strong>{{event_title}}</strong> close on {{entry_close_date}}.</p><p><a href=\"{{event_url}}\">View ride and enter</a></p>','Hello {{first_name}},\\n\\nEntries for {{event_title}} close on {{entry_close_date}}.\\n\\n{{event_url}}',1,1)");
     $pdo->exec("UPDATE email_campaign_templates SET category='ride_notice', audience_preset=CASE template_key WHEN 'entries_open_members' THEN 'all_members' WHEN 'entries_open_non_members' THEN 'non_members' ELSE 'all_users' END WHERE template_key IN ('entries_open_members','entries_open_non_members','entries_closing')");
+    $pdo->exec("INSERT IGNORE INTO email_campaign_templates (template_key,name,category,renderer_key,audience_preset,subject_template,html_template,text_template,is_system,is_active) VALUES ('weekly_ride_notice','Weekly Ride Notice','ride_notice','freeform','all_users','Ride Notice - {{current_date}}','{{message}}','{{message}}',1,1)");
     $pdo->exec("UPDATE email_campaign_templates SET renderer_key='membership_renewal',audience_preset='expired_members',intro_html=COALESCE(NULLIF(intro_html,''),'<p>Your membership is ready to renew.</p>'),outro_html=COALESCE(outro_html,'') WHERE template_key='membership_renewal'");
     $setting=$pdo->prepare("INSERT IGNORE INTO site_settings (setting_key,setting_value,updated_at) VALUES (:key,:value,NOW())");
     foreach(['campaign_live_sending_enabled'=>'0','campaign_default_batch_size'=>'25','campaign_public_base_url'=>''] as $key=>$value)$setting->execute([':key'=>$key,':value'=>$value]);
@@ -97,6 +98,23 @@ function emailCampaignPresets(): array
         'all_users' => 'All registered users',
         'event_entrants' => 'Entrants for a specific event',
     ];
+}
+
+function weeklyRideNoticeContent(PDO $pdo, string $baseUrl): array
+{
+    $rows=$pdo->query("SELECT id,title,event_date,venue FROM events WHERE status='published' AND event_date>=CURDATE() ORDER BY event_date,id LIMIT 5")->fetchAll()?:[];
+    if(!$rows)return ['html'=>'<p>There are no upcoming events to include this week.</p>','text'=>'There are no upcoming events to include this week.'];
+    $card=static function(array $event,bool $featured) use($baseUrl): string {$url=$baseUrl.'/event.php?id='.(int)$event['id'];return '<div style="margin:18px 0;padding:16px;border:1px solid #d7e3d6;background:'.($featured?'#f2f8f1':'#fff').';"><h2 style="margin:0 0 8px;color:#0c2a12;">'.h((string)$event['title']).'</h2><h3 style="margin:0 0 6px;font-size:18px;">'.h(format_display_date($event['event_date']??null,'')).'</h3><h4 style="margin:0 0 12px;font-size:15px;font-weight:500;">'.h((string)($event['venue']??'')).'</h4>'.email_cta_button_html($url,'View event').'</div>';};
+    $html='<p>Here are the next rides and events. Dates and details can change, so please check the website for the latest information.</p><h2 style="color:#0c2a12;">Featured event</h2>'.$card($rows[0],true).(count($rows)>1?'<h2 style="color:#0c2a12;">More upcoming events</h2>':'');foreach(array_slice($rows,1) as $event)$html.=$card($event,false);$html.='<p style="margin-top:20px;">'.email_cta_button_html($baseUrl.'/events','View full calendar').'</p>';
+    $text="Here are the next rides and events. Dates and details can change, so please check the website for the latest information.\n\n";foreach($rows as $event)$text.=(string)$event['title']."\n".format_display_date($event['event_date']??null,'')." · ".(string)($event['venue']??'')."\n".$baseUrl.'/event.php?id='.(int)$event['id']."\n\n";$text.='Full calendar: '.$baseUrl.'/events';return ['html'=>$html,'text'=>$text];
+}
+
+function ensureWeeklyRideNoticeCampaign(PDO $pdo): void
+{
+    ensureEmailCampaignTables($pdo);$now=emailCampaignLocalNow();$next=$now->setTime(9,30);while((int)$next->format('N')!==1||$next<=$now)$next=$next->modify('+1 day')->setTime(9,30);
+    $scheduled=$next->format('Y-m-d H:i:s');$exists=$pdo->prepare("SELECT 1 FROM email_campaigns WHERE campaign_type='weekly_ride_notice' AND scheduled_at=:scheduled LIMIT 1");$exists->execute([':scheduled'=>$scheduled]);if($exists->fetchColumn())return;
+    $t=$pdo->prepare("SELECT * FROM email_campaign_templates WHERE template_key='weekly_ride_notice' AND is_active=1 LIMIT 1");$t->execute();$template=$t->fetch();if(!$template)return;$settings=getSiteSettings($pdo);$body=weeklyRideNoticeContent($pdo,emailCampaignBaseUrl($settings));
+    $insert=$pdo->prepare("INSERT INTO email_campaigns (name,campaign_type,category,template_id,audience_preset,membership_year,address_strategy,renderer_key,subject_template,html_template,text_template,status,scheduled_at,batch_size,live_send_approved) VALUES ('Weekly Ride Notice','weekly_ride_notice','ride_notice',:template,'all_users',:year,'person_first','freeform',:subject,:html,:text,'scheduled',:scheduled,:batch,1)");$insert->execute([':template'=>(int)$template['id'],':year'=>(int)$next->format('Y'),':subject'=>(string)$template['subject_template'],':html'=>$body['html'],':text'=>$body['text'],':scheduled'=>$scheduled,':batch'=>max(1,(int)($settings['campaign_default_batch_size']??25))]);
 }
 
 function syncEventReminderCampaigns(PDO $pdo, int $eventId): void
@@ -306,9 +324,10 @@ function processEmailCampaignBatch(PDO $pdo,int $campaignId): array
     if((string)($settings['campaign_live_sending_enabled']??'0')!=='1') return ['sent'=>0,'failed'=>0,'blocked'=>'Campaign live sending is disabled.'];
     $stmt=$pdo->prepare("SELECT * FROM email_campaigns WHERE id=:id AND status IN ('scheduled','sending') AND live_send_approved=1 LIMIT 1"); $stmt->execute([':id'=>$campaignId]); $campaign=$stmt->fetch();
     if(!$campaign)return ['sent'=>0,'failed'=>0,'blocked'=>'Campaign is not approved for sending.'];
-    $automatedEventTypes=['event_entries_open_members','event_entries_open_non_members','event_entries_closing'];
+    $automatedEventTypes=['event_entries_open_members','event_entries_open_non_members','event_entries_closing','weekly_ride_notice'];
     if(in_array((string)$campaign['campaign_type'],$automatedEventTypes,true)){
-        $eventStmt=$pdo->prepare("SELECT status,send_reminder_emails FROM events WHERE id=:id LIMIT 1");$eventStmt->execute([':id'=>(int)$campaign['event_id']]);$event=$eventStmt->fetch()?:[];
+        if((string)$campaign['campaign_type']==='weekly_ride_notice'){ if((int)($campaign['recipient_count']??0)===0){$body=weeklyRideNoticeContent($pdo,emailCampaignBaseUrl($settings));$pdo->prepare('UPDATE email_campaigns SET html_template=:html,text_template=:text WHERE id=:id')->execute([':html'=>$body['html'],':text'=>$body['text'],':id'=>$campaignId]);emailCampaignSnapshotRecipients($pdo,$campaignId);$stmt->execute([':id'=>$campaignId]);$campaign=$stmt->fetch()?:$campaign;} }
+        else { $eventStmt=$pdo->prepare("SELECT status,send_reminder_emails FROM events WHERE id=:id LIMIT 1");$eventStmt->execute([':id'=>(int)$campaign['event_id']]);$event=$eventStmt->fetch()?:[];
         if((string)($event['status']??'')!=='published'||empty($event['send_reminder_emails'])){
             $pdo->prepare("UPDATE email_campaigns SET status='cancelled' WHERE id=:id")->execute([':id'=>$campaignId]);
             return ['sent'=>0,'failed'=>0,'blocked'=>'Automated event reminders are disabled or the event is not published.'];
@@ -316,6 +335,7 @@ function processEmailCampaignBatch(PDO $pdo,int $campaignId): array
         if((int)($campaign['recipient_count']??0)===0){
             emailCampaignSnapshotRecipients($pdo,$campaignId);
             $stmt->execute([':id'=>$campaignId]);$campaign=$stmt->fetch()?:$campaign;
+        }
         }
     }
     $limit=max(1,min(500,(int)$campaign['batch_size'])); $pdo->prepare("UPDATE email_campaigns SET status='sending',started_at=COALESCE(started_at,NOW()) WHERE id=:id")->execute([':id'=>$campaignId]);
@@ -341,7 +361,7 @@ function processEmailCampaignBatch(PDO $pdo,int $campaignId): array
 
 function processDueEmailCampaigns(PDO $pdo): array
 {
-    ensureEmailCampaignTables($pdo); $now=emailCampaignLocalNow()->format('Y-m-d H:i:s');
+    ensureEmailCampaignTables($pdo); ensureWeeklyRideNoticeCampaign($pdo); $now=emailCampaignLocalNow()->format('Y-m-d H:i:s');
     $stmt=$pdo->prepare("SELECT id FROM email_campaigns WHERE status IN ('scheduled','sending') AND live_send_approved=1 AND (scheduled_at IS NULL OR scheduled_at<=:now) ORDER BY id LIMIT 20");$stmt->execute([':now'=>$now]);
     $out=[];foreach($stmt->fetchAll(PDO::FETCH_COLUMN) as $id)$out[(int)$id]=processEmailCampaignBatch($pdo,(int)$id);return $out;
 }
