@@ -10,6 +10,8 @@ if (!in_array($currentRole, ['superadmin', 'admin', 'manager'], true)) {
 }
 
 ensureMembershipTables($pdo);
+if (empty($_SESSION['person_membership_csrf'])) $_SESSION['person_membership_csrf'] = bin2hex(random_bytes(24));
+$personMembershipCsrf = (string)$_SESSION['person_membership_csrf'];
 $personId = max(0, (int)($_GET['id'] ?? $_POST['person_id'] ?? 0));
 $peopleReturnUrl = (string)($_SESSION['admin_list_returns']['people'] ?? 'people.php');
 if (!preg_match('/^people\.php(?:\?[^#]*)?$/', $peopleReturnUrl)) $peopleReturnUrl = 'people.php';
@@ -26,7 +28,26 @@ if (!$person) {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'allocate_membership') {
+    $typeId = (int)($_POST['membership_type_id'] ?? 0);
+    $canAllocateMembership = in_array($currentRole, ['superadmin', 'admin'], true);
+    $type = $canAllocateMembership ? fetchMembershipTypeById($pdo, $typeId) : null;
+    if (!hash_equals($personMembershipCsrf, (string)($_POST['csrf'] ?? '')) || !$type || empty($type['admin_allocation_only'])) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Choose an administrator-allocated membership type.'];
+    } else {
+        $year = membership_purchase_year(getSiteSettings($pdo));
+        $existing = $pdo->prepare('SELECT id FROM membership_purchases WHERE member_id = :person_id AND membership_year = :year LIMIT 1');
+        $existing->execute([':person_id' => $personId, ':year' => $year]);
+        $purchaseId = (int)$existing->fetchColumn();
+        if ($purchaseId > 0) {
+            $update = $pdo->prepare('UPDATE membership_purchases SET membership_type_id=:type_id,amount=0,status="active",allows_ride_entries_snapshot=:ride,allows_competitive_rides_snapshot=:competitive,has_voting_rights_snapshot=:voting,updated_at=NOW() WHERE id=:id');
+            $update->execute([':type_id'=>$typeId, ':ride'=>!empty($type['allows_ride_entries'])?1:0, ':competitive'=>!empty($type['allows_competitive_rides'])?1:0, ':voting'=>!empty($type['has_voting_rights'])?1:0, ':id'=>$purchaseId]);
+        } else {
+            saveMembershipPurchase($pdo, ['membership_type_id'=>$typeId, 'purchased_by_user_id'=>(int)$currentUser['id'], 'member_id'=>$personId, 'membership_year'=>$year, 'amount'=>'0', 'status'=>'active'], $alerts);
+        }
+        if (!$alerts) { $_SESSION['flash_success'] = 'Membership allocated.'; header('Location: ' . $peopleReturnWithRow); exit; }
+    }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $firstName = trim((string)($_POST['first_name'] ?? ''));
     $lastName = trim((string)($_POST['last_name'] ?? ''));
     $email = trim((string)($_POST['email'] ?? ''));
@@ -75,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 admin_layout_start('Edit person', 'people');
+$allocationTypes = in_array($currentRole, ['superadmin', 'admin'], true) ? array_values(array_filter(fetchMembershipTypes($pdo, false), static fn(array $type): bool => !empty($type['admin_allocation_only']))) : [];
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div><div class="small text-muted">People</div><h5 class="mb-0">Edit person</h5></div>
@@ -104,4 +126,7 @@ admin_layout_start('Edit person', 'people');
         <div class="col-12"><div class="small text-muted mb-3">Owned by: <?php echo h((string)($person['owner_email'] ?? 'Unknown user')); ?></div><button class="btn btn-success">Save changes</button> <a class="btn btn-outline-secondary" href="<?php echo h($peopleReturnWithRow); ?>">Cancel</a></div>
     </form>
 </div>
+<?php if ($allocationTypes): ?>
+<div class="card-soft p-4 mt-3"><h6 class="mb-1">Allocate membership</h6><p class="small text-muted">Admin-only. This replaces the person’s current-year membership, or creates one if needed.</p><form method="post" class="row g-2 align-items-end"><input type="hidden" name="action" value="allocate_membership"><input type="hidden" name="csrf" value="<?php echo h($personMembershipCsrf); ?>"><div class="col-md-7"><label class="form-label">Membership category</label><select class="form-select" name="membership_type_id" required><option value="">Choose…</option><?php foreach ($allocationTypes as $type): ?><option value="<?php echo (int)$type['id']; ?>"><?php echo h((string)$type['name']); ?> [<?php echo h((string)$type['membership_code']); ?>]</option><?php endforeach; ?></select></div><div class="col-md-5"><button class="btn btn-success" onclick="return confirm('Allocate this membership for the current membership year?');">Allocate membership</button></div></form></div>
+<?php endif; ?>
 <?php admin_layout_end(); ?>

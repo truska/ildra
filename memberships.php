@@ -41,6 +41,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     $membership = fetchMembershipTypeById($pdo, $typeId);
     if (!$membership) {
         $alerts[] = ['type' => 'danger', 'message' => 'Membership not found.'];
+    } elseif (!empty($membership['admin_allocation_only'])) {
+        $alerts[] = ['type' => 'warning', 'message' => 'This membership is allocated by an administrator and cannot be purchased online.'];
     } else {
         $memberIdRaw = (string)($_POST['member_id'] ?? '');
         $memberId = 0;
@@ -271,7 +273,9 @@ $navItemEventsUrl = $basePath . '/events';
 	                                        <div class="text-muted small mb-2"><?php echo h($description); ?></div>
 	                                    <?php endif; ?>
                                     <div class="text-muted small mb-3"><span class="field-hint">Membership year:</span> <?php echo membership_purchase_year($siteSettings); ?></div>
-	                                    <?php if ($isLoggedIn): ?>
+                                    <?php if (!empty($type['admin_allocation_only'])): ?>
+                                        <div class="cta-row text-muted small">Allocated by an administrator; this membership cannot be purchased online.</div>
+                                    <?php elseif ($isLoggedIn): ?>
 	                                        <form method="POST">
 	                                            <input type="hidden" name="action" value="add_membership">
 	                                            <input type="hidden" name="membership_type_id" value="<?php echo (int)$type['id']; ?>">

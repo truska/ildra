@@ -92,6 +92,7 @@ $formValues = $editingType ?: [
     'allows_ride_entries' => 0,
     'allows_competitive_rides' => 0,
     'has_voting_rights' => 0,
+    'admin_allocation_only' => 0,
     'status' => 'draft',
 ];
 
@@ -274,6 +275,7 @@ admin_layout_start('Memberships', 'memberships');
                                         data-allows-competitive-rides="<?php echo !empty($type['allows_competitive_rides']) ? '1' : '0'; ?>"
                                         data-allows-ride-entries="<?php echo !empty($type['allows_ride_entries']) ? '1' : '0'; ?>"
                                         data-has-voting-rights="<?php echo !empty($type['has_voting_rights']) ? '1' : '0'; ?>"
+                                        data-admin-allocation-only="<?php echo !empty($type['admin_allocation_only']) ? '1' : '0'; ?>"
                                         data-cost="<?php echo h((string)($type['cost'] ?? '')); ?>"
                                         data-type="<?php echo h((string)($type['type'] ?? '')); ?>"
                                         data-membership-code="<?php echo h((string)($type['membership_code'] ?? '')); ?>"
@@ -368,6 +370,9 @@ admin_layout_start('Memberships', 'memberships');
                             <input class="form-check-input" type="checkbox" role="switch" id="has_voting_rights" name="has_voting_rights" value="1" <?php echo !empty($formValues['has_voting_rights']) ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="has_voting_rights">Voting rights</label>
                         </div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" role="switch" id="admin_allocation_only" name="admin_allocation_only" value="1" <?php echo !empty($formValues['admin_allocation_only']) ? 'checked' : ''; ?>><label class="form-check-label" for="admin_allocation_only">Admin allocation only (visible publicly, not purchasable)</label>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Status</label>
@@ -434,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allows_ride_entries: form.querySelector('input[name="allows_ride_entries"]'),
         allows_competitive_rides: form.querySelector('input[name="allows_competitive_rides"]'),
         has_voting_rights: form.querySelector('input[name="has_voting_rights"]'),
+        admin_allocation_only: form.querySelector('input[name="admin_allocation_only"]'),
         status: statusSelect,
     };
 
@@ -448,6 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allows_ride_entries: false,
         allows_competitive_rides: false,
         has_voting_rights: false,
+        admin_allocation_only: false,
         status: 'draft',
     };
 
@@ -491,6 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.allows_ride_entries.checked = !!data.allows_ride_entries;
         fields.allows_competitive_rides.checked = !!data.allows_competitive_rides;
         fields.has_voting_rights.checked = !!data.has_voting_rights;
+        fields.admin_allocation_only.checked = !!data.admin_allocation_only;
         fields.status.value = data.status || 'draft';
 
         if (titleEl) {
@@ -526,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allows_ride_entries: fields.allows_ride_entries.checked,
         allows_competitive_rides: fields.allows_competitive_rides.checked,
         has_voting_rights: fields.has_voting_rights.checked,
+        admin_allocation_only: fields.admin_allocation_only.checked,
         status: fields.status.value || 'draft',
     });
 
@@ -548,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allows_ride_entries: btn.dataset.allowsRideEntries === '1',
             allows_competitive_rides: btn.dataset.allowsCompetitiveRides === '1',
             has_voting_rights: btn.dataset.hasVotingRights === '1',
+            admin_allocation_only: btn.dataset.adminAllocationOnly === '1',
             status: btn.dataset.status || 'draft',
         };
         originalData = { ...data };
