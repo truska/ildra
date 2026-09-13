@@ -1357,6 +1357,7 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
     $rowForeignPrices = $data['row_foreign_recognition_price'] ?? [];
     $rowMember = $data['row_is_member_price'] ?? [];
     $rowJunior = $data['row_is_junior_ride'] ?? [];
+    $rowEligibility = $data['row_rider_eligibility'] ?? [];
 
     $rows = [];
     if (!is_array($rowIds)) $rowIds = [];
@@ -1390,6 +1391,8 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
         $sortOrder = (int)($rowSort[$i] ?? (($i + 1) * 10));
         $isMemberPrice = !empty($rowMember[$i]) ? 1 : 0;
         $isJuniorRide = !empty($rowJunior[$i]) ? 1 : 0;
+        $riderEligibility = (string)($rowEligibility[$i] ?? ($isJuniorRide ? 'junior' : 'senior'));
+        if (!in_array($riderEligibility, ['all', 'junior', 'senior'], true)) $riderEligibility = 'senior';
         $id = (int)($rowIds[$i] ?? 0);
         $rows[] = [
             'id' => $id > 0 ? $id : null,
@@ -1401,6 +1404,7 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
             'foreign_recognition_price' => $isMemberPrice ? $foreignRecognitionPrice : null,
             'is_member_price' => $isMemberPrice,
             'is_junior_ride' => $isJuniorRide,
+            'rider_eligibility' => $riderEligibility,
         ];
     }
     if (!$rows) {
@@ -1452,12 +1456,13 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
                 foreign_recognition_price = :foreign_recognition_price,
                 is_member_price = :is_member_price,
                 is_junior_ride = :is_junior_ride,
+                rider_eligibility = :rider_eligibility,
                 updated_at = NOW()
             WHERE id = :id AND scheme_id = :sid
         ");
         $insertRow = $pdo->prepare("
-            INSERT INTO pricing_scheme_rows (scheme_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, created_at, updated_at)
-            VALUES (:sid, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, NOW(), NOW())
+            INSERT INTO pricing_scheme_rows (scheme_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, rider_eligibility, created_at, updated_at)
+            VALUES (:sid, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, :rider_eligibility, NOW(), NOW())
         ");
         foreach ($rows as $row) {
             if ($row['id']) {
@@ -1470,6 +1475,7 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
                     ':foreign_recognition_price' => $row['foreign_recognition_price'],
                     ':is_member_price' => $row['is_member_price'],
                     ':is_junior_ride' => $row['is_junior_ride'],
+                    ':rider_eligibility' => $row['rider_eligibility'],
                     ':id' => $row['id'],
                     ':sid' => $schemeId,
                 ]);
@@ -1485,6 +1491,7 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
                     ':foreign_recognition_price' => $row['foreign_recognition_price'],
                     ':is_member_price' => $row['is_member_price'],
                     ':is_junior_ride' => $row['is_junior_ride'],
+                    ':rider_eligibility' => $row['rider_eligibility'],
                 ]);
                 $keepIds[] = (int)$pdo->lastInsertId();
             }

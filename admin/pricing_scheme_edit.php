@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $foreignPrices = (array)($_POST['row_foreign_recognition_price'] ?? []);
     $member = (array)($_POST['row_is_member_price'] ?? []);
     $junior = (array)($_POST['row_is_junior_ride'] ?? []);
+    $eligibility = (array)($_POST['row_rider_eligibility'] ?? []);
     $keys = array_keys($names);
     sort($keys);
     foreach ($keys as $i) {
@@ -71,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'foreign_recognition_price' => (string)($foreignPrices[$i] ?? ''),
             'is_member_price' => !empty($member[$i]) ? 1 : 0,
             'is_junior_ride' => !empty($junior[$i]) ? 1 : 0,
+            'rider_eligibility' => (string)($eligibility[$i] ?? (!empty($junior[$i]) ? 'junior' : 'senior')),
         ];
     }
 }
@@ -169,7 +171,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                     <tr class="small text-muted fw-bold">
                         <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="code">Code <span>↕</span></button><input class="form-control form-control-sm mt-1 js-row-filter" type="search" data-filter-field="code" placeholder="Search"></th>
                         <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="member_checkbox" data-sort-type="checked">Members <span>↕</span></button><select class="form-select form-select-sm mt-1 js-row-filter" data-filter-field="member_checkbox" data-filter-type="checked"><option value="">All</option><option value="1">Yes</option><option value="0">No</option></select></th>
-                        <th><button class="btn btn-link btn-sm p-0 fw-bold text-secondary text-decoration-none js-row-sort" type="button" data-sort-field="junior_checkbox" data-sort-type="checked">Junior <span>↕</span></button><select class="form-select form-select-sm mt-1 js-row-filter" data-filter-field="junior_checkbox" data-filter-type="checked"><option value="">All</option><option value="1">Yes</option><option value="0">No</option></select></th>
+                        <th>Rider eligibility</th>
                         <th></th>
                         <th class="text-end">Action</th>
                     </tr>
@@ -189,7 +191,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                     <tr class="js-pricing-secondary border-bottom">
                         <td><input class="form-control form-control-sm" data-row-field="code" name="row_class_code[<?php echo (int)$i; ?>]" value="<?php echo h((string)($r['class_code'] ?? '')); ?>" maxlength="32"></td>
                         <td><label class="d-flex align-items-center gap-2 mb-0"><span>Members</span><input class="form-check-input mt-0" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_member_price']) ? 'checked' : ''; ?>></label></td>
-                        <td><label class="d-flex align-items-center gap-2 mb-0"><span>Junior</span><input class="form-check-input mt-0" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[<?php echo (int)$i; ?>]" value="1" <?php echo !empty($r['is_junior_ride']) ? 'checked' : ''; ?>></label></td>
+                        <?php $eligibility = in_array(($r['rider_eligibility'] ?? ''), ['all', 'junior', 'senior'], true) ? $r['rider_eligibility'] : (!empty($r['is_junior_ride']) ? 'junior' : 'senior'); ?><td><select class="form-select form-select-sm" data-row-field="eligibility" name="row_rider_eligibility[<?php echo (int)$i; ?>]"><option value="all" <?php echo $eligibility === 'all' ? 'selected' : ''; ?>>All</option><option value="junior" <?php echo $eligibility === 'junior' ? 'selected' : ''; ?>>Junior</option><option value="senior" <?php echo $eligibility === 'senior' ? 'selected' : ''; ?>>Senior</option></select></td>
                         <td></td>
                         <td class="text-end"><button class="btn btn-sm btn-outline-danger js-remove-row" type="button">Remove</button></td>
                     </tr>
@@ -216,7 +218,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
     <tr class="js-pricing-secondary border-bottom">
         <td><input class="form-control form-control-sm" data-row-field="code" name="row_class_code[0]" value="" maxlength="32"></td>
         <td><label class="d-flex align-items-center gap-2 mb-0"><span>Members</span><input class="form-check-input mt-0" data-row-field="member_checkbox" type="checkbox" name="row_is_member_price[0]" value="1"></label></td>
-        <td><label class="d-flex align-items-center gap-2 mb-0"><span>Junior</span><input class="form-check-input mt-0" data-row-field="junior_checkbox" type="checkbox" name="row_is_junior_ride[0]" value="1"></label></td>
+        <td><select class="form-select form-select-sm" data-row-field="eligibility" name="row_rider_eligibility[0]"><option value="all" selected>All</option><option value="junior">Junior</option><option value="senior">Senior</option></select></td>
         <td></td>
         <td class="text-end"><button class="btn btn-sm btn-outline-danger js-remove-row" type="button">Remove</button></td>
     </tr>
@@ -315,8 +317,8 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                 if (member) member.name = `row_is_member_price[${idx}]`;
                 const foreignPrice = pairField(row, 'foreign_price');
                 if (foreignPrice) foreignPrice.name = `row_foreign_recognition_price[${idx}]`;
-                const junior = pairField(row, 'junior_checkbox');
-                if (junior) junior.name = `row_is_junior_ride[${idx}]`;
+                const eligibility = pairField(row, 'eligibility');
+                if (eligibility) eligibility.name = `row_rider_eligibility[${idx}]`;
             });
         }
 
