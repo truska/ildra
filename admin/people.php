@@ -39,7 +39,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['archive_person_id']))
 
 $rows = [];
 if ($pdo) {
-    $stmt = $pdo->query("
+    // A person has at most one membership purchase per year. Show the current
+    // year's non-expired purchase, rather than a historical membership type.
+    $membershipYear = membership_purchase_year(getSiteSettings($pdo));
+    $stmt = $pdo->prepare("
         SELECT
             p.id,
             p.owner_user_id,
@@ -50,13 +53,27 @@ if ($pdo) {
             p.email,
             p.phone,
             p.is_archived,
-            u.email AS owner_email
+            u.email AS owner_email,
+            mt.name AS membership_type
         FROM people p
         LEFT JOIN users u ON u.id = p.owner_user_id
+        LEFT JOIN membership_purchases mp
+            ON mp.member_id = p.id
+            AND mp.membership_year = :membership_year
+            AND mp.status IN ('active', 'pending')
+        LEFT JOIN membership_types mt ON mt.id = mp.membership_type_id
         ORDER BY p.last_name ASC, p.first_name ASC, p.id ASC
     ");
+    $stmt->execute([':membership_year' => $membershipYear]);
     $rows = $stmt->fetchAll() ?: [];
 }
+
+$membershipTypeOptions = [];
+foreach ($rows as $row) {
+    $membershipType = trim((string)($row['membership_type'] ?? ''));
+    if ($membershipType !== '') $membershipTypeOptions[$membershipType] = $membershipType;
+}
+natcasesort($membershipTypeOptions);
 
 $tableColumns = [
     'name'=>['label'=>'Person','sortable'=>true,'filter'=>'text','placeholder'=>'Search person','value'=>static fn(array $r):string=>trim((string)($r['last_name']??'').' '.(string)($r['first_name']??''))],
@@ -64,6 +81,7 @@ $tableColumns = [
     'dob'=>['label'=>'DOB','sortable'=>true],
     'email'=>['label'=>'Email','filter'=>'text','placeholder'=>'Search email','data_type'=>'email'],
     'phone'=>['label'=>'Phone','filter'=>'text','placeholder'=>'Search phone','data_type'=>'phone'],
+    'membership_type'=>['label'=>'Membership type','sortable'=>true,'filter'=>'select','options'=>$membershipTypeOptions],
     'owner'=>['label'=>'Owner (user)','field'=>'owner_email','sortable'=>true,'filter'=>'text','placeholder'=>'Search user','data_type'=>'email'],
     'status'=>['label'=>'Status','sortable'=>true,'filter'=>'select','options'=>['active'=>'Active','archived'=>'Archived'],'value'=>static fn(array $r):string=>!empty($r['is_archived'])?'archived':'active'],
     'actions'=>['label'=>'Actions','sortable'=>false],
@@ -105,6 +123,7 @@ admin_layout_start('People', 'people');
                     <td class="text-muted small"><?php echo h($dob); ?></td>
                     <td class="text-muted small"><?php echo admin_table_value($row['email'] ?? '', 'email'); ?></td>
                     <td class="text-muted small"><?php echo admin_table_value($row['phone'] ?? '', 'phone'); ?></td>
+                    <td class="text-muted small"><?php echo h((string)($row['membership_type'] ?? '') ?: '—'); ?></td>
                     <td class="text-muted small"><?php echo admin_table_value($row['owner_email'] ?? '', 'email'); ?></td>
                     <td class="text-muted small"><?php echo h($status); ?></td>
                     <td class="text-end text-nowrap">
@@ -118,7 +137,7 @@ admin_layout_start('People', 'people');
                 </tr>
             <?php endforeach; ?>
             <?php if (!$rows): ?>
-                <tr><td colspan="8" class="text-muted">No people yet.</td></tr>
+                <tr><td colspan="9" class="text-muted">No people yet.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
