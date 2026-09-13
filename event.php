@@ -56,11 +56,8 @@ if ($isLoggedIn && $pdo && $people) {
         $status = strtolower((string)($membership['status'] ?? ''));
         if ($status === 'active' && !empty($membership['allows_ride_entries'])) {
             $peopleWithActiveMembership[$memberId] = true;
-            $membershipName = strtolower(trim((string)($membership['membership_name'] ?? '')));
-            $membershipType = strtolower(trim((string)($membership['membership_type_key'] ?? '')));
-            $activeMembershipMarkerByPerson[$memberId] = str_contains($membershipName, 'adult') || $membershipType === 'adult'
-                ? 'AM'
-                : ((str_contains($membershipName, 'junior') || $membershipType === 'junior') ? 'JM' : 'SM');
+            $membershipCode = strtoupper(trim((string)($membership['membership_code'] ?? '')));
+            $activeMembershipMarkerByPerson[$memberId] = preg_match('/^[A-Z0-9]{2}$/', $membershipCode) ? $membershipCode : 'SM';
             if (!empty($membership['allows_competitive_rides'])) {
                 $peopleWithCompetitiveMembership[$memberId] = true;
             }

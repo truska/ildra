@@ -88,6 +88,7 @@ $formValues = $editingType ?: [
     'description' => '',
     'cost' => '0.00',
     'type' => 'senior',
+    'membership_code' => 'SM',
     'allows_ride_entries' => 0,
     'allows_competitive_rides' => 0,
     'has_voting_rights' => 0,
@@ -275,6 +276,7 @@ admin_layout_start('Memberships', 'memberships');
                                         data-has-voting-rights="<?php echo !empty($type['has_voting_rights']) ? '1' : '0'; ?>"
                                         data-cost="<?php echo h((string)($type['cost'] ?? '')); ?>"
                                         data-type="<?php echo h((string)($type['type'] ?? '')); ?>"
+                                        data-membership-code="<?php echo h((string)($type['membership_code'] ?? '')); ?>"
                                         data-status="<?php echo h((string)($type['status'] ?? 'draft')); ?>"
                                     >Edit</a>
                                     <?php if ($canAdmin): ?>
@@ -337,6 +339,11 @@ admin_layout_start('Memberships', 'memberships');
                             <option value="junior" <?php echo (($formValues['type'] ?? '') === 'junior') ? 'selected' : ''; ?>>Junior</option>
                             <option value="senior" <?php echo (($formValues['type'] ?? '') === 'senior') ? 'selected' : ''; ?>>Senior</option>
                         </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Membership code</label>
+                        <input type="text" name="membership_code" class="form-control text-uppercase" maxlength="2" pattern="[A-Za-z0-9]{2}" placeholder="e.g. JM" value="<?php echo h((string)($formValues['membership_code'] ?? 'SM')); ?>" required>
+                        <div class="helper">Two characters shown beside an active member on entry forms.</div>
                     </div>
                 </div>
             </div>
@@ -423,6 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: form.querySelector('textarea[name="description"]'),
         cost: form.querySelector('input[name="cost"]'),
         type: form.querySelector('select[name="type"]'),
+        membership_code: form.querySelector('input[name="membership_code"]'),
         allows_ride_entries: form.querySelector('input[name="allows_ride_entries"]'),
         allows_competitive_rides: form.querySelector('input[name="allows_competitive_rides"]'),
         has_voting_rights: form.querySelector('input[name="has_voting_rights"]'),
@@ -436,6 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: '',
         cost: '0.00',
         type: 'senior',
+        membership_code: 'SM',
         allows_ride_entries: false,
         allows_competitive_rides: false,
         has_voting_rights: false,
@@ -478,6 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.description.value = data.description || '';
         fields.cost.value = data.cost || '';
         fields.type.value = data.type || '';
+        fields.membership_code.value = data.membership_code || 'SM';
         fields.allows_ride_entries.checked = !!data.allows_ride_entries;
         fields.allows_competitive_rides.checked = !!data.allows_competitive_rides;
         fields.has_voting_rights.checked = !!data.has_voting_rights;
@@ -512,6 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: fields.description.value || '',
         cost: fields.cost.value || '',
         type: fields.type.value || '',
+        membership_code: fields.membership_code.value || '',
         allows_ride_entries: fields.allows_ride_entries.checked,
         allows_competitive_rides: fields.allows_competitive_rides.checked,
         has_voting_rights: fields.has_voting_rights.checked,
@@ -533,6 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
             description: btn.dataset.description || '',
             cost: btn.dataset.cost || '',
             type: safeType,
+            membership_code: btn.dataset.membershipCode || 'SM',
             allows_ride_entries: btn.dataset.allowsRideEntries === '1',
             allows_competitive_rides: btn.dataset.allowsCompetitiveRides === '1',
             has_voting_rights: btn.dataset.hasVotingRights === '1',

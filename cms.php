@@ -2508,6 +2508,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
     $description = trim((string)($data['description'] ?? ''));
     $cost = trim((string)($data['cost'] ?? '0'));
     $type = trim((string)($data['type'] ?? 'senior'));
+    $membershipCode = strtoupper(trim((string)($data['membership_code'] ?? '')));
     $status = $data['status'] ?? 'draft';
     $allowsCompetitiveRides = !empty($data['allows_competitive_rides']) ? 1 : 0;
     $allowsRideEntries = !empty($data['allows_ride_entries']) ? 1 : 0;
@@ -2516,6 +2517,10 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
 
     if ($name === '' || $cost === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Name and cost are required.'];
+        return false;
+    }
+    if (!preg_match('/^[A-Z0-9]{2}$/', $membershipCode)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Membership code must be two letters or numbers.'];
         return false;
     }
     if (!in_array($status, ['draft', 'published'], true)) {
@@ -2536,6 +2541,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                     description = :description,
                     cost = :cost,
                     type = :type,
+                    membership_code = :membership_code,
                     allows_ride_entries = :allows_ride_entries,
                     allows_competitive_rides = :allows_competitive_rides,
                     has_voting_rights = :has_voting_rights,
@@ -2547,7 +2553,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
                 ':name' => $name,
                 ':description' => $description,
                 ':cost' => $cost,
-                ':type' => $type ?: 'standard',
+                ':type' => $type ?: 'standard', ':membership_code' => $membershipCode,
                 ':allows_ride_entries' => $allowsRideEntries,
                 ':allows_competitive_rides' => $allowsCompetitiveRides,
                 ':has_voting_rights' => $hasVotingRights,
@@ -2556,14 +2562,14 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO membership_types (name, description, membership_year, cost, type, allows_ride_entries, allows_competitive_rides, has_voting_rights, status, created_at, updated_at)
-                VALUES (:name, :description, 0, :cost, :type, :allows_ride_entries, :allows_competitive_rides, :has_voting_rights, :status, NOW(), NOW())
+                INSERT INTO membership_types (name, description, membership_year, cost, type, membership_code, allows_ride_entries, allows_competitive_rides, has_voting_rights, status, created_at, updated_at)
+                VALUES (:name, :description, 0, :cost, :type, :membership_code, :allows_ride_entries, :allows_competitive_rides, :has_voting_rights, :status, NOW(), NOW())
             ");
             $stmt->execute([
                 ':name' => $name,
                 ':description' => $description,
                 ':cost' => $cost,
-                ':type' => $type ?: 'standard',
+                ':type' => $type ?: 'standard', ':membership_code' => $membershipCode,
                 ':allows_ride_entries' => $allowsRideEntries,
                 ':allows_competitive_rides' => $allowsCompetitiveRides,
                 ':has_voting_rights' => $hasVotingRights,
@@ -2589,6 +2595,7 @@ function ensureMembershipTypesTable(PDO $pdo): void
             membership_year SMALLINT UNSIGNED NOT NULL,
             cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 type VARCHAR(80) NOT NULL DEFAULT 'senior',
+            membership_code CHAR(2) NOT NULL DEFAULT 'SM',
             allows_ride_entries TINYINT(1) NOT NULL DEFAULT 0,
             allows_competitive_rides TINYINT(1) NOT NULL DEFAULT 0,
             has_voting_rights TINYINT(1) NOT NULL DEFAULT 0,
@@ -2608,6 +2615,11 @@ function ensureMembershipTypesTable(PDO $pdo): void
     }
     if (!table_column_exists($pdo, 'membership_types', 'has_voting_rights')) {
         $pdo->exec("ALTER TABLE membership_types ADD COLUMN has_voting_rights TINYINT(1) NOT NULL DEFAULT 0");
+    }
+    if (!table_column_exists($pdo, 'membership_types', 'membership_code')) {
+        $pdo->exec("ALTER TABLE membership_types ADD COLUMN membership_code CHAR(2) NULL AFTER type");
+        $pdo->exec("UPDATE membership_types SET membership_code = CASE WHEN type = 'junior' THEN 'JM' ELSE 'SM' END WHERE membership_code IS NULL OR membership_code = ''");
+        $pdo->exec("ALTER TABLE membership_types MODIFY membership_code CHAR(2) NOT NULL DEFAULT 'SM'");
     }
 }
 
@@ -2656,6 +2668,7 @@ function fetchMemberships(?PDO $pdo): array
                 mp.*,
                 mt.name AS membership_name,
                 mt.type AS membership_type_key,
+                mt.membership_code,
                 COALESCE(mp.allows_ride_entries_snapshot, mt.allows_ride_entries, 0) AS allows_ride_entries,
                 COALESCE(mp.allows_competitive_rides_snapshot, mt.allows_competitive_rides, 0) AS allows_competitive_rides,
                 COALESCE(mp.has_voting_rights_snapshot, mt.has_voting_rights, 0) AS has_voting_rights,
