@@ -236,10 +236,16 @@ function class_names_from_pricing_rows(array $rows): array
     $names = [];
     $seen = [];
     foreach ($rows as $row) {
-        if (!empty($row['is_member_price']) || empty($row['enabled'])) {
+        if (empty($row['enabled'])) {
             continue;
         }
-        $label = trim((string)($row['class_name'] ?? $row['class_code'] ?? ''));
+        // This is a compact availability summary, not a price list.  A ride
+        // type may have several pricing/recognition variants, but should be
+        // shown once whenever any enabled option exists.
+        $group = strtoupper(trim((string)($row['class_group'] ?? '')));
+        $label = in_array($group, ['PR', 'VPR', 'CTR', 'ER'], true)
+            ? $group
+            : trim((string)($row['class_name'] ?? $row['class_code'] ?? ''));
         if ($label === '') {
             continue;
         }
