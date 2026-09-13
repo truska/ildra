@@ -37,10 +37,12 @@ if ($isLoggedIn && $pdo) {
 }
 $peopleWithActiveMembership = [];
 $peopleWithCompetitiveMembership = [];
+$activeMembershipMarkerByPerson = [];
 $memberPriceEligibleByPerson = [];
 $memberPriceUsedByPerson = [];
 $externallyRecognisedPeople = [];
 $recognisedHorses = [];
+$horsesWithActiveLogbook = [];
 if ($isLoggedIn && $pdo && $people) {
     $memberIdSet = [];
     foreach ($people as $p) {
@@ -54,6 +56,11 @@ if ($isLoggedIn && $pdo && $people) {
         $status = strtolower((string)($membership['status'] ?? ''));
         if ($status === 'active' && !empty($membership['allows_ride_entries'])) {
             $peopleWithActiveMembership[$memberId] = true;
+            $membershipName = strtolower(trim((string)($membership['membership_name'] ?? '')));
+            $membershipType = strtolower(trim((string)($membership['membership_type_key'] ?? '')));
+            $activeMembershipMarkerByPerson[$memberId] = str_contains($membershipName, 'adult') || $membershipType === 'adult'
+                ? 'AM'
+                : ((str_contains($membershipName, 'junior') || $membershipType === 'junior') ? 'JM' : 'SM');
             if (!empty($membership['allows_competitive_rides'])) {
                 $peopleWithCompetitiveMembership[$memberId] = true;
             }
@@ -118,7 +125,10 @@ if ($isLoggedIn && $pdo) {
             $in = implode(',', array_fill(0, count($horseIds), '?'));
             $stmt = $pdo->prepare("SELECT DISTINCT horse_id FROM horse_logbook_purchases WHERE horse_id IN ($in) AND valid_year=? AND status='active'");
             $stmt->execute(array_merge($horseIds, [$recognitionYear]));
-            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $horseId) $recognisedHorses[(int)$horseId] = true;
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $horseId) {
+                $horsesWithActiveLogbook[(int)$horseId] = true;
+                $recognisedHorses[(int)$horseId] = true;
+            }
         }
     }
 }
@@ -896,17 +906,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                        if ($pLabel === '') {
 	                                                            $pLabel = 'Person #' . $pId;
 	                                                        }
-                                                            $personType = personRecordType($p, $currentUser ?? []);
-                                                            $pLabel = personRecordTypeMarker($personType) . ' ' . $pLabel;
-	                                                        if (!empty($peopleWithActiveMembership[$pId])) {
-	                                                            $pLabel .= ' (membership active)';
-	                                                        } else {
-	                                                            $pLabel .= ' (non-member';
-	                                                            if (!$nonMemberEntriesOpenNow && $nonMemberEntryOpenDt) {
-	                                                                $pLabel .= ' — opens ' . $nonMemberEntryOpenDt->format('jS M H:i');
-	                                                            }
-	                                                            $pLabel .= ')';
-	                                                        }
+                                                        if (!empty($peopleWithActiveMembership[$pId])) $pLabel .= ' [' . ($activeMembershipMarkerByPerson[$pId] ?? 'SM') . ']';
                                                             $isJuniorPerson = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
 	                                                        $disableNonMemberRider = empty($peopleWithActiveMembership[$pId]) && !$nonMemberEntriesOpenNow;
 	                                                        ?>
@@ -930,8 +930,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                    <?php foreach ($horses as $h): ?>
 	                                                        <?php
                                                             $horseLabel = (string)($h['name'] ?? 'Horse #' . (int)($h['id'] ?? 0));
-                                                            if (!empty($h['is_linked'])) {
-                                                                $horseLabel .= ' [linked]';
+                                                            if (!empty($horsesWithActiveLogbook[(int)($h['id'] ?? 0)])) {
+                                                                $horseLabel .= ' [LB]';
                                                             }
                                                             ?>
                                                         <option value="<?php echo (int)($h['id'] ?? 0); ?>" data-recognised="<?php echo !empty($recognisedHorses[(int)($h['id'] ?? 0)]) ? '1' : '0'; ?>" <?php echo count($horses) === 1 && !empty($h['is_global_placeholder']) ? 'selected' : ''; ?>><?php echo h($horseLabel); ?></option>
