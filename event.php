@@ -252,6 +252,7 @@ if ($eventPricingRows) {
             'foreign_recognition_price' => $row['foreign_recognition_price'] !== null ? format_price((float)$row['foreign_recognition_price']) : null,
             'is_member_price' => !empty($row['is_member_price']),
             'is_junior_ride' => !empty($row['is_junior_ride']),
+            'rider_eligibility' => in_array(($row['rider_eligibility'] ?? ''), ['all', 'junior', 'senior'], true) ? $row['rider_eligibility'] : (!empty($row['is_junior_ride']) ? 'junior' : 'senior'),
             'pricing_row_id' => $rowId > 0 ? $rowId : null,
         ];
     }
@@ -1003,6 +1004,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                             data-label-locked="<?php echo h($lockedLabel); ?>"
                                                             data-class-group="<?php echo h((string)$cls['class_group']); ?>"
                                                             data-junior-ride="<?php echo !empty($cls['is_junior_ride']) ? '1' : '0'; ?>"
+                                                            data-rider-eligibility="<?php echo h((string)($cls['rider_eligibility'] ?? 'senior')); ?>"
                                                             <?php echo $isMemberPrice ? 'data-member-price="1" disabled' : ''; ?>>
                                                         <?php echo h($lockedLabel); ?>
                                                             </option>
@@ -1345,7 +1347,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             Array.from(classSelect.options).forEach((option, index) => {
                 if (index === 0) return;
                 const groupMatches = option.dataset.classGroup === selectedGroup;
-                const juniorMatches = (option.dataset.juniorRide === '1') === personIsJunior;
+                const eligibility = option.dataset.riderEligibility || (option.dataset.juniorRide === '1' ? 'junior' : 'senior');
+                const juniorMatches = eligibility === 'all' || (eligibility === 'junior') === personIsJunior;
                 const competitiveMatches = !['CTR', 'ER'].includes(selectedGroup) || competitiveAllowed;
                 const memberMatches = ['CTR', 'ER'].includes(selectedGroup)
                     || (option.dataset.memberPrice === '1') === personIsMember;

@@ -973,6 +973,7 @@ function ensurePricingSchemeTables(?PDO $pdo): void
                 foreign_recognition_price DECIMAL(10,2) NULL DEFAULT NULL,
                 is_member_price TINYINT(1) NOT NULL DEFAULT 0,
                 is_junior_ride TINYINT(1) NOT NULL DEFAULT 0,
+                rider_eligibility VARCHAR(20) NOT NULL DEFAULT 'all',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX (scheme_id),
@@ -988,6 +989,13 @@ function ensurePricingSchemeTables(?PDO $pdo): void
         } catch (PDOException $e) {
             // ignore
         }
+    }
+    if (!table_column_exists($pdo, 'pricing_scheme_rows', 'rider_eligibility')) {
+        try {
+            $pdo->exec("ALTER TABLE pricing_scheme_rows ADD COLUMN rider_eligibility VARCHAR(20) NULL AFTER is_junior_ride");
+            $pdo->exec("UPDATE pricing_scheme_rows SET rider_eligibility = CASE WHEN is_junior_ride = 1 THEN 'junior' ELSE 'senior' END WHERE rider_eligibility IS NULL");
+            $pdo->exec("ALTER TABLE pricing_scheme_rows MODIFY rider_eligibility VARCHAR(20) NOT NULL DEFAULT 'all'");
+        } catch (PDOException $e) { /* best effort */ }
     }
     if (!table_column_exists($pdo, 'pricing_scheme_rows', 'class_group')) {
         try {
@@ -1023,6 +1031,7 @@ function ensureEventPricingTables(?PDO $pdo): void
                 foreign_recognition_price DECIMAL(10,2) NULL DEFAULT NULL,
                 is_member_price TINYINT(1) NOT NULL DEFAULT 0,
                 is_junior_ride TINYINT(1) NOT NULL DEFAULT 0,
+                rider_eligibility VARCHAR(20) NOT NULL DEFAULT 'all',
                 enabled TINYINT(1) NOT NULL DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1039,6 +1048,13 @@ function ensureEventPricingTables(?PDO $pdo): void
         } catch (PDOException $e) {
             // ignore
         }
+    }
+    if (!table_column_exists($pdo, 'event_pricing_rows', 'rider_eligibility')) {
+        try {
+            $pdo->exec("ALTER TABLE event_pricing_rows ADD COLUMN rider_eligibility VARCHAR(20) NULL AFTER is_junior_ride");
+            $pdo->exec("UPDATE event_pricing_rows SET rider_eligibility = CASE WHEN is_junior_ride = 1 THEN 'junior' ELSE 'senior' END WHERE rider_eligibility IS NULL");
+            $pdo->exec("ALTER TABLE event_pricing_rows MODIFY rider_eligibility VARCHAR(20) NOT NULL DEFAULT 'all'");
+        } catch (PDOException $e) { /* best effort */ }
     }
     if (!table_column_exists($pdo, 'event_pricing_rows', 'class_group')) {
         try {
@@ -1540,8 +1556,8 @@ function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows): bool
         $pdo->beginTransaction();
         $pdo->prepare("DELETE FROM event_pricing_rows WHERE event_id = :eid")->execute([':eid' => $eventId]);
         $ins = $pdo->prepare("
-            INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, enabled, created_at, updated_at)
-            VALUES (:eid, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, :enabled, NOW(), NOW())
+            INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, rider_eligibility, enabled, created_at, updated_at)
+            VALUES (:eid, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, :rider_eligibility, :enabled, NOW(), NOW())
         ");
         foreach ($rows as $row) {
             $ins->execute([
@@ -1554,6 +1570,7 @@ function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows): bool
                 ':foreign_recognition_price' => ($row['foreign_recognition_price'] ?? null) !== null && $row['foreign_recognition_price'] !== '' ? (float)$row['foreign_recognition_price'] : null,
                 ':is_member_price' => !empty($row['is_member_price']) ? 1 : 0,
                 ':is_junior_ride' => !empty($row['is_junior_ride']) ? 1 : 0,
+                ':rider_eligibility' => in_array(($row['rider_eligibility'] ?? ''), ['all', 'junior', 'senior'], true) ? $row['rider_eligibility'] : (!empty($row['is_junior_ride']) ? 'junior' : 'senior'),
                 ':enabled' => !empty($row['enabled']) ? 1 : 0,
             ]);
         }
@@ -1575,7 +1592,7 @@ function copyPricingSchemeToEvent(?PDO $pdo, int $schemeId, int $eventId): bool
     ensurePricingSchemeTables($pdo);
     ensureEventPricingTables($pdo);
     try {
-        $stmt = $pdo->prepare("SELECT sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride FROM pricing_scheme_rows WHERE scheme_id = :sid ORDER BY sort_order ASC, id ASC");
+        $stmt = $pdo->prepare("SELECT sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, rider_eligibility FROM pricing_scheme_rows WHERE scheme_id = :sid ORDER BY sort_order ASC, id ASC");
         $stmt->execute([':sid' => $schemeId]);
         $rows = [];
         foreach ($stmt->fetchAll() as $r) {
@@ -1588,6 +1605,7 @@ function copyPricingSchemeToEvent(?PDO $pdo, int $schemeId, int $eventId): bool
                 'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (float)$r['foreign_recognition_price'] : null,
                 'is_member_price' => (int)($r['is_member_price'] ?? 0),
                 'is_junior_ride' => (int)($r['is_junior_ride'] ?? 0),
+                'rider_eligibility' => (string)($r['rider_eligibility'] ?? (!empty($r['is_junior_ride']) ? 'junior' : 'senior')),
                 'enabled' => 1,
             ];
         }
@@ -1704,6 +1722,7 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
     $rowForeignPrices = $data['event_row_foreign_recognition_price'] ?? [];
     $rowMember = $data['event_row_is_member_price'] ?? [];
     $rowJunior = $data['event_row_is_junior_ride'] ?? [];
+    $rowEligibility = $data['event_row_rider_eligibility'] ?? [];
     $rowEnabled = $data['event_row_enabled'] ?? [];
 
     if (!is_array($rowNames) || !is_array($rowPrices)) {
@@ -1732,6 +1751,8 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
 
         $isMember = !empty($rowMember[$key]) ? 1 : 0;
         $isJuniorRide = !empty($rowJunior[$key]) ? 1 : 0;
+        $riderEligibility = (string)($rowEligibility[$key] ?? ($isJuniorRide ? 'junior' : 'senior'));
+        if (!in_array($riderEligibility, ['all', 'junior', 'senior'], true)) $riderEligibility = 'senior';
         $enabled = !empty($rowEnabled[$key]) ? 1 : 0;
         $price = price_to_number((string)($rowPrices[$key] ?? '0'));
         $foreignPriceRaw = trim((string)($rowForeignPrices[$key] ?? ''));
@@ -1750,6 +1771,7 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
             'foreign_recognition_price' => $isMember ? $foreignRecognitionPrice : null,
             'is_member_price' => $isMember,
             'is_junior_ride' => $isJuniorRide,
+            'rider_eligibility' => $riderEligibility,
             'enabled' => $enabled,
         ];
     }

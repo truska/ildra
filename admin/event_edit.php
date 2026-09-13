@@ -195,6 +195,7 @@ foreach ($eventTypes as $t) {
                 'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (string)$r['foreign_recognition_price'] : '',
                 'is_member_price' => !empty($r['is_member_price']) ? 1 : 0,
                 'is_junior_ride' => !empty($r['is_junior_ride']) ? 1 : 0,
+                'rider_eligibility' => $r['rider_eligibility'] ?? (!empty($r['is_junior_ride']) ? 'junior' : 'senior'),
                 'enabled' => 1,
             ];
         }, $rows));
@@ -219,6 +220,7 @@ foreach (fetchPricingSchemes($pdo) as $scheme) {
             'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (string)$r['foreign_recognition_price'] : '',
             'is_member_price' => !empty($r['is_member_price']) ? 1 : 0,
             'is_junior_ride' => !empty($r['is_junior_ride']) ? 1 : 0,
+            'rider_eligibility' => $r['rider_eligibility'] ?? (!empty($r['is_junior_ride']) ? 'junior' : 'senior'),
             'enabled' => 1,
         ];
     }, fetchPricingSchemeRows($pdo, $schemeId)));
@@ -248,6 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'foreign_recognition_price' => (string)($foreignPrices[$key] ?? ''),
             'is_member_price' => !empty($member[$key]) ? 1 : 0,
             'is_junior_ride' => !empty($junior[$key]) ? 1 : 0,
+            'rider_eligibility' => (string)(($_POST['event_row_rider_eligibility'][$key] ?? '') ?: (!empty($junior[$key]) ? 'junior' : 'senior')),
             'enabled' => !empty($enabled[$key]) ? 1 : 0,
         ];
     }
@@ -509,7 +512,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                             <th class="compact">£ Price</th>
                             <th class="compact">Member</th>
                             <th class="compact">£ Non-ILDRA Member</th>
-                            <th class="compact">Junior</th>
+                            <th class="compact">Rider eligibility</th>
                             <th class="compact"></th>
                         </tr>
                         </thead>
@@ -522,7 +525,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                                 $rowKey = ($row['id'] ?? 0) ? ('id' . (int)$row['id']) : ('r' . $i);
                                 $enabledChecked = !empty($row['enabled']);
                                 $memberChecked = !empty($row['is_member_price']);
-                                $juniorChecked = !empty($row['is_junior_ride']);
+                                $eligibility = in_array(($row['rider_eligibility'] ?? ''), ['all', 'junior', 'senior'], true) ? $row['rider_eligibility'] : (!empty($row['is_junior_ride']) ? 'junior' : 'senior');
                                 $sortOrder = (int)($row['sort_order'] ?? (($i + 1) * 10));
                                 ?>
                                 <tr data-row-key="<?php echo h($rowKey); ?>">
@@ -547,8 +550,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                                     </td>
                                     <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[<?php echo h($rowKey); ?>]" value="<?php echo h((string)($row['foreign_recognition_price'] ?? '')); ?>" placeholder="£ ##.##"></td>
                                     <td class="compact">
-                                        <input type="hidden" name="event_row_is_junior_ride[<?php echo h($rowKey); ?>]" value="0">
-                                        <input class="form-check-input" type="checkbox" value="1" name="event_row_is_junior_ride[<?php echo h($rowKey); ?>]" <?php echo $juniorChecked ? 'checked' : ''; ?> aria-label="Junior ride">
+                                        <select class="form-select form-select-sm" name="event_row_rider_eligibility[<?php echo h($rowKey); ?>]" aria-label="Rider eligibility"><option value="all" <?php echo $eligibility === 'all' ? 'selected' : ''; ?>>All</option><option value="junior" <?php echo $eligibility === 'junior' ? 'selected' : ''; ?>>Junior</option><option value="senior" <?php echo $eligibility === 'senior' ? 'selected' : ''; ?>>Senior</option></select>
                                     </td>
                                     <td class="compact">
                                         <button class="btn btn-sm btn-outline-danger remove-btn" type="button" data-remove-pricing-row>Remove</button>
@@ -844,7 +846,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             const foreignPrice = (row && row.foreign_recognition_price) == null || String(row.foreign_recognition_price).trim() === '' ? '' : normalizePrice(row.foreign_recognition_price);
             const enabled = (row && row.enabled) !== 0 && (row && row.enabled) !== '0';
             const isMemberPrice = (row && row.is_member_price) === 1 || (row && row.is_member_price) === '1' || (row && row.is_member_price) === true;
-            const isJuniorRide = (row && row.is_junior_ride) === 1 || (row && row.is_junior_ride) === '1' || (row && row.is_junior_ride) === true;
+            const eligibility = ['all', 'junior', 'senior'].includes(String((row && row.rider_eligibility) ?? '')) ? row.rider_eligibility : ((row && row.is_junior_ride) ? 'junior' : 'all');
 
             tr.innerHTML = `
                 <td class="compact">
@@ -868,8 +870,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 </td>
                 <td class="compact"><input type="number" step="0.01" min="0" class="form-control form-control-sm price-input" name="event_row_foreign_recognition_price[${rowKey}]" value="${foreignPrice}" placeholder="£ ##.##"></td>
                 <td class="compact">
-                    <input type="hidden" name="event_row_is_junior_ride[${rowKey}]" value="0">
-                    <input class="form-check-input" type="checkbox" value="1" name="event_row_is_junior_ride[${rowKey}]" ${isJuniorRide ? 'checked' : ''} aria-label="Junior ride">
+                    <select class="form-select form-select-sm" name="event_row_rider_eligibility[${rowKey}]" aria-label="Rider eligibility"><option value="all" ${eligibility === 'all' ? 'selected' : ''}>All</option><option value="junior" ${eligibility === 'junior' ? 'selected' : ''}>Junior</option><option value="senior" ${eligibility === 'senior' ? 'selected' : ''}>Senior</option></select>
                 </td>
                 <td class="compact">
                     <button class="btn btn-sm btn-outline-danger remove-btn" type="button" data-remove-pricing-row>Remove</button>
