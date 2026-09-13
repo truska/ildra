@@ -128,6 +128,7 @@ admin_layout_start('People', 'people');
                     <td class="text-muted small"><?php echo h($status); ?></td>
                     <td class="text-end text-nowrap">
                         <a class="btn btn-sm btn-outline-secondary" href="person_edit.php?id=<?php echo (int)$row['id']; ?>">Edit</a>
+                        <?php if (in_array($currentRole, ['superadmin', 'admin'], true)): ?><a class="btn btn-sm btn-outline-success" href="person_edit.php?id=<?php echo (int)$row['id']; ?>#allocate-membership">Membership</a><?php endif; ?>
                         <?php if (empty($row['is_archived'])): ?>
                             <button class="btn btn-sm btn-outline-warning" type="submit" name="archive_person_id" value="<?php echo (int)$row['id']; ?>" formmethod="post" onclick="return confirm('Archive this person?');">Archive</button>
                         <?php else: ?>
