@@ -71,6 +71,39 @@ function stripe_create_checkout_session(array $stripeConfig, array $params): arr
     return stripe_api_request($stripeConfig, 'POST', '/v1/checkout/sessions', $params);
 }
 
+/** Create or reuse the Stripe Customer belonging to one site account. */
+function stripe_customer_for_user(?PDO $pdo, array $stripeConfig, array $user): ?string
+{
+    $userId = (int)($user['id'] ?? 0);
+    if (!$pdo || $userId <= 0) return null;
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS stripe_customers (user_id INT UNSIGNED NOT NULL PRIMARY KEY, stripe_customer_id VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+        $find = $pdo->prepare('SELECT stripe_customer_id FROM stripe_customers WHERE user_id = :user_id LIMIT 1');
+        $find->execute([':user_id' => $userId]);
+        $existing = trim((string)$find->fetchColumn());
+        if ($existing !== '') return $existing;
+
+        $name = trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''));
+        $params = ['metadata[user_id]' => (string)$userId];
+        if ($name !== '') $params['name'] = $name;
+        if (!empty($user['email'])) $params['email'] = (string)$user['email'];
+        $people = fetchMembersForUser($pdo, $userId);
+        foreach ($people as $person) {
+            if (!empty($person['is_linked'])) continue;
+            $postcode = trim((string)($person['postcode'] ?? ''));
+            if ($postcode !== '') { $params['address[postal_code]'] = $postcode; break; }
+        }
+        $created = stripe_api_request($stripeConfig, 'POST', '/v1/customers', $params);
+        $customerId = trim((string)($created['data']['id'] ?? ''));
+        if (!($created['ok'] ?? false) || $customerId === '') return null;
+        $save = $pdo->prepare('INSERT INTO stripe_customers (user_id, stripe_customer_id) VALUES (:user_id, :customer_id)');
+        $save->execute([':user_id' => $userId, ':customer_id' => $customerId]);
+        return $customerId;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
 function stripe_retrieve_checkout_session(array $stripeConfig, string $sessionId): array
 {
     return stripe_api_request($stripeConfig, 'GET', '/v1/checkout/sessions/' . urlencode($sessionId));

@@ -190,6 +190,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             $params = [
                 'mode' => 'payment',
                 'payment_method_types' => ['card'],
+                // Confirm the billing address in Stripe rather than handling
+                // payment details or address collection on this site.
+                'billing_address_collection' => 'required',
                 'success_url' => $successUrl,
                 'cancel_url' => $cancelUrl,
                 'customer_email' => $contactEmail,
@@ -204,6 +207,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             ];
             if ($contactEmail !== '') {
                 $params['customer_email'] = $contactEmail;
+            }
+            $stripeCustomerId = stripe_customer_for_user($pdo, $stripeConfig, $currentUser);
+            if ($stripeCustomerId !== null) {
+                // Passing an existing Customer lets Checkout use its saved name,
+                // email and billing address. customer_email cannot be combined
+                // with customer on a Checkout Session.
+                unset($params['customer_email']);
+                $params['customer'] = $stripeCustomerId;
+                $params['customer_update[address]'] = 'auto';
             }
             $resp = stripe_create_checkout_session($stripeConfig, $params);
             if (!($resp['ok'] ?? false)) {
