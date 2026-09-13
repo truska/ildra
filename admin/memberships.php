@@ -88,7 +88,7 @@ $formValues = $editingType ?: [
     'description' => '',
     'cost' => '0.00',
     'type' => 'senior',
-    'membership_code' => 'SM',
+    'membership_code' => 'SNR',
     'allows_ride_entries' => 0,
     'allows_competitive_rides' => 0,
     'has_voting_rights' => 0,
@@ -342,8 +342,8 @@ admin_layout_start('Memberships', 'memberships');
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Membership code</label>
-                        <input type="text" name="membership_code" class="form-control text-uppercase" maxlength="2" pattern="[A-Za-z0-9]{2}" placeholder="e.g. JM" value="<?php echo h((string)($formValues['membership_code'] ?? 'SM')); ?>" required>
-                        <div class="helper">Two characters shown beside an active member on entry forms.</div>
+                        <input type="text" name="membership_code" class="form-control text-uppercase" maxlength="3" pattern="[A-Za-z0-9]{3}" placeholder="e.g. JNR" value="<?php echo h((string)($formValues['membership_code'] ?? 'SNR')); ?>" required>
+                        <div class="helper">Three characters shown beside an active member on entry forms.</div>
                     </div>
                 </div>
             </div>
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: '',
         cost: '0.00',
         type: 'senior',
-        membership_code: 'SM',
+        membership_code: 'SNR',
         allows_ride_entries: false,
         allows_competitive_rides: false,
         has_voting_rights: false,
@@ -487,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fields.description.value = data.description || '';
         fields.cost.value = data.cost || '';
         fields.type.value = data.type || '';
-        fields.membership_code.value = data.membership_code || 'SM';
+        fields.membership_code.value = data.membership_code || 'SNR';
         fields.allows_ride_entries.checked = !!data.allows_ride_entries;
         fields.allows_competitive_rides.checked = !!data.allows_competitive_rides;
         fields.has_voting_rights.checked = !!data.has_voting_rights;
@@ -544,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
             description: btn.dataset.description || '',
             cost: btn.dataset.cost || '',
             type: safeType,
-            membership_code: btn.dataset.membershipCode || 'SM',
+            membership_code: btn.dataset.membershipCode || 'SNR',
             allows_ride_entries: btn.dataset.allowsRideEntries === '1',
             allows_competitive_rides: btn.dataset.allowsCompetitiveRides === '1',
             has_voting_rights: btn.dataset.hasVotingRights === '1',

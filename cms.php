@@ -2519,8 +2519,8 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
         $alerts[] = ['type' => 'danger', 'message' => 'Name and cost are required.'];
         return false;
     }
-    if (!preg_match('/^[A-Z0-9]{2}$/', $membershipCode)) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Membership code must be two letters or numbers.'];
+    if (!preg_match('/^[A-Z0-9]{3}$/', $membershipCode)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Membership code must be three letters or numbers.'];
         return false;
     }
     if (!in_array($status, ['draft', 'published'], true)) {
@@ -2595,7 +2595,7 @@ function ensureMembershipTypesTable(PDO $pdo): void
             membership_year SMALLINT UNSIGNED NOT NULL,
             cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 type VARCHAR(80) NOT NULL DEFAULT 'senior',
-            membership_code CHAR(2) NOT NULL DEFAULT 'SM',
+            membership_code CHAR(3) NOT NULL DEFAULT 'SNR',
             allows_ride_entries TINYINT(1) NOT NULL DEFAULT 0,
             allows_competitive_rides TINYINT(1) NOT NULL DEFAULT 0,
             has_voting_rights TINYINT(1) NOT NULL DEFAULT 0,
@@ -2617,10 +2617,12 @@ function ensureMembershipTypesTable(PDO $pdo): void
         $pdo->exec("ALTER TABLE membership_types ADD COLUMN has_voting_rights TINYINT(1) NOT NULL DEFAULT 0");
     }
     if (!table_column_exists($pdo, 'membership_types', 'membership_code')) {
-        $pdo->exec("ALTER TABLE membership_types ADD COLUMN membership_code CHAR(2) NULL AFTER type");
-        $pdo->exec("UPDATE membership_types SET membership_code = CASE WHEN type = 'junior' THEN 'JM' ELSE 'SM' END WHERE membership_code IS NULL OR membership_code = ''");
-        $pdo->exec("ALTER TABLE membership_types MODIFY membership_code CHAR(2) NOT NULL DEFAULT 'SM'");
+        $pdo->exec("ALTER TABLE membership_types ADD COLUMN membership_code CHAR(3) NULL AFTER type");
+        $pdo->exec("UPDATE membership_types SET membership_code = CASE WHEN type = 'junior' THEN 'JNR' ELSE 'SNR' END WHERE membership_code IS NULL OR membership_code = ''");
+        $pdo->exec("ALTER TABLE membership_types MODIFY membership_code CHAR(3) NOT NULL DEFAULT 'SNR'");
     }
+    $pdo->exec("ALTER TABLE membership_types MODIFY membership_code CHAR(3) NOT NULL DEFAULT 'SNR'");
+    $pdo->exec("UPDATE membership_types SET membership_code = CASE membership_code WHEN 'JM' THEN 'JNR' WHEN 'AM' THEN 'ADT' WHEN 'SM' THEN 'SNR' ELSE membership_code END");
 }
 
 function deleteMembershipType(?PDO $pdo, int $id, array &$alerts): bool

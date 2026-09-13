@@ -57,7 +57,7 @@ if ($isLoggedIn && $pdo && $people) {
         if ($status === 'active' && !empty($membership['allows_ride_entries'])) {
             $peopleWithActiveMembership[$memberId] = true;
             $membershipCode = strtoupper(trim((string)($membership['membership_code'] ?? '')));
-            $activeMembershipMarkerByPerson[$memberId] = preg_match('/^[A-Z0-9]{2}$/', $membershipCode) ? $membershipCode : 'SM';
+            $activeMembershipMarkerByPerson[$memberId] = preg_match('/^[A-Z0-9]{3}$/', $membershipCode) ? $membershipCode : 'SNR';
             if (!empty($membership['allows_competitive_rides'])) {
                 $peopleWithCompetitiveMembership[$memberId] = true;
             }
