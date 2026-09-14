@@ -18,6 +18,7 @@ INSERT IGNORE INTO admin_action_restrictions
 VALUES
     ('finance.create_payout', 'finance', 'Create Stripe payout', 'Move an event balance from Stripe to the nominated account.', 1, 'admin', 10),
     ('finance.adjust_balance', 'finance', 'Adjust account balance', 'Manually credit or debit a user account balance.', 0, '', 20),
+    ('finance.create_misc_payment', 'finance', 'Send miscellaneous payment request', 'Email a recipient a one-off Stripe payment request.', 1, 'admin', 25),
     ('memberships.change_logbook_rate', 'memberships', 'Change horse logbook rate', 'Change the annual horse logbook price or status.', 1, 'admin', 30),
     ('people.allocate_membership', 'people', 'Allocate membership', 'Grant an administrator-allocated membership.', 1, 'admin', 50),
     ('events.delete', 'events', 'Delete event', 'Permanently delete an event and its associated data.', 0, '', 80);

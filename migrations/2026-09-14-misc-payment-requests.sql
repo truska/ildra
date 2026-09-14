@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS misc_payment_requests (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    request_token CHAR(48) NOT NULL UNIQUE,
+    recipient_email VARCHAR(190) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'gbp',
+    status VARCHAR(20) NOT NULL DEFAULT 'sent',
+    stripe_session_id VARCHAR(255) DEFAULT NULL UNIQUE,
+    stripe_payment_intent_id VARCHAR(255) DEFAULT NULL,
+    stripe_checkout_url TEXT DEFAULT NULL,
+    email_sent_at DATETIME DEFAULT NULL,
+    paid_at DATETIME DEFAULT NULL,
+    finance_transaction_id INT UNSIGNED DEFAULT NULL,
+    created_by_user_id INT UNSIGNED DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_misc_payment_status (status),
+    INDEX idx_misc_payment_recipient (recipient_email)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

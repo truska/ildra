@@ -13,6 +13,7 @@ if (!$canManageFinance) {
 }
 $canCreatePayout = adminActionAllowed($pdo, 'finance.create_payout', $currentRole);
 $canAdjustBalance = adminActionAllowed($pdo, 'finance.adjust_balance', $currentRole);
+$canCreateMiscPayment = adminActionAllowed($pdo, 'finance.create_misc_payment', $currentRole);
 
 ensure_finance_tables($pdo, $alerts);
 $stripeConfig = stripe_config($config);
@@ -21,6 +22,8 @@ $payoutSummary=$_SESSION['finance_payout_summary']??null;unset($_SESSION['financ
 if(empty($_SESSION['finance_payout_csrf']))$_SESSION['finance_payout_csrf']=bin2hex(random_bytes(24));
 if(empty($_SESSION['finance_payout_key']))$_SESSION['finance_payout_key']=bin2hex(random_bytes(16));
 $financePayoutCsrf=(string)$_SESSION['finance_payout_csrf'];$financePayoutKey=(string)$_SESSION['finance_payout_key'];
+if(empty($_SESSION['misc_payment_csrf']))$_SESSION['misc_payment_csrf']=bin2hex(random_bytes(24));
+$miscPaymentCsrf=(string)$_SESSION['misc_payment_csrf']; ensureMiscPaymentTables($pdo);
 
 function finance_event_payout_capacity(PDO $pdo,int $eventId):array{
     $payments=0.0;$fees=0.0;
@@ -59,6 +62,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         if($alerts)$_SESSION['flash_alerts']=$alerts;header('Location: finance.php?tab=events');exit;
+    } elseif ($action === 'create_misc_payment') {
+        $email=strtolower(trim((string)($_POST['recipient_email']??''))); $description=trim((string)($_POST['description']??'')); $amount=price_to_number($_POST['amount']??0);
+        if(!$canCreateMiscPayment)$alerts[]=['type'=>'danger','message'=>'You do not have permission to send miscellaneous payment requests.'];
+        elseif(!hash_equals($miscPaymentCsrf,(string)($_POST['csrf']??'')))$alerts[]=['type'=>'danger','message'=>'Your session token expired. Please try again.'];
+        elseif(!stripe_is_enabled($stripeConfig))$alerts[]=['type'=>'danger','message'=>'Stripe is not configured.'];
+        elseif(!filter_var($email,FILTER_VALIDATE_EMAIL)||$description===''||$amount<=0)$alerts[]=['type'=>'danger','message'=>'Enter a valid email address, description, and amount greater than zero.'];
+        else { $token=bin2hex(random_bytes(24)); $insert=$pdo->prepare("INSERT INTO misc_payment_requests (request_token,recipient_email,description,amount,currency,status,created_by_user_id) VALUES (:token,:email,:description,:amount,:currency,'sent',:user)"); $insert->execute([':token'=>$token,':email'=>$email,':description'=>substr($description,0,255),':amount'=>number_format($amount,2,'.',''),':currency'=>$stripeConfig['currency']??'gbp',':user'=>(int)$currentUser['id']]); $requestId=(int)$pdo->lastInsertId();
+            $scheme=auth_cookie_secure()?'https':'http'; $host=(string)($_SERVER['HTTP_HOST']??''); $successUrl=$scheme.'://'.$host.($siteBase?:'').'/misc_payment_complete.php?session_id={CHECKOUT_SESSION_ID}';
+            $params=['mode'=>'payment','customer_email'=>$email,'success_url'=>$successUrl,'cancel_url'=>$scheme.'://'.$host.($siteBase?:'').'/admin/finance.php?misc_cancelled=1','line_items'=>[['price_data'=>['currency'=>$stripeConfig['currency']??'gbp','unit_amount'=>(int)round($amount*100),'product_data'=>['name'=>'ILDRA payment request','description'=>substr($description,0,255)]],'quantity'=>1]],'metadata'=>['misc_payment_request_id'=>(string)$requestId,'request_token'=>$token]];
+            $response=stripe_create_checkout_session($stripeConfig,$params); $session=(array)($response['data']??[]); $sessionId=trim((string)($session['id']??'')); $checkoutUrl=trim((string)($session['url']??''));
+            if(empty($response['ok'])||$sessionId===''||$checkoutUrl===''){ $pdo->prepare("UPDATE misc_payment_requests SET status='failed' WHERE id=:id")->execute([':id'=>$requestId]); $alerts[]=['type'=>'danger','message'=>'Could not create the Stripe payment request. '.($response['error']??'')]; }
+            else { $pdo->prepare('UPDATE misc_payment_requests SET stripe_session_id=:session,stripe_checkout_url=:url,email_sent_at=NOW() WHERE id=:id')->execute([':session'=>$sessionId,':url'=>$checkoutUrl,':id'=>$requestId]); $settings=getEmailSettings($pdo); $siteSettings=getSiteSettings($pdo); $inner='<p>Please use the secure link below to pay <strong>'.h(format_price($amount)).'</strong>.</p><p>'.nl2br(h($description)).'</p><p><a href="'.h($checkoutUrl).'" style="display:inline-block;padding:10px 16px;background:#146118;color:#fff;text-decoration:none;border-radius:6px">Pay securely</a></p><p>If the button does not work, copy this link into your browser:<br><a href="'.h($checkoutUrl).'">'.h($checkoutUrl).'</a></p>'; $sent=send_logged_email($pdo,$email,'Payment request: '.substr($description,0,120),wrap_user_email_html($siteSettings,$settings,$inner),"Payment request\n\n".$description."\nAmount: ".format_price($amount)."\nPay securely: ".$checkoutUrl,['type'=>'misc_payment_request','misc_payment_request_id'=>$requestId,'stripe_session_id'=>$sessionId]); if(!$sent)$alerts[]=['type'=>'warning','message'=>'The Stripe link was created, but the email could not be sent. Check Email logs.']; else $successMessage='Payment request emailed to '.$email.'.'; }
+        }
+        if($alerts)$_SESSION['flash_alerts']=$alerts;
+        if($successMessage)$_SESSION['flash_success']=$successMessage;
+        header('Location: finance.php?tab=requests'); exit;
     } elseif ($action === 'adjust_balance') {
         if (!$canAdjustBalance) { $alerts[] = ['type'=>'danger','message'=>'You do not have permission to adjust account balances.']; }
         $userId = (int)($_POST['user_id'] ?? 0);
@@ -102,28 +121,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $allUsers = fetchAllUsersForAdmin($pdo, $alerts);
 $balances = fetch_credit_balances($pdo, 500);
+$miscPaymentRequests = [];
+if ($canCreateMiscPayment && $pdo) {
+    $miscPaymentRequests = $pdo->query("SELECT * FROM misc_payment_requests ORDER BY created_at DESC, id DESC LIMIT 250")->fetchAll() ?: [];
+}
+function finance_transaction_type_label(string $type): string {
+    return match ($type) {
+        'payment_stripe_misc' => 'Stripe payment — miscellaneous request',
+        default => ucwords(str_replace('_', ' ', $type)),
+    };
+}
+function finance_transaction_notes(array $transaction): string {
+    $notes = (string)($transaction['notes'] ?? '');
+    $meta = $transaction['metadata'] ?? [];
+    if (is_array($meta) && ($transaction['type'] ?? '') === 'entry_refund' && !empty($meta['actor_name'])) return 'Entry refunded and withdrawn by admin (' . (string)$meta['actor_name'] . ')';
+    if (is_array($meta) && ($transaction['type'] ?? '') === 'payment_stripe_misc') {
+        $recipient = trim((string)($meta['recipient_email'] ?? ''));
+        return ($recipient !== '' ? 'Payment request to ' . $recipient . ' — ' : '') . $notes;
+    }
+    return $notes;
+}
+function finance_transaction_movement(array $transaction): string {
+    return match ((string)($transaction['type'] ?? '')) {
+        'payment_stripe', 'payment_stripe_misc', 'payment_simulated' => 'Money received',
+        'stripe_payout' => 'Payout',
+        'entry_refund', 'entry_stripe_refund', 'refund' => 'Refund',
+        'checkout' => 'Internal checkout',
+        'manual_credit', 'manual_debit' => 'Account adjustment',
+        default => finance_transaction_type_label((string)($transaction['type'] ?? '')),
+    };
+}
+function finance_transaction_applies_to(array $transaction, array $eventLabels, array $bookingEventLabels = []): string {
+    $type=(string)($transaction['type'] ?? ''); $meta=is_array($transaction['metadata'] ?? null)?$transaction['metadata']:[];
+    if ($type === 'payment_stripe_misc') return 'Miscellaneous';
+    $eventIds=[]; if(!empty($meta['event_id']))$eventIds[]=(int)$meta['event_id'];
+    if(!empty($meta['event_ids']))foreach(explode(',',(string)$meta['event_ids'])as$id)if((int)$id>0)$eventIds[]=(int)$id;
+    $eventIds=array_values(array_unique($eventIds));
+    if($eventIds){$labels=[];foreach($eventIds as$id)$labels[]=$eventLabels[$id]??('Event #'.$id);return 'Event: '.implode(', ',$labels);}
+    $bookingReference=(string)($transaction['reference']??'');
+    if($bookingReference!==''&&!empty($bookingEventLabels[$bookingReference]))return 'Event: '.$bookingEventLabels[$bookingReference];
+    if(!empty($meta['membership_years']))return 'Membership '.str_replace(',', ', ', (string)$meta['membership_years']);
+    if($type==='checkout'||$type==='payment_stripe')return !empty($transaction['reference'])?'Booking: '.(string)$transaction['reference']:'Website booking';
+    return 'General finance';
+}
 $sortKey = $_GET['sort'] ?? 'when';
 $sortDir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 $transactionsDisplayed = fetch_finance_transactions($pdo, 500, (string)$sortKey, strtoupper($sortDir));
-$transactionUserOptions=[];$transactionTypeOptions=[];
+$transactionEvents = fetchEvents($pdo, false); $transactionEventLabels=[];
+foreach($transactionEvents as$transactionEvent){
+    $eventId=(int)$transactionEvent['id']; $eventTitle=(string)($transactionEvent['title']??('Event #'.$eventId)); $eventDate=(string)($transactionEvent['event_date']??'');
+    $shortDate=$eventDate!==''?date('d/m/y',strtotime($eventDate)):'';
+    $transactionEventLabels[$eventId]=$eventTitle.($shortDate!==''?' · '.$shortDate:'');
+}
+$transactionBookingEventLabels=[];
+if($pdo){try{$bookingEventRows=$pdo->query('SELECT b.booking_ref, GROUP_CONCAT(DISTINCT bi.event_id ORDER BY bi.event_id SEPARATOR ",") AS event_ids FROM bookings b JOIN booking_items bi ON bi.booking_id=b.new_id WHERE bi.event_id IS NOT NULL GROUP BY b.booking_ref')->fetchAll()?:[];foreach($bookingEventRows as$bookingEventRow){$labels=[];foreach(explode(',',(string)$bookingEventRow['event_ids'])as$eventId){$eventId=(int)$eventId;if($eventId>0)$labels[]=$transactionEventLabels[$eventId]??('Event #'.$eventId);}if($labels)$transactionBookingEventLabels[(string)$bookingEventRow['booking_ref']]=implode(', ',array_unique($labels));}}catch(PDOException $e){$transactionBookingEventLabels=[];}}
+$transactionUserOptions=[];$transactionTypeOptions=[];$transactionAppliesToOptions=[];
 foreach($transactionsDisplayed as$tx){
     $uid=(string)($tx['user_id']??'');$name=trim((string)($tx['first_name']??'').' '.(string)($tx['last_name']??''));$email=trim((string)($tx['email']??''));
     if($uid!=='')$transactionUserOptions[$uid]=$name!==''?$name.($email!==''?' ('.$email.')':''):($email?:'User #'.$uid);
-    $type=(string)($tx['type']??'');if($type!=='')$transactionTypeOptions[$type]=ucwords(str_replace('_',' ',$type));
+    $type=(string)($tx['type']??'');if($type!==''){$movement=finance_transaction_movement($tx);$transactionTypeOptions[$movement]=$movement;}
+    $appliesTo=finance_transaction_applies_to($tx,$transactionEventLabels,$transactionBookingEventLabels); $transactionAppliesToOptions[$appliesTo]=$appliesTo;
 }
-natcasesort($transactionUserOptions);natcasesort($transactionTypeOptions);
+natcasesort($transactionUserOptions);natcasesort($transactionTypeOptions);natcasesort($transactionAppliesToOptions);
 $transactionFilterForm='transaction-filter-form';
 $transactionColumns=[
     'when'=>['label'=>'When','sortable'=>true,'filter'=>'text','placeholder'=>'Search when','form'=>$transactionFilterForm,'value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['created_at']??'')],
     'user'=>['label'=>'User','sortable'=>true,'filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionUserOptions,'value'=>static fn(array $r):string=>(string)($r['user_id']??'')],
-    'type'=>['label'=>'Type','sortable'=>true,'filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionTypeOptions],
+    'type'=>['label'=>'Movement','sortable'=>true,'filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionTypeOptions,'value'=>static fn(array $r): string => finance_transaction_movement($r)],
+    'applies_to'=>['label'=>'Applies to','filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionAppliesToOptions,'value'=>static fn(array $r): string => finance_transaction_applies_to($r, $GLOBALS['transactionEventLabels'] ?? [], $GLOBALS['transactionBookingEventLabels'] ?? [])],
     'amount'=>['label'=>'Amount','sortable'=>true,'filter'=>'text','placeholder'=>'Search amount','form'=>$transactionFilterForm,'compare'=>'number'],
     'balance'=>['label'=>'Balance after','field'=>'balance_after','sortable'=>true,'filter'=>'text','placeholder'=>'Search balance','form'=>$transactionFilterForm,'compare'=>'number'],
     'reference'=>['label'=>'Reference','sortable'=>true,'filter'=>'text','placeholder'=>'Search reference','form'=>$transactionFilterForm],
-    'notes'=>['label'=>'Notes','sortable'=>true,'filter'=>'text','placeholder'=>'Search notes','form'=>$transactionFilterForm,'value'=>static function(array $r):string{$notes=(string)($r['notes']??'');$meta=$r['metadata']??[];if(is_array($meta)&&($r['type']??'')==='entry_refund'&&!empty($meta['actor_name']))$notes='Entry refunded and withdrawn by admin ('.(string)$meta['actor_name'].')';return $notes;}],
+    'notes'=>['label'=>'Notes','sortable'=>true,'filter'=>'text','placeholder'=>'Search notes','form'=>$transactionFilterForm,'value'=>static fn(array $r): string => finance_transaction_notes($r)],
 ];
 $transactionTable=admin_table_prepare($transactionsDisplayed,$transactionColumns,'when','desc');$transactionsDisplayed=$transactionTable['rows'];$transactionFilters=$transactionTable['filters'];$sortKey=$transactionTable['sort_key'];$sortDir=$transactionTable['sort_dir'];
-$events = fetchEvents($pdo, false);
+$events = $transactionEvents;
 $eventStats = [];
 $eventRefunds = [];
 $eventPayments = [];
@@ -353,6 +425,7 @@ admin_layout_start('Finance', 'finance');
         <button class="finance-tab" data-finance-tab="events" type="button" role="tab" aria-selected="false">Events</button>
         <button class="finance-tab" data-finance-tab="credits" type="button" role="tab" aria-selected="false">Credits</button>
         <button class="finance-tab" data-finance-tab="balances" type="button" role="tab" aria-selected="false">Balances</button>
+        <?php if ($canCreateMiscPayment): ?><button class="finance-tab" data-finance-tab="requests" type="button" role="tab" aria-selected="false">Payment requests</button><?php endif; ?>
     </div>
 </div>
 
@@ -415,6 +488,9 @@ admin_layout_start('Finance', 'finance');
     </section>
 </div>
 <?php endif; ?>
+
+<?php if ($canCreateMiscPayment): ?><section class="card-soft p-3 finance-section" data-finance-section="requests"><div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3"><div><div class="small text-muted text-uppercase fw-bold">One-off payments</div><h6 class="mb-1">Payment requests</h6><div class="text-muted small">Requests are listed here until paid, failed, cancelled, or expired. Paid requests also appear in Transactions.</div></div><button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#newMiscPaymentModal"><i class="fa-solid fa-plus me-1"></i>New Request</button></div><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Created</th><th>Recipient</th><th>Description</th><th class="text-end">Amount</th><th>Status</th><th>Sent</th><th>Paid</th></tr></thead><tbody><?php foreach($miscPaymentRequests as $request): $status=strtolower((string)($request['status']??'sent')); $statusLabel=match($status){'paid'=>'Completed','failed'=>'Failed','cancelled'=>'Cancelled','expired'=>'Expired',default=>'Pending'}; $statusClass=match($status){'paid'=>'bg-success-subtle text-success','failed'=>'bg-danger-subtle text-danger','cancelled','expired'=>'bg-secondary-subtle text-secondary',default=>'bg-warning-subtle text-warning-emphasis'}; ?><tr><td class="small text-muted"><?php echo h(format_display_datetime($request['created_at']??null,'')); ?></td><td><?php echo h((string)$request['recipient_email']); ?></td><td><?php echo h((string)$request['description']); ?></td><td class="text-end"><?php echo format_price((float)$request['amount']); ?></td><td><span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span></td><td class="small text-muted"><?php echo !empty($request['email_sent_at'])?h(format_display_datetime($request['email_sent_at'],'')):'—'; ?></td><td class="small text-muted"><?php echo !empty($request['paid_at'])?h(format_display_datetime($request['paid_at'],'')):'—'; ?></td></tr><?php endforeach; ?><?php if(!$miscPaymentRequests): ?><tr><td colspan="7" class="text-muted">No payment requests have been created yet.</td></tr><?php endif; ?></tbody></table></div></section>
+<div class="modal fade" id="newMiscPaymentModal" tabindex="-1" aria-labelledby="newMiscPaymentModalLabel" aria-hidden="true"><div class="modal-dialog"><form method="post" class="modal-content"><input type="hidden" name="action" value="create_misc_payment"><input type="hidden" name="csrf" value="<?php echo h($miscPaymentCsrf); ?>"><div class="modal-header"><h5 class="modal-title" id="newMiscPaymentModalLabel">New payment request</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p class="small text-muted">The recipient receives a secure Stripe-hosted payment link by email.</p><div class="mb-3"><label class="form-label">Recipient email</label><input class="form-control" type="email" name="recipient_email" required></div><div class="mb-3"><label class="form-label">Description</label><input class="form-control" name="description" maxlength="255" required></div><div><label class="form-label">Amount</label><div class="input-group"><span class="input-group-text">£</span><input class="form-control" type="number" name="amount" min="0.01" step="0.01" required></div></div></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success">Email payment request</button></div></form></div></div><?php endif; ?>
 
 <section class="card-soft p-3 finance-section" data-finance-section="balances">
     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -549,10 +625,20 @@ admin_layout_start('Finance', 'finance');
                     $isPositive = $amountVal > 0;
                     $isNegative = $amountVal < 0;
                     $amountPill = $isPositive ? 'positive' : ($isNegative ? 'negative' : 'neutral');
-                    $notesText = (string)($tx['notes'] ?? '');
+                    $notesText = finance_transaction_notes($tx);
                     $meta = $tx['metadata'] ?? [];
-                    if (is_array($meta) && ($tx['type'] ?? '') === 'entry_refund' && !empty($meta['actor_name'])) {
-                        $notesText = 'Entry refunded and withdrawn by admin (' . (string)$meta['actor_name'] . ')';
+                    $referenceText = (string)($tx['reference'] ?? '');
+                    $referenceTitle = '';
+                    if (($tx['type'] ?? '') === 'payment_stripe_misc' && is_array($meta)) {
+                        $requestId = (int)($meta['misc_payment_request_id'] ?? 0);
+                        if ($requestId > 0) {
+                            $referenceTitle = $referenceText !== '' ? 'Stripe Checkout reference: ' . $referenceText : '';
+                            $referenceText = 'MPR-' . $requestId;
+                        }
+                    }
+                    if (($tx['type'] ?? '') === 'stripe_payout') {
+                        $referenceTitle = $referenceText !== '' ? 'Stripe payout reference: ' . $referenceText : '';
+                        $referenceText = 'PYO-' . (int)($tx['id'] ?? 0);
                     }
                     ?>
                     <tr>
@@ -561,14 +647,15 @@ admin_layout_start('Finance', 'finance');
                             <div class="fw-semibold"><?php echo h($label); ?></div>
                             <?php if ($email): ?><div class="text-muted small"><?php echo admin_table_value($email, 'email'); ?></div><?php endif; ?>
                         </td>
-                        <td class="text-capitalize"><?php echo h(str_replace('_', ' ', $tx['type'])); ?></td>
+                        <td><?php echo h(finance_transaction_movement($tx)); ?></td>
+                        <td class="small"><?php echo h(finance_transaction_applies_to($tx, $transactionEventLabels, $transactionBookingEventLabels)); ?></td>
                         <td>
                             <span class="pill <?php echo $amountPill; ?>">
                                 <?php echo $isPositive ? '+' : ($isNegative ? '-' : ''); ?>£<?php echo number_format(abs($amountVal), 2); ?>
                             </span>
                         </td>
                         <td><?php echo $tx['balance_after'] !== null ? '£' . number_format((float)$tx['balance_after'], 2) : '—'; ?></td>
-                        <td><?php echo h($tx['reference'] ?? ''); ?></td>
+                        <td><?php if ($referenceTitle !== ''): ?><span title="<?php echo h($referenceTitle); ?>" class="text-decoration-underline text-decoration-style-dotted"><?php echo h($referenceText); ?></span><?php else: ?><?php echo h($referenceText); ?><?php endif; ?></td>
                         <td class="text-muted small"><?php echo h($notesText); ?></td>
                     </tr>
                 <?php endforeach; ?>

@@ -82,6 +82,7 @@ require_once __DIR__ . '/image_upload.php';
 require_once __DIR__ . '/media_batches.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/finance.php';
+require_once __DIR__ . '/misc_payments.php';
 require_once __DIR__ . '/cms.php';
 require_once __DIR__ . '/admin_menu.php';
 require_once __DIR__ . '/admin_actions.php';
