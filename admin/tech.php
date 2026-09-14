@@ -35,5 +35,12 @@ admin_layout_start('Tech', 'tech');
             <a class="btn btn-outline-success" href="action_restrictions.php">Manage action restrictions</a>
         </div>
     </div>
+    <div class="col-md-6 col-xl-4">
+        <div class="card-soft p-4 h-100">
+            <div class="d-flex align-items-center gap-2 mb-2"><i class="fa-solid fa-clipboard-list text-success" aria-hidden="true"></i><h6 class="mb-0">Access Review</h6></div>
+            <p class="small text-muted">Print a worksheet of admin menus and meaningful actions for agreeing role access.</p>
+            <a class="btn btn-outline-success" href="access_review.php">Open access review</a>
+        </div>
+    </div>
 </div>
 <?php admin_layout_end(); ?>
