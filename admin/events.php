@@ -5,6 +5,8 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
+$currentRole = strtolower((string)($currentUser['role'] ?? ''));
+$canDeleteEvent = adminActionAllowed($pdo, 'events.delete', $currentRole);
 $siteBase = $siteBase ?? '';
 $eventsReturnUrl = (string)($_SESSION['admin_list_returns']['events'] ?? 'events.php');
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -17,6 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if (!$isAdmin) {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage events.'];
+    } elseif ($action === 'delete_event' && !$canDeleteEvent) {
+        $alerts[] = ['type' => 'danger', 'message' => 'You do not have permission to delete events.'];
     } elseif ($action === 'delete_event') {
         $eventId = (int)($_POST['event_id'] ?? 0);
         $eventToDelete = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
@@ -216,6 +220,7 @@ function event_filter_row(array $filterValues, array $filterOptions): string
 
 function render_event_card(array $event, string $siteBase, bool $isAdmin): string
 {
+    $canDeleteEvent = !empty($GLOBALS['canDeleteEvent']);
     $start = $event['event_date'] ?? '';
     $end = $event['end_date'] ?? '';
     $endDisplay = ($end && $end !== $start) ? ' to ' . h($end) : '';
@@ -256,7 +261,7 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
                     <a class="btn btn-sm btn-outline-success" href="event_edit.php?id=<?php echo (int)$event['id']; ?>">Edit</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">View</a>
                     <a class="btn btn-sm btn-outline-primary" href="<?php echo h($reportUrl); ?>"><?php echo $reportId ? 'Edit Report' : 'Add Report'; ?></a>
-                    <?php if ($isAdmin): ?>
+                    <?php if ($isAdmin && $canDeleteEvent): ?>
                         <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
                             <input type="hidden" name="action" value="delete_event">
                             <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">
@@ -422,7 +427,7 @@ admin_layout_start('Events', 'events');
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="ride_notes.php?event_id=<?php echo (int)$event['id']; ?>">
                                     <i class="fa-solid fa-note-sticky btn-icon"></i><span class="btn-label">Ride Notes</span>
                                 </a>
-                            <?php if ($isAdmin): ?>
+                            <?php if ($isAdmin && $canDeleteEvent): ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
                                     <input type="hidden" name="action" value="delete_event">
                                     <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">

@@ -30,7 +30,7 @@ if (!$person) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'allocate_membership') {
     $typeId = (int)($_POST['membership_type_id'] ?? 0);
-    $canAllocateMembership = in_array($currentRole, ['superadmin', 'admin'], true);
+    $canAllocateMembership = in_array($currentRole, ['superadmin', 'admin'], true) && adminActionAllowed($pdo, 'people.allocate_membership', $currentRole);
     $type = $canAllocateMembership ? fetchMembershipTypeById($pdo, $typeId) : null;
     if (!hash_equals($personMembershipCsrf, (string)($_POST['csrf'] ?? '')) || !$type || empty($type['admin_allocation_only'])) {
         $alerts[] = ['type' => 'danger', 'message' => 'Choose an administrator-allocated membership type.'];
@@ -96,7 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'alloc
 }
 
 admin_layout_start('Edit person', 'people');
-$allocationTypes = in_array($currentRole, ['superadmin', 'admin'], true) ? array_values(array_filter(fetchMembershipTypes($pdo, false), static fn(array $type): bool => !empty($type['admin_allocation_only']))) : [];
+$canAllocateMembership = in_array($currentRole, ['superadmin', 'admin'], true) && adminActionAllowed($pdo, 'people.allocate_membership', $currentRole);
+$allocationTypes = $canAllocateMembership ? array_values(array_filter(fetchMembershipTypes($pdo, false), static fn(array $type): bool => !empty($type['admin_allocation_only']))) : [];
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div><div class="small text-muted">People</div><h5 class="mb-0">Edit person</h5></div>
@@ -126,7 +127,7 @@ $allocationTypes = in_array($currentRole, ['superadmin', 'admin'], true) ? array
         <div class="col-12"><div class="small text-muted mb-3">Owned by: <?php echo h((string)($person['owner_email'] ?? 'Unknown user')); ?></div><button class="btn btn-success">Save changes</button> <a class="btn btn-outline-secondary" href="<?php echo h($peopleReturnWithRow); ?>">Cancel</a></div>
     </form>
 </div>
-<?php if (in_array($currentRole, ['superadmin', 'admin'], true)): ?>
+<?php if ($canAllocateMembership): ?>
 <div class="card-soft p-4 mt-3" id="allocate-membership"><h6 class="mb-1">Allocate membership</h6><p class="small text-muted">Admin-only. This replaces the person’s current-year membership, or creates one if needed.</p><?php if (!$allocationTypes): ?><div class="alert alert-info mb-0">No administrator-allocated membership category exists yet. Create one in <a href="memberships.php?panel=create">Membership Types</a>, set its code to <strong>HON</strong>, cost to <strong>£0.00</strong>, and enable “Admin allocation only”.</div><?php else: ?><div class="row g-2 align-items-end"><div class="col-md-7"><label class="form-label" for="allocation-membership-type">Membership category</label><select class="form-select" id="allocation-membership-type" required><option value="">Choose…</option><?php foreach ($allocationTypes as $type): ?><option value="<?php echo (int)$type['id']; ?>"><?php echo h((string)$type['name']); ?> [<?php echo h((string)$type['membership_code']); ?>]</option><?php endforeach; ?></select></div><div class="col-md-5"><button class="btn btn-success" type="button" id="open-allocation-confirm">Allocate membership</button></div></div><?php endif; ?></div>
 <?php if ($allocationTypes): ?><div class="modal fade" id="allocationConfirmModal" tabindex="-1" aria-labelledby="allocationConfirmTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content"><input type="hidden" name="action" value="allocate_membership"><input type="hidden" name="csrf" value="<?php echo h($personMembershipCsrf); ?>"><input type="hidden" name="membership_type_id" id="allocation-confirm-type"><div class="modal-header"><h5 class="modal-title" id="allocationConfirmTitle">Confirm membership allocation</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p class="mb-1">Allocate <strong id="allocation-confirm-label"></strong> to <strong><?php echo h(trim((string)$person['first_name'].' '.(string)$person['last_name'])); ?></strong>?</p><p class="small text-muted mb-0">This updates their membership for the current membership year.</p></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success">Allocate membership</button></div></form></div></div><script>document.addEventListener('DOMContentLoaded',function(){const select=document.getElementById('allocation-membership-type'),open=document.getElementById('open-allocation-confirm'),modal=document.getElementById('allocationConfirmModal');if(!select||!open||!modal||!window.bootstrap)return;open.addEventListener('click',function(){if(!select.value){select.reportValidity();return;}document.getElementById('allocation-confirm-type').value=select.value;document.getElementById('allocation-confirm-label').textContent=select.selectedOptions[0].textContent;new bootstrap.Modal(modal).show();});});</script><?php endif; ?>
 <?php endif; ?>

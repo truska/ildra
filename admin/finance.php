@@ -11,6 +11,8 @@ if (!$canManageFinance) {
     header('Location: index.php');
     exit;
 }
+$canCreatePayout = adminActionAllowed($pdo, 'finance.create_payout', $currentRole);
+$canAdjustBalance = adminActionAllowed($pdo, 'finance.adjust_balance', $currentRole);
 
 ensure_finance_tables($pdo, $alerts);
 $stripeConfig = stripe_config($config);
@@ -30,6 +32,7 @@ function finance_event_payout_capacity(PDO $pdo,int $eventId):array{
 }
 
 if(isset($_GET['stripe_balance'])){
+    if (!$canCreatePayout) { http_response_code(403); echo json_encode(['ok'=>false,'error'=>'You do not have permission to create payouts.']); exit; }
     header('Content-Type: application/json');
     if(!$stripeIsTest){http_response_code(403);echo json_encode(['ok'=>false,'error'=>'Development payouts require Stripe test mode.']);exit;}
     $response=stripe_retrieve_balance($stripeConfig);if(!($response['ok']??false)){http_response_code(502);echo json_encode(['ok'=>false,'error'=>$response['error']??'Could not read Stripe balance.']);exit;}
@@ -41,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if($action==='create_event_payout'){
         $eventId=(int)($_POST['event_id']??0);$event=$eventId>0?fetchEventById($pdo,$eventId):null;$amount=price_to_number($_POST['amount']??0);$notes=trim((string)($_POST['notes']??''));
-        if(!in_array($currentRole,['superadmin','admin'],true))$alerts[]=['type'=>'danger','message'=>'Only Admin and SuperAdmin users can create payouts.'];
+        if(!$canCreatePayout)$alerts[]=['type'=>'danger','message'=>'You do not have permission to create payouts.'];
         elseif(!hash_equals($financePayoutCsrf,(string)($_POST['csrf']??'')))$alerts[]=['type'=>'danger','message'=>'Your session token expired. Please try again.'];
         elseif(!$stripeIsTest)$alerts[]=['type'=>'danger','message'=>'Development payouts are locked to Stripe test mode.'];
         elseif(!$event)$alerts[]=['type'=>'danger','message'=>'Event not found.'];
@@ -57,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if($alerts)$_SESSION['flash_alerts']=$alerts;header('Location: finance.php?tab=events');exit;
     } elseif ($action === 'adjust_balance') {
+        if (!$canAdjustBalance) { $alerts[] = ['type'=>'danger','message'=>'You do not have permission to adjust account balances.']; }
         $userId = (int)($_POST['user_id'] ?? 0);
         $direction = $_POST['direction'] === 'debit' ? 'debit' : 'credit';
         $amountRaw = $_POST['amount'] ?? '0';
@@ -352,7 +356,7 @@ admin_layout_start('Finance', 'finance');
     </div>
 </div>
 
-<div class="finance-grid finance-section" data-finance-section="credits">
+<?php if ($canAdjustBalance): ?><div class="finance-grid finance-section" data-finance-section="credits">
     <section class="card-soft p-3">
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
@@ -410,6 +414,7 @@ admin_layout_start('Finance', 'finance');
         </form>
     </section>
 </div>
+<?php endif; ?>
 
 <section class="card-soft p-3 finance-section" data-finance-section="balances">
     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -501,7 +506,7 @@ admin_layout_start('Finance', 'finance');
                         <td class="text-end">
                             <div class="finance-events-actions">
                                 <a class="btn btn-sm btn-outline-success" href="finance_event.php?event_id=<?php echo $eventId; ?>">View</a>
-                                <button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#collectStripeModal" data-event-id="<?php echo $eventId; ?>" data-event-title="<?php echo h($event['title'] ?? 'Untitled'); ?>" data-descriptor="<?php echo h($statementDescriptor); ?>" data-event-max="<?php echo h(number_format($remaining,2,'.','')); ?>" data-paid="<?php echo h(number_format($paidOut,2,'.','')); ?>" <?php echo !$stripeIsTest||!in_array($currentRole,['superadmin','admin'],true)?'disabled':''; ?>>Collect from Stripe</button>
+                                <?php if ($canCreatePayout): ?><button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#collectStripeModal" data-event-id="<?php echo $eventId; ?>" data-event-title="<?php echo h($event['title'] ?? 'Untitled'); ?>" data-descriptor="<?php echo h($statementDescriptor); ?>" data-event-max="<?php echo h(number_format($remaining,2,'.','')); ?>" data-paid="<?php echo h(number_format($paidOut,2,'.','')); ?>" <?php echo !$stripeIsTest||!in_array($currentRole,['superadmin','admin'],true)?'disabled':''; ?>>Collect from Stripe</button><?php endif; ?>
                             </div>
                         </td>
                     </tr>
