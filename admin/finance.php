@@ -151,7 +151,7 @@ function finance_transaction_movement(array $transaction): string {
         default => finance_transaction_type_label((string)($transaction['type'] ?? '')),
     };
 }
-function finance_transaction_applies_to(array $transaction, array $eventLabels, array $bookingEventLabels = []): string {
+function finance_transaction_applies_to(array $transaction, array $eventLabels, array $bookingEventLabels = [], array $bookingKinds = []): string {
     $type=(string)($transaction['type'] ?? ''); $meta=is_array($transaction['metadata'] ?? null)?$transaction['metadata']:[];
     if ($type === 'payment_stripe_misc') return 'Miscellaneous';
     $eventIds=[]; if(!empty($meta['event_id']))$eventIds[]=(int)$meta['event_id'];
@@ -160,7 +160,10 @@ function finance_transaction_applies_to(array $transaction, array $eventLabels, 
     if($eventIds){$labels=[];foreach($eventIds as$id)$labels[]=$eventLabels[$id]??('Event #'.$id);return 'Event: '.implode(', ',$labels);}
     $bookingReference=(string)($transaction['reference']??'');
     if($bookingReference!==''&&!empty($bookingEventLabels[$bookingReference]))return 'Event: '.$bookingEventLabels[$bookingReference];
-    if(!empty($meta['membership_years']))return 'Membership '.str_replace(',', ', ', (string)$meta['membership_years']);
+    if(!empty($meta['membership_years'])){
+        $kinds=$bookingKinds[$bookingReference]??[];
+        return in_array('horse_logbook',$kinds,true)?'Logbook '.str_replace(',', ', ', (string)$meta['membership_years']):'Membership '.str_replace(',', ', ', (string)$meta['membership_years']);
+    }
     if($type==='checkout'||$type==='payment_stripe')return !empty($transaction['reference'])?'Booking: '.(string)$transaction['reference']:'Website booking';
     return 'General finance';
 }
@@ -175,12 +178,14 @@ foreach($transactionEvents as$transactionEvent){
 }
 $transactionBookingEventLabels=[];
 if($pdo){try{$bookingEventRows=$pdo->query('SELECT b.booking_ref, GROUP_CONCAT(DISTINCT bi.event_id ORDER BY bi.event_id SEPARATOR ",") AS event_ids FROM bookings b JOIN booking_items bi ON bi.booking_id=b.new_id WHERE bi.event_id IS NOT NULL GROUP BY b.booking_ref')->fetchAll()?:[];foreach($bookingEventRows as$bookingEventRow){$labels=[];foreach(explode(',',(string)$bookingEventRow['event_ids'])as$eventId){$eventId=(int)$eventId;if($eventId>0)$labels[]=$transactionEventLabels[$eventId]??('Event #'.$eventId);}if($labels)$transactionBookingEventLabels[(string)$bookingEventRow['booking_ref']]=implode(', ',array_unique($labels));}}catch(PDOException $e){$transactionBookingEventLabels=[];}}
+$transactionBookingKinds=[];
+if($pdo){try{$bookingKindRows=$pdo->query('SELECT b.booking_ref, GROUP_CONCAT(DISTINCT bi.booking_type SEPARATOR ",") AS booking_types FROM bookings b JOIN booking_items bi ON bi.booking_id=b.new_id GROUP BY b.booking_ref')->fetchAll()?:[];foreach($bookingKindRows as$bookingKindRow)$transactionBookingKinds[(string)$bookingKindRow['booking_ref']]=array_filter(explode(',',(string)$bookingKindRow['booking_types']));}catch(PDOException $e){$transactionBookingKinds=[];}}
 $transactionUserOptions=[];$transactionTypeOptions=[];$transactionAppliesToOptions=[];
 foreach($transactionsDisplayed as$tx){
     $uid=(string)($tx['user_id']??'');$name=trim((string)($tx['first_name']??'').' '.(string)($tx['last_name']??''));$email=trim((string)($tx['email']??''));
     if($uid!=='')$transactionUserOptions[$uid]=$name!==''?$name.($email!==''?' ('.$email.')':''):($email?:'User #'.$uid);
     $type=(string)($tx['type']??'');if($type!==''){$movement=finance_transaction_movement($tx);$transactionTypeOptions[$movement]=$movement;}
-    $appliesTo=finance_transaction_applies_to($tx,$transactionEventLabels,$transactionBookingEventLabels); $transactionAppliesToOptions[$appliesTo]=$appliesTo;
+    $appliesTo=finance_transaction_applies_to($tx,$transactionEventLabels,$transactionBookingEventLabels,$transactionBookingKinds); $transactionAppliesToOptions[$appliesTo]=$appliesTo;
 }
 natcasesort($transactionUserOptions);natcasesort($transactionTypeOptions);natcasesort($transactionAppliesToOptions);
 $transactionFilterForm='transaction-filter-form';
@@ -188,7 +193,7 @@ $transactionColumns=[
     'when'=>['label'=>'When','sortable'=>true,'filter'=>'text','placeholder'=>'Search when','form'=>$transactionFilterForm,'value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['created_at']??'')],
     'user'=>['label'=>'User','sortable'=>true,'filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionUserOptions,'value'=>static fn(array $r):string=>(string)($r['user_id']??'')],
     'type'=>['label'=>'Movement','sortable'=>true,'filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionTypeOptions,'value'=>static fn(array $r): string => finance_transaction_movement($r)],
-    'applies_to'=>['label'=>'Applies to','filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionAppliesToOptions,'value'=>static fn(array $r): string => finance_transaction_applies_to($r, $GLOBALS['transactionEventLabels'] ?? [], $GLOBALS['transactionBookingEventLabels'] ?? [])],
+    'applies_to'=>['label'=>'Applies to','filter'=>'select','form'=>$transactionFilterForm,'options'=>$transactionAppliesToOptions,'value'=>static fn(array $r): string => finance_transaction_applies_to($r, $GLOBALS['transactionEventLabels'] ?? [], $GLOBALS['transactionBookingEventLabels'] ?? [], $GLOBALS['transactionBookingKinds'] ?? [])],
     'amount'=>['label'=>'Amount','sortable'=>true,'filter'=>'text','placeholder'=>'Search amount','form'=>$transactionFilterForm,'compare'=>'number'],
     'balance'=>['label'=>'Balance after','field'=>'balance_after','sortable'=>true,'filter'=>'text','placeholder'=>'Search balance','form'=>$transactionFilterForm,'compare'=>'number'],
     'reference'=>['label'=>'Reference','sortable'=>true,'filter'=>'text','placeholder'=>'Search reference','form'=>$transactionFilterForm],
@@ -648,7 +653,7 @@ admin_layout_start('Finance', 'finance');
                             <?php if ($email): ?><div class="text-muted small"><?php echo admin_table_value($email, 'email'); ?></div><?php endif; ?>
                         </td>
                         <td><?php echo h(finance_transaction_movement($tx)); ?></td>
-                        <td class="small"><?php echo h(finance_transaction_applies_to($tx, $transactionEventLabels, $transactionBookingEventLabels)); ?></td>
+                        <td class="small"><?php echo h(finance_transaction_applies_to($tx, $transactionEventLabels, $transactionBookingEventLabels, $transactionBookingKinds)); ?></td>
                         <td>
                             <span class="pill <?php echo $amountPill; ?>">
                                 <?php echo $isPositive ? '+' : ($isNegative ? '-' : ''); ?>£<?php echo number_format(abs($amountVal), 2); ?>
