@@ -39,9 +39,7 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
                         <li><span class="dropdown-header">Signed in as <strong><?php echo h($headerUserName); ?></strong></span></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">My Bookings</a></li>
-                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account#my-memberships">My Memberships</a></li>
-                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/basket">Basket</a></li>
-                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account">Account</a></li>
+                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account">My Profile</a></li>
                         <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account?view=my-account">My Account</a></li>
                         <?php if (!empty($canViewAdmin)): ?>
                             <li><hr class="dropdown-divider"></li>
