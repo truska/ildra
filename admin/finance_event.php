@@ -178,6 +178,26 @@ if ($event && $pdo) {
         $transactions[] = $row;
     }
 
+    // Exceptional credits/refunds can be linked directly to a ride without a
+    // particular entry.  They still reduce that ride's revenue and must be
+    // visible in its audit trail.
+    $stmt = $pdo->prepare("
+        SELECT ft.*, NULL AS person_name
+        FROM finance_transactions ft
+        WHERE ft.type IN ('manual_credit','refund')
+          AND CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.event_id')) AS UNSIGNED) = :event_id
+        ORDER BY ft.created_at DESC, ft.id DESC
+    ");
+    $stmt->execute([':event_id' => $eventId]);
+    foreach ($stmt->fetchAll() ?: [] as $row) {
+        $adjustment = abs((float)($row['amount'] ?? 0));
+        $row['amount'] = -$adjustment;
+        $row['stripe_fee'] = 0.0;
+        $row['entry_ids'] = [];
+        $transactions[] = $row;
+        $refundTotal += $adjustment;
+    }
+
     $refundedIds = [];
     $stmt = $pdo->prepare("
         SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) AS booking_item_id
@@ -205,6 +225,7 @@ $incomeTransactions=array_values(array_filter($transactions,static fn(array$tx):
 $transactionTotal = array_sum(array_map(static fn(array $tx): float => (float)($tx['amount'] ?? 0), $incomeTransactions));
 $stripeFeeTotal = array_sum(array_map(static fn(array $tx): float => (float)($tx['stripe_fee'] ?? 0), $incomeTransactions));
 $netRevenue = $transactionTotal - $stripeFeeTotal;
+$rideRevenue = $grossFees - $refundTotal;
 $txSearch = trim((string)($_GET['tx_search'] ?? ''));
 $txTypeFilter = trim((string)($_GET['tx_type'] ?? ''));
 $txFilters=[];foreach(['id','date','reference','entry','person','amount','fee','net'] as $key)$txFilters[$key]=trim((string)($_GET['tx_'.$key]??''));
@@ -223,11 +244,15 @@ if ($txSearch !== '' || $txTypeFilter !== '' || array_filter($txFilters,static f
         return stripos($haystack, $txSearch) !== false;
     }));
 }
+$displayedTransactionTotal = array_sum(array_map(static fn(array $tx): float => (float)($tx['amount'] ?? 0), $transactions));
+$displayedTransactionStripeFees = array_sum(array_map(static fn(array $tx): float => (float)($tx['stripe_fee'] ?? 0), $transactions));
 $totalEntryCount=count($entries);
 $entryFilters=[];foreach(['id','booking_ref','placed','person','fee','refund','net'] as $key)$entryFilters[$key]=trim((string)($_GET['entry_'.$key]??''));
 $linkedEntryIds=array_values(array_filter(array_map('intval',explode(',',(string)($_GET['entry_ids']??'')))));
 $entryClassFilter=trim((string)($_GET['entry_class']??''));$entryClassOptions=[];foreach($entries as $entry){$class=(string)($entry['class_label']??'');if($class!=='')$entryClassOptions[$class]=$class;}natcasesort($entryClassOptions);
 if($linkedEntryIds||$entryClassFilter!==''||array_filter($entryFilters,static fn(string $value):bool=>$value!==''))$entries=array_values(array_filter($entries,static function(array $entry)use($linkedEntryIds,$entryClassFilter,$entryFilters,$refundByItemId):bool{$id=(int)($entry['id']??0);$fee=(float)($entry['price']??0);$refund=(float)($refundByItemId[$id]??0);if($linkedEntryIds&&!in_array($id,$linkedEntryIds,true))return false;if($entryClassFilter!==''&&(string)($entry['class_label']??'')!==$entryClassFilter)return false;$values=['id'=>'E-'.$id,'booking_ref'=>(string)($entry['booking_ref']??''),'placed'=>format_display_datetime($entry['booking_created_at']??null,''),'person'=>(string)($entry['person_name']??''),'fee'=>number_format($fee,2,'.',''),'refund'=>number_format($refund,2,'.',''),'net'=>number_format($fee-$refund,2,'.','')];foreach($entryFilters as$key=>$filter)if($filter!==''&&stripos($values[$key]??'',$filter)===false)return false;return true;}));
+$displayedEntryGross = array_sum(array_map(static fn(array $entry): float => (float)($entry['price'] ?? 0), $entries));
+$displayedEntryRefunds = array_sum(array_map(static fn(array $entry): float => (float)($refundByItemId[(int)($entry['id'] ?? 0)] ?? 0), $entries));
 $acceptedCount = max(0, $totalEntryCount - $withdrawnCount);
 $withdrawnOnlyCount = max(0, $withdrawnCount - $refundedCount);
 $pageTitle = $event ? 'Finance · ' . ($event['title'] ?? 'Event') : 'Event finance';
@@ -258,16 +283,16 @@ admin_layout_start($pageTitle, 'finance');
     <section class="card-soft p-3 mb-3">
         <div class="finance-detail-header">
             <div class="meta">
-                <div class="small text-muted">Total transactions</div>
-                <div class="fw-semibold"><?php echo format_price($transactionTotal); ?></div>
+                <div class="small text-muted">Gross entries</div>
+                <div class="fw-semibold"><?php echo format_price($grossFees); ?></div>
             </div>
             <div class="meta">
-                <div class="small text-muted">Stripe fee</div>
-                <div class="fw-semibold"><?php echo format_price($stripeFeeTotal); ?></div>
+                <div class="small text-muted">Refunds &amp; credits</div>
+                <div class="fw-semibold"><?php echo format_price($refundTotal); ?></div>
             </div>
             <div class="meta">
-                <div class="small text-muted">Net income</div>
-                <div class="fw-semibold"><?php echo format_price($netRevenue); ?></div>
+                <div class="small text-muted">Ride revenue</div>
+                <div class="fw-semibold"><?php echo format_price($rideRevenue); ?></div>
             </div>
             <div class="meta">
                 <div class="small text-muted">Event entries</div>
@@ -280,6 +305,11 @@ admin_layout_start($pageTitle, 'finance');
                     Of which <?php echo $withdrawnOnlyCount; ?> Withdrawn Only, <?php echo $refundedCount; ?> Withdrawn &amp; Refunded
                 </div>
             </div>
+            <div class="meta">
+                <div class="small text-muted">Stripe cash net</div>
+                <div class="fw-semibold"><?php echo format_price($netRevenue); ?></div>
+                <div class="text-muted small">Transactions <?php echo format_price($transactionTotal); ?> less Stripe fees <?php echo format_price($stripeFeeTotal); ?></div>
+            </div>
         </div>
     </section>
 
@@ -287,7 +317,7 @@ admin_layout_start($pageTitle, 'finance');
         <section class="card-soft p-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <div class="fw-semibold">Transactions</div>
-                <div class="text-muted small">Stripe payments and refunds/credits only</div>
+                <div class="text-muted small">Stripe cash movements and cancellation adjustments. Ride revenue above is calculated from entries, so credit-funded entries are included.</div>
             </div>
             <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><div class="small text-muted">Use an Entry ID such as E-123 to show its payment and any matching refund, or a Transaction ID such as T-456.</div><div class="text-nowrap"><button class="btn btn-sm btn-outline-success" form="tx-column-filter-form">Filter</button> <a class="btn btn-sm btn-link" href="finance_event.php?event_id=<?php echo $eventId; ?>">Clear</a></div></div>
             <form method="get" id="tx-column-filter-form"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"></form>
@@ -305,6 +335,14 @@ admin_layout_start($pageTitle, 'finance');
                         </tr>
                         <tr class="admin-table-filter-row"><th><select class="form-select form-select-sm" form="tx-column-filter-form" name="tx_id" data-auto-select><option value="">All IDs</option><?php foreach($transactionIdOptions as$value=>$label):?><option value="<?php echo h($value); ?>" <?php echo $txFilters['id']===$value?'selected':''; ?>><?php echo h($label); ?></option><?php endforeach;?></select></th><th><input class="form-control form-control-sm" form="tx-column-filter-form" name="tx_date" value="<?php echo h($txFilters['date']); ?>" placeholder="Date" data-auto-search></th><th><select class="form-select form-select-sm" form="tx-column-filter-form" name="tx_type" data-auto-select><option value="">All</option><?php foreach($transactionTypeOptions as$value=>$label):?><option value="<?php echo h($value); ?>" <?php echo $txTypeFilter===$value?'selected':''; ?>><?php echo h($label); ?></option><?php endforeach;?></select></th><th><input class="form-control form-control-sm" form="tx-column-filter-form" name="tx_reference" value="<?php echo h($txFilters['reference']); ?>" placeholder="Reference" data-auto-search></th><th><select class="form-select form-select-sm" form="tx-column-filter-form" name="tx_entry" data-auto-select><option value="">All IDs</option><?php foreach($transactionEntryOptions as$value=>$label):?><option value="<?php echo h($value); ?>" <?php echo $txFilters['entry']===$value?'selected':''; ?>><?php echo h($label); ?></option><?php endforeach;?></select></th><th><input class="form-control form-control-sm" form="tx-column-filter-form" name="tx_person" value="<?php echo h($txFilters['person']); ?>" placeholder="Person" data-auto-search></th><th><input class="form-control form-control-sm" form="tx-column-filter-form" name="tx_amount" value="<?php echo h($txFilters['amount']); ?>" placeholder="Amount" data-auto-search></th><th><input class="form-control form-control-sm" form="tx-column-filter-form" name="tx_fee" value="<?php echo h($txFilters['fee']); ?>" placeholder="Fee" data-auto-search></th><th><input class="form-control form-control-sm" form="tx-column-filter-form" name="tx_net" value="<?php echo h($txFilters['net']); ?>" placeholder="Net" data-auto-search></th></tr>
                     </thead>
+                    <tfoot class="table-light fw-semibold">
+                        <tr>
+                            <td colspan="6">Totals shown</td>
+                            <td class="text-end"><?php echo ($displayedTransactionTotal < 0 ? '-' : '') . format_price(abs($displayedTransactionTotal)); ?></td>
+                            <td class="text-end"><?php echo format_price($displayedTransactionStripeFees); ?></td>
+                            <td class="text-end"><?php echo format_price($displayedTransactionTotal - $displayedTransactionStripeFees); ?></td>
+                        </tr>
+                    </tfoot>
                     <tbody>
                         <?php
                         $allowedTxSort = ['id', 'date', 'type', 'reference', 'entry', 'person', 'amount', 'fee', 'net'];
@@ -378,12 +416,20 @@ admin_layout_start($pageTitle, 'finance');
                             <th><?php echo finance_detail_sort_link('entry', 'placed', 'Date', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th><?php echo finance_detail_sort_link('entry', 'person', 'Person', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th><?php echo finance_detail_sort_link('entry', 'class', 'Class', (string)$entrySortKey, (string)$entrySortDir); ?></th>
-                            <th class="text-end"><?php echo finance_detail_sort_link('entry', 'fee', '£ Stripe', (string)$entrySortKey, (string)$entrySortDir); ?></th>
+                            <th class="text-end"><?php echo finance_detail_sort_link('entry', 'fee', 'Entry value', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th class="text-end"><?php echo finance_detail_sort_link('entry', 'refund', 'Refund', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                             <th class="text-end"><?php echo finance_detail_sort_link('entry', 'net', 'Net', (string)$entrySortKey, (string)$entrySortDir); ?></th>
                         </tr>
                         <tr class="admin-table-filter-row"><th><input class="form-control form-control-sm" form="entry-column-filter-form" name="entry_id" value="<?php echo h($entryFilters['id']); ?>" placeholder="Entry ID"></th><th><input class="form-control form-control-sm" form="entry-column-filter-form" name="entry_booking_ref" value="<?php echo h($entryFilters['booking_ref']); ?>" placeholder="Booking ref"></th><th><input class="form-control form-control-sm" form="entry-column-filter-form" name="entry_placed" value="<?php echo h($entryFilters['placed']); ?>" placeholder="Date"></th><th><input class="form-control form-control-sm" form="entry-column-filter-form" name="entry_person" value="<?php echo h($entryFilters['person']); ?>" placeholder="Person"></th><th><select class="form-select form-select-sm" form="entry-column-filter-form" name="entry_class"><option value="">All classes</option><?php foreach($entryClassOptions as$value=>$label):?><option value="<?php echo h($value); ?>" <?php echo $entryClassFilter===$value?'selected':''; ?>><?php echo h($label); ?></option><?php endforeach;?></select></th><th><input class="form-control form-control-sm" form="entry-column-filter-form" name="entry_fee" value="<?php echo h($entryFilters['fee']); ?>" placeholder="Fee"></th><th><input class="form-control form-control-sm" form="entry-column-filter-form" name="entry_refund" value="<?php echo h($entryFilters['refund']); ?>" placeholder="Refund"></th><th><input class="form-control form-control-sm" form="entry-column-filter-form" name="entry_net" value="<?php echo h($entryFilters['net']); ?>" placeholder="Net"></th></tr>
                     </thead>
+                    <tfoot class="table-light fw-semibold">
+                        <tr>
+                            <td colspan="5">Totals shown</td>
+                            <td class="text-end"><?php echo format_price($displayedEntryGross); ?></td>
+                            <td class="text-end"><?php echo format_price($displayedEntryRefunds); ?></td>
+                            <td class="text-end"><?php echo format_price($displayedEntryGross - $displayedEntryRefunds); ?></td>
+                        </tr>
+                    </tfoot>
                     <tbody>
                         <?php
                         $allowedEntrySort = ['id', 'booking_ref', 'placed', 'person', 'class', 'fee', 'refund', 'net'];

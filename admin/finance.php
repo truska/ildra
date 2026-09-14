@@ -86,6 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $reason = trim((string)($_POST['reason'] ?? ''));
         $reference = trim((string)($_POST['reference'] ?? ''));
         $kind = $_POST['kind'] ?? 'manual_credit';
+        $eventId = (int)($_POST['event_id'] ?? 0);
 
         $amount = price_to_number($amountRaw);
         if ($userId <= 0) {
@@ -103,7 +104,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'amount' => $signedAmount,
                 'reference' => $reference !== '' ? $reference : 'admin-adjustment',
                 'notes' => $reason !== '' ? $reason : null,
-                'metadata' => ['actor' => $currentUser['email'] ?? 'admin'],
+                'metadata' => array_filter([
+                    'actor' => $currentUser['email'] ?? 'admin',
+                    'event_id' => $eventId > 0 ? $eventId : null,
+                ], static fn($value): bool => $value !== null && $value !== ''),
             ], $alerts)) {
                 $successMessage = 'Balance updated.';
             }
@@ -240,14 +244,21 @@ if ($pdo) {
         if (ensure_finance_tables($pdo)) {
             try {
                 $stmt = $pdo->query("
-                    SELECT
-                        bi.event_id AS event_id,
-                        SUM(ABS(ft.amount)) AS refunds_total
-                    FROM finance_transactions ft
-                    JOIN booking_items bi
-                        ON bi.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.booking_item_id')) AS UNSIGNED)
-                    WHERE ft.type IN ('entry_refund','entry_stripe_refund','entry_credit')
-                    GROUP BY bi.event_id
+                    SELECT event_id, SUM(refund_amount) AS refunds_total
+                    FROM (
+                        SELECT bi.event_id AS event_id, ABS(ft.amount) AS refund_amount
+                        FROM finance_transactions ft
+                        JOIN booking_items bi
+                            ON bi.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.booking_item_id')) AS UNSIGNED)
+                        WHERE ft.type IN ('entry_refund','entry_stripe_refund','entry_credit')
+                        UNION ALL
+                        SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.event_id')) AS UNSIGNED) AS event_id,
+                               ABS(ft.amount) AS refund_amount
+                        FROM finance_transactions ft
+                        WHERE ft.type IN ('manual_credit','refund')
+                    ) adjustments
+                    WHERE event_id > 0
+                    GROUP BY event_id
                 ");
                 foreach ($stmt->fetchAll() ?: [] as $row) {
                     $eventId = (int)($row['event_id'] ?? 0);
@@ -371,6 +382,18 @@ if ($events) {
     });
 }
 
+// This is deliberately separate from the Stripe/cash view below.  Revenue is
+// earned by an entry in the ride, regardless of whether the customer paid by
+// card or spent account credit.  A refund or cancellation credit reverses the
+// revenue on the original entry; a withdrawal by itself does not.
+$revenueEvents = array_values(array_filter($transactionEvents, static function (array $event) use ($eventStats): bool {
+    return (int)($eventStats[(int)($event['id'] ?? 0)]['entries'] ?? 0) > 0;
+}));
+usort($revenueEvents, static function (array $a, array $b): int {
+    return strcmp((string)($a['event_date'] ?? ''), (string)($b['event_date'] ?? ''))
+        ?: strcasecmp((string)($a['title'] ?? ''), (string)($b['title'] ?? ''));
+});
+
 admin_layout_start('Finance', 'finance');
 ?>
 <style>
@@ -427,6 +450,7 @@ admin_layout_start('Finance', 'finance');
     </div>
     <div class="finance-tabs" role="tablist" aria-label="Finance sections">
         <button class="finance-tab active" data-finance-tab="transactions" type="button" role="tab" aria-selected="true">Transactions</button>
+        <button class="finance-tab" data-finance-tab="revenue" type="button" role="tab" aria-selected="false">Revenue report</button>
         <button class="finance-tab" data-finance-tab="events" type="button" role="tab" aria-selected="false">Events</button>
         <button class="finance-tab" data-finance-tab="credits" type="button" role="tab" aria-selected="false">Credits</button>
         <button class="finance-tab" data-finance-tab="balances" type="button" role="tab" aria-selected="false">Balances</button>
@@ -486,6 +510,16 @@ admin_layout_start('Finance', 'finance');
                 <label class="form-label">Reference (optional)</label>
                 <input type="text" name="reference" class="form-control" placeholder="Booking ref, invoice, etc">
             </div>
+            <div class="col-12">
+                <label class="form-label">Ride / event affected (optional)</label>
+                <select name="event_id" class="form-select">
+                    <option value="">Not linked to a ride</option>
+                    <?php foreach ($transactionEvents as $event): ?>
+                        <option value="<?php echo (int)($event['id'] ?? 0); ?>"><?php echo h((string)($event['title'] ?? 'Untitled') . (!empty($event['event_date']) ? ' · ' . (string)$event['event_date'] : '')); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">For an exceptional credit or refund, choose the affected ride so its revenue report is adjusted.</div>
+            </div>
             <div class="col-12 d-flex justify-content-end">
                 <button class="btn btn-success">Save adjustment</button>
             </div>
@@ -532,6 +566,64 @@ admin_layout_start('Finance', 'finance');
                 <?php endforeach; ?>
                 <?php if (!$balances): ?>
                     <tr><td colspan="3" class="text-muted">No balances yet.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card-soft p-3 mt-3 finance-section" data-finance-section="revenue">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <div class="small text-muted text-uppercase fw-bold letter-spacing-1">Working report</div>
+            <h6 class="mb-0 fw-bold">Event revenue</h6>
+            <div class="text-muted small">Revenue is entry value less refunds or cancellation credits. It includes entries paid with account credit and is unchanged by a withdrawal or no-show.</div>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0 finance-events-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Ride / event</th>
+                    <th>Date</th>
+                    <th class="text-end">Entries</th>
+                    <th class="text-end">Withdrawn</th>
+                    <th class="text-end">Active</th>
+                    <th class="text-end">Gross entries</th>
+                    <th class="text-end">Refunds &amp; credits</th>
+                    <th class="text-end">Ride revenue</th>
+                    <th class="text-end">Revenue / active entry</th>
+                    <th class="text-end">Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($revenueEvents as $event): ?>
+                    <?php
+                    $eventId = (int)($event['id'] ?? 0);
+                    $stats = $eventStats[$eventId] ?? ['entries' => 0, 'withdrawn' => 0, 'gross' => 0.0];
+                    $entryCount = (int)($stats['entries'] ?? 0);
+                    $withdrawn = (int)($stats['withdrawn'] ?? 0);
+                    $active = max(0, $entryCount - $withdrawn);
+                    $gross = (float)($stats['gross'] ?? 0.0);
+                    $refunds = (float)($eventRefunds[$eventId] ?? 0.0);
+                    $revenue = $gross - $refunds;
+                    $perActiveEntry = $active > 0 ? $revenue / $active : null;
+                    ?>
+                    <tr>
+                        <td class="fw-semibold"><?php echo h($event['title'] ?? 'Untitled'); ?></td>
+                        <td><?php echo h($event['event_date'] ?: 'Date TBC'); ?></td>
+                        <td class="text-end"><?php echo $entryCount; ?></td>
+                        <td class="text-end"><?php echo $withdrawn; ?></td>
+                        <td class="text-end fw-semibold"><?php echo $active; ?></td>
+                        <td class="text-end"><?php echo format_price($gross); ?></td>
+                        <td class="text-end"><?php echo format_price($refunds); ?></td>
+                        <td class="text-end fw-semibold"><?php echo format_price($revenue); ?></td>
+                        <td class="text-end"><?php echo $perActiveEntry === null ? '—' : format_price($perActiveEntry); ?></td>
+                        <td class="text-end"><a class="btn btn-sm btn-outline-success" href="finance_event.php?event_id=<?php echo $eventId; ?>">View</a></td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if (!$revenueEvents): ?>
+                    <tr><td colspan="10" class="text-muted">No event entries have been recorded yet.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
