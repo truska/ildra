@@ -22,6 +22,7 @@ ensure_bookings_tables($pdo);
 $entries = [];
 $refundByItemId = [];
 $transactions = [];
+$paymentRequests = [];
 $grossFees = 0.0;
 $refundTotal = 0.0;
 $withdrawnCount = 0;
@@ -49,6 +50,9 @@ function finance_detail_sort_link(string $prefix, string $key, string $label, st
 }
 
 if ($event && $pdo) {
+    ensureMiscPaymentTables($pdo);
+    $requestStmt=$pdo->prepare("SELECT m.*,bi.id entry_id FROM misc_payment_requests m LEFT JOIN booking_items bi ON bi.id=m.booking_item_id WHERE m.event_id=:event_id ORDER BY m.created_at DESC,m.id DESC");
+    $requestStmt->execute([':event_id'=>$eventId]); $paymentRequests=$requestStmt->fetchAll()?:[];
     $stmt = $pdo->prepare("
         SELECT
             bi.*,
@@ -314,6 +318,10 @@ admin_layout_start($pageTitle, 'finance');
     </section>
 
     <div class="finance-detail-grid">
+        <section class="card-soft p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2"><div><div class="fw-semibold">Payment requests</div><div class="small text-muted">Outstanding and completed requests linked to this event.</div></div><a class="btn btn-sm btn-success" href="finance.php?tab=requests&amp;payment_event_id=<?php echo $eventId; ?>">New payment request</a></div>
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Recipient</th><th>Description</th><th>Entry</th><th class="text-end">Amount</th><th>Status</th><th>Sent</th></tr></thead><tbody><?php foreach($paymentRequests as $request): ?><tr><td><?php echo h((string)$request['recipient_email']); ?></td><td><?php echo h((string)$request['description']); ?></td><td><?php echo !empty($request['booking_item_id'])?'E-'.(int)$request['booking_item_id']:'—'; ?></td><td class="text-end"><?php echo format_price((float)$request['amount']); ?></td><td><?php echo h(ucfirst((string)$request['status'])); ?></td><td class="small text-muted"><?php echo h(format_display_datetime($request['email_sent_at']??null,'')); ?></td></tr><?php endforeach; ?><?php if(!$paymentRequests): ?><tr><td colspan="6" class="text-muted">No payment requests linked to this event.</td></tr><?php endif; ?></tbody></table></div>
+        </section>
         <section class="card-soft p-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <div class="fw-semibold">Transactions</div>
