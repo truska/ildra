@@ -1030,7 +1030,7 @@ function email_public_asset_url(string $path, array $siteSettings = []): string
 
 function email_cta_button_html(string $url, string $label): string
 {
-    return '<a href="' . h($url) . '" target="_blank" style="display:inline-block;padding:13px 20px;background:#146118;border:0;border-radius:6px;color:#ffffff !important;text-decoration:none;font-weight:700;font-size:14px;line-height:20px;text-align:center;">' . h($label) . '</a>';
+    return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;"><tr><td bgcolor="#146118" style="padding:13px 20px;background:#146118;border:0;border-radius:6px;text-align:center;"><a href="' . h($url) . '" target="_blank" style="display:inline-block;color:#ffffff !important;text-decoration:none;font-weight:700;font-size:14px;line-height:20px;text-align:center;">' . h($label) . '</a></td></tr></table>';
 }
 
 function email_signature_html(array $siteSettings, array $emailSettings): string
