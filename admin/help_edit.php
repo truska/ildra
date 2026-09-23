@@ -5,7 +5,7 @@ if(!in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin
 $id=(int)($_GET['id']??$_POST['article_id']??0);
 $article=$id?fetchHelpArticle($pdo,$id):null;
 if(($_SERVER['REQUEST_METHOD']??'')==='POST' && saveHelpArticle($pdo,$_POST,$alerts)){$_SESSION['flash_success']='Help article saved.';header('Location: help.php');exit;}
-$article=$article?:['id'=>0,'title'=>'','summary'=>'','body_html'=>'','keywords'=>'','group_id'=>null,'is_global'=>1,'include_in_user_manual'=>0,'include_in_admin_manual'=>0,'min_user_level'=>0,'max_user_level'=>null,'display_order'=>0,'is_published'=>1];
+$article=$article?:['id'=>0,'title'=>'','summary'=>'','body_html'=>'','keywords'=>'','group_id'=>null,'is_global'=>1,'include_in_user_manual'=>0,'include_in_admin_manual'=>0,'min_user_level'=>0,'max_user_level'=>null,'display_order'=>0,'is_published'=>1,'to_be_created'=>0];
 if(($_SERVER['REQUEST_METHOD']??'')==='POST')$article=array_merge($article,$_POST);
 $groups=fetchHelpGroups($pdo,false);
 $userLevelOptions=helpUserLevelOptions($pdo);
@@ -29,6 +29,7 @@ admin_layout_start($id?'Edit help article':'Add help article','help');
 <div class="col-md-3"><label class="form-label">Available from</label><select class="form-select" name="min_user_level"><?php foreach($userLevelOptions as $level=>$label):?><option value="<?php echo (int)$level; ?>" <?php echo $minimumLevel===(int)$level?'selected':'';?>><?php echo h($label); ?></option><?php endforeach;?></select><div class="form-text">Lowest audience that can see this help.</div></div>
 <div class="col-md-3"><label class="form-label">Available up to</label><select class="form-select" name="max_user_level"><option value="" <?php echo $maximumLevel===null?'selected':'';?>>No maximum</option><?php foreach($userLevelOptions as $level=>$label):?><option value="<?php echo (int)$level; ?>" <?php echo $maximumLevel===(int)$level?'selected':'';?>><?php echo h($label); ?></option><?php endforeach;?></select><div class="form-text">Optionally stop showing it above this audience.</div></div>
 <div class="col-md-3"><label class="form-label">Display order</label><input class="form-control" type="number" name="display_order" value="<?php echo (int)$article['display_order']; ?>"></div>
+<div class="col-md-3"><label class="form-label">Auto-create with AI</label><select class="form-select" name="to_be_created"><option value="0" <?php echo empty($article['to_be_created'])?'selected':'';?>>No</option><option value="1" <?php echo !empty($article['to_be_created'])?'selected':'';?>>Yes</option></select><div class="form-text">Queues this article for creation and keeps it unpublished.</div></div>
 <div class="col-md-3 pt-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="is_published" id="published" <?php echo !empty($article['is_published'])?'checked':'';?>><label class="form-check-label" for="published">Published</label></div></div>
 <div class="col-12"><button class="btn btn-success">Save help article</button> <a class="btn btn-outline-secondary" href="help.php">Cancel</a></div></form></div>
 <?php render_tinymce_bootstrap(); ?><script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script>

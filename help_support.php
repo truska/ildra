@@ -28,6 +28,7 @@ function ensureHelpTables(?PDO $pdo): void
         max_user_level INT DEFAULT NULL,
         display_order INT NOT NULL DEFAULT 0,
         is_published TINYINT(1) NOT NULL DEFAULT 1,
+        to_be_created TINYINT(1) NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_help_group (group_id, is_published, display_order),
@@ -44,6 +45,11 @@ function ensureHelpTables(?PDO $pdo): void
     $adminManualColumn = $pdo->query("SHOW COLUMNS FROM help_articles LIKE 'include_in_admin_manual'")->fetch();
     if (!$adminManualColumn) {
         $pdo->exec("ALTER TABLE help_articles ADD COLUMN include_in_admin_manual TINYINT(1) NOT NULL DEFAULT 0 AFTER include_in_user_manual");
+    }
+    $toBeCreatedColumn = $pdo->query("SHOW COLUMNS FROM help_articles LIKE 'to_be_created'")->fetch();
+    if (!$toBeCreatedColumn) {
+        $pdo->exec("ALTER TABLE help_articles ADD COLUMN to_be_created TINYINT(1) NOT NULL DEFAULT 0 AFTER is_published");
+        $pdo->exec("ALTER TABLE help_articles ADD INDEX idx_help_to_be_created (to_be_created)");
     }
     $pdo->exec("CREATE TABLE IF NOT EXISTS account_intro_modals (
         view_key VARCHAR(30) PRIMARY KEY,
@@ -214,14 +220,14 @@ function saveHelpArticle(?PDO $pdo, array $data, array &$alerts): bool
 {
     if (!$pdo) return false;
     ensureHelpTables($pdo);
-    $id=(int)($data['article_id']??0); $title=trim((string)($data['title']??'')); $body=trim((string)($data['body_html']??''));
-    if ($title==='' || $body==='') { $alerts[]=['type'=>'danger','message'=>'Title and instructions are required.']; return false; }
+    $id=(int)($data['article_id']??0); $title=trim((string)($data['title']??'')); $body=trim((string)($data['body_html']??'')); $toBeCreated=!empty($data['to_be_created'])?1:0;
+    if ($title==='' || ($body==='' && !$toBeCreated)) { $alerts[]=['type'=>'danger','message'=>$toBeCreated?'Title is required.':'Title and instructions are required.']; return false; }
     $max=trim((string)($data['max_user_level']??''));
     $minLevel=(int)($data['min_user_level']??0); $maxLevel=$max===''?null:(int)$max;
     if ($maxLevel !== null && $maxLevel < $minLevel) { $alerts[]=['type'=>'danger','message'=>'The maximum audience must not be below the minimum audience.']; return false; }
     $groupId=((int)($data['group_id']??0))?:null;
-    $params=[':title'=>$title,':summary'=>trim((string)($data['summary']??'')),':body'=>$body,':keywords'=>trim((string)($data['keywords']??'')),':group_id'=>$groupId,':global'=>($groupId===null||isset($data['is_global']))?1:0,':user_manual'=>isset($data['include_in_user_manual'])?1:0,':admin_manual'=>isset($data['include_in_admin_manual'])?1:0,':min'=>$minLevel,':max'=>$maxLevel,':display_order'=>(int)($data['display_order']??0),':published'=>isset($data['is_published'])?1:0];
-    if ($id) { $params[':id']=$id; $sql='UPDATE help_articles SET title=:title,summary=:summary,body_html=:body,keywords=:keywords,group_id=:group_id,is_global=:global,include_in_user_manual=:user_manual,include_in_admin_manual=:admin_manual,min_user_level=:min,max_user_level=:max,display_order=:display_order,is_published=:published WHERE id=:id'; }
-    else $sql='INSERT INTO help_articles (title,summary,body_html,keywords,group_id,is_global,include_in_user_manual,include_in_admin_manual,min_user_level,max_user_level,display_order,is_published) VALUES (:title,:summary,:body,:keywords,:group_id,:global,:user_manual,:admin_manual,:min,:max,:display_order,:published)';
+    $params=[':title'=>$title,':summary'=>trim((string)($data['summary']??'')),':body'=>$body,':keywords'=>trim((string)($data['keywords']??'')),':group_id'=>$groupId,':global'=>($groupId===null||isset($data['is_global']))?1:0,':user_manual'=>isset($data['include_in_user_manual'])?1:0,':admin_manual'=>isset($data['include_in_admin_manual'])?1:0,':min'=>$minLevel,':max'=>$maxLevel,':display_order'=>(int)($data['display_order']??0),':to_be_created'=>$toBeCreated,':published'=>$toBeCreated?0:(isset($data['is_published'])?1:0)];
+    if ($id) { $params[':id']=$id; $sql='UPDATE help_articles SET title=:title,summary=:summary,body_html=:body,keywords=:keywords,group_id=:group_id,is_global=:global,include_in_user_manual=:user_manual,include_in_admin_manual=:admin_manual,min_user_level=:min,max_user_level=:max,display_order=:display_order,is_published=:published,to_be_created=:to_be_created WHERE id=:id'; }
+    else $sql='INSERT INTO help_articles (title,summary,body_html,keywords,group_id,is_global,include_in_user_manual,include_in_admin_manual,min_user_level,max_user_level,display_order,is_published,to_be_created) VALUES (:title,:summary,:body,:keywords,:group_id,:global,:user_manual,:admin_manual,:min,:max,:display_order,:published,:to_be_created)';
     return $pdo->prepare($sql)->execute($params);
 }
