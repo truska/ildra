@@ -831,6 +831,23 @@ admin_layout_start('Finance', 'finance');
             showSection('requests');
             window.addEventListener('load', () => window.bootstrap.Modal.getOrCreateInstance(document.getElementById('newMiscPaymentModal')).show(), {once:true});
         }
+        const paymentRequestsSection = document.querySelector('[data-finance-section="requests"]');
+        const paymentRequestsTable = paymentRequestsSection?.querySelector('table');
+        const reminderControls = paymentRequestsSection?.nextElementSibling;
+        if (paymentRequestsTable && reminderControls?.classList.contains('mt-2')) {
+            paymentRequestsTable.querySelector('thead th:first-child')?.remove();
+            const allRequestRows = Array.from(paymentRequestsTable.querySelectorAll('tbody tr'));
+            allRequestRows.forEach(row => row.querySelector('td:first-child')?.remove());
+            const pendingRows = allRequestRows.filter(row => row.querySelector('.bg-warning-subtle'));
+            pendingRows.forEach((row, index) => {
+                const form = reminderControls.querySelector('form');
+                if (!form) return;
+                const cell = document.createElement('td');
+                form.querySelector('button').textContent = 'Resend';
+                cell.appendChild(form); row.appendChild(cell);
+            });
+            reminderControls.remove();
+        }
 
         const collectModal = document.getElementById('collectStripeModal');
         collectModal?.addEventListener('show.bs.modal', async event => {
