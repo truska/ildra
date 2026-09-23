@@ -26,7 +26,7 @@ if(empty($_SESSION['misc_payment_csrf']))$_SESSION['misc_payment_csrf']=bin2hex(
 $miscPaymentCsrf=(string)$_SESSION['misc_payment_csrf']; ensureMiscPaymentTables($pdo);
 $upcomingPaymentRequestEvents=$pdo->query("SELECT id,title,event_date FROM events WHERE event_date>=CURDATE() ORDER BY event_date ASC,id ASC LIMIT 2")->fetchAll()?:[];
 $recentPaymentRequestEvents=$pdo->query("SELECT id,title,event_date FROM events WHERE event_date>=DATE_SUB(CURDATE(),INTERVAL 6 MONTH) AND event_date<CURDATE() ORDER BY event_date DESC,id DESC")->fetchAll()?:[];
-$paymentRequestEvents=array_merge($upcomingPaymentRequestEvents,$recentPaymentRequestEvents);
+$paymentRequestEvents=array_merge(array_reverse($upcomingPaymentRequestEvents),$recentPaymentRequestEvents);
 $paymentRequestPrefillEventId=max(0,(int)($_GET['payment_event_id']??0)); $paymentRequestPrefillEntryId=max(0,(int)($_GET['payment_entry_id']??0));
 $paymentRequestPrefillEmail=trim((string)($_GET['payment_email']??''));
 
