@@ -7,13 +7,15 @@ require_once __DIR__ . '/../bookings_store.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageFinance = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
-if (!$canManageFinance) {
+$paymentReturnEventId=max(0,(int)($_GET['payment_return_event_id']??$_POST['payment_return_event_id']??0));
+$entryPaymentRequestFlow=$currentRole==='organiser'&&$paymentReturnEventId>0;
+if (!$canManageFinance && !$entryPaymentRequestFlow) {
     header('Location: index.php');
     exit;
 }
 $canCreatePayout = adminActionAllowed($pdo, 'finance.create_payout', $currentRole);
 $canAdjustBalance = adminActionAllowed($pdo, 'finance.adjust_balance', $currentRole);
-$canCreateMiscPayment = adminActionAllowed($pdo, 'finance.create_misc_payment', $currentRole);
+$canCreateMiscPayment = adminActionAllowed($pdo, 'finance.create_misc_payment', $currentRole) || $entryPaymentRequestFlow;
 
 ensure_finance_tables($pdo, $alerts);
 $stripeConfig = stripe_config($config);
@@ -107,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }}
         if($alerts)$_SESSION['flash_alerts']=$alerts;
         if($successMessage)$_SESSION['flash_success']=$successMessage;
-        header('Location: finance.php?tab=requests'); exit;
+        if($successMessage&&$paymentReturnEventId>0){$_SESSION['entry_payment_request_summary']=['email'=>$email,'amount'=>$amount,'description'=>$description];header('Location: event_entries.php?event_id='.$paymentReturnEventId);exit;}header('Location: finance.php?tab=requests'); exit;
     } elseif ($action === 'resend_misc_payment_request') {
         $requestId=max(0,(int)($_POST['request_id']??0));
         if(!$canCreateMiscPayment||!hash_equals($miscPaymentCsrf,(string)($_POST['csrf']??'')))$alerts[]=['type'=>'danger','message'=>'Unable to send that reminder.'];
@@ -831,6 +833,7 @@ admin_layout_start('Finance', 'finance');
         showSection(initialTab);
         if (urlParams.get('payment_event_id') || urlParams.get('payment_entry_id')) {
             showSection('requests');
+            if (urlParams.get('payment_return_event_id')) { const input=document.createElement('input');input.type='hidden';input.name='payment_return_event_id';input.value=urlParams.get('payment_return_event_id');document.querySelector('#newMiscPaymentModal form')?.appendChild(input); }
             window.addEventListener('load', () => window.bootstrap.Modal.getOrCreateInstance(document.getElementById('newMiscPaymentModal')).show(), {once:true});
         }
         const paymentRequestsSection = document.querySelector('[data-finance-section="requests"]');

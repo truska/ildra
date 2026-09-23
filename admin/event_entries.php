@@ -35,6 +35,7 @@ if (empty($_SESSION['admin_entry_cancel_csrf'])) {
     $_SESSION['admin_entry_cancel_csrf'] = bin2hex(random_bytes(24));
 }
 $adminEntryCancelCsrf = (string)$_SESSION['admin_entry_cancel_csrf'];
+$paymentRequestSummary=$_SESSION['entry_payment_request_summary']??null;unset($_SESSION['entry_payment_request_summary']);
 
 // Ensure withdrawal columns exist before running entry list queries.
 if ($pdo && $eventId > 0) {
@@ -720,7 +721,7 @@ admin_layout_start($pageTitle, 'events');
                             ?>
                             <div class="btn-group-mobile" role="group" aria-label="Entry actions">
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span></a>
-                                <?php if (!empty($entry['contact_email'])): ?><a class="btn btn-sm btn-outline-primary has-icon" href="finance.php?tab=requests&amp;payment_event_id=<?php echo (int)$eventId; ?>&amp;payment_entry_id=<?php echo $itemId; ?>&amp;payment_email=<?php echo rawurlencode((string)$entry['contact_email']); ?>"><i class="fa-solid fa-sterling-sign btn-icon"></i><span class="btn-label">Request payment</span></a><?php endif; ?>
+                                <?php if (!empty($entry['contact_email'])): ?><a class="btn btn-sm btn-outline-primary has-icon" href="finance.php?tab=requests&amp;payment_event_id=<?php echo (int)$eventId; ?>&amp;payment_entry_id=<?php echo $itemId; ?>&amp;payment_return_event_id=<?php echo (int)$eventId; ?>&amp;payment_email=<?php echo rawurlencode((string)$entry['contact_email']); ?>"><i class="fa-solid fa-sterling-sign btn-icon"></i><span class="btn-label">Request payment</span></a><?php endif; ?>
                                 <?php if (!$isAttendeeEvent): ?><a class="btn btn-sm btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&mode=edit&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a><?php endif; ?>
                                 <button type="button" class="btn btn-sm btn-outline-danger has-icon" data-bs-toggle="modal" data-bs-target="#<?php echo h($adminCancelModalId); ?>"><i class="fa-solid fa-ban btn-icon"></i><span class="btn-label">Cancel</span></button>
                             </div>
@@ -819,6 +820,8 @@ admin_layout_start($pageTitle, 'events');
 	    </div>
 <?php endif; ?>
 
+<?php if(is_array($paymentRequestSummary)): ?><div class="modal fade" id="paymentRequestCompleteModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Payment request successful</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p>The payment request has been emailed.</p><dl class="row mb-0"><dt class="col-sm-4">Recipient</dt><dd class="col-sm-8"><?php echo h((string)$paymentRequestSummary['email']); ?></dd><dt class="col-sm-4">Amount</dt><dd class="col-sm-8"><?php echo format_price((float)$paymentRequestSummary['amount']); ?></dd><dt class="col-sm-4">Description</dt><dd class="col-sm-8"><?php echo h((string)$paymentRequestSummary['description']); ?></dd></dl></div><div class="modal-footer"><button type="button" class="btn btn-success" data-bs-dismiss="modal">Close</button></div></div></div></div><?php endif; ?>
+
 <script>
 document.querySelectorAll('[data-admin-cancel-method]').forEach((select) => {
     select.addEventListener('change', () => {
@@ -826,6 +829,7 @@ document.querySelectorAll('[data-admin-cancel-method]').forEach((select) => {
         if (amount) amount.value = select.value === 'credit' ? select.dataset.creditDefault : select.dataset.refundDefault;
     });
 });
+window.addEventListener('load',()=>{const modal=document.getElementById('paymentRequestCompleteModal');if(modal&&window.bootstrap)new window.bootstrap.Modal(modal).show();});
 </script>
 
 <?php
