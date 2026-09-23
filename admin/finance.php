@@ -43,6 +43,30 @@ if(isset($_GET['stripe_balance'])){
     echo json_encode(['ok'=>true,'available'=>$available,'pending'=>$pending,'balance'=>$available+$pending,'currency'=>strtoupper((string)($stripeConfig['currency']??'gbp'))]);exit;
 }
 
+if (isset($_GET['recipient_lookup'])) {
+    if (!$canCreateMiscPayment) { http_response_code(403); echo json_encode(['ok'=>false,'error'=>'You do not have permission to create payment requests.']); exit; }
+    header('Content-Type: application/json');
+    $query = trim((string)($_GET['q'] ?? ''));
+    $sort = (string)($_GET['sort'] ?? 'last_name');
+    $dir = strtolower((string)($_GET['dir'] ?? 'asc')) === 'desc' ? 'DESC' : 'ASC';
+    $sortColumns = ['first_name'=>'first_name','last_name'=>'last_name','email'=>'email','postcode'=>'postcode','source'=>'source'];
+    $orderBy = $sortColumns[$sort] ?? 'last_name';
+    $like = '%' . $query . '%';
+    $sql = "SELECT * FROM (
+        SELECT p.first_name,p.last_name,p.email,p.postcode,'Person' source
+        FROM people p WHERE p.is_archived=0 AND NULLIF(TRIM(p.email),'') IS NOT NULL
+        UNION ALL
+        SELECT u.first_name,u.last_name,u.email,
+            COALESCE((SELECT p2.postcode FROM people p2 WHERE p2.owner_user_id=u.id AND p2.is_archived=0 AND NULLIF(TRIM(p2.postcode),'') IS NOT NULL ORDER BY p2.id LIMIT 1),'') postcode,
+            'Account' source
+        FROM users u WHERE NULLIF(TRIM(u.email),'') IS NOT NULL
+    ) recipients
+    WHERE first_name LIKE :query OR last_name LIKE :query OR email LIKE :query OR postcode LIKE :query
+    ORDER BY {$orderBy} {$dir}, email ASC LIMIT 100";
+    $stmt = $pdo->prepare($sql); $stmt->execute([':query'=>$like]);
+    echo json_encode(['ok'=>true,'rows'=>$stmt->fetchAll() ?: []]); exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if($action==='create_event_payout'){
@@ -529,7 +553,8 @@ admin_layout_start('Finance', 'finance');
 <?php endif; ?>
 
 <?php if ($canCreateMiscPayment): ?><section class="card-soft p-3 finance-section" data-finance-section="requests"><div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3"><div><div class="small text-muted text-uppercase fw-bold">One-off payments</div><h6 class="mb-1">Payment requests</h6><div class="text-muted small">Requests are listed here until paid, failed, cancelled, or expired. Paid requests also appear in Transactions.</div></div><button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#newMiscPaymentModal"><i class="fa-solid fa-plus me-1"></i>New Request</button></div><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Created</th><th>Recipient</th><th>Description</th><th class="text-end">Amount</th><th>Status</th><th>Sent</th><th>Paid</th></tr></thead><tbody><?php foreach($miscPaymentRequests as $request): $status=strtolower((string)($request['status']??'sent')); $statusLabel=match($status){'paid'=>'Completed','failed'=>'Failed','cancelled'=>'Cancelled','expired'=>'Expired',default=>'Pending'}; $statusClass=match($status){'paid'=>'bg-success-subtle text-success','failed'=>'bg-danger-subtle text-danger','cancelled','expired'=>'bg-secondary-subtle text-secondary',default=>'bg-warning-subtle text-warning-emphasis'}; ?><tr><td class="small text-muted"><?php echo h(format_display_datetime($request['created_at']??null,'')); ?></td><td><?php echo h((string)$request['recipient_email']); ?></td><td><?php echo h((string)$request['description']); ?></td><td class="text-end"><?php echo format_price((float)$request['amount']); ?></td><td><span class="badge <?php echo h($statusClass); ?>"><?php echo h($statusLabel); ?></span></td><td class="small text-muted"><?php echo !empty($request['email_sent_at'])?h(format_display_datetime($request['email_sent_at'],'')):'—'; ?></td><td class="small text-muted"><?php echo !empty($request['paid_at'])?h(format_display_datetime($request['paid_at'],'')):'—'; ?></td></tr><?php endforeach; ?><?php if(!$miscPaymentRequests): ?><tr><td colspan="7" class="text-muted">No payment requests have been created yet.</td></tr><?php endif; ?></tbody></table></div></section>
-<div class="modal fade" id="newMiscPaymentModal" tabindex="-1" aria-labelledby="newMiscPaymentModalLabel" aria-hidden="true"><div class="modal-dialog"><form method="post" class="modal-content"><input type="hidden" name="action" value="create_misc_payment"><input type="hidden" name="csrf" value="<?php echo h($miscPaymentCsrf); ?>"><div class="modal-header"><h5 class="modal-title" id="newMiscPaymentModalLabel">New payment request</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p class="small text-muted">The recipient receives a secure Stripe-hosted payment link by email.</p><div class="mb-3"><label class="form-label">Recipient email</label><input class="form-control" type="email" name="recipient_email" required></div><div class="mb-3"><label class="form-label">Description</label><input class="form-control" name="description" maxlength="255" required></div><div><label class="form-label">Amount</label><div class="input-group"><span class="input-group-text">£</span><input class="form-control" type="number" name="amount" min="0.01" step="0.01" required></div></div></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success">Email payment request</button></div></form></div></div><?php endif; ?>
+<div class="modal fade" id="newMiscPaymentModal" tabindex="-1" aria-labelledby="newMiscPaymentModalLabel" aria-hidden="true"><div class="modal-dialog"><form method="post" class="modal-content"><input type="hidden" name="action" value="create_misc_payment"><input type="hidden" name="csrf" value="<?php echo h($miscPaymentCsrf); ?>"><div class="modal-header"><h5 class="modal-title" id="newMiscPaymentModalLabel">New payment request</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p class="small text-muted">The recipient receives a secure Stripe-hosted payment link by email.</p><div class="mb-3"><div class="d-flex justify-content-between align-items-center gap-2"><label class="form-label mb-1" for="misc-recipient-email">Recipient email</label><button class="btn btn-sm btn-outline-success" type="button" id="open-recipient-lookup">Find existing user / person</button></div><input class="form-control" id="misc-recipient-email" type="email" name="recipient_email" required><div class="form-text">Or type any email address directly.</div></div><div class="mb-3"><label class="form-label">Description</label><input class="form-control" name="description" maxlength="255" required></div><div><label class="form-label">Amount</label><div class="input-group"><span class="input-group-text">£</span><input class="form-control" type="number" name="amount" min="0.01" step="0.01" required></div></div></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success">Email payment request</button></div></form></div></div>
+<div class="modal fade" id="recipientLookupModal" tabindex="-1" aria-labelledby="recipientLookupModalLabel" aria-hidden="true"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><div><h5 class="modal-title" id="recipientLookupModalLabel">Find payment recipient</h5><div class="small text-muted">Search users and people by name, email or postcode.</div></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="input-group mb-3"><input class="form-control" id="recipient-lookup-query" type="search" placeholder="Start typing a name, email or postcode" autocomplete="off"><button class="btn btn-outline-secondary" type="button" id="recipient-lookup-search">Search</button></div><div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th></th><th><button class="btn btn-link btn-sm p-0 recipient-sort" data-sort="first_name">First name</button></th><th><button class="btn btn-link btn-sm p-0 recipient-sort" data-sort="last_name">Surname</button></th><th><button class="btn btn-link btn-sm p-0 recipient-sort" data-sort="email">Email</button></th><th><button class="btn btn-link btn-sm p-0 recipient-sort" data-sort="postcode">Postcode</button></th><th><button class="btn btn-link btn-sm p-0 recipient-sort" data-sort="source">Record</button></th></tr></thead><tbody id="recipient-lookup-results"><tr><td colspan="6" class="text-muted">Search to find a recipient.</td></tr></tbody></table></div><div class="small text-muted">Up to 100 matching records are shown. Select the email address that should receive this payment request.</div></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button></div></div></div></div><?php endif; ?>
 
 <section class="card-soft p-3 finance-section" data-finance-section="balances">
     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -833,6 +858,61 @@ admin_layout_start('Finance', 'finance');
                 if (summary) summary.innerHTML = '<div class="text-muted">Stripe balance: £' + Number(result.balance || 0).toFixed(2) + '</div><div class="text-muted">Stripe available: £' + Number(result.available || 0).toFixed(2) + '</div>';
             })
             .catch(() => { const summary=document.getElementById('stripe-balance-summary'); if(summary)summary.textContent='Stripe balance unavailable'; });
+
+        const requestModalElement = document.getElementById('newMiscPaymentModal');
+        const lookupModalElement = document.getElementById('recipientLookupModal');
+        const lookupQuery = document.getElementById('recipient-lookup-query');
+        const lookupResults = document.getElementById('recipient-lookup-results');
+        let lookupSort = 'last_name';
+        let lookupDir = 'asc';
+        let lookupTimer;
+        const renderRecipientResults = rows => {
+            lookupResults.replaceChildren();
+            if (!rows.length) {
+                const row = document.createElement('tr'); const cell = document.createElement('td');
+                cell.colSpan = 6; cell.className = 'text-muted'; cell.textContent = 'No matching recipients found.';
+                row.appendChild(cell); lookupResults.appendChild(row); return;
+            }
+            rows.forEach(recipient => {
+                const row = document.createElement('tr');
+                const selectCell = document.createElement('td'); const select = document.createElement('button');
+                select.type = 'button'; select.className = 'btn btn-sm btn-success'; select.textContent = 'Select';
+                select.addEventListener('click', () => {
+                    document.getElementById('misc-recipient-email').value = recipient.email || '';
+                    lookupModalElement.addEventListener('hidden.bs.modal', () => window.bootstrap.Modal.getOrCreateInstance(requestModalElement).show(), {once:true});
+                    window.bootstrap.Modal.getOrCreateInstance(lookupModalElement).hide();
+                });
+                selectCell.appendChild(select); row.appendChild(selectCell);
+                [['first_name',''],['last_name',''],['email',''],['postcode','—'],['source','']].forEach(([key,fallback]) => {
+                    const cell = document.createElement('td'); cell.textContent = recipient[key] || fallback; row.appendChild(cell);
+                });
+                lookupResults.appendChild(row);
+            });
+        };
+        const searchRecipients = async () => {
+            if (!lookupResults) return;
+            lookupResults.innerHTML = '<tr><td colspan="6" class="text-muted">Searching…</td></tr>';
+            try {
+                const params = new URLSearchParams({recipient_lookup:'1', q:lookupQuery.value, sort:lookupSort, dir:lookupDir});
+                const response = await fetch(window.location.pathname + '?' + params.toString(), {headers:{Accept:'application/json'}});
+                const result = await response.json();
+                if (!result.ok) throw new Error(result.error || 'Could not search recipients.');
+                renderRecipientResults(result.rows || []);
+            } catch (error) {
+                lookupResults.innerHTML = '<tr><td colspan="6" class="text-danger">' + (error.message || 'Could not search recipients.') + '</td></tr>';
+            }
+        };
+        document.getElementById('open-recipient-lookup')?.addEventListener('click', () => {
+            requestModalElement.addEventListener('hidden.bs.modal', () => window.bootstrap.Modal.getOrCreateInstance(lookupModalElement).show(), {once:true});
+            window.bootstrap.Modal.getOrCreateInstance(requestModalElement).hide();
+        });
+        lookupModalElement?.addEventListener('shown.bs.modal', () => { lookupQuery.focus(); searchRecipients(); });
+        lookupQuery?.addEventListener('input', () => { clearTimeout(lookupTimer); lookupTimer = setTimeout(searchRecipients, 250); });
+        document.getElementById('recipient-lookup-search')?.addEventListener('click', searchRecipients);
+        document.querySelectorAll('.recipient-sort').forEach(button => button.addEventListener('click', () => {
+            const nextSort = button.dataset.sort;
+            lookupDir = nextSort === lookupSort && lookupDir === 'asc' ? 'desc' : 'asc'; lookupSort = nextSort; searchRecipients();
+        }));
 
         window.addEventListener('load', () => {
             const payoutCompleteModal = document.getElementById('payoutCompleteModal');
