@@ -2041,6 +2041,7 @@ function ensureNewsTables(?PDO $pdo): void
         facebook_gallery_url VARCHAR(1000) DEFAULT NULL,
         is_published TINYINT(1) NOT NULL DEFAULT 0,
         published_at DATETIME DEFAULT NULL,
+        created_by_user_id INT UNSIGNED DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_news_published (is_published, published_at),
@@ -2057,6 +2058,12 @@ function ensureNewsTables(?PDO $pdo): void
     }
     if (!table_column_exists($pdo, 'news_articles', 'facebook_gallery_url')) {
         $pdo->exec("ALTER TABLE news_articles ADD COLUMN facebook_gallery_url VARCHAR(1000) DEFAULT NULL AFTER results_html");
+    }
+    if (!table_column_exists($pdo, 'news_articles', 'created_by_user_id')) {
+        $pdo->exec("ALTER TABLE news_articles ADD COLUMN created_by_user_id INT UNSIGNED DEFAULT NULL AFTER published_at");
+    }
+    if (!table_index_on_column_exists($pdo, 'news_articles', 'created_by_user_id')) {
+        $pdo->exec("ALTER TABLE news_articles ADD INDEX idx_news_creator (created_by_user_id)");
     }
     if (!table_index_exists($pdo, 'news_articles', 'uniq_ride_report_event')) {
         try {
@@ -2084,9 +2091,9 @@ function fetchNewsArticles(?PDO $pdo, bool $publishedOnly = false): array
 {
     if (!$pdo) return [];
     ensureNewsTables($pdo);
-    $sql = 'SELECT * FROM news_articles';
+    $sql = 'SELECT n.*,NULLIF(TRIM(CONCAT_WS(\' \',u.first_name,u.last_name)),\'\') AS creator_name,u.email AS creator_email FROM news_articles n LEFT JOIN users u ON u.id=n.created_by_user_id';
     if ($publishedOnly) $sql .= ' WHERE is_published=1 AND (published_at IS NULL OR published_at<=NOW())';
-    $sql .= ' ORDER BY COALESCE(published_at,created_at) DESC,id DESC';
+    $sql .= ' ORDER BY COALESCE(n.published_at,n.created_at) DESC,n.id DESC';
     return $pdo->query($sql)->fetchAll() ?: [];
 }
 
