@@ -6,6 +6,65 @@ function h($value): string
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+/**
+ * Return the per-session token used to protect browser form submissions.
+ */
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['csrf_token'];
+}
+
+function csrf_is_valid(?string $provided): bool
+{
+    if (!is_string($provided) || $provided === '') {
+        return false;
+    }
+
+    if (hash_equals(csrf_token(), $provided)) {
+        return true;
+    }
+
+    // Compatibility for forms which were issued before the shared token was
+    // introduced. These values are session-bound and will disappear naturally.
+    foreach ($_SESSION as $key => $value) {
+        if (is_string($key) && str_ends_with($key, '_csrf') && is_string($value) && hash_equals($value, $provided)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function csrf_input(): string
+{
+    return '<input type="hidden" name="csrf" value="' . h(csrf_token()) . '">';
+}
+
+/**
+ * Add the shared token to every browser POST form. Existing page-specific
+ * tokens are retained for backwards compatibility during rollout.
+ */
+function csrf_protect_forms(string $html): string
+{
+    return preg_replace_callback('~(<form\\b[^>]*>)(.*?</form\\s*>)~is', static function (array $match): string {
+        $form = $match[0];
+        $isPost = preg_match('~\\bmethod\\s*=\\s*(["\\\'])post\\1~i', $match[1]) === 1
+            || preg_match('~\\bformmethod\\s*=\\s*(["\\\'])post\\1~i', $form) === 1;
+        $hasToken = preg_match('~\\bname\\s*=\\s*(["\\\'])csrf\\1~i', $form) === 1;
+
+        return $isPost && !$hasToken ? $match[1] . csrf_input() . $match[2] : $form;
+    }, $html) ?? $html;
+}
+
+function csrf_protect_admin_forms(string $html): string
+{
+    return csrf_protect_forms($html);
+}
+
 function render_wysiwyg(string $value): string
 {
     // Allow a small set of safe tags for admin-authored rich text.

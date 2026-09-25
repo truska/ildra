@@ -97,6 +97,19 @@ require_once __DIR__ . '/email_campaigns.php';
 require_once __DIR__ . '/external_recognition.php';
 require_once __DIR__ . '/stripe.php';
 
+// Browser-originated writes require a session token before page handlers run.
+// Stripe signs its webhook payloads independently, so it must not use a browser
+// CSRF token.
+$csrfExemptScript = basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) === 'stripe_misc_webhook.php';
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && !$csrfExemptScript && !csrf_is_valid($_POST['csrf'] ?? null)) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Invalid or missing CSRF token.';
+    exit;
+}
+
+ob_start('csrf_protect_forms');
+
 $pdo = createPdo($config, $alerts);
 if ($pdo) {
     ensureEmailCampaignTables($pdo);

@@ -26,6 +26,16 @@ if (!$canAccessAdmin) {
     exit;
 }
 
+// All admin POST requests must carry a token before any page-specific handler
+// can make a state change. This duplicates the front-end bootstrap boundary so
+// direct admin entry points remain protected if their bootstrap order changes.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && !csrf_is_valid($_POST['csrf'] ?? null)) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Invalid or missing CSRF token.';
+    exit;
+}
+
 $adminBase = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin'), '/');
 $adminBase = $adminBase === '' ? '/admin' : $adminBase;
 $siteBase = rtrim(dirname($adminBase), '/');
