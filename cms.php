@@ -676,7 +676,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
     $navGroup = $data['nav_group'] ?? 'home';
     $destinationPageId = max(0, (int)($data['destination_page_id'] ?? 0));
     $excerpt = trim((string)($data['excerpt'] ?? ''));
-    $body = trim((string)($data['body_html'] ?? ''));
+    $body = sanitize_rich_html((string)($data['body_html'] ?? ''));
     $isPublished = isset($data['is_published']) ? 1 : 0;
     $showInFooter = isset($data['show_in_footer']) ? 1 : 0;
     $menuDividerBelow = isset($data['menu_divider_below']) ? 1 : 0;

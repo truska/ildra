@@ -65,11 +65,59 @@ function csrf_protect_admin_forms(string $html): string
     return csrf_protect_forms($html);
 }
 
+function rich_html_url_is_allowed(string $url): bool
+{
+    $url = html_entity_decode(trim($url), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $normalised = preg_replace('/[\x00-\x20]+/', '', $url) ?? '';
+    if ($normalised === '' || str_starts_with($normalised, '#') || str_starts_with($normalised, '/')) return true;
+    return in_array(strtolower((string)parse_url($normalised, PHP_URL_SCHEME)), ['http', 'https', 'mailto', 'tel'], true);
+}
+
+/** Server-side allowlist for tags, attributes and URL schemes in rich text. */
+function sanitize_rich_html(string $value): string
+{
+    if (trim($value) === '') return '';
+    if (!class_exists(DOMDocument::class)) return h($value);
+    $allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'a', 'span', 'div', 'img', 'h2', 'h3', 'h4', 'blockquote'];
+    $removeWithContents = ['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'template', 'base', 'meta', 'link', 'form', 'input', 'button'];
+    $previous = libxml_use_internal_errors(true);
+    $document = new DOMDocument('1.0', 'UTF-8');
+    $document->loadHTML('<div id="rich-html-root">' . $value . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
+    libxml_clear_errors(); libxml_use_internal_errors($previous);
+    $root = $document->getElementById('rich-html-root');
+    if (!$root) return h($value);
+    $nodes = iterator_to_array((new DOMXPath($document))->query('.//*', $root) ?: []);
+    foreach (array_reverse($nodes) as $node) {
+        if (!$node instanceof DOMElement || $node === $root) continue;
+        $tag = strtolower($node->tagName);
+        if (in_array($tag, $removeWithContents, true)) { $node->parentNode?->removeChild($node); continue; }
+        if (!in_array($tag, $allowedTags, true)) {
+            while ($node->firstChild) $node->parentNode?->insertBefore($node->firstChild, $node);
+            $node->parentNode?->removeChild($node); continue;
+        }
+        $saved = [];
+        foreach ($node->attributes ?? [] as $attribute) $saved[strtolower($attribute->name)] = $attribute->value;
+        foreach (array_keys($saved) as $attribute) $node->removeAttribute($attribute);
+        if ($tag === 'a' && isset($saved['href']) && rich_html_url_is_allowed($saved['href'])) {
+            $node->setAttribute('href', trim(html_entity_decode($saved['href'], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            if (($saved['target'] ?? '') === '_blank') $node->setAttribute('target', '_blank');
+            if (($saved['target'] ?? '') === '_blank') $node->setAttribute('rel', 'noopener noreferrer');
+            if (isset($saved['title'])) $node->setAttribute('title', $saved['title']);
+        }
+        if ($tag === 'img' && isset($saved['src']) && rich_html_url_is_allowed($saved['src'])) {
+            $node->setAttribute('src', trim(html_entity_decode($saved['src'], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            foreach (['alt', 'title'] as $attribute) if (isset($saved[$attribute])) $node->setAttribute($attribute, $saved[$attribute]);
+            foreach (['width', 'height'] as $attribute) if (isset($saved[$attribute]) && ctype_digit($saved[$attribute])) $node->setAttribute($attribute, $saved[$attribute]);
+        }
+    }
+    $html = '';
+    foreach ($root->childNodes as $child) $html .= $document->saveHTML($child);
+    return $html;
+}
+
 function render_wysiwyg(string $value): string
 {
-    // Allow a small set of safe tags for admin-authored rich text.
-    $allowed = '<p><br><br/><strong><b><em><i><u><ul><ol><li><a><span><div><img>';
-    $html = strip_tags($value, $allowed);
+    $html = sanitize_rich_html($value);
     if (basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) === 'ride_notes.php') {
         $html = '<style>.main-img,.thumb{border-radius:8px}@media (min-width:768px){main .card .row.g-4 > .col-md-5{order:2}}</style>' . $html;
     }

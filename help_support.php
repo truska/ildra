@@ -108,7 +108,7 @@ function saveAccountIntroModals(?PDO $pdo, array $data, array &$alerts): bool
         foreach (['people', 'horses', 'shares', 'my-account', 'person_general_email', 'person_ride_notice', 'person_renewal_reminder'] as $viewKey) {
             $row = isset($posted[$viewKey]) && is_array($posted[$viewKey]) ? $posted[$viewKey] : [];
             $heading = trim((string)($row['heading'] ?? ''));
-            $bodyHtml = trim((string)($row['body_html'] ?? ''));
+            $bodyHtml = sanitize_rich_html((string)($row['body_html'] ?? ''));
             if ($heading === '' || $bodyHtml === '') {
                 $alerts[] = ['type' => 'danger', 'message' => 'Every active account introduction needs a heading and text.'];
                 return false;
@@ -220,7 +220,7 @@ function saveHelpArticle(?PDO $pdo, array $data, array &$alerts): bool
 {
     if (!$pdo) return false;
     ensureHelpTables($pdo);
-    $id=(int)($data['article_id']??0); $title=trim((string)($data['title']??'')); $body=trim((string)($data['body_html']??'')); $toBeCreated=!empty($data['to_be_created'])?1:0;
+    $id=(int)($data['article_id']??0); $title=trim((string)($data['title']??'')); $body=sanitize_rich_html((string)($data['body_html']??'')); $toBeCreated=!empty($data['to_be_created'])?1:0;
     if ($title==='' || ($body==='' && !$toBeCreated)) { $alerts[]=['type'=>'danger','message'=>$toBeCreated?'Title is required.':'Title and instructions are required.']; return false; }
     $max=trim((string)($data['max_user_level']??''));
     $minLevel=(int)($data['min_user_level']??0); $maxLevel=$max===''?null:(int)$max;

@@ -38,7 +38,7 @@ function saveRideNotes(PDO $pdo, int $eventId, array $data, int $userId): bool
 {
     ensureRideNotesTables($pdo); $status=in_array((string)($data['status']??''),['draft','published','hidden'],true)?(string)$data['status']:'draft';
     $stmt=$pdo->prepare("INSERT INTO event_ride_notes (event_id,status,intro_html,ride_notes_html,ctr_notes_html,completed_by,completed_at) VALUES (:event_id,:status,:intro,:ride,:ctr,:completed_by,:completed_at) ON DUPLICATE KEY UPDATE status=VALUES(status),intro_html=VALUES(intro_html),ride_notes_html=VALUES(ride_notes_html),ctr_notes_html=VALUES(ctr_notes_html),completed_by=VALUES(completed_by),completed_at=VALUES(completed_at)");
-    return $stmt->execute([':event_id'=>$eventId,':status'=>$status,':intro'=>trim((string)($data['intro_html']??''))?:null,':ride'=>trim((string)($data['ride_notes_html']??''))?:null,':ctr'=>trim((string)($data['ctr_notes_html']??''))?:null,':completed_by'=>$status==='published'?$userId:null,':completed_at'=>$status==='published'?date('Y-m-d H:i:s'):null]);
+    return $stmt->execute([':event_id'=>$eventId,':status'=>$status,':intro'=>sanitize_rich_html((string)($data['intro_html']??''))?:null,':ride'=>sanitize_rich_html((string)($data['ride_notes_html']??''))?:null,':ctr'=>sanitize_rich_html((string)($data['ctr_notes_html']??''))?:null,':completed_by'=>$status==='published'?$userId:null,':completed_at'=>$status==='published'?date('Y-m-d H:i:s'):null]);
 }
 
 function rideNotesPublicUrl(string $siteBase, int $eventId): string { return rtrim($siteBase, '/') . '/ride_notes.php?event_id=' . $eventId; }
