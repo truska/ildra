@@ -2,6 +2,9 @@
 declare(strict_types=1);
 
 /**
+ * Copy this file to ../private/config.php and set environment-specific values.
+ * Never place the active configuration in the public web root.
+ *
  * Optional: SMTP credentials for outgoing email.
  *
  * These are read by `email.php` and take precedence over any database values.
