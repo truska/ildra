@@ -59,6 +59,11 @@ if (isset($_GET['clear_sql_errors'])) {
 if (isset($_GET['exit_act_as'])) {
     if (!headers_sent()) {
         if (!empty($_SESSION['act_as_original_user']) && is_array($_SESSION['act_as_original_user'])) {
+            $_SESSION['audit_impersonation_end'] = [
+                'actor' => $_SESSION['act_as_original_user'],
+                'target' => $_SESSION['user'] ?? [],
+                'started_at' => $_SESSION['act_as_started_at'] ?? null,
+            ];
             $_SESSION['user'] = $_SESSION['act_as_original_user'];
         }
         unset($_SESSION['act_as_original_user'], $_SESSION['act_as_started_at']);
@@ -144,6 +149,14 @@ if ($pdo) {
 }
 $currentUser = $_SESSION['user'] ?? null;
 $allUsers = [];
+
+if (!empty($_SESSION['audit_impersonation_end']) && is_array($_SESSION['audit_impersonation_end'])) {
+    $impersonationEnd = $_SESSION['audit_impersonation_end'];
+    adminAuditLog($pdo, 'users.impersonation_end', (array)($impersonationEnd['actor'] ?? []), 'user', (int)(($impersonationEnd['target']['id'] ?? 0)), [
+        'started_at'=>$impersonationEnd['started_at'] ?? null,
+    ]);
+    unset($_SESSION['audit_impersonation_end']);
+}
 
 // Site settings are needed for shared behaviours (basket timeout, remember-me TTL, etc.)
 $siteSettingsBootstrap = $pdo ? getSiteSettings($pdo) : defaultSiteSettings();

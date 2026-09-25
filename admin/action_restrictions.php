@@ -11,6 +11,10 @@ if (strtolower((string)($currentUser['role'] ?? '')) !== 'superadmin') {
 ensureAdminActionRestrictionsTable($pdo);
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (saveAdminActionRestriction($pdo, $_POST, $alerts)) {
+        adminAuditLog($pdo, 'permissions.update_action_restriction', $currentUser, 'admin_action_restriction', (int)($_POST['id'] ?? 0), [
+            'restricted'=>!empty($_POST['is_restricted']),
+            'allowed_roles'=>array_values((array)($_POST['allowed_roles'] ?? [])),
+        ]);
         $_SESSION['flash_success'] = 'Action restriction saved.';
         header('Location: action_restrictions.php');
         exit;

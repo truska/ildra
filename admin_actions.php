@@ -9,7 +9,7 @@ function defaultAdminActionRestrictions(): array
 {
     return [
         ['finance.create_payout', 'finance', 'Create Stripe payout', 'Move an event balance from Stripe to the nominated account.', 1, 'admin', 10],
-        ['finance.adjust_balance', 'finance', 'Adjust account balance', 'Manually credit or debit a user account balance.', 0, '', 20],
+        ['finance.adjust_balance', 'finance', 'Adjust account balance', 'Manually credit or debit a user account balance.', 1, 'admin', 20],
         ['finance.create_misc_payment', 'finance', 'Send miscellaneous payment request', 'Email a recipient a one-off Stripe payment request.', 1, 'admin', 25],
         ['memberships.change_logbook_rate', 'memberships', 'Change horse logbook rate', 'Change the annual horse logbook price or status.', 1, 'admin', 30],
         ['people.allocate_membership', 'people', 'Allocate membership', 'Grant an administrator-allocated membership.', 1, 'admin', 50],
@@ -38,6 +38,43 @@ function ensureAdminActionRestrictionsTable(?PDO $pdo): void
         VALUES (:action_key, :page_key, :label, :description, :restricted, :roles, :display_order)");
     foreach (defaultAdminActionRestrictions() as [$key, $page, $label, $description, $restricted, $roles, $order]) {
         $stmt->execute([':action_key'=>$key, ':page_key'=>$page, ':label'=>$label, ':description'=>$description, ':restricted'=>$restricted, ':roles'=>$roles, ':display_order'=>$order]);
+    }
+}
+
+function ensureAdminAuditLogTable(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        actor_user_id INT UNSIGNED NULL,
+        action_key VARCHAR(100) NOT NULL,
+        target_type VARCHAR(64) NOT NULL DEFAULT '',
+        target_id VARCHAR(100) NOT NULL DEFAULT '',
+        detail_json JSON NULL,
+        ip_address VARCHAR(64) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_admin_audit_created (created_at),
+        INDEX idx_admin_audit_actor (actor_user_id, created_at),
+        INDEX idx_admin_audit_action (action_key, created_at)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+}
+
+function adminAuditLog(?PDO $pdo, string $actionKey, ?array $actor = null, string $targetType = '', string|int $targetId = '', array $detail = []): void
+{
+    if (!$pdo) return;
+    try {
+        ensureAdminAuditLogTable($pdo);
+        $stmt = $pdo->prepare('INSERT INTO admin_audit_log (actor_user_id, action_key, target_type, target_id, detail_json, ip_address) VALUES (:actor, :action, :target_type, :target_id, :detail, :ip)');
+        $stmt->execute([
+            ':actor' => !empty($actor['id']) ? (int)$actor['id'] : null,
+            ':action' => substr($actionKey, 0, 100),
+            ':target_type' => substr($targetType, 0, 64),
+            ':target_id' => substr((string)$targetId, 0, 100),
+            ':detail' => $detail ? json_encode($detail, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+            ':ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64) ?: null,
+        ]);
+    } catch (Throwable $e) {
+        error_log('Admin audit log failure: ' . $e->getMessage());
     }
 }
 

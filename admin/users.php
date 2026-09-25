@@ -9,6 +9,8 @@ ensureDevTaskTables($pdo);
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageUsers = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
+$canManageRolesAndPasswords = $currentRole === 'superadmin';
+$canImpersonateUsers = in_array($currentRole, ['superadmin', 'admin'], true);
 if (!$canManageUsers) {
     header('Location: index.php');
     exit;
@@ -76,18 +78,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $userId = (int)($_POST['user_id'] ?? 0);
             $role = $_POST['role'] ?? '';
             $level = (int)($_POST['level'] ?? 0);
-            if ($userId > 0 && updateUserRoleAndLevel($pdo, $userId, $role, $level, $alerts)) {
+            if (!$canManageRolesAndPasswords) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Only SuperAdmins can change user roles.'];
+            } elseif ($userId > 0 && updateUserRoleAndLevel($pdo, $userId, $role, $level, $alerts)) {
+                adminAuditLog($pdo, 'users.change_role', $currentUser, 'user', $userId, ['new_role'=>$role]);
                 $successMessage = 'User role updated.';
             }
         } elseif ($action === 'reset_password') {
             $userId = (int)($_POST['user_id'] ?? 0);
             $newPassword = (string)($_POST['new_password'] ?? '');
-            if ($userId > 0 && resetUserPassword($pdo, $userId, $newPassword, $alerts)) {
+            if (!$canManageRolesAndPasswords) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Only SuperAdmins can reset passwords.'];
+            } elseif ($userId > 0 && resetUserPassword($pdo, $userId, $newPassword, $alerts)) {
+                adminAuditLog($pdo, 'users.reset_password', $currentUser, 'user', $userId);
                 $successMessage = 'Password reset.';
             }
         } elseif ($action === 'act_as') {
             $targetUserId = (int)($_POST['user_id'] ?? 0);
-            if ($targetUserId <= 0) {
+            if (!$canImpersonateUsers) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Only SuperAdmins and Admins can impersonate standard users.'];
+            } elseif ($targetUserId <= 0) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Invalid user.'];
             } elseif ((int)($currentUser['id'] ?? 0) === $targetUserId) {
                 $alerts[] = ['type' => 'warning', 'message' => 'You are already signed in as this user.'];
@@ -104,13 +114,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $target = $stmt->fetch();
                     if (!$target) {
                         $alerts[] = ['type' => 'danger', 'message' => 'User not found.'];
-                    } elseif (strtolower((string)($target['role'] ?? '')) === 'superadmin') {
-                        $alerts[] = ['type' => 'danger', 'message' => 'You cannot act as a SuperAdmin user.'];
+                    } elseif (strtolower((string)($target['role'] ?? '')) !== 'user') {
+                        $alerts[] = ['type' => 'danger', 'message' => 'You can only act as a standard user.'];
                     } else {
                         // Store the real admin user, then switch the session user to the target.
                         // Admin area is blocked while acting-as (see `admin/_bootstrap.php`).
                         $_SESSION['act_as_original_user'] = $_SESSION['user'] ?? $currentUser;
                         $_SESSION['act_as_started_at'] = time();
+                        adminAuditLog($pdo, 'users.impersonation_start', $currentUser, 'user', $targetUserId, ['target_email'=>(string)$target['email']]);
                         $target['level'] = (int)($target['level'] ?? 0);
                         $_SESSION['user'] = $target;
                         $_SESSION['flash_success'] = 'Now acting as ' . ($target['email'] ?? 'user') . '.';
