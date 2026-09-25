@@ -4,6 +4,24 @@ declare(strict_types=1);
 // Public and admin dates use UK local time, including daylight-saving changes.
 date_default_timezone_set('Europe/London');
 
+// Set cookie policy before the session starts. TLS is commonly terminated by a
+// reverse proxy, so honour its forwarded protocol as well as PHP's HTTPS flag.
+$forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+$isHttpsRequest = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (string)($_SERVER['SERVER_PORT'] ?? '') === '443'
+    || $forwardedProto === 'https';
+ini_set('session.use_only_cookies', '1');
+ini_set('session.use_strict_mode', '1');
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.cookie_secure', $isHttpsRequest ? '1' : '0');
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => $isHttpsRequest,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 
 if (isset($_GET['clear_sql_errors'])) {
