@@ -2,10 +2,10 @@
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 
-if ($currentRole !== 'superadmin') {
+if (!roleIsDeveloper($currentRole)) {
     http_response_code(403);
     admin_layout_start('Ride Results', 'events');
-    echo '<div class="alert alert-danger">Ride results entry is currently available to Super Admins only.</div>';
+    echo '<div class="alert alert-danger">Ride results entry is currently available to Developer users only.</div>';
     admin_layout_end();
     exit;
 }

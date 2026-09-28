@@ -1250,7 +1250,7 @@ function updateUserRoleAndLevel(?PDO $pdo, int $userId, string $role, int $level
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return false;
     }
-    $allowedRoles = ['superadmin', 'admin', 'manager', 'organiser', 'user'];
+    $allowedRoles = ['developer', 'superadmin', 'admin', 'manager', 'organiser', 'user'];
     if (!in_array($role, $allowedRoles, true)) {
         $alerts[] = ['type' => 'danger', 'message' => 'Invalid role selected.'];
         return false;

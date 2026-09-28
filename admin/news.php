@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/_bootstrap.php'; require_once __DIR__.'/table_sort.php';
-if(!in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin','manager','organiser'],true)){header('Location:index.php');exit;}
+if(!roleCanAccessAdmin((string)($currentUser['role']??''))){header('Location:index.php');exit;}
 ensureNewsTables($pdo);
 if($_SERVER['REQUEST_METHOD']==='POST'&&($_POST['action']??'')==='delete'){$id=(int)($_POST['id']??0);if($id>0){$pdo->prepare('DELETE FROM news_content_sections WHERE news_id=:id')->execute([':id'=>$id]);$pdo->prepare('DELETE FROM news_articles WHERE id=:id')->execute([':id'=>$id]);}header('Location:news.php');exit;}
 $newsRows=fetchNewsArticles($pdo);$creatorOptions=[];foreach($newsRows as $newsRow){$creator=(string)($newsRow['creator_name']?:($newsRow['creator_email']??''));if($creator!=='')$creatorOptions[$creator]=$creator;}natcasesort($creatorOptions);

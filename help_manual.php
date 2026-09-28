@@ -3,11 +3,11 @@ declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
 
 $role = strtolower((string)($currentUser['role'] ?? ''));
-if (!in_array($role, ['superadmin', 'admin', 'manager', 'organiser'], true)) {
+if (!roleCanAccessAdmin($role)) {
     header('Location: account');
     exit;
 }
-$canEditHelpArticles = in_array($role, ['superadmin', 'admin'], true) || (int)($currentUser['level'] ?? 0) >= 4;
+$canEditHelpArticles = in_array($role, ['developer', 'superadmin', 'admin'], true) || (int)($currentUser['level'] ?? 0) >= 4;
 
 ensureHelpTables($pdo);
 $stmt = $pdo->prepare("SELECT a.*, g.name AS group_name, g.description AS group_description, g.display_order AS group_order
@@ -80,6 +80,7 @@ foreach ($articles as $article) {
                                 4 => ['M', 'Manager', 'manager'],
                                 5 => ['A', 'Admin', 'admin'],
                                 6 => ['S', 'Super Admin', 'superadmin'],
+                                7 => ['D', 'Developer', 'developer'],
                             ];
                             $audiencePill = $audiencePills[(int)($article['min_user_level'] ?? 0)] ?? null;
                         ?>

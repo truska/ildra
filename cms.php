@@ -4567,6 +4567,23 @@ function fetchHorseLogbookTypes(?PDO $pdo, bool $publishedOnly = false): array
     }
 }
 
+/** Horse logbooks renew on the same configured rollover date as memberships. */
+function horse_logbook_purchase_year(array $settings = [], ?DateTimeInterface $date = null): int
+{
+    return membership_purchase_year($settings, $date);
+}
+
+/** Return the one published logbook product that may be bought today. */
+function fetchPurchasableHorseLogbookType(?PDO $pdo, array $settings = [], ?DateTimeInterface $date = null): ?array
+{
+    if (!$pdo) return null;
+    ensureHorseLogbookTables($pdo);
+    $year = horse_logbook_purchase_year($settings, $date);
+    $stmt = $pdo->prepare("SELECT * FROM horse_logbook_types WHERE status = 'published' AND valid_year = :year ORDER BY id ASC LIMIT 1");
+    $stmt->execute([':year' => $year]);
+    return $stmt->fetch() ?: null;
+}
+
 function fetchHorseLogbookTypeById(?PDO $pdo, int $id): ?array
 {
     if ($id <= 0) {
@@ -4585,18 +4602,34 @@ function fetchHorseLogbookTypeById(?PDO $pdo, int $id): ?array
     }
 }
 
-function calc_logbook_status(array $row): string
+function calc_logbook_status(array $row, array $settings = [], ?DateTimeInterface $date = null): string
 {
     $status = strtolower((string)($row['status'] ?? 'active'));
     $status = in_array($status, ['active', 'pending', 'expired'], true) ? $status : 'active';
     $validYear = (int)($row['valid_year'] ?? 0);
     if ($validYear > 0) {
-        $currentYear = (int)date('Y');
-        if ($validYear < $currentYear) return 'expired';
-        if ($validYear > $currentYear) return 'pending';
+        $requiredYear = horse_logbook_purchase_year($settings, $date);
+        if ($validYear < $requiredYear) return 'expired';
+        if ($validYear > $requiredYear) return 'pending';
         return 'active';
     }
     return $status;
+}
+
+function horse_logbook_renewal_state(array $logbooks, array $settings = [], ?DateTimeInterface $date = null): array
+{
+    $requiredYear = horse_logbook_purchase_year($settings, $date);
+    $hasCurrent = false;
+    $futureYear = 0;
+    foreach ($logbooks as $logbook) {
+        $year = (int)($logbook['valid_year'] ?? 0);
+        $status = strtolower((string)($logbook['status'] ?? ''));
+        if ($year === $requiredYear && in_array($status, ['active', 'pending'], true)) $hasCurrent = true;
+        if ($year > $requiredYear && ($futureYear === 0 || $year < $futureYear)) $futureYear = $year;
+    }
+    if ($hasCurrent) return ['class'=>'text-success','icon'=>'fa-solid fa-circle-check','label'=>'Valid','title'=>'Logbook valid for ' . $requiredYear,'action_label'=>'Current Logbook','action_enabled'=>false,'action_title'=>'Already valid for ' . $requiredYear . '.'];
+    if ($futureYear > 0) return ['class'=>'text-warning','icon'=>'fa-solid fa-clock','label'=>$futureYear . ' renewal purchased','title'=>'A future logbook has been purchased, but a ' . $requiredYear . ' logbook is still required.','action_label'=>'Register / Renew','action_enabled'=>true,'action_title'=>'Buy the ' . $requiredYear . ' logbook.'];
+    return ['class'=>'text-danger','icon'=>'fa-solid fa-circle-xmark','label'=>'No logbook','title'=>'No logbook has been purchased for ' . $requiredYear . '.','action_label'=>'Register / Renew','action_enabled'=>true,'action_title'=>'Buy the ' . $requiredYear . ' logbook.'];
 }
 
 function saveHorseLogbookPurchase(?PDO $pdo, array $data, array &$alerts): bool
@@ -4614,6 +4647,12 @@ function saveHorseLogbookPurchase(?PDO $pdo, array $data, array &$alerts): bool
 
     if ($horseId <= 0 || $typeId <= 0 || $validYear < 2000 || $validYear > 2100) {
         $alerts[] = ['type' => 'danger', 'message' => 'Horse, logbook type and year are required.'];
+        return false;
+    }
+    $type = fetchHorseLogbookTypeById($pdo, $typeId);
+    $requiredYear = horse_logbook_purchase_year(getSiteSettings($pdo));
+    if (!$type || strtolower((string)($type['status'] ?? '')) !== 'published' || (int)($type['valid_year'] ?? 0) !== $requiredYear || $validYear !== $requiredYear) {
+        $alerts[] = ['type' => 'danger', 'message' => 'This horse logbook is not available for the current renewal year.'];
         return false;
     }
     if (!in_array($status, ['active', 'expired', 'pending'], true)) {
@@ -4664,8 +4703,9 @@ function fetchHorseLogbooksForUser(?PDO $pdo, int $ownerUserId): array
     ");
     $stmt->execute([':uid' => $ownerUserId]);
     $rows = $stmt->fetchAll() ?: [];
+    $settings = getSiteSettings($pdo);
     foreach ($rows as &$row) {
-        $row['status'] = calc_logbook_status($row);
+        $row['status'] = calc_logbook_status($row, $settings);
     }
     return $rows;
 }
@@ -5808,7 +5848,7 @@ function fetchEligibleEventOrganisers(?PDO $pdo): array
             SELECT u.id, u.email, u.first_name, u.last_name, r.name AS role, r.level AS level
             FROM users u
             JOIN roles r ON r.id = u.role_id
-            WHERE LOWER(r.name) IN ('organiser', 'manager', 'admin', 'superadmin')
+            WHERE LOWER(r.name) IN ('organiser', 'manager', 'admin', 'superadmin', 'developer')
             ORDER BY COALESCE(NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), u.email) ASC, u.id ASC
         ");
         return $stmt->fetchAll() ?: [];
@@ -5828,7 +5868,7 @@ function fetchEligibleEventOrganiserById(?PDO $pdo, int $userId): ?array
             FROM users u
             JOIN roles r ON r.id = u.role_id
             WHERE u.id = :id
-              AND LOWER(r.name) IN ('organiser', 'manager', 'admin', 'superadmin')
+              AND LOWER(r.name) IN ('organiser', 'manager', 'admin', 'superadmin', 'developer')
             LIMIT 1
         ");
         $stmt->execute([':id' => $userId]);

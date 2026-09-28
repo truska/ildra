@@ -70,8 +70,8 @@ foreach (NAV_GROUPS as $groupKey => $_groupLabel) {
     }
 }
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
-$canEditPublicPages = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin'], true);
+$canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
+$canEditPublicPages = in_array(strtolower((string)($currentUser['role'] ?? '')), ['developer', 'superadmin', 'admin'], true);
 $pageFromList = null;
 if ($pathSlug !== '') {
     foreach ($pages as $candidate) {

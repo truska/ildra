@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
 
-if (strtolower((string)($currentUser['role'] ?? '')) !== 'superadmin') {
+if (!roleIsSuperadminOrDeveloper((string)($currentUser['role'] ?? ''))) {
     header('Location: index.php');
     exit;
 }

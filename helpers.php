@@ -395,6 +395,7 @@ function class_names_from_classes_offered($classesRaw): array
 function roleToLevel(string $role): int
 {
     return match ($role) {
+        'developer' => 7,
         'superadmin' => 6,
         'admin' => 5,
         'manager' => 4,
@@ -402,6 +403,22 @@ function roleToLevel(string $role): int
         'user' => 1,
         default => 0,
     };
+}
+
+/** A Developer is the technical owner role and inherits SuperAdmin access. */
+function roleIsDeveloper(string $role): bool
+{
+    return strtolower(trim($role)) === 'developer';
+}
+
+function roleIsSuperadminOrDeveloper(string $role): bool
+{
+    return in_array(strtolower(trim($role)), ['developer', 'superadmin'], true);
+}
+
+function roleCanAccessAdmin(string $role): bool
+{
+    return in_array(strtolower(trim($role)), ['developer', 'superadmin', 'admin', 'manager', 'organiser'], true);
 }
 
 function entry_components_summary(array $metadata): string

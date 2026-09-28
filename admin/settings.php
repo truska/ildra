@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 
 $settingsRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageCampaignEmail = in_array($settingsRole, ['superadmin', 'admin'], true);
+$canManageCampaignEmail = in_array($settingsRole, ['developer', 'superadmin', 'admin'], true);
 $siteSettings = getSiteSettings($pdo);
 $companySocials = fetchCompanySocials($pdo);
 $companyAffiliates = fetchCompanyAffiliates($pdo);

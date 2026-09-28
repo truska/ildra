@@ -22,7 +22,7 @@ if (!$pages) {
 }
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 $basketCount = count($_SESSION['basket'] ?? []);
 $navItemEventsUrl = $basePath . '/events';
 

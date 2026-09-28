@@ -6,7 +6,7 @@ require_once __DIR__ . '/table_sort.php';
 require_once __DIR__ . '/../bookings_store.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageFinance = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
+$canManageFinance = in_array($currentRole, ['developer', 'superadmin', 'admin', 'manager'], true);
 $paymentReturnEventId=max(0,(int)($_GET['payment_return_event_id']??$_POST['payment_return_event_id']??0));
 $entryPaymentRequestFlow=$currentRole==='organiser'&&$paymentReturnEventId>0;
 if (!$canManageFinance && !$entryPaymentRequestFlow) {
@@ -718,7 +718,7 @@ admin_layout_start('Finance', 'finance');
                         <td class="text-end">
                             <div class="finance-events-actions">
                                 <a class="btn btn-sm btn-outline-success" href="finance_event.php?event_id=<?php echo $eventId; ?>">View</a>
-                                <?php if ($canCreatePayout): ?><button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#collectStripeModal" data-event-id="<?php echo $eventId; ?>" data-event-title="<?php echo h($event['title'] ?? 'Untitled'); ?>" data-descriptor="<?php echo h($statementDescriptor); ?>" data-event-max="<?php echo h(number_format($remaining,2,'.','')); ?>" data-paid="<?php echo h(number_format($paidOut,2,'.','')); ?>" <?php echo !$stripeIsTest||!in_array($currentRole,['superadmin','admin'],true)?'disabled':''; ?>>Collect from Stripe</button><?php endif; ?>
+                                <?php if ($canCreatePayout): ?><button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#collectStripeModal" data-event-id="<?php echo $eventId; ?>" data-event-title="<?php echo h($event['title'] ?? 'Untitled'); ?>" data-descriptor="<?php echo h($statementDescriptor); ?>" data-event-max="<?php echo h(number_format($remaining,2,'.','')); ?>" data-paid="<?php echo h(number_format($paidOut,2,'.','')); ?>" <?php echo !$stripeIsTest||!in_array($currentRole,['developer','superadmin','admin'],true)?'disabled':''; ?>>Collect from Stripe</button><?php endif; ?>
                             </div>
                         </td>
                     </tr>

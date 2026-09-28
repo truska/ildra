@@ -4,8 +4,8 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
-$canAdmin = in_array(($currentUser['role'] ?? ''), ['superadmin', 'admin', 'manager'], true);
-$canManageLogbookRate = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin'], true);
+$canAdmin = in_array(($currentUser['role'] ?? ''), ['developer', 'superadmin', 'admin', 'manager'], true);
+$canManageLogbookRate = in_array(strtolower((string)($currentUser['role'] ?? '')), ['developer', 'superadmin', 'admin'], true);
 $canManageLogbookRate = $canManageLogbookRate && adminActionAllowed($pdo, 'memberships.change_logbook_rate', strtolower((string)($currentUser['role'] ?? '')));
 if (empty($_SESSION['logbook_rate_csrf'])) $_SESSION['logbook_rate_csrf'] = bin2hex(random_bytes(24));
 $logbookRateCsrf = (string)$_SESSION['logbook_rate_csrf'];

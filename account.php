@@ -62,7 +62,7 @@ $accountSectionLabels = [
 ];
 $isAccountManagementView = isset($accountSectionLabels[$accountView]);
 $accountSectionTitle = $accountSectionLabels[$accountView] ?? 'Account Overview';
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 $basket = $_SESSION['basket'] ?? [];
 $basketCount = count($basket);
 $recentBookings = [];
@@ -383,8 +383,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
         } elseif ($action === 'add_logbook') {
             $typeId = (int)($_POST['logbook_type_id'] ?? 0);
-            $logbookType = fetchHorseLogbookTypeById($pdo, $typeId);
-            if (!$logbookType || strtolower((string)($logbookType['status'] ?? '')) !== 'published') {
+            $logbookType = fetchPurchasableHorseLogbookType($pdo, $siteSettings);
+            if (!$logbookType || (int)$logbookType['id'] !== $typeId) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Logbook type not available.'];
             } else {
                 $horseId = (int)($_POST['horse_id'] ?? 0);
@@ -1569,16 +1569,12 @@ $accountIntroAutoOpen = false;
                                 foreach ($horseQualifications as $hq) {
                                     $horseQualificationLookup[(int)($hq['id'] ?? 0)] = (string)($hq['name'] ?? '');
                                 }
-                                $logbookTypes = fetchHorseLogbookTypes($pdo, true);
-                                $logbookType = $logbookTypes ? $logbookTypes[0] : null;
+                                $logbookType = fetchPurchasableHorseLogbookType($pdo, $siteSettings);
                                 $logbooks = fetchHorseLogbooksForUser($pdo, $userId);
-                                $horseRegisteredYear = [];
+                                $horseLogbooksByHorse = [];
                                 foreach ($logbooks as $horseLogbook) {
                                     $registeredHorseId = (int)($horseLogbook['horse_id'] ?? 0);
-                                    $registeredYear = (int)($horseLogbook['valid_year'] ?? 0);
-                                    if ($registeredHorseId > 0 && $registeredYear > ($horseRegisteredYear[$registeredHorseId] ?? 0)) {
-                                        $horseRegisteredYear[$registeredHorseId] = $registeredYear;
-                                    }
+                                    if ($registeredHorseId > 0) $horseLogbooksByHorse[$registeredHorseId][] = $horseLogbook;
                                 }
                                 ?>
 
@@ -1613,8 +1609,7 @@ $accountIntroAutoOpen = false;
                                                 <?php endif; ?>
 	                                                <?php foreach ($activeHorses as $h): ?>
                                                     <?php
-                                                    $horseRegistrationYear = (int)($horseRegisteredYear[(int)$h['id']] ?? 0);
-                                                    $logbookStatus = annual_renewal_state($horseRegistrationYear, 'Logbook', 'Register / Renew', 'Register / Renew');
+                                                    $logbookStatus = horse_logbook_renewal_state($horseLogbooksByHorse[(int)$h['id']] ?? [], $siteSettings);
                                                     $horseLogbookActionEnabled = !empty($logbookStatus['action_enabled']);
                                                     ?>
                                                     <tr class="horse-data-row">
@@ -1630,7 +1625,7 @@ $accountIntroAutoOpen = false;
                                                         <td class="small">
                                                             <span class="<?php echo h($logbookStatus['class']); ?> d-inline-flex align-items-center gap-1" title="<?php echo h($logbookStatus['title']); ?>">
                                                                 <i class="<?php echo h($logbookStatus['icon']); ?>" aria-hidden="true"></i>
-                                                                <span class="visually-hidden"><?php echo h($logbookStatus['label']); ?></span>
+                                                                <span class="small"><?php echo h($logbookStatus['label']); ?></span>
                                                             </span>
                                                         </td>
                                                         <td class="text-end horse-actions-column">
@@ -1713,7 +1708,7 @@ $accountIntroAutoOpen = false;
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($archivedHorses as $h): ?>
-                                                        <?php $archivedLogbookStatus = annual_renewal_state((int)($horseRegisteredYear[(int)$h['id']] ?? 0), 'Logbook', 'Register / Renew', 'Register / Renew'); ?>
+                                                        <?php $archivedLogbookStatus = horse_logbook_renewal_state($horseLogbooksByHorse[(int)$h['id']] ?? [], $siteSettings); ?>
                                                         <tr class="text-muted">
                                                             <td><?php echo h($h['name'] ?? ''); ?></td>
                                                             <td class="small"><?php echo h($h['year_of_birth'] ?? '—'); ?></td>

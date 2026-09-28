@@ -3,7 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
-$isAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin'], true) || (int)($currentUser['level'] ?? 0) >= 4;
+$isAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['developer', 'superadmin', 'admin'], true) || (int)($currentUser['level'] ?? 0) >= 4;
 $editId = (int)($_GET['edit'] ?? 0);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$isAdmin) $alerts[]=['type'=>'danger','message'=>'Only admins can manage Event Types.'];

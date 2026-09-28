@@ -88,7 +88,7 @@ function fetchAdminActionRestrictions(?PDO $pdo): array
 function adminActionAllowed(?PDO $pdo, string $actionKey, string $role): bool
 {
     $role = strtolower(trim($role));
-    if ($role === 'superadmin') return true; // SuperAdmin retains recovery access.
+    if (roleIsSuperadminOrDeveloper($role)) return true; // Technical owner and SuperAdmin retain recovery access.
     if (!$pdo || $actionKey === '') return true;
     ensureAdminActionRestrictionsTable($pdo);
     $stmt = $pdo->prepare('SELECT is_restricted, allowed_roles FROM admin_action_restrictions WHERE action_key = :action_key LIMIT 1');

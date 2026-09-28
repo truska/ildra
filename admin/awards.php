@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php'; require_once __DIR__ . '/table_sort.php';
-if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin','admin','manager'], true)) { header('Location:index.php'); exit; }
+if (!in_array(strtolower((string)($currentUser['role'] ?? '')), ['developer','superadmin','admin','manager'], true)) { header('Location:index.php'); exit; }
 ensureAwardsTables($pdo);
 if(empty($_SESSION['awards_list_csrf']))$_SESSION['awards_list_csrf']=bin2hex(random_bytes(24));
 $csrf=(string)$_SESSION['awards_list_csrf'];

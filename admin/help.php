@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
-$isAdmin=in_array(strtolower((string)($currentUser['role']??'')),['superadmin','admin','manager'],true);
+$isAdmin=in_array(strtolower((string)($currentUser['role']??'')),['developer','superadmin','admin','manager'],true);
 if(!$isAdmin){header('Location: index.php');exit;}
 ensureHelpTables($pdo);
 $view=(string)($_GET['view']??'articles');

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
-if (strtolower((string)($currentUser['role'] ?? '')) !== 'superadmin') { header('Location: index.php'); exit; }
+if (!roleIsSuperadminOrDeveloper((string)($currentUser['role'] ?? ''))) { header('Location: index.php'); exit; }
 
 function access_review_action_label(string $action): string {
     return ucwords(str_replace(['_', '-'], ' ', $action));

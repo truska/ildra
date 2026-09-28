@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-if (!in_array($currentRole, ['superadmin', 'admin', 'manager'], true)) {
+if (!in_array($currentRole, ['developer', 'superadmin', 'admin', 'manager'], true)) {
     header('Location: index.php');
     exit;
 }
@@ -30,7 +30,7 @@ if (!$person) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'allocate_membership') {
     $typeId = (int)($_POST['membership_type_id'] ?? 0);
-    $canAllocateMembership = in_array($currentRole, ['superadmin', 'admin'], true) && adminActionAllowed($pdo, 'people.allocate_membership', $currentRole);
+    $canAllocateMembership = in_array($currentRole, ['developer', 'superadmin', 'admin'], true) && adminActionAllowed($pdo, 'people.allocate_membership', $currentRole);
     $type = $canAllocateMembership ? fetchMembershipTypeById($pdo, $typeId) : null;
     if (!hash_equals($personMembershipCsrf, (string)($_POST['csrf'] ?? '')) || !$type || empty($type['admin_allocation_only'])) {
         $alerts[] = ['type' => 'danger', 'message' => 'Choose an administrator-allocated membership type.'];
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'alloc
 }
 
 admin_layout_start('Edit person', 'people');
-$canAllocateMembership = in_array($currentRole, ['superadmin', 'admin'], true) && adminActionAllowed($pdo, 'people.allocate_membership', $currentRole);
+$canAllocateMembership = in_array($currentRole, ['developer', 'superadmin', 'admin'], true) && adminActionAllowed($pdo, 'people.allocate_membership', $currentRole);
 $allocationTypes = $canAllocateMembership ? array_values(array_filter(fetchMembershipTypes($pdo, false), static fn(array $type): bool => !empty($type['admin_allocation_only']))) : [];
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">

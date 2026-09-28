@@ -5,7 +5,7 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageHorses = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
+$canManageHorses = in_array($currentRole, ['developer', 'superadmin', 'admin', 'manager'], true);
 if (!$canManageHorses) {
     header('Location: index.php');
     exit;
@@ -13,6 +13,7 @@ if (!$canManageHorses) {
 
 ensureHorsesTables($pdo);
 ensureHorseLogbookTables($pdo);
+$siteSettings = getSiteSettings($pdo);
 
 $globalHorseId = 1;
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'save_global_horse') {
@@ -50,7 +51,7 @@ if ($pdo) {
     ");
     $rows = $stmt->fetchAll() ?: [];
     foreach ($rows as &$row) {
-        $row['logbook_status_display'] = empty($row['logbook_year']) ? 'none' : calc_logbook_status(['valid_year'=>$row['logbook_year'], 'status'=>$row['logbook_status']]);
+        $row['logbook_status_display'] = empty($row['logbook_year']) ? 'none' : calc_logbook_status(['valid_year'=>$row['logbook_year'], 'status'=>$row['logbook_status']], $siteSettings);
     }
     unset($row);
     $stmt = $pdo->prepare('SELECT id,name,is_archived,updated_at FROM horses WHERE id=:id LIMIT 1');

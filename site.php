@@ -25,7 +25,7 @@ $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 $aboutIldra = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-ildra'));
 $aboutEndurance = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-endurance'));
 $eventsByDate = array_slice($events, 0, 5);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 $isLoggedIn = !empty($currentUser);
 
 function page_url(array $page): string

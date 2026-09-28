@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
 
-$isAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$isAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 if (!$isAdmin) {
     header('Location: index.php');
     exit;

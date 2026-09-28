@@ -5,7 +5,7 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $role = strtolower((string)($currentUser['role'] ?? ''));
-if (!in_array($role, ['superadmin', 'admin', 'manager'], true)) {
+if (!in_array($role, ['developer', 'superadmin', 'admin', 'manager'], true)) {
     header('Location: index.php');
     exit;
 }

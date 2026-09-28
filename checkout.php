@@ -15,7 +15,7 @@ if (!$pages) {
 }
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 $basketCount = count($basket);
 
 // Option A policy: checkout requires login.
@@ -83,6 +83,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
 
     if ($contactName === '' || $contactEmail === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Contact name and email are required.'];
+    }
+
+    if (!$alerts) {
+        $requiredLogbookYear = horse_logbook_purchase_year(getSiteSettings($pdo));
+        $purchasableLogbookType = fetchPurchasableHorseLogbookType($pdo, getSiteSettings($pdo));
+        $logbookKeys = [];
+        foreach ($basket as $basketItem) {
+            if (($basketItem['booking_type'] ?? '') !== 'horse_logbook') continue;
+            $typeId = (int)($basketItem['logbook_type_id'] ?? 0);
+            $horseId = (int)($basketItem['horse_id'] ?? 0);
+            $year = (int)($basketItem['logbook_year'] ?? 0);
+            $logbookKey = $horseId . ':' . $year;
+            $horse = $horseId > 0 ? fetchHorseForUserById($pdo, (int)$userId, $horseId) : null;
+            if (isset($logbookKeys[$logbookKey]) || !$purchasableLogbookType || $typeId !== (int)$purchasableLogbookType['id'] || $year !== $requiredLogbookYear || !$horse || !empty($horse['is_linked']) || horse_has_logbook_for_year($pdo, $horseId, $year)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'A horse logbook in your basket is no longer available for the current renewal year. Please remove it and choose the available logbook again.'];
+                break;
+            }
+            $logbookKeys[$logbookKey] = true;
+        }
     }
 
     $useCredit = (string)($_POST['use_credit'] ?? '1') !== '0';
@@ -294,15 +313,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                         continue;
                     }
                     $logbookType = fetchHorseLogbookTypeById($pdo, $typeId);
-                    if (!$logbookType) {
-                        continue;
+                    $purchasableLogbookType = fetchPurchasableHorseLogbookType($pdo, getSiteSettings($pdo));
+                    $requiredLogbookYear = horse_logbook_purchase_year(getSiteSettings($pdo));
+                    $horse = fetchHorseForUserById($pdo, (int)$userId, $horseId);
+                    if (!$logbookType || !$purchasableLogbookType || (int)$purchasableLogbookType['id'] !== $typeId || $year !== $requiredLogbookYear || (int)($logbookType['valid_year'] ?? 0) !== $requiredLogbookYear || !$horse || !empty($horse['is_linked'])) {
+                        $alerts[] = ['type' => 'danger', 'message' => 'A horse logbook in your basket is no longer available for the current renewal year. Please remove it and choose the available logbook again.'];
+                        break;
                     }
                     saveHorseLogbookPurchase($pdo, [
                         'purchased_by_user_id' => (int)$userId,
                         'horse_id' => $horseId,
                         'logbook_type_id' => $typeId,
                         'valid_year' => $year,
-                        'amount' => $basketItem['price'] ?? '0',
+                        'amount' => $logbookType['cost'] ?? '0',
                         'status' => 'active',
                     ], $alerts);
                 }

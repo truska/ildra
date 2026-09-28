@@ -139,6 +139,9 @@ function fetchAdminMenuItems(?PDO $pdo, bool $activeOnly = true): array
 function adminMenuRoleAllowed(array $item, string $role): bool
 {
     $role = strtolower(trim($role));
+    if (roleIsDeveloper($role)) {
+        return true;
+    }
     $key = (string)($item['menu_key'] ?? '');
     $allowed = !empty($item['is_system'])
         ? adminMenuFixedRoles($key)
@@ -209,7 +212,7 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     $parentId = max(0, (int)($data['parent_id'] ?? 0));
     $displayOrder = (int)($data['display_order'] ?? 0);
     $isActive = !empty($data['is_active']) ? 1 : 0;
-    $roles = array_values(array_intersect(['superadmin', 'admin', 'manager', 'organiser'], (array)($data['required_roles'] ?? [])));
+    $roles = array_values(array_intersect(['developer', 'superadmin', 'admin', 'manager', 'organiser'], (array)($data['required_roles'] ?? [])));
 
     if ($label === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Menu label is required.'];

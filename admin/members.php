@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
-$canEditMemberships = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin'], true);
+$canEditMemberships = in_array(strtolower((string)($currentUser['role'] ?? '')), ['developer', 'superadmin', 'admin'], true);
 if (empty($_SESSION['membership_purchase_csrf'])) $_SESSION['membership_purchase_csrf'] = bin2hex(random_bytes(24));
 $membershipPurchaseCsrf = (string)$_SESSION['membership_purchase_csrf'];
 ensureMembershipTables($pdo);

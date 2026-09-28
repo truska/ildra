@@ -8,9 +8,9 @@ ensureDevTaskTables($pdo);
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageUsers = in_array($currentRole, ['superadmin', 'admin', 'manager'], true);
-$canManageRolesAndPasswords = $currentRole === 'superadmin';
-$canImpersonateUsers = in_array($currentRole, ['superadmin', 'admin'], true);
+$canManageUsers = in_array($currentRole, ['developer', 'superadmin', 'admin', 'manager'], true);
+$canManageRolesAndPasswords = roleIsSuperadminOrDeveloper($currentRole);
+$canImpersonateUsers = in_array($currentRole, ['developer', 'superadmin', 'admin'], true);
 if (!$canManageUsers) {
     header('Location: index.php');
     exit;
@@ -80,6 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $level = (int)($_POST['level'] ?? 0);
             if (!$canManageRolesAndPasswords) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Only SuperAdmins can change user roles.'];
+            } elseif ($role === 'developer' && !roleIsDeveloper($currentRole)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Only a Developer can assign the Developer role.'];
             } elseif ($userId > 0 && updateUserRoleAndLevel($pdo, $userId, $role, $level, $alerts)) {
                 adminAuditLog($pdo, 'users.change_role', $currentUser, 'user', $userId, ['new_role'=>$role]);
                 $successMessage = 'User role updated.';
@@ -151,7 +153,7 @@ $filterForm='user-filter-form';
 $tableColumns=[
     'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name','form'=>$filterForm,'value'=>static fn(array $r):string=>trim((string)($r['first_name']??'').' '.(string)($r['last_name']??''))],
     'email'=>['label'=>'Email','sortable'=>true,'filter'=>'text','placeholder'=>'Search email','form'=>$filterForm,'data_type'=>'email'],
-    'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['superadmin'=>'SuperAdmin','admin'=>'Admin','manager'=>'Manager','organiser'=>'Organiser','user'=>'User']],
+    'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['developer'=>'Developer','superadmin'=>'SuperAdmin','admin'=>'Admin','manager'=>'Manager','organiser'=>'Organiser','user'=>'User']],
     'last_login'=>['label'=>'Last login','field'=>'last_login_at','sortable'=>true,'filter'=>'text','placeholder'=>'Search last login','form'=>$filterForm],
     'actions'=>['label'=>'Actions'],
 ];
@@ -200,6 +202,7 @@ admin_layout_start('Users', 'users');
                                 <input type="hidden" name="action" value="update_user">
                                 <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
                                 <select name="role" class="form-select form-select-sm" style="width: 180px;">
+                                    <?php if (roleIsDeveloper($currentRole)): ?><option value="developer" <?php echo ($userRow['role'] === 'developer') ? 'selected' : ''; ?>>Developer</option><?php endif; ?>
                                     <option value="superadmin" <?php echo ($userRow['role'] === 'superadmin') ? 'selected' : ''; ?>>SuperAdmin</option>
                                     <option value="admin" <?php echo ($userRow['role'] === 'admin') ? 'selected' : ''; ?>>Admin</option>
                                     <option value="manager" <?php echo ($userRow['role'] === 'manager') ? 'selected' : ''; ?>>Manager</option>
@@ -219,7 +222,7 @@ admin_layout_start('Users', 'users');
                                 <input type="password" name="new_password" class="form-control form-control-sm" placeholder="New password" minlength="8" required>
                                 <button class="btn btn-sm btn-outline-secondary">Reset</button>
                             </form>
-                            <?php if (strtolower((string)($userRow['role'] ?? '')) !== 'superadmin'): ?>
+                            <?php if (!in_array(strtolower((string)($userRow['role'] ?? '')), ['developer', 'superadmin'], true)): ?>
                                 <form class="m-0" method="POST">
                                     <input type="hidden" name="action" value="act_as">
                                     <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">

@@ -8,7 +8,7 @@ $pages = fetchPages($pdo, true) ?: defaultPages();
 $navTree = buildNavTree($pages);
 $navItemEventsUrl = $basePath . '/events';
 $isLoggedIn = !empty($currentUser);
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 $basketCount = count($_SESSION['basket'] ?? []);
 $sessionId=trim((string)($_GET['session_id']??'')); $ok=false;
 if($sessionId!=='' && stripe_is_enabled(stripe_config($config))){$response=stripe_retrieve_checkout_session(stripe_config($config),$sessionId);if(!empty($response['ok']))$ok=miscPaymentComplete($pdo,(array)($response['data']??[]),$alerts);}

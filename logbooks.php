@@ -20,13 +20,14 @@ if (!$isLoggedIn) {
     header('Location: ' . $basePath . '/account');
     exit;
 }
-$canViewAdmin = in_array(strtolower((string)($currentUser['role'] ?? '')), ['superadmin', 'admin', 'manager', 'organiser'], true);
+$canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 $basketCount = count($basket);
 $horses = $isLoggedIn ? array_values(array_filter(
     fetchHorsesForUser($pdo, (int)($currentUser['id'] ?? 0)),
     static fn(array $horse): bool => empty($horse['is_linked'])
 )) : [];
-$logbookTypes = fetchHorseLogbookTypes($pdo, true);
+$purchasableLogbookType = fetchPurchasableHorseLogbookType($pdo, $siteSettings);
+$logbookTypes = $purchasableLogbookType ? [$purchasableLogbookType] : [];
 $preselectedHorseId = max(0, (int)($_GET['horse_id'] ?? 0));
 $preselectedHorse = null;
 foreach ($horses as $horse) {
@@ -61,8 +62,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     }
 
     $typeId = (int)($_POST['logbook_type_id'] ?? 0);
-    $logbookType = fetchHorseLogbookTypeById($pdo, $typeId);
-    if (!$logbookType || strtolower((string)($logbookType['status'] ?? '')) !== 'published') {
+    $logbookType = fetchPurchasableHorseLogbookType($pdo, $siteSettings);
+    if (!$logbookType || (int)$logbookType['id'] !== $typeId) {
         $alerts[] = ['type' => 'danger', 'message' => 'Logbook type not available.'];
     } else {
         $horseId = (int)($_POST['horse_id'] ?? 0);
