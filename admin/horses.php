@@ -12,6 +12,7 @@ if (!$canManageHorses) {
 }
 
 ensureHorsesTables($pdo);
+ensureHorseLogbookTables($pdo);
 
 $globalHorseId = 1;
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'save_global_horse') {
@@ -35,19 +36,23 @@ if ($pdo) {
             h.id,
             h.owner_user_id,
             h.name,
-            h.dob,
             h.year_of_birth,
             h.breed,
             h.colour,
             h.is_archived,
-            h.created_at,
-            u.email AS owner_email
+            u.email AS owner_email,
+            (SELECT hlp.valid_year FROM horse_logbook_purchases hlp WHERE hlp.horse_id = h.id ORDER BY hlp.valid_year DESC, hlp.id DESC LIMIT 1) AS logbook_year,
+            (SELECT hlp.status FROM horse_logbook_purchases hlp WHERE hlp.horse_id = h.id ORDER BY hlp.valid_year DESC, hlp.id DESC LIMIT 1) AS logbook_status
         FROM horses h
         LEFT JOIN users u ON u.id = h.owner_user_id
         WHERE h.id <> 1
         ORDER BY h.name ASC, h.id ASC
     ");
     $rows = $stmt->fetchAll() ?: [];
+    foreach ($rows as &$row) {
+        $row['logbook_status_display'] = empty($row['logbook_year']) ? 'none' : calc_logbook_status(['valid_year'=>$row['logbook_year'], 'status'=>$row['logbook_status']]);
+    }
+    unset($row);
     $stmt = $pdo->prepare('SELECT id,name,is_archived,updated_at FROM horses WHERE id=:id LIMIT 1');
     $stmt->execute([':id'=>$globalHorseId]);
     $globalHorse = $stmt->fetch() ?: null;
@@ -58,13 +63,14 @@ foreach($rows as$row){$owner=trim((string)($row['owner_email']??''));if($owner!=
 natcasesort($ownerOptions);$ownerOptions=['__none__'=>'No owner']+$ownerOptions;
 $tableColumns = [
     'name'=>['label'=>'Horse','sortable'=>true,'filter'=>'text','placeholder'=>'Search horse'],
-    'dob'=>['label'=>'DOB','sortable'=>true,'filter'=>'text','placeholder'=>'Search DOB','value'=>static fn(array $r):string=>format_display_date($r['dob']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['dob']??'')],
     'year_of_birth'=>['label'=>'Year of birth','filter'=>'text','placeholder'=>'Search year'],
     'breed'=>['label'=>'Breed','sortable'=>true,'filter'=>'text','placeholder'=>'Search breed'],
     'colour'=>['label'=>'Colour','sortable'=>true,'filter'=>'text','placeholder'=>'Search colour'],
     'owner'=>['label'=>'Owner (user)','sortable'=>true,'filter'=>'select','options'=>$ownerOptions,'value'=>static fn(array $r):string=>trim((string)($r['owner_email']??''))?:'__none__'],
+    'logbook_year'=>['label'=>'Logbook year','sortable'=>true,'filter'=>'text','placeholder'=>'Search year'],
+    'logbook_status'=>['label'=>'Logbook status','sortable'=>true,'filter'=>'select','options'=>['active'=>'Active','pending'=>'Pending','expired'=>'Expired','none'=>'None'],'value'=>static fn(array $r):string=>(string)($r['logbook_status_display']??'none')],
     'status'=>['label'=>'Status','sortable'=>true,'filter'=>'select','options'=>['active'=>'Active','archived'=>'Archived'],'value'=>static fn(array $r):string=>!empty($r['is_archived'])?'archived':'active'],
-    'created'=>['label'=>'Created','sortable'=>true,'filter'=>'text','placeholder'=>'Search created','value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['created_at']??'')],
+    'actions'=>['label'=>'Actions'],
 ];
 $table=admin_table_prepare($rows,$tableColumns,'name');$rows=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 
@@ -93,7 +99,6 @@ admin_layout_start('Horses', 'horses');
                 <?php
                 $name = trim((string)($row['name'] ?? ''));
                 $name = $name !== '' ? $name : '—';
-                $dob = $row['dob'] ? format_display_date((string)$row['dob'], '—') : '—';
                 $yob = trim((string)($row['year_of_birth'] ?? ''));
                 $yob = $yob !== '' ? $yob : '—';
                 $breed = trim((string)($row['breed'] ?? ''));
@@ -101,21 +106,23 @@ admin_layout_start('Horses', 'horses');
                 $colour = trim((string)($row['colour'] ?? ''));
                 $colour = $colour !== '' ? $colour : '—';
                 $status = !empty($row['is_archived']) ? 'Archived' : 'Active';
-                $created = $row['created_at'] ? format_display_datetime((string)$row['created_at'], '—') : '—';
+                $logbookYear = !empty($row['logbook_year']) ? (string)$row['logbook_year'] : '—';
+                $logbookStatus = (string)($row['logbook_status_display'] ?? 'none');
                 ?>
-                <tr>
+                <tr id="horse-<?php echo (int)$row['id']; ?>">
                     <td class="fw-semibold"><?php echo h($name); ?></td>
-                    <td class="text-muted small"><?php echo h($dob); ?></td>
                     <td class="text-muted small"><?php echo h($yob); ?></td>
                     <td class="text-muted small"><?php echo h($breed); ?></td>
                     <td class="text-muted small"><?php echo h($colour); ?></td>
                     <td class="text-muted small"><?php echo admin_table_value($row['owner_email'] ?? '', 'email'); ?></td>
+                    <td class="text-muted small"><?php echo h($logbookYear); ?></td>
+                    <td class="text-muted small text-capitalize"><?php echo h($logbookStatus); ?></td>
                     <td class="text-muted small"><?php echo h($status); ?></td>
-                    <td class="text-muted small"><?php echo h($created); ?></td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="horse_edit.php?id=<?php echo (int)$row['id']; ?>">Edit</a> <a class="btn btn-sm btn-outline-primary" href="horse_logbooks.php?horse_id=<?php echo (int)$row['id']; ?>">Logbooks</a></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (!$rows): ?>
-                <tr><td colspan="8" class="text-muted">No horses yet.</td></tr>
+                <tr><td colspan="9" class="text-muted">No horses yet.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
