@@ -66,7 +66,11 @@ $attendeeDetails = attendee_booking_details($meta);
 $eventDateText = $item && !empty($item['event_date']) ? format_display_date($item['event_date'], 'Date TBC') : 'Date TBC';
 $eventVenue = $item ? (string)($item['venue'] ?? '') : '';
 $organiser = $item ? (string)($item['organiser'] ?? '') : '';
-$backUrl = $basePath . '/bookings';
+$bookingPath = $basePath . '/bookings';
+$returnTo = trim((string)($_GET['return_to'] ?? ''));
+$backUrl = preg_match('#^' . preg_quote($bookingPath, '#') . '(?:[?#]|$)#', $returnTo)
+    ? $returnTo
+    : $bookingPath;
 
 $refunded = false;$settlementType='';
 if ($item && $pdo) {
@@ -345,7 +349,7 @@ if ($item && $pdo) {
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div></div>
-                    <a class="btn btn-outline-success btn-sm" href="<?php echo h($backUrl); ?>">Back to Bookings</a>
+                    <a class="btn btn-outline-success btn-sm" id="back-to-bookings" href="<?php echo h($backUrl); ?>">Back to Bookings</a>
                 </div>
 
                 <div class="card-soft p-4 mb-4 status-banner">
@@ -617,6 +621,20 @@ if ($item && $pdo) {
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <script>
+        const backToBookings = document.getElementById('back-to-bookings');
+        if (backToBookings && document.referrer) {
+            try {
+                const referringPage = new URL(document.referrer);
+                if (referringPage.origin === window.location.origin && /\/bookings$/.test(referringPage.pathname)) {
+                    backToBookings.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        window.history.back();
+                    });
+                }
+            } catch (error) {
+                // Keep the safe Booking URL as the fallback for an invalid referrer.
+            }
+        }
         const toggleEntryForm = document.getElementById('toggleEntryForm');
         const entryFormPanel = document.getElementById('entryFormPanel');
         if (toggleEntryForm && entryFormPanel) {

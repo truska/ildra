@@ -60,6 +60,22 @@ foreach ($allOrders as $order) {
     }
 }
 
+// Customer-facing ledger entries. Stripe's payment-processing rows are
+// intentionally omitted: the completed checkout is the purchase record.
+$transactionsByReference = [];
+$transactionsByItem = [];
+if ($pdo && $userId > 0 && ensure_finance_tables($pdo)) {
+    $stmt = $pdo->prepare("SELECT type, amount, reference, metadata, created_at FROM finance_transactions WHERE user_id = :user_id AND type IN ('checkout', 'entry_credit', 'entry_stripe_refund', 'entry_refund', 'refund') ORDER BY created_at DESC, id DESC");
+    $stmt->execute([':user_id' => $userId]);
+    foreach ($stmt->fetchAll() ?: [] as $transaction) {
+        $reference = trim((string)($transaction['reference'] ?? ''));
+        if ($reference !== '') $transactionsByReference[$reference][] = $transaction;
+        $metadata = json_decode((string)($transaction['metadata'] ?? ''), true);
+        $itemId = is_array($metadata) ? (int)($metadata['booking_item_id'] ?? 0) : 0;
+        if ($itemId > 0) $transactionsByItem[$itemId][] = $transaction;
+    }
+}
+
 $eventCloseMap = [];
 if ($pdo) {
     $eventIds = [];
@@ -158,6 +174,11 @@ if ($pdo) {
             font-weight: 700;
         }
         .booking-item + .booking-item { border-top: 1px solid rgba(0,0,0,0.04); }
+        .booking-summary-header { display: grid; grid-template-columns: minmax(130px, 1.15fr) 60px 48px minmax(135px, 1.15fr) minmax(240px, 2.5fr) minmax(180px, 1.45fr); gap: 1rem; flex: 1 1 0; min-width: 0; }
+        .booking-summary-event { min-width: 0; overflow-wrap: anywhere; }
+        .booking-summary-actions { flex: 0 0 auto; }
+        @media (max-width: 991.98px) { .booking-summary-header { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 575.98px) { .booking-summary-header { grid-template-columns: minmax(0, 1fr); } .booking-summary-actions { width: 100%; text-align: left !important; } .booking-summary-actions .d-flex { justify-content: flex-start !important; } }
         .badge-chip {
             background: rgba(20, 97, 24, 0.1);
             color: var(--green);
@@ -173,6 +194,10 @@ if ($pdo) {
             opacity: 1;
             font-weight: 700;
         }
+        .transaction-pill { border-radius: 999px; font-size: .75rem; font-weight: 700; padding: .32rem .55rem; }
+        .transaction-pill-purchase { background: #e7f1ff; color: #084298; }
+        .transaction-pill-credit { background: #d1e7dd; color: #0f5132; }
+        .transaction-pill-refund { background: #fff3cd; color: #664d03; }
         .small-link {
             font-size: 0.9rem;
             font-weight: 700;
@@ -214,7 +239,7 @@ if ($pdo) {
             <div class="card-soft p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="section-title mb-0">Bookings</div>
-                    <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
+                    <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Browse Events</a>
                 </div>
             <?php if (!$orders): ?>
                 <div class="text-muted small">No bookings yet. Add entries and checkout.</div>
@@ -249,10 +274,15 @@ if ($pdo) {
                             $attendeeCount += count(attendee_booking_details($meta));
                         }
                         $bookingCancellationLabel = $cancelledItemCount >= count($items) ? 'Cancelled' : 'Partially cancelled';
+                        $bookingRef = (string)($order['booking_ref'] ?? $order['id'] ?? '');
+                        $bookingTransactions = $transactionsByReference[$bookingRef] ?? [];
+                        if (!$bookingTransactions) {
+                            $bookingTransactions = [['type' => 'checkout', 'amount' => -(float)($order['total'] ?? 0)]];
+                        }
                         ?>
                         <div class="booking-card p-4 mb-3">
                             <div class="d-flex flex-wrap justify-content-between gap-3">
-                                <div class="d-flex flex-wrap gap-4">
+                                <div class="booking-summary-header">
                                     <div>
                                         <div class="meta-label">Order placed</div>
                                         <div class="fw-semibold"><?php echo h(format_display_datetime($order['created_at'] ?? null, '')); ?></div>
@@ -270,14 +300,40 @@ if ($pdo) {
                                         <div class="fw-semibold"><?php echo h($order['contact_name'] ?? ''); ?></div>
                                         <div class="text-muted small"><?php echo h($order['contact_email'] ?? ''); ?></div>
                                     </div>
-                                    <div>
+                                    <div class="booking-summary-event">
                                         <div class="meta-label">Event Name</div>
                                         <div class="fw-semibold"><?php echo h($eventNames ? implode(' | ', $eventNames) : '—'); ?></div>
                                     </div>
+                                    <div>
+                                        <div class="meta-label">Transaction</div>
+                                        <?php foreach ($bookingTransactions as $transaction): ?>
+                                            <?php $transactionType = (string)($transaction['type'] ?? 'checkout'); $transactionAmount = (float)($transaction['amount'] ?? 0); $transactionLabel = match ($transactionType) {'entry_credit' => 'Credit', 'entry_stripe_refund', 'entry_refund', 'refund' => 'Refund', default => 'Purchase'}; ?>
+                                            <div class="fw-semibold"><?php echo h($transactionLabel); ?> <span class="text-muted fw-normal">· Value <?php echo format_price(abs($transactionAmount)); ?></span></div>
+                                        <?php endforeach; ?>
+                                    </div>
                                 </div>
-                                <div class="text-end">
+                                <div class="text-end booking-summary-actions">
                                     <div class="text-muted small mb-1">Booking #<?php echo h($order['booking_ref'] ?? $order['id']); ?></div>
-                                    <button class="btn btn-success btn-sm collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#<?php echo $detailsId; ?>" aria-expanded="false" aria-controls="<?php echo $detailsId; ?>">
+                                    <div class="d-flex flex-wrap justify-content-end gap-1 mb-2">
+                                        <?php foreach ($bookingTransactions as $transaction): ?>
+                                            <?php
+                                            $transactionType = (string)($transaction['type'] ?? 'checkout');
+                                            $transactionAmount = (float)($transaction['amount'] ?? 0);
+                                            $transactionLabel = match ($transactionType) {
+                                                'entry_credit' => 'Credit ' . format_price(abs($transactionAmount)),
+                                                'entry_stripe_refund', 'entry_refund', 'refund' => 'Refund ' . format_price(abs($transactionAmount)),
+                                                default => 'Purchase ' . format_price(abs($transactionAmount)),
+                                            };
+                                            $transactionClass = match ($transactionType) {
+                                                'entry_credit' => 'transaction-pill-credit',
+                                                'entry_stripe_refund', 'entry_refund', 'refund' => 'transaction-pill-refund',
+                                                default => 'transaction-pill-purchase',
+                                            };
+                                            ?>
+                                            <span class="transaction-pill <?php echo h($transactionClass); ?>"><?php echo h($transactionLabel); ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <button class="btn btn-success btn-sm collapsed" type="button" data-bs-toggle="collapse" data-item-toggle data-bs-target="#<?php echo $detailsId; ?>" aria-expanded="false" aria-controls="<?php echo $detailsId; ?>">
                                         View items
                                     </button>
                                     <?php if ($cancelledItemCount > 0): ?>
@@ -291,7 +347,8 @@ if ($pdo) {
                                     <?php foreach ($items as $idx => $item): ?>
                                         <?php
                                         $hubGuid = ($pdo && !empty($item['id'])) ? ensure_booking_item_guid($pdo, (int)$item['id']) : '';
-                                        $entryLink = $hubGuid !== '' ? ($basePath . '/entry_hub.php?code=' . urlencode((string)$hubGuid)) : '#';
+                                        $returnTo = $basePath . '/bookings?page=' . $page . '#' . $detailsId;
+                                        $entryLink = $hubGuid !== '' ? ($basePath . '/entry_hub.php?code=' . urlencode((string)$hubGuid) . '&return_to=' . rawurlencode($returnTo)) : '#';
                                         $bookingType = $item['booking_type'] ?? 'ride';
                                         $bookingTypeLabel = ucfirst($bookingType);
                                         $meta = $item['metadata'] ?? [];
@@ -306,6 +363,7 @@ if ($pdo) {
                                             $chips[] = 'Extras: ' . $componentsSummary;
                                         }
                                         $itemCancelModalId = 'cancel-item-' . preg_replace('/[^a-zA-Z0-9_-]/', '-', (string)($item['id'] ?? ($order['booking_ref'] ?? 'bk') . '-' . $idx));
+                                        $itemTransactions = $transactionsByItem[(int)($item['id'] ?? 0)] ?? [];
                                         $eventId = (int)($item['event_id'] ?? 0);
                                         $isCancelableItem = empty($item['is_withdrawn']) && !in_array($bookingType, ['membership', 'horse_logbook'], true)
                                             && $eventId > 0
@@ -334,6 +392,15 @@ if ($pdo) {
                                                     <?php endif; ?>
                                                 </div>
                                                 <div class="d-flex align-items-center gap-2">
+                                                    <?php foreach ($itemTransactions as $transaction): ?>
+                                                        <?php
+                                                        $itemTransactionType = (string)($transaction['type'] ?? '');
+                                                        $itemTransactionAmount = (float)($transaction['amount'] ?? 0);
+                                                        $itemTransactionLabel = $itemTransactionType === 'entry_credit' ? 'Credit ' . format_price(abs($itemTransactionAmount)) : 'Refund ' . format_price(abs($itemTransactionAmount));
+                                                        $itemTransactionClass = $itemTransactionType === 'entry_credit' ? 'transaction-pill-credit' : 'transaction-pill-refund';
+                                                        ?>
+                                                        <span class="transaction-pill <?php echo h($itemTransactionClass); ?>"><?php echo h($itemTransactionLabel); ?></span>
+                                                    <?php endforeach; ?>
                                                     <?php if ($entryLink !== '#'): ?>
                                                         <a class="btn btn-outline-success btn-sm" href="<?php echo h($entryLink); ?>">View Details</a>
                                                     <?php endif; ?>
@@ -447,6 +514,20 @@ if ($pdo) {
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <script>
+        const bookingReturnTarget = window.location.hash;
+        if (bookingReturnTarget.startsWith('#booking-items-')) {
+            const bookingItems = document.querySelector(bookingReturnTarget);
+            if (bookingItems && window.bootstrap) {
+                bookingItems.addEventListener('shown.bs.collapse', () => bookingItems.scrollIntoView({ block: 'start' }), { once: true });
+                bootstrap.Collapse.getOrCreateInstance(bookingItems, { toggle: true });
+            }
+        }
+        document.querySelectorAll('[data-item-toggle]').forEach((button) => {
+            const target = document.querySelector(button.dataset.bsTarget);
+            if (!target) return;
+            target.addEventListener('show.bs.collapse', () => { button.textContent = 'Hide items'; });
+            target.addEventListener('hide.bs.collapse', () => { button.textContent = 'View items'; });
+        });
         document.querySelectorAll('[data-refund-choice]').forEach((button) => {
             button.addEventListener('click', () => {
                 const id = button.dataset.refundChoice;
