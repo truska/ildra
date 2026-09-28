@@ -80,8 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $level = (int)($_POST['level'] ?? 0);
             if (!$canManageRolesAndPasswords) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Only SuperAdmins can change user roles.'];
-            } elseif ($role === 'developer' && !roleIsDeveloper($currentRole)) {
-                $alerts[] = ['type' => 'danger', 'message' => 'Only a Developer can assign the Developer role.'];
+            } elseif ($role === 'developer' && !roleIsSuperadminOrDeveloper($currentRole)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Only a Developer or SuperAdmin can assign the Developer role.'];
             } elseif ($userId > 0 && updateUserRoleAndLevel($pdo, $userId, $role, $level, $alerts)) {
                 adminAuditLog($pdo, 'users.change_role', $currentUser, 'user', $userId, ['new_role'=>$role]);
                 $successMessage = 'User role updated.';
@@ -202,7 +202,7 @@ admin_layout_start('Users', 'users');
                                 <input type="hidden" name="action" value="update_user">
                                 <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
                                 <select name="role" class="form-select form-select-sm" style="width: 180px;">
-                                    <?php if (roleIsDeveloper($currentRole)): ?><option value="developer" <?php echo ($userRow['role'] === 'developer') ? 'selected' : ''; ?>>Developer</option><?php endif; ?>
+                                    <?php if (roleIsSuperadminOrDeveloper($currentRole)): ?><option value="developer" <?php echo ($userRow['role'] === 'developer') ? 'selected' : ''; ?>>Developer</option><?php endif; ?>
                                     <option value="superadmin" <?php echo ($userRow['role'] === 'superadmin') ? 'selected' : ''; ?>>SuperAdmin</option>
                                     <option value="admin" <?php echo ($userRow['role'] === 'admin') ? 'selected' : ''; ?>>Admin</option>
                                     <option value="manager" <?php echo ($userRow['role'] === 'manager') ? 'selected' : ''; ?>>Manager</option>
