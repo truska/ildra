@@ -120,11 +120,15 @@ if ($isLoggedIn && $pdo) {
         $horseIds = array_values(array_unique(array_filter(array_map('intval', array_column($horses, 'id')))));
         if ($horseIds) {
             $in = implode(',', array_fill(0, count($horseIds), '?'));
-            $stmt = $pdo->prepare("SELECT DISTINCT horse_id FROM horse_logbook_purchases WHERE horse_id IN ($in) AND valid_year=? AND status='active'");
-            $stmt->execute(array_merge($horseIds, [$recognitionYear]));
-            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $horseId) {
-                $horsesWithActiveLogbook[(int)$horseId] = true;
-                $recognisedHorses[(int)$horseId] = true;
+            $stmt = $pdo->prepare("SELECT horse_id, valid_year, status, purchased_at FROM horse_logbook_purchases WHERE horse_id IN ($in)");
+            $stmt->execute($horseIds);
+            $settings = getSiteSettings($pdo);
+            foreach ($stmt->fetchAll() ?: [] as $logbook) {
+                if (annual_product_covers_year($logbook, 'valid_year', $recognitionYear, $settings)) {
+                    $horseId = (int)$logbook['horse_id'];
+                    $horsesWithActiveLogbook[$horseId] = true;
+                    $recognisedHorses[$horseId] = true;
+                }
             }
         }
     }

@@ -2722,11 +2722,40 @@ function membership_purchase_year(array $settings = [], ?DateTimeInterface $date
     return (int)$date->format('Y') + ($date->format('m-d') >= membership_rollover_month_day($settings) ? 1 : 0);
 }
 
+/**
+ * Annual renewals bought after rollover start giving benefits immediately.
+ * A pre-existing early purchase remains dormant until the configured rollover.
+ */
+function annual_product_effective_from(int $productYear, array $purchase, array $settings = []): DateTimeImmutable
+{
+    $rollover = new DateTimeImmutable(($productYear - 1) . '-' . membership_rollover_month_day($settings));
+    $purchasedAt = trim((string)($purchase['purchased_at'] ?? ''));
+    try {
+        $purchaseDate = $purchasedAt !== '' ? new DateTimeImmutable($purchasedAt) : $rollover;
+    } catch (Throwable $e) {
+        $purchaseDate = $rollover;
+    }
+    return $purchaseDate > $rollover ? $purchaseDate : $rollover;
+}
+
+/** Shared eligibility rule for membership and horse-logbook annual products. */
+function annual_product_covers_year(array $purchase, string $yearField, int $coveredYear, array $settings = [], ?DateTimeInterface $date = null): bool
+{
+    if (!in_array(strtolower((string)($purchase['status'] ?? 'active')), ['active', 'pending'], true)) return false;
+    $productYear = (int)($purchase[$yearField] ?? 0);
+    if ($productYear < 2000 || $coveredYear < 2000) return false;
+    $date = $date ?? new DateTimeImmutable('today');
+    $effectiveFrom = annual_product_effective_from($productYear, $purchase, $settings);
+    if ($date < $effectiveFrom) return false;
+    if ($coveredYear === $productYear) return (int)$date->format('Y') <= $productYear;
+    return $coveredYear === $productYear - 1 && (int)$date->format('Y') === $coveredYear;
+}
+
 function membership_purchase_is_current(array $purchase, array $settings = [], ?DateTimeInterface $date = null): bool
 {
     if (!in_array(strtolower((string)($purchase['status'] ?? 'active')), ['active', 'pending'], true)) return false;
     $date = $date ?? new DateTimeImmutable('today');
-    return (int)($purchase['membership_year'] ?? 0) === membership_purchase_year($settings, $date);
+    return annual_product_covers_year($purchase, 'membership_year', (int)$date->format('Y'), $settings, $date);
 }
 
 function membership_status_for_row(array $row, array $settings = []): string
@@ -2735,10 +2764,9 @@ function membership_status_for_row(array $row, array $settings = []): string
     $statusRaw = strtolower(trim((string)($row['status'] ?? '')));
     $statusRaw = in_array($statusRaw, ['active', 'pending', 'expired'], true) ? $statusRaw : 'active';
     if ($membershipYear > 0) {
-        $requiredYear = membership_purchase_year($settings);
-        if ($membershipYear < $requiredYear) return 'expired';
-        if ($membershipYear > $requiredYear) return 'pending';
-        return $statusRaw === 'expired' ? 'expired' : 'active';
+        if ($statusRaw === 'expired') return 'expired';
+        if (annual_product_covers_year($row, 'membership_year', (int)date('Y'), $settings)) return 'active';
+        return $membershipYear > (int)date('Y') ? 'pending' : 'expired';
     }
     return $statusRaw;
 }
@@ -4608,10 +4636,10 @@ function calc_logbook_status(array $row, array $settings = [], ?DateTimeInterfac
     $status = in_array($status, ['active', 'pending', 'expired'], true) ? $status : 'active';
     $validYear = (int)($row['valid_year'] ?? 0);
     if ($validYear > 0) {
-        $requiredYear = horse_logbook_purchase_year($settings, $date);
-        if ($validYear < $requiredYear) return 'expired';
-        if ($validYear > $requiredYear) return 'pending';
-        return 'active';
+        $date = $date ?? new DateTimeImmutable('today');
+        if ($status === 'expired') return 'expired';
+        if (annual_product_covers_year($row, 'valid_year', (int)$date->format('Y'), $settings, $date)) return 'active';
+        return $validYear > (int)$date->format('Y') ? 'pending' : 'expired';
     }
     return $status;
 }

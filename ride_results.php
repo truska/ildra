@@ -83,8 +83,9 @@ function rideResultEntries(PDO $pdo, array $event): array
         $group = strtoupper((string)($class['class_group'] ?? 'OTHER'));
         $personId=(int)($meta['person_id'] ?? 0); $horseId=(int)($meta['horse_id'] ?? 0);
         $member = false; $logbook = false;
-        if ($personId && $year) { $q=$pdo->prepare("SELECT 1 FROM membership_purchases WHERE member_id=:id AND membership_year=:year AND status<>'expired' LIMIT 1"); $q->execute([':id'=>$personId,':year'=>$year]); $member=(bool)$q->fetchColumn(); }
-        if ($horseId && $year) { $q=$pdo->prepare("SELECT 1 FROM horse_logbook_purchases WHERE horse_id=:id AND valid_year=:year AND status<>'expired' LIMIT 1"); $q->execute([':id'=>$horseId,':year'=>$year]); $logbook=(bool)$q->fetchColumn(); }
+        $settings = getSiteSettings($pdo);
+        if ($personId && $year) { $q=$pdo->prepare("SELECT membership_year,status,purchased_at FROM membership_purchases WHERE member_id=:id"); $q->execute([':id'=>$personId]); foreach ($q->fetchAll() ?: [] as $purchase) if (annual_product_covers_year($purchase, 'membership_year', $year, $settings)) { $member=true; break; } }
+        if ($horseId && $year) { $q=$pdo->prepare("SELECT valid_year,status,purchased_at FROM horse_logbook_purchases WHERE horse_id=:id"); $q->execute([':id'=>$horseId]); foreach ($q->fetchAll() ?: [] as $purchase) if (annual_product_covers_year($purchase, 'valid_year', $year, $settings)) { $logbook=true; break; } }
         $classLabel = (string)($class['class_name'] ?? $meta['class_label'] ?? $code);
         if ($classLabel === '') $classLabel = 'Unclassified';
         $entries[] = $row + ['meta'=>$meta,'class_code'=>$code,'class_label'=>$classLabel,'class_group'=>$group,'person_id'=>$personId,'horse_id'=>$horseId,'rider_name'=>(string)($meta['rider_name'] ?? $row['contact_name'] ?? ''),'horse_name'=>(string)($meta['horse_name'] ?? ''),'member_eligible'=>$member,'logbook_eligible'=>$logbook];
