@@ -106,6 +106,7 @@ function defaultSiteSettings(): array
         'event_late_entry_fee' => '0.00',
         'event_stripe_refund_fee' => '5.00',
         'ride_helper_coupon_value' => '0.00',
+        'coupon_default_terms_html' => '',
         'membership_next_year_from' => '11-01',
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days

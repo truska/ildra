@@ -63,6 +63,11 @@ function admin_layout_start(string $title, string $activeKey): void
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo h($title); ?> · ILDRA Admin</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/filestore/images/icons/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/filestore/images/icons/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#0f5d2d">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <script src="https://kit.fontawesome.com/3e4371248d.js" crossorigin="anonymous"></script>
 	    <style>
