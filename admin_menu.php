@@ -15,6 +15,7 @@ function defaultAdminMenuItems(): array
         ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php', 'fa-solid fa-tags'],
         ['bookings', 'Bookings', 'bookings.php', 'fa-solid fa-ticket'],
         ['finance', 'Finance', 'finance.php', 'fa-solid fa-sterling-sign'],
+        ['coupons', 'Coupons', 'coupons.php', 'fa-solid fa-ticket'],
         ['email', 'Email', 'email.php', 'fa-solid fa-envelope'],
         ['email_campaigns', 'Email Campaigns', 'campaigns.php', 'fa-solid fa-paper-plane'],
         ['entry_components', 'Entry Components', 'entry_components.php', 'fa-solid fa-puzzle-piece'],
@@ -55,7 +56,7 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
-    if (in_array($key, ['tech', 'tech_email', 'image_folders'], true)) {
+    if (in_array($key, ['tech', 'tech_email', 'image_folders', 'coupons'], true)) {
         return ['superadmin'];
     }
     if (in_array($key, ['users', 'email', 'email_campaigns', 'pricing_schemes', 'event_types', 'people', 'horses', 'external_recognition', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {

@@ -38,8 +38,14 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
             $contactPhone = (string)($pendingCheckout['contact_phone'] ?? '');
             $basket = $pendingCheckout['basket'] ?? [];
             $totalAmount = (float)($pendingCheckout['total'] ?? 0);
+            $couponCode = (string)($pendingCheckout['coupon_code'] ?? '');
             $paymentDue = (float)($pendingCheckout['payment_due'] ?? 0);
             $userBalance = (float)($pendingCheckout['user_balance'] ?? 0);
+            $stripeAmount = ((int)($sessionData['amount_total'] ?? 0)) / 100;
+            $paymentAmountVerified = abs($stripeAmount - $paymentDue) < 0.01;
+            if (!$paymentAmountVerified) {
+                $alerts[] = ['type'=>'danger','message'=>'The Stripe payment amount does not match this checkout. The booking has not been completed; please contact an administrator.'];
+            }
             $paymentIntentId = (string)($sessionData['payment_intent'] ?? '');
             $stripeChargeId = '';
             $stripeFee = null;
@@ -70,7 +76,7 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                     unset($_SESSION['pending_checkout']);
                 }
             }
-            if (!$order) {
+            if (!$order && $paymentAmountVerified) {
                 $order = [
                     'booking_ref' => $bookingRef !== '' ? $bookingRef : 'BK-' . strtoupper(bin2hex(random_bytes(4))),
                     'user_id' => (int)($currentUser['id'] ?? 0) ?: null,
@@ -79,9 +85,21 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                     'contact_phone' => $contactPhone,
                     'items' => $basket,
                     'total' => $totalAmount,
+                    'payment_breakdown' => ['items_total'=>(float)($pendingCheckout['items_total'] ?? $totalAmount),'coupon_discount'=>(float)($pendingCheckout['coupon_discount'] ?? 0),'account_credit'=>(float)($pendingCheckout['credit_to_use'] ?? 0),'account_debit'=>max(0.0,-$userBalance),'card_payment'=>$paymentDue],
                     'created_at' => date('Y-m-d H:i:s'),
                 ];
                 append_booking_record($order, $alerts, $pdo);
+                if (!$alerts && $couponCode !== '') {
+                    $redeemedCoupon = coupon_redeem($pdo, $couponCode, $basket, (int)($currentUser['id'] ?? 0), (string)$order['booking_ref'], $alerts);
+                    if ($redeemedCoupon && $redeemedCoupon['applied'] > 0) {
+                        $couponFinanceAlerts=[];
+                        record_finance_transaction($pdo, ['user_id'=>(int)($currentUser['id']??0),'type'=>'coupon_discount','amount'=>$redeemedCoupon['applied'],'affects_credit'=>false,'reference'=>$order['booking_ref'],'notes'=>'Coupon discount — '.$redeemedCoupon['coupon']['code'],'metadata'=>['coupon_id'=>$redeemedCoupon['coupon']['id'],'coupon_code'=>$redeemedCoupon['coupon']['code']]], $couponFinanceAlerts);
+                    }
+                    if ($redeemedCoupon && $redeemedCoupon['credit'] > 0) {
+                        $couponFinanceAlerts=[];
+                        record_finance_transaction($pdo, ['user_id'=>(int)($currentUser['id']??0),'type'=>'coupon_partial_credit','amount'=>$redeemedCoupon['credit'],'reference'=>$order['booking_ref'],'notes'=>'Partial coupon balance — '.$redeemedCoupon['coupon']['code'],'metadata'=>['coupon_id'=>$redeemedCoupon['coupon']['id']]], $couponFinanceAlerts);
+                    }
+                }
                 if (!$alerts && $currentUser) {
                     foreach ($basket as $basketItem) {
                         $bookingType = $basketItem['booking_type'] ?? '';
@@ -191,6 +209,7 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                 );
                 send_late_entry_alerts($pdo, $order, $siteSettings, $emailSettings);
                 $_SESSION['basket'] = [];
+                unset($_SESSION['basket_coupon_code']);
                 unset($_SESSION['basket_last_added']);
                 saveBasketForSession($pdo, session_id(), [], $currentUser['id'] ?? null, null);
                 $basketCount = 0;

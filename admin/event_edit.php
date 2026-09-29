@@ -20,8 +20,29 @@ $existingTypeName = is_array($event) ? (string)($event['event_type_name'] ?? '')
 $defaultEventType = findEventType($eventTypes, $existingTypeId, $existingTypeName);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = (string)($_POST['action'] ?? 'save_event');
     if (!$isAdmin) {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage events.'];
+    } elseif (in_array($action, ['upload_event_images', 'save_event_gallery'], true)) {
+        if (!$eventId || !$event) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Save the event before adding images.'];
+        } else {
+            $batch = mediaBatchGetOrCreate($pdo, 'event_images', 'event', $eventId, 'Event images: ' . (string)$event['title'], 'events');
+            if ($action === 'upload_event_images') {
+                $errors = [];
+                $count = mediaBatchUpload($pdo, $batch, $_FILES['images'] ?? [], ['original'=>null, 'lg'=>1200, 'sm'=>300, 'xs'=>150], $errors);
+                foreach ($errors as $error) $alerts[] = ['type'=>'danger', 'message'=>$error];
+                if ($count) { $_SESSION['flash_success'] = $count . ($count === 1 ? ' event image uploaded.' : ' event images uploaded.'); header('Location: event_edit.php?id=' . $eventId); exit; }
+            } else {
+                $allowed = array_column(mediaBatchImages($pdo, (int)$batch['id'], true), null, 'id');
+                foreach ((array)($_POST['image'] ?? []) as $imageId => $data) {
+                    $imageId = (int)$imageId;
+                    if (!isset($allowed[$imageId])) continue;
+                    $pdo->prepare('UPDATE media_batch_images SET title=:title,alt_text=:alt,caption=:caption,display_order=:ord,archived=:archived,updated_at=NOW() WHERE id=:id AND batch_id=:batch')->execute([':title'=>trim((string)($data['title']??''))?:null, ':alt'=>trim((string)($data['alt_text']??''))?:null, ':caption'=>trim((string)($data['caption']??''))?:null, ':ord'=>(int)($data['display_order']??100), ':archived'=>!empty($data['archived'])?1:0, ':id'=>$imageId, ':batch'=>(int)$batch['id']]);
+                }
+                $_SESSION['flash_success'] = 'Event gallery saved.'; header('Location: event_edit.php?id=' . $eventId); exit;
+            }
+        }
     } else {
         // Pricing rows (per-event copy of a reusable pricing scheme)
         ensurePricingSchemeTables($pdo);
@@ -120,6 +141,7 @@ $event = $event ?? [
     'late_entry_fee' => (string)$eventSettings['event_late_entry_fee'],
     'status' => 'draft',
     'description' => '',
+    'details_html' => '',
     'event_type' => $defaultEventType['name'] ?? 'Ride',
     'event_type_id' => $defaultEventType['id'] ?? null,
     'capacity_enabled' => 0,
@@ -131,6 +153,8 @@ $event['event_type'] = $selectedEventType['name'] ?? ($event['event_type'] ?? 'r
 $event['event_type_id'] = $selectedEventType['id'] ?? ($event['event_type_id'] ?? null);
 $event['event_type_label'] = $selectedEventType['name'] ?? ucfirst((string)($event['event_type'] ?? 'ride'));
 $eventTypeSelectedId = (int)($event['event_type_id'] ?? 0);
+$eventImageBatch = $eventId ? mediaBatchGetOrCreate($pdo, 'event_images', 'event', $eventId, 'Event images: ' . (string)$event['title'], 'events') : null;
+$eventImages = $eventImageBatch ? mediaBatchImages($pdo, (int)$eventImageBatch['id'], true) : [];
 $selectedVenueId = (int)($event['venue_id'] ?? 0);
 $entryComponentsAll = fetchEntryComponents($pdo, $eventTypeSelectedId, true);
 $eventComponents = $eventId ? fetchEventEntryComponents($pdo, $eventId, $eventTypeSelectedId) : [];
@@ -372,7 +396,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <div class="small text-muted mt-1">Choose the venue first. New events will use this to prefill the title.</div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Title</label>
+                    <label class="form-label">Event title</label>
                     <input type="text" name="title" id="event_title_input" class="form-control" required value="<?php echo h($event['title']); ?>">
                     <div class="small text-muted mt-1">Prefilled from the venue on new events, but you can edit it.</div>
                 </div>
@@ -411,6 +435,12 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             <div class="mt-2">
                 <a class="small" href="venues.php">Manage venues</a>
             </div>
+        </div>
+
+        <div class="section-card" id="event-details-section" <?php echo strtolower(trim((string)($selectedEventType['name'] ?? 'Ride'))) === 'ride' ? 'hidden' : ''; ?>>
+            <div class="section-title">Additional event details</div>
+            <div class="section-sub">Rich text shown on the public event page above the booking information. This is not used for Ride events.</div>
+            <textarea class="form-control wysiwyg-field" rows="8" name="details_html"><?php echo h((string)($event['details_html'] ?? '')); ?></textarea>
         </div>
 
         <div class="section-card">
@@ -1161,6 +1191,29 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         render();
     })();
+</script>
+<?php if ($eventId && $eventImageBatch): ?>
+<div class="card-soft p-4 mt-4">
+    <h6 class="mb-1">Event image</h6>
+    <p class="small text-muted">Upload any orientation. The first non-archived image by gallery order is used on the event page; additional images are retained in the gallery.</p>
+    <form method="post" enctype="multipart/form-data" class="mb-4">
+        <input type="hidden" name="action" value="upload_event_images">
+        <input class="form-control" type="file" name="images[]" accept="image/jpeg,image/png,image/gif,image/webp" multiple required>
+        <div class="form-text">Creates xs (150px), sm (300px) and lg (1200px) versions.</div>
+        <button class="btn btn-outline-success mt-3">Upload image</button>
+    </form>
+    <?php if ($eventImages): ?>
+    <form method="post"><input type="hidden" name="action" value="save_event_gallery">
+        <div class="table-responsive"><table class="table align-middle" data-admin-inline-reorder><thead><tr><th>Preview</th><th>Order</th><th>Title / alternative text / caption</th><th>Archived</th></tr></thead><tbody>
+        <?php foreach ($eventImages as $image): ?><tr data-order-id="<?php echo (int)$image['id']; ?>"><td><img class="rounded border" style="width:120px;height:90px;object-fit:cover" src="<?php echo h(mediaBatchImageUrl($eventImageBatch,$image,'xs')); ?>" alt=""></td><td><input class="form-control" style="width:90px" data-display-order type="number" name="image[<?php echo (int)$image['id']; ?>][display_order]" value="<?php echo (int)$image['display_order']; ?>"></td><td><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][title]" value="<?php echo h($image['title']??''); ?>" placeholder="Title"><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][alt_text]" value="<?php echo h($image['alt_text']??''); ?>" placeholder="Alternative text"><textarea class="form-control form-control-sm" rows="2" name="image[<?php echo (int)$image['id']; ?>][caption]" placeholder="Caption"><?php echo h($image['caption']??''); ?></textarea></td><td><input type="checkbox" name="image[<?php echo (int)$image['id']; ?>][archived]" value="1" <?php echo !empty($image['archived'])?'checked':''; ?>></td></tr><?php endforeach; ?>
+        </tbody></table></div><button class="btn btn-success">Save gallery</button>
+    </form><?php endif; ?>
+</div>
+<?php endif; ?>
+<?php render_tinymce_bootstrap(); ?>
+<script>
+if (window.tinymce) tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));
+(function(){const select=document.querySelector('select[name="event_type_id"]'),section=document.getElementById('event-details-section');if(!select||!section)return;const sync=()=>{const option=select.options[select.selectedIndex];section.hidden=(option?.textContent||'').trim().toLowerCase()==='ride';};select.addEventListener('change',sync);sync();})();
 </script>
 <?php
 admin_layout_end();

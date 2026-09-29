@@ -105,6 +105,7 @@ function defaultSiteSettings(): array
         'event_late_entry_close_time' => '18:00',
         'event_late_entry_fee' => '0.00',
         'event_stripe_refund_fee' => '5.00',
+        'ride_helper_coupon_value' => '0.00',
         'membership_next_year_from' => '11-01',
         // "Remember me" login cookie duration (seconds). Used when a user ticks "Keep me signed in".
         'remember_me_ttl_seconds' => 2592000, // default 30 days
@@ -5304,6 +5305,19 @@ function ensureEntryWindowColumns(?PDO $pdo): void
     }
 }
 
+/** Adds the rich event introduction used by non-ride events. */
+function ensureEventDetailsColumn(?PDO $pdo): void
+{
+    if (!$pdo || table_column_exists($pdo, 'events', 'details_html')) {
+        return;
+    }
+    try {
+        $pdo->exec("ALTER TABLE events ADD COLUMN details_html MEDIUMTEXT NULL DEFAULT NULL AFTER description");
+    } catch (PDOException $e) {
+        // The save query will provide the useful error if this cannot be added.
+    }
+}
+
 function event_date_defaults(string $eventDate, array $settings): ?array
 {
     $eventDate = trim($eventDate);
@@ -5610,6 +5624,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
         return false;
     }
     ensureEntryWindowColumns($pdo);
+    ensureEventDetailsColumn($pdo);
 
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
     $title = trim((string)($data['title'] ?? ''));
@@ -5714,7 +5729,13 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $eventTypes = fetchEventTypes($pdo);
     $selectedType = findEventType($eventTypes, (int)($data['event_type_id'] ?? 0), (string)($data['event_type'] ?? ''));
     $eventTypeId = (int)($selectedType['id'] ?? 0);
-    $eventTypeSlug = $selectedType['slug'] ?? 'ride';
+    $eventTypeName = trim((string)($selectedType['name'] ?? $data['event_type'] ?? 'Ride'));
+    $detailsHtml = trim((string)($data['details_html'] ?? ''));
+    // Ride information continues to live in Ride Notes.  This field is for
+    // every other event type only.
+    if (strtolower($eventTypeName) === 'ride') {
+        $detailsHtml = '';
+    }
 
     if ($title === '' || $eventDate === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Event title and start date are required.'];
@@ -5772,6 +5793,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                     entry_form = :entry_form,
                     status = :status,
                     description = :description,
+                    details_html = :details_html,
                     event_type_id = :event_type_id,
                     capacity_enabled = :capacity_enabled,
                     capacity_limit = :capacity_limit,
@@ -5799,6 +5821,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                 ':entry_form' => $entryFormValue,
                 ':status' => $status,
                 ':description' => $description,
+                ':details_html' => $detailsHtml ?: null,
                 ':event_type_id' => $eventTypeId ?: null,
                 ':capacity_enabled' => $capacityEnabled,
                 ':capacity_limit' => $capacityLimit,
@@ -5808,8 +5831,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             return $eventId;
         }
         $stmt = $pdo->prepare("
-            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, send_reminder_emails, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
-            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :send_reminder_emails, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
+            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, send_reminder_emails, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, details_html, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
+            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :send_reminder_emails, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :details_html, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
         ");
         $stmt->execute([
             ':title' => $title,
@@ -5832,6 +5855,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             ':entry_form' => $entryFormValue,
             ':status' => $status,
             ':description' => $description,
+            ':details_html' => $detailsHtml ?: null,
             ':event_type_id' => $eventTypeId ?: null,
             ':capacity_enabled' => $capacityEnabled,
             ':capacity_limit' => $capacityLimit,

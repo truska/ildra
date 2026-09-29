@@ -95,6 +95,7 @@ $bookingTotals = [
     'active' => 0.0,
     'withdrawn' => 0.0,
     'refund' => 0.0,
+    'paid' => 0.0,
 ];
 $payments = [];
 $paidForEntry = 0.0;
@@ -110,6 +111,7 @@ $selectedComponentFlags = [];
 if ($item && $pdo) {
     $ref = (string)($item['booking_ref'] ?? '');
     if ($ref !== '') {
+        $couponDiscountRecorded = 0.0;
         try {
             $stmt = $pdo->prepare("
                 SELECT
@@ -134,13 +136,14 @@ if ($item && $pdo) {
                     SELECT type, amount, created_at
                     FROM finance_transactions
                     WHERE reference = :ref
-                      AND type IN ('payment_simulated', 'payment_stripe', 'checkout', 'entry_refund', 'entry_stripe_refund', 'entry_credit')
+                      AND type IN ('payment_simulated', 'payment_stripe', 'checkout', 'coupon_discount', 'entry_refund', 'entry_stripe_refund', 'entry_credit')
                     ORDER BY created_at ASC
                 ");
                 $stmt->execute([':ref' => $ref]);
                 $paymentSimulated = 0.0;
                 $paymentStripe = 0.0;
                 $checkoutDebit = 0.0;
+                $couponDiscount = 0.0;
                 $checkoutDate = null;
                 foreach ($stmt->fetchAll() ?: [] as $row) {
                     $type = (string)($row['type'] ?? '');
@@ -175,6 +178,15 @@ if ($item && $pdo) {
                     if ($type === 'checkout') {
                         $checkoutDebit += abs($amount);
                         $checkoutDate = $row['created_at'] ?? $checkoutDate;
+                        continue;
+                    }
+                    if ($type === 'coupon_discount') {
+                        $couponDiscount += abs($amount);
+                        $payments[] = [
+                            'date' => $row['created_at'] ?? null,
+                            'method' => 'Coupon',
+                            'amount' => $amount,
+                        ];
                     }
                 }
                 $creditApplied = max(0.0, $checkoutDebit - $paymentSimulated - $paymentStripe);
@@ -185,8 +197,26 @@ if ($item && $pdo) {
                         'amount' => $creditApplied,
                     ];
                 }
+                $bookingTotals['paid'] = $paymentSimulated + $paymentStripe + $creditApplied + $couponDiscount - $bookingTotals['refund'];
+                $couponDiscountRecorded = $couponDiscount;
             } catch (PDOException $e) {
                 $payments = [];
+            }
+        }
+        // Coupons issued before finance logging was added still have their
+        // redemption record. Show that discount in the entry payment history.
+        if ($couponDiscountRecorded <= 0) {
+            try {
+                $stmt = $pdo->prepare("SELECT SUM(applied_amount) amount, MAX(redeemed_at) redeemed_at FROM coupon_redemptions WHERE booking_ref=:ref AND status='redeemed'");
+                $stmt->execute([':ref'=>$ref]);
+                $redemption = $stmt->fetch() ?: [];
+                $legacyCouponDiscount = (float)($redemption['amount'] ?? 0);
+                if ($legacyCouponDiscount > 0) {
+                    $payments[]=['date'=>$redemption['redeemed_at'] ?? null,'method'=>'Coupon','amount'=>$legacyCouponDiscount];
+                    $bookingTotals['paid'] += $legacyCouponDiscount;
+                }
+            } catch (PDOException $e) {
+                // Coupon tables may not exist for older installs.
             }
         }
     }
@@ -196,7 +226,7 @@ if ($item && $pdo) {
         $paidForEntry = max(0.0, $entryPrice - $refundShare);
         $balanceDue = 0.0;
     } else {
-        $paidPool = $bookingTotals['all'] - $bookingTotals['refund'];
+        $paidPool = max(0.0, (float)$bookingTotals['paid']);
         $activeTotal = $bookingTotals['active'] > 0 ? $bookingTotals['active'] : 0.0;
         $paidForEntry = $activeTotal > 0 ? ($paidPool * ($entryPrice / $activeTotal)) : 0.0;
         $balanceDue = max(0.0, $entryPrice - $paidForEntry);

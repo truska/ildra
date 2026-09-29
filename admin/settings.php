@@ -86,6 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $siteSettings = array_merge($siteSettings, $payload);
         }
+    } elseif ($settingsSection === 'marketing') {
+        $payload = ['ride_helper_coupon_value' => number_format(max(0, price_to_number($_POST['ride_helper_coupon_value'] ?? 0)), 2, '.', '')];
+        if (saveSiteSettings($pdo, $payload, $alerts)) { $_SESSION['flash_success']='Marketing settings saved.'; header('Location: settings.php?tab=marketing'); exit; }
+        $siteSettings=array_merge($siteSettings,$payload);
     } elseif ($settingsSection === 'ride_notes_email') {
         $payload = [
             'ride_notes_email_intro_html' => trim((string)($_POST['ride_notes_email_intro_html'] ?? '')),
@@ -161,7 +165,7 @@ $manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), stat
 }));
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 $requestedSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'company'));
-$allowedSettingsTabs = ['company', 'home', 'events', 'ride_notes_email', 'global'];
+$allowedSettingsTabs = ['company', 'home', 'events', 'ride_notes_email', 'marketing', 'global'];
 if ($canManageCampaignEmail) $allowedSettingsTabs[] = 'campaign_email';
 $activeSettingsTab = in_array($requestedSettingsTab, $allowedSettingsTabs, true) ? $requestedSettingsTab : 'company';
 
@@ -181,6 +185,7 @@ admin_layout_start('Settings', 'settings');
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'ride_notes_email' ? 'active' : ''; ?>" id="ride-notes-email-tab" data-bs-toggle="tab" data-bs-target="#ride-notes-email-settings" type="button" role="tab" aria-controls="ride-notes-email-settings" aria-selected="<?php echo $activeSettingsTab === 'ride_notes_email' ? 'true' : 'false'; ?>">Ride Notes Email</button>
         </li>
+        <li class="nav-item" role="presentation"><button class="nav-link <?php echo $activeSettingsTab === 'marketing' ? 'active' : ''; ?>" id="marketing-tab" data-bs-toggle="tab" data-bs-target="#marketing-settings" type="button" role="tab">Marketing</button></li>
         <?php if ($canManageCampaignEmail): ?><li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'campaign_email' ? 'active' : ''; ?>" id="campaign-email-tab" data-bs-toggle="tab" data-bs-target="#campaign-email-settings" type="button" role="tab" aria-controls="campaign-email-settings" aria-selected="<?php echo $activeSettingsTab === 'campaign_email' ? 'true' : 'false'; ?>">Campaign Email</button>
         </li><?php endif; ?>
@@ -314,6 +319,7 @@ admin_layout_start('Settings', 'settings');
             <div class="col-12"><button class="btn btn-success">Save Ride Notes email settings</button></div>
         </form></div>
     </div>
+    <div class="tab-pane fade <?php echo $activeSettingsTab === 'marketing' ? 'show active' : ''; ?>" id="marketing-settings" role="tabpanel" aria-labelledby="marketing-tab" tabindex="0"><h3 class="h5 fw-bold mb-1">Marketing and coupons</h3><p class="text-muted small mb-3">Ride Helper coupons use this fixed value when issued.</p><div class="card-soft p-3"><form method="post" class="row g-3"><input type="hidden" name="settings_section" value="marketing"><div class="col-md-4"><label class="form-label fw-semibold">Ride Helper coupon value (£)</label><input class="form-control" type="number" min="0" step="0.01" name="ride_helper_coupon_value" value="<?php echo h((string)($siteSettings['ride_helper_coupon_value']??'0.00')); ?>"></div><div class="col-12"><button class="btn btn-success">Save marketing settings</button></div></form></div></div>
     <?php if ($canManageCampaignEmail): ?><div class="tab-pane fade <?php echo $activeSettingsTab === 'campaign_email' ? 'show active' : ''; ?>" id="campaign-email-settings" role="tabpanel" aria-labelledby="campaign-email-tab" tabindex="0">
         <h3 class="h5 fw-bold mb-1">Campaign email</h3>
         <p class="text-muted small mb-3">Senior administrator controls for scheduled and bulk campaign delivery.</p>

@@ -33,10 +33,30 @@ if (!$basket) {
 
 $navItemEventsUrl = $basePath . '/events';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'apply_coupon') {
+    $couponResult = coupon_validate_for_basket($pdo, (string)($_POST['coupon_code'] ?? ''), $basket, (int)($currentUser['id'] ?? 0));
+    if (!empty($couponResult['ok'])) {
+        $_SESSION['basket_coupon_code'] = (string)$couponResult['coupon']['code'];
+        $_SESSION['flash_success'] = 'Coupon applied to this purchase.';
+        header('Location: ' . $basePath . '/checkout');
+        exit;
+    }
+    $alerts[] = ['type'=>'danger','message'=>(string)($couponResult['message'] ?? 'Coupon could not be applied.')];
+}
+
 $totalAmount = 0.0;
 foreach ($basket as $item) {
     $totalAmount += price_to_number($item['price'] ?? 0);
 }
+$basketTotalBeforeCoupon = $totalAmount;
+$couponCode = (string)($_SESSION['basket_coupon_code'] ?? '');
+$couponDiscount = 0.0; $appliedCoupon = null;
+if ($couponCode !== '') {
+    $couponResult = coupon_validate_for_basket($pdo, $couponCode, $basket, (int)($currentUser['id'] ?? 0));
+    if (!empty($couponResult['ok'])) { $couponDiscount = (float)$couponResult['discount']; $appliedCoupon=$couponResult['coupon']; }
+    else { $couponCode = ''; }
+}
+$totalAmount = round(max(0, $totalAmount - $couponDiscount), 2);
 $userBalance = $currentUser ? fetch_user_credit_balance($pdo, (int)($currentUser['id'] ?? 0)) : 0.0;
 $paymentDue = max(0.0, $totalAmount - $userBalance);
 $paymentDue = round($paymentDue, 2);
@@ -86,6 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
     }
 
     if (!$alerts) {
+        if ($couponCode !== '') {
+            $couponResult = coupon_validate_for_basket($pdo, $couponCode, $basket, (int)($currentUser['id'] ?? 0));
+            if (empty($couponResult['ok'])) $alerts[] = ['type'=>'danger','message'=>(string)($couponResult['message'] ?? 'Coupon is no longer valid.')];
+            else { $couponDiscount=(float)$couponResult['discount']; $totalAmount=round(max(0,$basketTotalBeforeCoupon-$couponDiscount),2); }
+        }
         $requiredLogbookYear = horse_logbook_purchase_year(getSiteSettings($pdo));
         $purchasableLogbookType = fetchPurchasableHorseLogbookType($pdo, getSiteSettings($pdo));
         $logbookKeys = [];
@@ -181,14 +206,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                 'quantity' => 1,
             ];
         }
-        if ($creditToUse > 0 && $paymentDue > 0) {
+        // Stripe must receive the final amount after both coupon and account
+        // credit. Individual full-price lines would otherwise overcharge a
+        // coupon-only checkout.
+        if ($paymentDue > 0 && ($creditToUse > 0 || $couponDiscount > 0)) {
             $lineItems = [[
                 'price_data' => [
                     'currency' => $stripeConfig['currency'],
                     'unit_amount' => (int)round($paymentDue * 100),
                     'product_data' => [
-                        'name' => 'Booking balance after account credit',
-                        'description' => 'Order total ' . format_price($totalAmount) . ' less account credit ' . format_price($creditToUse),
+                        'name' => 'Booking payment balance',
+                        'description' => 'After coupon discount ' . format_price($couponDiscount) . ' and account credit ' . format_price($creditToUse),
                     ],
                 ],
                 'quantity' => 1,
@@ -248,6 +276,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                     'contact_phone' => $contactPhone,
                     'basket' => $basket,
                     'total' => $totalAmount,
+                    'items_total' => $basketTotalBeforeCoupon,
+                    'coupon_code' => $couponCode,
+                    'coupon_discount' => $couponDiscount,
                     'payment_due' => $paymentDue,
                     'credit_to_use' => $creditToUse,
                     'use_credit' => $useCredit,
@@ -276,9 +307,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             'contact_phone' => $contactPhone,
             'items' => $basket,
             'total' => $totalAmount,
+            'payment_breakdown' => ['items_total'=>$basketTotalBeforeCoupon,'coupon_discount'=>$couponDiscount,'account_credit'=>$creditToUse,'account_debit'=>max(0.0,-$userBalance),'card_payment'=>$paymentDue],
             'created_at' => date('Y-m-d H:i:s'),
         ];
         append_booking_record($order, $alerts, $pdo);
+        if (!$alerts && $couponCode !== '') {
+            $redeemedCoupon = coupon_redeem($pdo, $couponCode, $basket, (int)$userId, (string)$order['booking_ref'], $alerts);
+            if ($redeemedCoupon && $redeemedCoupon['applied'] > 0) {
+                $couponFinanceAlerts=[];
+                record_finance_transaction($pdo, ['user_id'=>(int)$userId,'type'=>'coupon_discount','amount'=>$redeemedCoupon['applied'],'affects_credit'=>false,'reference'=>$order['booking_ref'],'notes'=>'Coupon discount — '.$redeemedCoupon['coupon']['code'],'metadata'=>['coupon_id'=>$redeemedCoupon['coupon']['id'],'coupon_code'=>$redeemedCoupon['coupon']['code']]], $couponFinanceAlerts);
+            }
+            if ($redeemedCoupon && $redeemedCoupon['credit'] > 0) {
+                $couponFinanceAlerts=[];
+                record_finance_transaction($pdo, ['user_id'=>(int)$userId,'type'=>'coupon_partial_credit','amount'=>$redeemedCoupon['credit'],'reference'=>$order['booking_ref'],'notes'=>'Partial coupon balance — '.$redeemedCoupon['coupon']['code'],'metadata'=>['coupon_id'=>$redeemedCoupon['coupon']['id']]], $couponFinanceAlerts);
+            }
+        }
         // Membership and horse logbook purchases are tracked separately.
         if (!$alerts && $userId) {
             foreach ($basket as $basketItem) {
@@ -382,6 +425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
         send_late_entry_alerts($pdo, $order, $siteSettings, $emailSettings);
 
         $_SESSION['basket'] = [];
+        unset($_SESSION['basket_coupon_code']);
         unset($_SESSION['basket_last_added']);
         saveBasketForSession($pdo, session_id(), [], $userId ?: null, null);
         $_SESSION['flash_success'] = 'Booking placed. You can review it any time.';
@@ -600,6 +644,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                         </div>
                     <?php else: ?>
                         <div class="card-soft p-4">
+                            <?php if($appliedCoupon): ?><div class="border rounded p-2 mb-3 small"><div class="d-flex justify-content-between text-success"><strong>Coupon <?php echo h($appliedCoupon['code']); ?></strong><strong>−<?php echo h(format_price($couponDiscount)); ?></strong></div><div class="text-muted"><?php echo h((string)$appliedCoupon['title']); ?> · value <?php echo h(format_price($appliedCoupon['amount'])); ?></div></div><?php else: ?><form method="post" class="mb-3"><input type="hidden" name="action" value="apply_coupon"><label class="form-label fw-semibold">Coupon code</label><div class="input-group"><input class="form-control" name="coupon_code" placeholder="AB12-CD34"><button class="btn btn-outline-success">Apply</button></div><div class="form-text">One coupon may be used per purchase. It is applied before account credit.</div></form><?php endif; ?>
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                     <div class="fw-bold mb-1">Contact details</div>
@@ -625,7 +670,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                 </div>
                                 <div class="col-12 d-flex justify-content-between align-items-center">
                                     <div>
-                                    <div class="fw-semibold mb-1">Total (approx): £<?php echo number_format($totalAmount, 2); ?></div>
+                                    <div class="fw-semibold mb-1">Basket total: £<?php echo number_format($basketTotalBeforeCoupon, 2); ?></div>
+                                    <?php if($appliedCoupon): ?><div class="text-success small">Coupon discount: −<?php echo h(format_price($couponDiscount)); ?></div><div class="fw-semibold mb-1">Total after coupon: £<?php echo number_format($totalAmount, 2); ?></div><?php endif; ?>
                                     <?php if ($userBalance < 0): ?>
                                         <div class="text-muted small">Debit balance: <?php echo format_price(abs($userBalance)); ?></div>
                                     <?php else: ?>

@@ -719,7 +719,14 @@ function buildMimeMessage(string $subject, string $fromName, string $fromEmail, 
             $bodyLines[] = "--{$mixedBoundary}";
             $bodyLines[] = "Content-Type: {$mime}; name=\"{$filename}\"";
             $bodyLines[] = 'Content-Transfer-Encoding: base64';
-            $bodyLines[] = "Content-Disposition: attachment; filename=\"{$filename}\"";
+            $contentId = trim((string)($attachment['content_id'] ?? ''));
+            if ($contentId !== '') {
+                $contentId = preg_replace('/[^a-zA-Z0-9._-]/', '', $contentId);
+                $bodyLines[] = "Content-ID: <{$contentId}>";
+                $bodyLines[] = "Content-Disposition: inline; filename=\"{$filename}\"";
+            } else {
+                $bodyLines[] = "Content-Disposition: attachment; filename=\"{$filename}\"";
+            }
             $bodyLines[] = '';
             $bodyLines[] = chunk_split(base64_encode($contents), 76, "\r\n");
         }
@@ -865,6 +872,24 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
     }
     ensureEmailTables($pdo);
     $settings = getEmailSettings($pdo);
+    if (str_contains($htmlBody, 'cid:ildra-email-footer')) {
+        $footerPath = __DIR__ . '/filestore/images/logos/ildra-email-footer.png';
+        $alreadyAttached = false;
+        foreach ($attachments as $attachment) {
+            if (($attachment['content_id'] ?? '') === 'ildra-email-footer') {
+                $alreadyAttached = true;
+                break;
+            }
+        }
+        if (!$alreadyAttached && is_readable($footerPath)) {
+            $attachments[] = [
+                'path' => $footerPath,
+                'filename' => 'ildra-email-footer.png',
+                'mime_type' => 'image/png',
+                'content_id' => 'ildra-email-footer',
+            ];
+        }
+    }
     $enabled = ((string)($settings['email_enabled'] ?? '0')) === '1';
     $provider = (string)($settings['email_provider'] ?? 'smtp');
 
@@ -1012,6 +1037,11 @@ function email_public_asset_url(string $path, array $siteSettings = []): string
     $host = PHP_SAPI === 'cli'
         ? trim((string)($config['cli_host'] ?? ''))
         : trim((string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+    // Development receives HTTP on :28085 but exposes HTTPS publicly on :28086.
+    // Keep the public HTTPS port in emails; live hosts do not carry a port.
+    if (preg_match('/^(.*):28085$/', $host, $matches)) {
+        $host = $matches[1] . ':28086';
+    }
 
     if ($host === '' || !preg_match('/^[a-z0-9.-]+(?::\d+)?$/i', $host)) {
         $websiteUrl = trim((string)($siteSettings['company_website_url'] ?? ''));
@@ -1036,8 +1066,8 @@ function email_cta_button_html(string $url, string $label): string
 function email_signature_html(array $siteSettings, array $emailSettings): string
 {
     $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
-    $logoUrl = email_public_asset_url('/filestore/images/logos/ildra-email-footer.png', $siteSettings);
-    $websiteUrl = trim((string)($siteSettings['company_website_url'] ?? ''));
+    $logoPath = __DIR__ . '/filestore/images/logos/ildra-email-footer.png';
+    $websiteUrl = rtrim(email_public_asset_url('/', $siteSettings), '/');
     $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
     $contactLines = '';
@@ -1049,8 +1079,8 @@ function email_signature_html(array $siteSettings, array $emailSettings): string
     }
 
     $logoHtml = '';
-    if ($logoUrl !== '') {
-        $logoHtml = '<div style="margin-top:18px;"><img src="' . h($logoUrl) . '" width="600" height="115" alt="' . h($brandName) . '" style="display:block;width:100%;max-width:600px;height:auto;border:0;"></div>';
+    if (is_readable($logoPath)) {
+        $logoHtml = '<div style="margin-top:18px;"><img src="cid:ildra-email-footer" width="600" height="115" alt="' . h($brandName) . '" style="display:block;width:100%;max-width:600px;height:auto;border:0;"></div>';
     }
 
     return '<div style="margin-top:24px;padding-top:18px;border-top:1px solid rgba(20,97,24,0.12);background:#ffffff;">'
@@ -1063,7 +1093,7 @@ function email_signature_html(array $siteSettings, array $emailSettings): string
 function email_signature_text(array $siteSettings, array $emailSettings): string
 {
     $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
-    $websiteUrl = trim((string)($siteSettings['company_website_url'] ?? ''));
+    $websiteUrl = rtrim(email_public_asset_url('/', $siteSettings), '/');
     $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
     $lines = [$brandName];
@@ -1122,6 +1152,7 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
     $contactEmail = (string)($order['contact_email'] ?? '');
     $total = format_price($order['total'] ?? 0);
     $items = $order['items'] ?? [];
+    $payment = is_array($order['payment_breakdown'] ?? null) ? $order['payment_breakdown'] : [];
 
     $purchaseKinds = [];
     foreach ($items as $item) {
@@ -1179,6 +1210,24 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         $rowsText[] = "- {$title} ({$type}) — {$price}" . ($detailsStr !== '' ? " — {$detailsStr}" : '');
     }
 
+    $paymentHtml = '<tr><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);font-weight:800;">Total</td>'
+        . '<td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;font-weight:800;">' . h($total) . '</td></tr>';
+    $paymentText = "Total: {$total}";
+    if ($payment) {
+        $itemsTotal = (float)($payment['items_total'] ?? 0);
+        $couponDiscount = max(0.0, (float)($payment['coupon_discount'] ?? 0));
+        $accountCredit = max(0.0, (float)($payment['account_credit'] ?? 0));
+        $accountDebit = max(0.0, (float)($payment['account_debit'] ?? 0));
+        $cardPayment = max(0.0, (float)($payment['card_payment'] ?? 0));
+        $paymentHtml = '<tr><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);">Entry total</td><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;">' . h(format_price($itemsTotal)) . '</td></tr>';
+        $paymentText = 'Entry total: ' . format_price($itemsTotal);
+        if ($couponDiscount > 0) { $paymentHtml .= '<tr><td style="padding-top:5px;color:#146118;">Less coupon</td><td style="padding-top:5px;text-align:right;color:#146118;">−' . h(format_price($couponDiscount)) . '</td></tr>'; $paymentText .= "\nLess coupon: −" . format_price($couponDiscount); }
+        if ($accountCredit > 0) { $paymentHtml .= '<tr><td style="padding-top:5px;color:#146118;">Less account credit</td><td style="padding-top:5px;text-align:right;color:#146118;">−' . h(format_price($accountCredit)) . '</td></tr>'; $paymentText .= "\nLess account credit: −" . format_price($accountCredit); }
+        if ($accountDebit > 0) { $paymentHtml .= '<tr><td style="padding-top:5px;">Plus account debit</td><td style="padding-top:5px;text-align:right;">+' . h(format_price($accountDebit)) . '</td></tr>'; $paymentText .= "\nPlus account debit: +" . format_price($accountDebit); }
+        $paymentHtml .= '<tr><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);font-weight:800;">Paid by card</td><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;font-weight:800;">' . h(format_price($cardPayment)) . '</td></tr>';
+        $paymentText .= "\nPaid by card: " . format_price($cardPayment);
+    }
+
     $htmlInner = '<div style="font-size:16px;font-weight:800;color:#0c2a12;">' . h($confirmationTitle) . '</div>'
         . '<div style="margin-top:6px;color:#476146;">Reference: <strong>' . h($bookingRef) . '</strong></div>'
         . '<div style="margin-top:4px;color:#476146;">Placed: ' . h($placed) . '</div>'
@@ -1186,8 +1235,7 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         . '<div style="margin-top:16px;border-top:1px solid rgba(0,0,0,0.06);padding-top:14px;">'
         . '<table style="width:100%;border-collapse:collapse;">'
         . $rowsHtml
-        . '<tr><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);font-weight:800;">Total</td>'
-        . '<td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;font-weight:800;">' . h($total) . '</td></tr>'
+        . $paymentHtml
         . '</table>'
         . '</div>'
         . '<div style="margin-top:18px;color:#476146;">Thank you for your purchase.</div>';
@@ -1200,7 +1248,7 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         . "Contact: {$contactName} · {$contactEmail}\n\n"
         . "Items:\n"
         . implode("\n", $rowsText) . "\n\n"
-        . "Total: {$total}");
+        . $paymentText);
 
     return ['subject' => $subject, 'html' => $html, 'text' => $text];
 }

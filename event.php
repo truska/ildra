@@ -10,6 +10,9 @@ $siteBase = $basePath ?: '';
 
 $eventId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $event = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
+$eventImageBatch = $event ? mediaBatchFind($pdo, 'event_images', 'event', $eventId) : null;
+$eventImages = $eventImageBatch ? mediaBatchImages($pdo, (int)$eventImageBatch['id']) : [];
+$eventImage = $eventImages[0] ?? null;
 $publishedRideNotes = $event ? fetchRideNotes($pdo, $eventId) : null;
 $showRideNotesLink = ($publishedRideNotes['status'] ?? '') === 'published';
 $basket = $_SESSION['basket'] ?? [];
@@ -701,6 +704,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             box-shadow: 0 0 0 1px rgba(220,53,69,0.4);
         }
 
+        .event-gallery-main { display:flex; width:100%; max-width:300px; margin:0 auto 1.25rem; justify-content:center; border:0; padding:0; background:none; cursor:zoom-in; }
+        .event-gallery-main img { display:block; width:auto; max-width:100%; height:auto; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.12); }
+        .event-gallery-caption { max-width:300px; margin:-.7rem auto 1.25rem; color:var(--muted); font-size:.9rem; text-align:center; }
+        .event-lightbox { position:fixed; inset:0; z-index:4000; display:none; place-items:center; padding:2rem; background:rgba(0,0,0,.9); }
+        .event-lightbox.open { display:grid; }
+        .event-lightbox img { max-width:94vw; max-height:88vh; object-fit:contain; }
+        .event-lightbox-figure { margin:0; max-width:94vw; text-align:center; }
+        .event-lightbox-caption { margin-top:.65rem; color:#fff; font-size:1rem; }
+        .event-lightbox-close { position:absolute; right:1rem; top:.5rem; border:0; background:none; color:#fff; font-size:2.5rem; }
         @media (max-width: 767px) {
             .page-hero {
                 padding: 1.75rem 0;
@@ -783,6 +795,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <?php if ($showRideNotesLink): ?><a class="btn btn-outline-success btn-sm" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
                         </div>
                     </div>
+                    <?php if (trim((string)($event['details_html'] ?? '')) !== ''): ?>
+                        <div class="event-extra-details mb-4"><?php echo (string)$event['details_html']; ?></div>
+                    <?php endif; ?>
+                    <?php if ($eventImage && $eventImageBatch): ?>
+                        <button type="button" class="event-gallery-main" data-event-gallery data-lightbox-src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" aria-label="Enlarge event image"><img src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'sm')); ?>" alt="<?php echo h((string)($eventImage['alt_text'] ?: $eventImage['title'] ?: $event['title'])); ?>"></button>
+                        <?php if (!empty($eventImage['caption'])): ?><div class="event-gallery-caption"><?php echo h((string)$eventImage['caption']); ?></div><?php endif; ?>
+                    <?php endif; ?>
                     <?php if (!empty($event['description'])): ?>
                         <p class="mb-3"><?php echo h($event['description']); ?></p>
                     <?php endif; ?>
@@ -1183,11 +1202,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     </main>
 
     <?php include __DIR__ . '/views/footer.php'; ?>
+    <div class="event-lightbox" id="event-lightbox" role="dialog" aria-modal="true" aria-label="Image preview"><button type="button" class="event-lightbox-close" aria-label="Close">&times;</button><figure class="event-lightbox-figure"><img src="" alt=""><figcaption class="event-lightbox-caption"></figcaption></figure></div>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>(function(){const main=document.querySelector('[data-event-gallery]'),box=document.getElementById('event-lightbox');if(!main||!box)return;const image=box.querySelector('img'),caption=box.querySelector('.event-lightbox-caption'),close=()=>{box.classList.remove('open');image.src='';caption.textContent='';document.body.style.overflow='';};main.addEventListener('click',()=>{image.src=main.dataset.lightboxSrc;image.alt=main.querySelector('img').alt;caption.textContent=document.querySelector('.event-gallery-caption')?.textContent||'';box.classList.add('open');document.body.style.overflow='hidden';});box.querySelector('.event-lightbox-close').addEventListener('click',close);box.addEventListener('click',e=>{if(e.target===box)close();});document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});})();</script>
     <?php render_tinymce_bootstrap(); ?>
     <script>
         const classSelect = document.getElementById('classSelect');
