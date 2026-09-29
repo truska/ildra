@@ -1190,6 +1190,12 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         if (!empty($meta['horse_name'])) {
             $details[] = 'Horse: ' . $meta['horse_name'];
         }
+        if (strtolower((string)($item['booking_type'] ?? '')) === 'membership') {
+            $memberName = trim((string)($meta['member_name'] ?? $item['member_name'] ?? ''));
+            if ($memberName !== '') {
+                $details[] = 'Membership for: ' . $memberName;
+            }
+        }
         if (!empty($item['member_number'])) {
             $details[] = 'Member no: ' . $item['member_number'];
         }

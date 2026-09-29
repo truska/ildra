@@ -2071,10 +2071,12 @@ $accountIntroAutoOpen = false;
 	                                                $purchaseDetailLabels = [];
 	                                                foreach ($booking['items'] ?? [] as $bookingItem) {
 	                                                    $bookingType = strtolower((string)($bookingItem['booking_type'] ?? 'ride'));
+	                                                    $bookingMeta = is_array($bookingItem['metadata'] ?? null) ? $bookingItem['metadata'] : [];
 	                                                    if ($bookingType === 'horse_logbook') {
 	                                                        $purchaseLabel = 'Logbook';
 	                                                    } elseif ($bookingType === 'membership') {
-	                                                        $purchaseLabel = 'Membership';
+	                                                        $memberName = trim((string)($bookingMeta['member_name'] ?? $bookingItem['member_name'] ?? ''));
+	                                                        $purchaseLabel = $memberName !== '' ? 'Membership: ' . $memberName : 'Membership';
 	                                                    } else {
 	                                                        $purchaseLabel = trim((string)($bookingItem['event_title'] ?? $bookingItem['event_name'] ?? ''));
 	                                                        if ($purchaseLabel === '') $purchaseLabel = 'Event entry';

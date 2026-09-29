@@ -174,7 +174,7 @@ if ($pdo) {
             font-weight: 700;
         }
         .booking-item + .booking-item { border-top: 1px solid rgba(0,0,0,0.04); }
-        .booking-summary-header { display: grid; grid-template-columns: minmax(130px, 1.15fr) 60px 48px minmax(135px, 1.15fr) minmax(240px, 2.5fr) minmax(180px, 1.45fr); gap: 1rem; flex: 1 1 0; min-width: 0; }
+        .booking-summary-header { display: grid; grid-template-columns: minmax(130px, 1.15fr) 60px 48px minmax(135px, 1.15fr) minmax(240px, 2.5fr); gap: 1rem; flex: 1 1 0; min-width: 0; }
         .booking-summary-event { min-width: 0; overflow-wrap: anywhere; }
         .booking-summary-actions { flex: 0 0 auto; }
         @media (max-width: 991.98px) { .booking-summary-header { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -264,6 +264,13 @@ if ($pdo) {
                         $attendeeCount = 0;
                         foreach ($items as $item) {
                             $eventName = trim((string)($item['event_title'] ?? $item['event_name'] ?? ''));
+                            $itemMeta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+                            if (strtolower((string)($item['booking_type'] ?? '')) === 'membership') {
+                                $memberName = trim((string)($itemMeta['member_name'] ?? $item['member_name'] ?? ''));
+                                if ($memberName !== '') {
+                                    $eventName .= ' — ' . $memberName;
+                                }
+                            }
                             if ($eventName !== '' && !in_array($eventName, $eventNames, true)) {
                                 $eventNames[] = $eventName;
                             }
@@ -301,15 +308,14 @@ if ($pdo) {
                                         <div class="text-muted small"><?php echo h($order['contact_email'] ?? ''); ?></div>
                                     </div>
                                     <div class="booking-summary-event">
-                                        <div class="meta-label">Event Name</div>
-                                        <div class="fw-semibold"><?php echo h($eventNames ? implode(' | ', $eventNames) : '—'); ?></div>
-                                    </div>
-                                    <div>
-                                        <div class="meta-label">Transaction</div>
-                                        <?php foreach ($bookingTransactions as $transaction): ?>
-                                            <?php $transactionType = (string)($transaction['type'] ?? 'checkout'); $transactionAmount = (float)($transaction['amount'] ?? 0); $transactionLabel = match ($transactionType) {'entry_credit' => 'Credit', 'entry_stripe_refund', 'entry_refund', 'refund' => 'Refund', default => 'Purchase'}; ?>
-                                            <div class="fw-semibold"><?php echo h($transactionLabel); ?> <span class="text-muted fw-normal">· Value <?php echo format_price(abs($transactionAmount)); ?></span></div>
-                                        <?php endforeach; ?>
+                                        <div class="meta-label">Description</div>
+                                        <?php if ($eventNames): ?>
+                                            <?php foreach ($eventNames as $eventName): ?>
+                                                <div class="fw-semibold"><?php echo h($eventName); ?></div>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <div class="fw-semibold">—</div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                                 <div class="text-end booking-summary-actions">
@@ -353,6 +359,10 @@ if ($pdo) {
                                         $bookingTypeLabel = ucfirst($bookingType);
                                         $meta = $item['metadata'] ?? [];
                                         $chips = [];
+                                        if ($bookingType === 'membership') {
+                                            $memberName = trim((string)($meta['member_name'] ?? $item['member_name'] ?? ''));
+                                            if ($memberName !== '') $chips[] = 'Membership for: ' . $memberName;
+                                        }
                                         foreach (['class_label', 'rider_name', 'horse_name'] as $k) {
                                             if (isset($meta[$k])) {
                                                 $chips[] = ucfirst(str_replace('_', ' ', $k)) . ': ' . $meta[$k];
