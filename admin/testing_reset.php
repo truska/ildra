@@ -26,7 +26,7 @@ if ($pdo && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     } catch (Throwable $e) { $alerts[] = ['type'=>'danger', 'message'=>$e->getMessage()]; }
 }
 $identities = $pdo ? testingResetIdentities($pdo) : [];
-admin_layout_start('Reset test data', 'tech');
+admin_layout_start('Reset test data', 'testing_reset');
 ?>
 <h4>Reset test data</h4>
 <p>Keep existing logins and the selected person for each account. Testers will need to join again, register their horses and make new entries.</p>

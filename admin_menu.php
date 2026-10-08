@@ -34,6 +34,7 @@ function defaultAdminMenuItems(): array
         ['menu', 'Menu', 'menu.php', 'fa-solid fa-bars'],
         ['tech', 'Tech', 'tech.php', 'fa-solid fa-screwdriver-wrench'],
         ['tech_email', 'Live Email Settings', 'email.php?view=settings', 'fa-solid fa-server'],
+        ['testing_reset', 'Reset test data', 'testing_reset.php', 'fa-solid fa-eraser'],
         ['image_folders', 'Storage Folders', 'image_folders.php', 'fa-solid fa-folder-tree'],
     ];
     $out = [];
@@ -56,7 +57,7 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
-    if (in_array($key, ['tech', 'tech_email', 'image_folders', 'coupons'], true)) {
+    if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons'], true)) {
         return ['superadmin'];
     }
     if (in_array($key, ['users', 'email', 'email_campaigns', 'pricing_schemes', 'event_types', 'people', 'horses', 'external_recognition', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
@@ -115,7 +116,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
         UPDATE admin_menu_items child
         JOIN admin_menu_items tech ON tech.menu_key = 'tech'
         SET child.parent_id = tech.id
-        WHERE child.menu_key IN ('tech_email', 'image_folders')
+        WHERE child.menu_key IN ('tech_email', 'testing_reset', 'image_folders')
     ");
 }
 
