@@ -16,6 +16,13 @@ admin_layout_start('Tech', 'tech');
 <div class="row g-4">
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
+            <h6>Reset test data</h6>
+            <p class="small text-muted">Preview and back up a testing reset, keeping logins and optionally the event calendar.</p>
+            <a class="btn btn-outline-danger" href="testing_reset.php">Open test data reset</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+        <div class="card-soft p-4 h-100">
             <div class="d-flex align-items-center gap-2 mb-2"><i class="fa-solid fa-server text-success" aria-hidden="true"></i><h6 class="mb-0">Live Email Settings</h6></div>
             <p class="small text-muted">Configure outbound delivery, SMTP, sender details, test redirects and send a controlled test email.</p>
             <a class="btn btn-outline-success" href="email.php?view=settings">Open email settings</a>

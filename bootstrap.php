@@ -213,8 +213,10 @@ if ($pdo) {
     tidyExpiredBaskets($pdo, $basketTimeoutBootstrap);
     [$storedBasket, $storedLast, $storedUser] = loadBasketForSession($pdo, session_id());
     if ($storedBasket !== null) {
-        // Sync from DB if present, but don't wipe in-memory basket if nothing is stored.
+        // The database is authoritative, including after an administrative testing reset.
         $_SESSION['basket'] = $storedBasket;
         $_SESSION['basket_last_added'] = $storedLast;
+    } else {
+        unset($_SESSION['basket'], $_SESSION['basket_last_added']);
     }
 }
