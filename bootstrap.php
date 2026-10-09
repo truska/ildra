@@ -98,7 +98,10 @@ $alerts = $_SESSION['flash_alerts'] ?? [];
 $successMessage = $_SESSION['flash_success'] ?? null;
 unset($_SESSION['flash_alerts'], $_SESSION['flash_success']);
 
-$config = require __DIR__ . '/../private/config.php';
+// Prefer configuration stored outside the web root, while keeping existing
+// installations working until their configuration has been moved there.
+$privateConfigPath = __DIR__ . '/../private/config.php';
+$config = require is_file($privateConfigPath) ? $privateConfigPath : __DIR__ . '/config.php';
 // Optional: load private stripe overrides if present (not committed to git).
 foreach ([__DIR__ . '/../private/stripe.php', __DIR__ . '/private/stripe.php'] as $stripePath) {
     if (file_exists($stripePath)) {
