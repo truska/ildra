@@ -376,7 +376,7 @@ $navItemEventsUrl = $basePath . '/events';
                                             </div>
                                         <?php endif; ?>
                                         <?php if (!empty($event['description'])): ?>
-                                            <div class="event-notes"><?php echo h($event['description']); ?></div>
+                                            <div class="event-notes"><?php echo h(rich_html_plain_text((string)$event['description'])); ?></div>
                                         <?php endif; ?>
 	                                        <?php if ($isFull): ?>
 	                                            <div class="badge-full mt-2">Event full</div>

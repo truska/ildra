@@ -639,7 +639,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         <div class="section-card">
             <div class="section-title">Description</div>
-            <textarea name="description" class="form-control" rows="4"><?php echo h($event['description'] ?? ''); ?></textarea>
+            <textarea name="description" class="form-control wysiwyg-field" rows="4"><?php echo h($event['description'] ?? ''); ?></textarea>
         </div>
 
         <div class="section-card">

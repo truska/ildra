@@ -115,6 +115,14 @@ function sanitize_rich_html(string $value): string
     return $html;
 }
 
+/** Plain-text summaries for rich content inside linked calendar cards. */
+function rich_html_plain_text(string $value): string
+{
+    $html = sanitize_rich_html($value);
+    $html = preg_replace('/<br\b[^>]*>|<\/(?:p|div|li|h[2-4]|blockquote)>/i', ' ', $html) ?? $html;
+    return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+}
+
 function render_wysiwyg(string $value): string
 {
     $html = sanitize_rich_html($value);

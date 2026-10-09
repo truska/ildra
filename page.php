@@ -223,7 +223,11 @@ foreach ($pageElements as &$pageElement) {
     $calendarEvents = array_values(array_filter(fetchEvents($pdo, true), static fn(array $event): bool => strtolower((string)($event['status'] ?? '')) === 'published'));
     usort($calendarEvents, static fn(array $a, array $b): int => strcmp((string)($a['event_date'] ?? ''), (string)($b['event_date'] ?? '')));
     ob_start(); ?>
-    <style>.current-events-calendar .d-flex.flex-column.align-items-md-end.gap-2 > .d-flex { flex-direction: column; align-items: flex-end; }</style>
+    <style>
+        .current-events-calendar .calendar-event-details { overflow-wrap: anywhere; }
+        .current-events-calendar .calendar-event-actions .badge,
+        .current-events-calendar .calendar-event-actions .btn { white-space: normal; text-align: inherit; }
+    </style>
     <div class="current-events-calendar mt-4">
         <?php $currentMonth = ''; ?>
         <?php if ($calendarEvents): ?><?php foreach ($calendarEvents as $event): ?>
@@ -253,7 +257,7 @@ foreach ($pageElements as &$pageElement) {
             $closingSoon = $entryCloseDt && !$entriesClosed && $entryCloseDt <= $now->modify('+4 days');
             ?>
             <a class="d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
-                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div><?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?><?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?><?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h((string)$event['description']); ?></div><?php endif; ?></div><div class="d-flex flex-column align-items-md-end gap-2"><span class="btn btn-sm btn-outline-success">View Ride &amp; Enter</span><div class="d-flex flex-wrap justify-content-md-end gap-2"><?php if ($entryOpenDt): ?><span class="badge <?php echo $now < $entryOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Members <?php echo h($now < $entryOpenDt ? 'open ' . $entryOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($nonMemberOpenDt): ?><span class="badge <?php echo $now < $nonMemberOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Non-members <?php echo h($now < $nonMemberOpenDt ? 'open ' . $nonMemberOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($entriesClosed): ?><span class="badge text-bg-secondary">Entries closed</span><?php elseif ($entryCloseDt): ?><span class="badge text-bg-light border">Closes <?php echo h($entryCloseDt->format('j M H:i')); ?></span><?php endif; ?><?php if ($closingSoon): ?><span class="fw-bold text-danger small align-self-center">CLOSING SOON</span><?php endif; ?><?php if ($isLimited): ?><span class="badge <?php echo $isFull ? 'text-bg-danger' : 'text-bg-light border'; ?>"><?php echo $isFull ? 'Event full' : $entryCount . '/' . $capacity . ' places'; ?></span><?php endif; ?></div></div></div>
+                <div class="row g-3 align-items-start"><div class="col-12 col-lg-9 calendar-event-details"><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div><?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?><?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?><?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h(rich_html_plain_text((string)$event['description'])); ?></div><?php endif; ?></div><div class="col-12 col-lg-3 calendar-event-actions d-flex flex-column align-items-start align-items-lg-end text-lg-end gap-2"><span class="btn btn-sm btn-outline-success">View Ride &amp; Enter</span><div class="d-flex flex-column align-items-start align-items-lg-end gap-2"><?php if ($entryOpenDt): ?><span class="badge <?php echo $now < $entryOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Members <?php echo h($now < $entryOpenDt ? 'open ' . $entryOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($nonMemberOpenDt): ?><span class="badge <?php echo $now < $nonMemberOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Non-members <?php echo h($now < $nonMemberOpenDt ? 'open ' . $nonMemberOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($entriesClosed): ?><span class="badge text-bg-secondary">Entries closed</span><?php elseif ($entryCloseDt): ?><span class="badge text-bg-light border">Closes <?php echo h($entryCloseDt->format('j M H:i')); ?></span><?php endif; ?><?php if ($closingSoon): ?><span class="fw-bold text-danger small">CLOSING SOON</span><?php endif; ?><?php if ($isLimited): ?><span class="badge <?php echo $isFull ? 'text-bg-danger' : 'text-bg-light border'; ?>"><?php echo $isFull ? 'Event full' : $entryCount . '/' . $capacity . ' places'; ?></span><?php endif; ?></div></div></div>
             </a>
         <?php endforeach; ?><?php else: ?><div class="alert alert-info mb-0">No current events are published.</div><?php endif; ?>
     </div><?php $pageElement['body_html']=(string)($pageElement['body_html']??'').(string)ob_get_clean();
@@ -292,14 +296,12 @@ foreach ($pageElements as &$pageElement) {
             ?>
             <div class="d-block border rounded-3 p-3 mb-2 shadow-sm">
                 <div class="row g-3 align-items-start">
-                    <div class="col-12 col-lg-5">
+                    <div class="col-12 col-lg-9">
                         <div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div>
                         <div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div>
                         <?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?>
-                    </div>
-                    <div class="col-12 col-lg-4">
                         <?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?>
-                        <?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h((string)$event['description']); ?></div><?php endif; ?>
+                        <?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h(rich_html_plain_text((string)$event['description'])); ?></div><?php endif; ?>
                     </div>
                     <div class="col-12 col-lg-3 d-flex justify-content-lg-end">
                         <?php if ($rideReport): ?><a class="btn btn-sm btn-outline-success" href="<?php echo h($reportUrl); ?>">Ride Report and Results</a><?php endif; ?>

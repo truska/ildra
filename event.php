@@ -803,7 +803,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         <?php if (!empty($eventImage['caption'])): ?><div class="event-gallery-caption"><?php echo h((string)$eventImage['caption']); ?></div><?php endif; ?>
                     <?php endif; ?>
                     <?php if (!empty($event['description'])): ?>
-                        <p class="mb-3"><?php echo h($event['description']); ?></p>
+                        <div class="mb-3"><?php echo render_wysiwyg((string)$event['description']); ?></div>
                     <?php endif; ?>
                     <div class="row g-3">
                         <div class="col-md-6">

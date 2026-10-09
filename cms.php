@@ -5726,7 +5726,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
         $classesOffered = json_encode([], JSON_UNESCAPED_UNICODE);
     }
     $status = $data['status'] ?? 'draft';
-    $description = trim((string)($data['description'] ?? ''));
+    $description = sanitize_rich_html((string)($data['description'] ?? ''));
     $eventTypes = fetchEventTypes($pdo);
     $selectedType = findEventType($eventTypes, (int)($data['event_type_id'] ?? 0), (string)($data['event_type'] ?? ''));
     $eventTypeId = (int)($selectedType['id'] ?? 0);
