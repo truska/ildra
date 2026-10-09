@@ -16,8 +16,8 @@ function ensureUserArchiveColumn(PDO $pdo): void
 /** Preserve linked records; remove only accounts with no retained history. */
 function deleteOrArchiveUser(PDO $pdo, int $userId, array $actor): string
 {
-    if (strtolower((string)($actor['role'] ?? '')) !== 'superadmin') {
-        throw new RuntimeException('Only SuperAdmins can delete or archive users.');
+    if (!roleIsSuperadminOrDeveloper((string)($actor['role'] ?? ''))) {
+        throw new RuntimeException('Only SuperAdmins and Developers can delete or archive users.');
     }
     if ($userId <= 0 || $userId === (int)($actor['id'] ?? 0)) {
         throw new RuntimeException('You cannot delete your own account or an invalid user.');
