@@ -38,6 +38,11 @@ $articleTable=admin_table_prepare($articles,$articleColumns,'display_order');
 $articles=$articleTable['rows'];
 $editGroup=null;$gid=(int)($_GET['group']??0);foreach($groups as $g)if((int)$g['id']===$gid)$editGroup=$g;
 if(isset($_GET['new_group']))$editGroup=['id'=>0,'name'=>'','description'=>'','path_patterns'=>'','display_order'=>0,'is_active'=>1];
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'save_group') {
+ $editGroup = ['id'=>(int)($_POST['group_id'] ?? 0), 'name'=>(string)($_POST['name'] ?? ''),
+  'description'=>(string)($_POST['description'] ?? ''), 'path_patterns'=>(string)($_POST['path_patterns'] ?? ''),
+  'display_order'=>(int)($_POST['display_order'] ?? 0), 'is_active'=>isset($_POST['is_active']) ? 1 : 0];
+}
 if($editGroup!==null)$view='groups';
 admin_layout_start('Help','help');
 ?>
@@ -49,7 +54,47 @@ admin_layout_start('Help','help');
 <form method="post" id="help-article-order-form"><input type="hidden" name="action" value="save_article_orders"></form>
 <div class="card-soft p-3"><div class="d-flex justify-content-between align-items-center gap-2 mb-2"><h6 class="mb-0">Help articles</h6><div class="d-flex gap-2"><a class="btn btn-sm btn-outline-secondary" href="help.php">Clear filters</a><button class="btn btn-sm btn-success" form="help-article-order-form">Save order</button></div></div><div class="table-responsive"><table class="table table-sm align-middle admin-data-table"><thead class="table-light"><tr><?php foreach($articleColumns as $key=>$column):?><th><?php echo admin_table_heading($key,$column,$articleTable['sort_key'],$articleTable['sort_dir']); ?></th><?php endforeach;?><th></th></tr><tr class="admin-table-filter-row"><?php foreach($articleColumns as $key=>$column):?><th><?php echo admin_table_filter($key,$column,$articleTable['filters']); ?></th><?php endforeach;?><th></th></tr></thead><tbody><?php foreach($articles as $a):$minLevel=(int)$a['min_user_level'];$maxLevel=$a['max_user_level']===null?null:(int)$a['max_user_level'];?><tr><td><input class="form-control form-control-sm" form="help-article-order-form" type="number" name="display_order[<?php echo (int)$a['id']; ?>]" value="<?php echo (int)$a['display_order']; ?>" aria-label="Order for <?php echo h($a['title']); ?>"></td><td><?php echo h($a['title']); ?></td><td><?php echo h($a['group_name']?:'Global'); ?></td><td><?php if(!empty($a['include_in_admin_manual'])):?><span class="badge bg-success">Admin</span> <?php endif;?><?php if(!empty($a['include_in_user_manual'])):?><span class="badge bg-primary">User</span><?php endif;?><?php if(empty($a['include_in_admin_manual'])&&empty($a['include_in_user_manual'])):?><span class="text-muted">—</span><?php endif;?></td><td><?php echo h(helpUserLevelLabel($userLevelOptions,$minLevel)); ?>–<?php echo h(helpUserLevelLabel($userLevelOptions,$maxLevel)); ?></td><td><?php echo $a['is_published']?'Published':'Draft'; ?></td><td><?php echo !empty($a['to_be_created'])?'Yes':'No'; ?></td><td class="text-end"><a class="btn btn-sm btn-outline-success" href="help_edit.php?id=<?php echo (int)$a['id']; ?>">Edit</a> <form method="post" class="d-inline" onsubmit="return confirm('Delete this help article?')"><input type="hidden" name="action" value="delete_article"><input type="hidden" name="id" value="<?php echo (int)$a['id']; ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form></td></tr><?php endforeach;?><?php if(!$articles):?><tr><td colspan="8" class="text-muted">No help articles yet.</td></tr><?php endif;?></tbody></table></div><?php echo admin_table_pagination($articleTable); ?></div>
 <?php else: ?>
-<?php if($editGroup):?><div class="card-soft p-4 mb-4"><h6><?php echo $editGroup['id']?'Edit':'Add'; ?> page group</h6><form method="post" class="row g-3"><input type="hidden" name="action" value="save_group"><input type="hidden" name="group_id" value="<?php echo (int)$editGroup['id']; ?>"><div class="col-md-6"><label class="form-label">Name</label><input class="form-control" name="name" required value="<?php echo h($editGroup['name']); ?>"></div><div class="col-md-6"><label class="form-label">Description</label><input class="form-control" name="description" value="<?php echo h($editGroup['description']); ?>"></div><div class="col-md-8"><label class="form-label">Page URL patterns</label><textarea class="form-control" name="path_patterns" rows="4" required placeholder="/account&#10;/member-login.php&#10;/admin/*.php"><?php echo h($editGroup['path_patterns']); ?></textarea><div class="form-text">One pattern per line. Use * as a wildcard.</div></div><div class="col-md-2"><label class="form-label">Order</label><input class="form-control" type="number" name="display_order" value="<?php echo (int)$editGroup['display_order']; ?>"></div><div class="col-md-2 pt-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_active" id="group-active" <?php echo $editGroup['is_active']?'checked':'';?>><label class="form-check-label" for="group-active">Active</label></div></div><div><button class="btn btn-success">Save group</button> <a class="btn btn-outline-secondary" href="help.php?view=groups">Cancel</a></div></form></div><?php endif;?>
 <div class="card-soft p-3"><h6>Page groups</h6><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Name</th><th>URL patterns</th><th>Status</th><th></th></tr></thead><tbody><?php foreach($groups as $g):?><tr><td><?php echo h($g['name']); ?></td><td><small><?php echo nl2br(h($g['path_patterns'])); ?></small></td><td><?php echo $g['is_active']?'Active':'Hidden'; ?></td><td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="help.php?view=groups&amp;group=<?php echo (int)$g['id']; ?>">Edit</a></td></tr><?php endforeach;?><?php if(!$groups):?><tr><td colspan="4" class="text-muted">No page groups yet.</td></tr><?php endif;?></tbody></table></div></div>
+<?php endif; ?>
+<?php if ($editGroup !== null): ?>
+<div class="modal fade" id="helpGroupModal" tabindex="-1" aria-labelledby="helpGroupModalTitle" aria-hidden="true">
+ <div class="modal-dialog modal-dialog-centered">
+  <form method="post" class="modal-content">
+   <input type="hidden" name="action" value="save_group">
+   <input type="hidden" name="group_id" value="<?php echo (int)$editGroup['id']; ?>">
+   <div class="modal-header">
+    <h5 class="modal-title" id="helpGroupModalTitle"><?php echo $editGroup['id'] ? 'Edit Help Group' : 'Add Help Group'; ?></h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+   </div>
+   <div class="modal-body">
+    <?php foreach ($alerts as $alert): ?>
+     <div class="alert alert-<?php echo h($alert['type']); ?>"><?php echo h($alert['message']); ?></div>
+    <?php endforeach; ?>
+    <div class="mb-3"><label class="form-label" for="help-group-name">Name</label><input class="form-control" id="help-group-name" name="name" required value="<?php echo h($editGroup['name']); ?>"></div>
+    <div class="mb-3"><label class="form-label" for="help-group-description">Description</label><input class="form-control" id="help-group-description" name="description" value="<?php echo h($editGroup['description']); ?>"></div>
+    <div class="mb-3"><label class="form-label" for="help-group-patterns">Page URL patterns</label><textarea class="form-control" id="help-group-patterns" name="path_patterns" rows="4" required placeholder="/account&#10;/member-login.php&#10;/admin/*.php"><?php echo h($editGroup['path_patterns']); ?></textarea><div class="form-text">One pattern per line. Use * as a wildcard.</div></div>
+    <div class="mb-3"><label class="form-label" for="help-group-order">Order</label><input class="form-control" id="help-group-order" type="number" name="display_order" value="<?php echo (int)$editGroup['display_order']; ?>"></div>
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="is_active" id="group-active" <?php echo $editGroup['is_active'] ? 'checked' : ''; ?>><label class="form-check-label" for="group-active">Active</label></div>
+   </div>
+   <div class="modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button class="btn btn-success">Save group</button>
+   </div>
+  </form>
+ </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+ const modal = document.getElementById('helpGroupModal');
+ if (!modal || !window.bootstrap) return;
+ modal.addEventListener('shown.bs.modal', function () {
+  document.getElementById('help-group-name').focus();
+ });
+ modal.addEventListener('hidden.bs.modal', function () {
+  window.location.href = 'help.php?view=groups';
+ });
+ bootstrap.Modal.getOrCreateInstance(modal).show();
+});
+</script>
 <?php endif; ?>
 <?php admin_layout_end(); ?>
