@@ -50,6 +50,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];
             }
 
+            $roleRow = null;
+            if (array_key_exists('role', $_POST)) {
+                $requestedRole = (string)$_POST['role'];
+                if (!$canManageRolesAndPasswords) {
+                    $alerts[] = ['type'=>'danger','message'=>'Only SuperAdmins and Developers can change user roles.'];
+                } elseif (!in_array($requestedRole, ['developer','superadmin','admin','manager','organiser','user'], true)) {
+                    $alerts[] = ['type'=>'danger','message'=>'Invalid role selected.'];
+                } else {
+                    $roleRow = fetchRoleByName($pdo, $requestedRole);
+                    if (!$roleRow) $alerts[] = ['type'=>'danger','message'=>'Role configuration missing.'];
+                }
+            }
             if (!$alerts) {
                 try {
                     $duplicate = $pdo->prepare('SELECT id FROM users WHERE email = :email AND id <> :id LIMIT 1');
@@ -57,8 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($duplicate->fetch()) {
                         $alerts[] = ['type' => 'danger', 'message' => 'That email address is already in use.'];
                     } else {
-                        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, is_tester = :is_tester, updated_at = NOW() WHERE id = :id LIMIT 1');
-                        $update->execute([
+                        $roleSql = $roleRow ? ', role_id = :role_id' : '';
+                        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, is_tester = :is_tester' . $roleSql . ', updated_at = NOW() WHERE id = :id LIMIT 1');
+                        $updateParams = [
                             ':first_name' => $firstName,
                             ':last_name' => $lastName,
                             ':email' => $email,
@@ -67,7 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ':renewal_opt_in' => $renewalReminderOptIn,
                             ':is_tester' => $isTester,
                             ':id' => $userId,
-                        ]);
+                        ];
+                        if ($roleRow) $updateParams[':role_id'] = (int)$roleRow['id'];
+                        $update->execute($updateParams);
+                        if ($roleRow) adminAuditLog($pdo, 'users.change_role', $currentUser, 'user', $userId, ['new_role'=>$requestedRole]);
                         if ((int)($currentUser['id'] ?? 0) === $userId && isset($_SESSION['user'])) {
                             $_SESSION['user']['first_name'] = $firstName;
                             $_SESSION['user']['last_name'] = $lastName;
@@ -225,7 +241,10 @@ admin_layout_start('Users', 'users');
                         <?php endforeach; ?>
                         <td class="text-muted small"><?php echo $lastLogin; ?></td>
                         <td class="text-end text-nowrap">
-                            <button type="button" class="btn btn-sm btn-outline-success has-icon" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo (int)$userRow['id']; ?>"><i class="fa-solid fa-pen-to-square btn-icon" aria-hidden="true"></i><span class="btn-label">Edit</span></button>
+                            <?php if ($canImpersonateUsers && ($userRow['role'] ?? '') === 'user' && empty($userRow['is_archived']) && (int)$userRow['id'] !== (int)$currentUser['id']): ?>
+                            <button class="btn btn-sm btn-outline-secondary" type="submit" form="actAsUserForm<?php echo (int)$userRow['id']; ?>" title="Act as this user" aria-label="Act as this user"><i class="fa-solid fa-user-secret" aria-hidden="true"></i></button>
+                            <?php endif; ?>
+                            <button type="button" class="btn btn-sm btn-outline-success" aria-label="Edit user" title="Edit user" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo (int)$userRow['id']; ?>"><i class="fa-solid fa-pen-to-square btn-icon" aria-hidden="true"></i></button>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -273,12 +292,11 @@ admin_layout_start('Users', 'users');
                     <div class="border-top mt-3 pt-3">
                         <label class="form-label fw-semibold" for="user-role-<?php echo (int)$userRow['id']; ?>">User role / level</label>
                         <div class="d-flex flex-wrap gap-2">
-                            <select class="form-select flex-grow-1" style="width:auto" id="user-role-<?php echo (int)$userRow['id']; ?>" name="role" form="roleUserForm<?php echo (int)$userRow['id']; ?>">
+                            <select class="form-select flex-grow-1" style="width:auto" id="user-role-<?php echo (int)$userRow['id']; ?>" name="role">
                                 <?php foreach ($tableColumns['role']['options'] as $roleValue=>$roleLabel): ?>
                                 <option value="<?php echo h($roleValue); ?>" <?php echo $userRow['role']===$roleValue?'selected':''; ?>><?php echo h($roleLabel); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <button class="btn btn-outline-success" type="submit" form="roleUserForm<?php echo (int)$userRow['id']; ?>">Save role</button>
                         </div>
                     </div>
                     <div class="border-top mt-3 pt-3">
@@ -289,26 +307,19 @@ admin_layout_start('Users', 'users');
                         </div>
                     </div>
                     <?php endif; ?>
-                    <?php if ($canImpersonateUsers && ($userRow['role'] ?? '') === 'user' && empty($userRow['is_archived']) && (int)$userRow['id'] !== (int)$currentUser['id']): ?>
-                    <div class="border-top mt-3 pt-3"><button class="btn btn-outline-secondary" type="submit" form="actAsUserForm<?php echo (int)$userRow['id']; ?>">Act as this user</button></div>
-                    <?php endif; ?>
+
                 </div>
                 <div class="modal-footer">
                     <?php if (roleIsSuperadminOrDeveloper($currentRole) && ($userRow['role'] ?? '') === 'user' && (int)$userRow['id'] !== (int)$currentUser['id'] && empty($userRow['is_archived'])): ?>
                     <button class="btn btn-danger me-auto" type="submit" form="deleteUserForm<?php echo (int)$userRow['id']; ?>" data-bs-dismiss="modal" data-confirm-style="danger" data-confirm-title="Delete user?" data-confirm-button="Delete or archive" data-confirm-message="Delete this user? If transaction history or linked records exist, the account will be archived instead and sign-in disabled.">Delete</button>
                     <?php endif; ?>
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-success">Save details</button>
+                    <button class="btn btn-success">Save changes</button>
                 </div>
             </form>
     </div>
 </div>
 <?php if ($canManageRolesAndPasswords): ?>
-<form method="post" id="roleUserForm<?php echo (int)$userRow['id']; ?>">
-    <input type="hidden" name="action" value="update_user">
-    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
-    <input type="hidden" name="level" value="0">
-</form>
 <form method="post" id="passwordUserForm<?php echo (int)$userRow['id']; ?>">
     <input type="hidden" name="action" value="reset_password">
     <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
