@@ -164,9 +164,13 @@ $tableColumns=[
     'email'=>['label'=>'Email','sortable'=>true,'filter'=>'text','placeholder'=>'Search email','form'=>$filterForm,'data_type'=>'email'],
     'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['developer'=>'Developer','superadmin'=>'SuperAdmin','admin'=>'Admin','manager'=>'Manager','organiser'=>'Organiser','user'=>'User']],
     'status'=>['label'=>'Status','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['active'=>'Active','archived'=>'Archived'],'value'=>static fn(array $r):string=>!empty($r['is_archived'])?'archived':'active'],
+    'general'=>['label'=>'Gen','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['1'=>'Yes','0'=>'No'],'value'=>static fn(array $r):string=>!empty($r['general_email_opt_in'])?'1':'0'],
+    'weekly'=>['label'=>'Week','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['1'=>'Yes','0'=>'No'],'value'=>static fn(array $r):string=>!empty($r['ride_notice_opt_in'])?'1':'0'],
+    'renewal'=>['label'=>'Renew','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['1'=>'Yes','0'=>'No'],'value'=>static fn(array $r):string=>!empty($r['renewal_reminder_opt_in'] ?? 1)?'1':'0'],
     'last_login'=>['label'=>'Last login','field'=>'last_login_at','sortable'=>true,'filter'=>'text','placeholder'=>'Search last login','form'=>$filterForm],
     'actions'=>['label'=>'Actions'],
 ];
+$subscriptionColumns = ['general'=>'General news', 'weekly'=>'Weekly Ride Notice', 'renewal'=>'Renewal reminders'];
 $table=admin_table_prepare($allUsers,$tableColumns,'email');$allUsers=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 
 admin_layout_start('Users', 'users');
@@ -180,15 +184,29 @@ admin_layout_start('Users', 'users');
 </div>
 <form method="get" id="user-filter-form" class="mb-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="users.php">Clear</a></form>
 
+<style>
+.users-list .subscription-column { width: 4.5rem; min-width: 4.5rem; text-align: center; }
+.users-list .subscription-column .form-select { padding-left: .35rem; padding-right: 1.4rem; }
+.users-list th[rowspan] { vertical-align: bottom; }
+</style>
 <div class="card-soft p-3">
     <?php echo admin_table_record_count($table,'user','users'); ?>
     <div class="table-responsive">
-        <table class="table table-sm align-middle">
+        <table class="table table-sm align-middle users-list">
             <thead class="table-light">
                 <tr>
-                    <?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?>
+                    <?php foreach ($tableColumns as $key=>$column): ?>
+                        <?php if (isset($subscriptionColumns[$key])): ?>
+                            <?php if ($key==='general'): ?><th colspan="3" scope="colgroup" class="text-center">Subscribed</th><?php endif; ?>
+                        <?php else: ?>
+                            <th rowspan="2" scope="col" class="<?php echo $key==='actions'?'text-end':''; ?>"><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </tr>
-                <tr class="admin-table-filter-row"><?php foreach($tableColumns as$key=>$column): ?><th><?php echo admin_table_filter($key,$column,$filters); ?></th><?php endforeach; ?></tr>
+                <tr>
+                    <?php foreach ($subscriptionColumns as $key=>$label): ?><th scope="col" class="subscription-column" title="<?php echo h($label); ?>"><?php echo admin_table_heading($key,$tableColumns[$key],$sortKey,$sortDir); ?></th><?php endforeach; ?>
+                </tr>
+                <tr class="admin-table-filter-row"><?php foreach($tableColumns as$key=>$column): ?><th class="<?php echo isset($subscriptionColumns[$key])?'subscription-column':''; ?>"><?php echo admin_table_filter($key,$column,$filters); ?></th><?php endforeach; ?></tr>
             </thead>
             <tbody>
                 <?php foreach ($allUsers as $userRow): ?>
@@ -198,56 +216,21 @@ admin_layout_start('Users', 'users');
                     $lastLogin = $userRow['last_login_at'] ? h($userRow['last_login_at']) : '—';
                     ?>
                     <tr>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo (int)$userRow['id']; ?>">
-                                    Edit details
-                                </button>
-                                <span><?php echo h($fullName); ?></span>
-                            </div>
-                        </td>
+                        <td><?php echo h($fullName); ?></td>
                         <td><?php echo admin_table_value($userRow['email'] ?? '', 'email'); ?></td>
-                        <td>
-                            <form class="d-flex gap-2 align-items-center" method="POST">
-                                <input type="hidden" name="action" value="update_user">
-                                <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
-                                <select name="role" class="form-select form-select-sm" style="width: 180px;">
-                                    <?php if (roleIsSuperadminOrDeveloper($currentRole)): ?><option value="developer" <?php echo ($userRow['role'] === 'developer') ? 'selected' : ''; ?>>Developer</option><?php endif; ?>
-                                    <option value="superadmin" <?php echo ($userRow['role'] === 'superadmin') ? 'selected' : ''; ?>>SuperAdmin</option>
-                                    <option value="admin" <?php echo ($userRow['role'] === 'admin') ? 'selected' : ''; ?>>Admin</option>
-                                    <option value="manager" <?php echo ($userRow['role'] === 'manager') ? 'selected' : ''; ?>>Manager</option>
-                                    <option value="organiser" <?php echo ($userRow['role'] === 'organiser') ? 'selected' : ''; ?>>Organiser</option>
-                                    <option value="user" <?php echo ($userRow['role'] === 'user') ? 'selected' : ''; ?>>User</option>
-                                </select>
-                                <input type="hidden" name="level" value="0">
-                                <button class="btn btn-sm btn-outline-success">Save</button>
-                            </form>
-                        </td>
+                        <td><?php echo h($tableColumns['role']['options'][$userRow['role']] ?? ucfirst($userRow['role'])); ?></td>
                         <td><?php echo !empty($userRow['is_archived']) ? 'Archived' : 'Active'; ?></td>
+                        <?php foreach ($subscriptionColumns as $key=>$label): $subscribed = $tableColumns[$key]['value']($userRow)==='1'; ?>
+                        <td class="subscription-column"><span title="<?php echo h($label . ': ' . ($subscribed ? 'Yes' : 'No')); ?>"><i class="fa-solid <?php echo $subscribed ? 'fa-check text-success' : 'fa-xmark text-muted'; ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo $subscribed ? 'Yes' : 'No'; ?></span></span></td>
+                        <?php endforeach; ?>
                         <td class="text-muted small"><?php echo $lastLogin; ?></td>
-                        <td>
-                            <div class="d-flex gap-2 align-items-center">
-                            <form class="d-flex gap-2 align-items-center m-0" method="POST">
-                                <input type="hidden" name="action" value="reset_password">
-                                <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
-                                <input type="password" name="new_password" class="form-control form-control-sm" placeholder="New password" minlength="8" required>
-                                <button class="btn btn-sm btn-outline-secondary">Reset</button>
-                            </form>
-                            <?php if (!in_array(strtolower((string)($userRow['role'] ?? '')), ['developer', 'superadmin'], true)): ?>
-                                <form class="m-0" method="POST">
-                                    <input type="hidden" name="action" value="act_as">
-                                    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
-                                    <button class="btn btn-sm btn-outline-danger" <?php echo ((int)($currentUser['id'] ?? 0) === (int)($userRow['id'] ?? 0)) ? 'disabled' : ''; ?>>
-                                        Act as
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                            </div>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-success has-icon" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo (int)$userRow['id']; ?>"><i class="fa-solid fa-pen-to-square btn-icon" aria-hidden="true"></i><span class="btn-label">Edit</span></button>
                         </td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (!$allUsers): ?>
-                    <tr><td colspan="7" class="text-muted">No users found.</td></tr>
+                    <tr><td colspan="9" class="text-muted">No users found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -255,9 +238,8 @@ admin_layout_start('Users', 'users');
 </div>
 <?php foreach ($allUsers as $userRow): ?>
 <div class="modal fade" id="editUserModal<?php echo (int)$userRow['id']; ?>" tabindex="-1" aria-labelledby="editUserModalLabel<?php echo (int)$userRow['id']; ?>" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST">
+    <div class="modal-dialog modal-dialog-scrollable">
+            <form method="POST" class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="editUserModalLabel<?php echo (int)$userRow['id']; ?>">Edit user details</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -287,6 +269,29 @@ admin_layout_start('Users', 'users');
                             <div class="form-text">Only record a subscription where the user has agreed to receive it. Essential entry-related messages are separate.</div>
                         </div>
                     </div>
+                    <?php if ($canManageRolesAndPasswords): ?>
+                    <div class="border-top mt-3 pt-3">
+                        <label class="form-label fw-semibold" for="user-role-<?php echo (int)$userRow['id']; ?>">User role / level</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <select class="form-select flex-grow-1" style="width:auto" id="user-role-<?php echo (int)$userRow['id']; ?>" name="role" form="roleUserForm<?php echo (int)$userRow['id']; ?>">
+                                <?php foreach ($tableColumns['role']['options'] as $roleValue=>$roleLabel): ?>
+                                <option value="<?php echo h($roleValue); ?>" <?php echo $userRow['role']===$roleValue?'selected':''; ?>><?php echo h($roleLabel); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button class="btn btn-outline-success" type="submit" form="roleUserForm<?php echo (int)$userRow['id']; ?>">Save role</button>
+                        </div>
+                    </div>
+                    <div class="border-top mt-3 pt-3">
+                        <label class="form-label fw-semibold" for="user-password-<?php echo (int)$userRow['id']; ?>">Reset password</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <input type="password" class="form-control flex-grow-1" style="width:auto" id="user-password-<?php echo (int)$userRow['id']; ?>" name="new_password" form="passwordUserForm<?php echo (int)$userRow['id']; ?>" autocomplete="new-password" minlength="8" required placeholder="New password">
+                            <button class="btn btn-outline-secondary" type="submit" form="passwordUserForm<?php echo (int)$userRow['id']; ?>">Reset password</button>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($canImpersonateUsers && ($userRow['role'] ?? '') === 'user' && empty($userRow['is_archived']) && (int)$userRow['id'] !== (int)$currentUser['id']): ?>
+                    <div class="border-top mt-3 pt-3"><button class="btn btn-outline-secondary" type="submit" form="actAsUserForm<?php echo (int)$userRow['id']; ?>">Act as this user</button></div>
+                    <?php endif; ?>
                 </div>
                 <div class="modal-footer">
                     <?php if (roleIsSuperadminOrDeveloper($currentRole) && ($userRow['role'] ?? '') === 'user' && (int)$userRow['id'] !== (int)$currentUser['id'] && empty($userRow['is_archived'])): ?>
@@ -296,9 +301,23 @@ admin_layout_start('Users', 'users');
                     <button class="btn btn-success">Save details</button>
                 </div>
             </form>
-        </div>
     </div>
 </div>
+<?php if ($canManageRolesAndPasswords): ?>
+<form method="post" id="roleUserForm<?php echo (int)$userRow['id']; ?>">
+    <input type="hidden" name="action" value="update_user">
+    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
+    <input type="hidden" name="level" value="0">
+</form>
+<form method="post" id="passwordUserForm<?php echo (int)$userRow['id']; ?>">
+    <input type="hidden" name="action" value="reset_password">
+    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
+</form>
+<?php endif; ?>
+<form method="post" id="actAsUserForm<?php echo (int)$userRow['id']; ?>">
+    <input type="hidden" name="action" value="act_as">
+    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
+</form>
 <form method="post" id="deleteUserForm<?php echo (int)$userRow['id']; ?>">
     <input type="hidden" name="action" value="delete_user">
     <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
