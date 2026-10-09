@@ -557,9 +557,78 @@ function admin_layout_end(): void
         </main>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-    <div class="modal fade" id="sharedConfirmModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title d-flex align-items-center gap-2"><i id="sharedConfirmIcon" class="fa-solid" aria-hidden="true"></i><span id="sharedConfirmTitle">Please confirm</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" id="sharedConfirmMessage"></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn" id="sharedConfirmButton">Continue</button></div></div></div></div>
+    <div class="modal fade" id="sharedConfirmModal" tabindex="-1" aria-labelledby="sharedConfirmTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title d-flex align-items-center gap-2"><i id="sharedConfirmIcon" class="fa-solid" aria-hidden="true"></i><span id="sharedConfirmTitle">Please confirm</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" id="sharedConfirmMessage"></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn" id="sharedConfirmButton">Continue</button></div></div></div></div>
     <script>
-    document.addEventListener('DOMContentLoaded',function(){const modalEl=document.getElementById('sharedConfirmModal'),button=document.getElementById('sharedConfirmButton');if(!modalEl||!button||!window.bootstrap)return;let pending=null;document.addEventListener('click',function(event){const trigger=event.target.closest('[data-confirm-message]');if(!trigger||trigger.dataset.confirmed==='1')return;event.preventDefault();const danger=trigger.dataset.confirmStyle==='danger';document.getElementById('sharedConfirmTitle').textContent=trigger.dataset.confirmTitle||(danger?'Confirm destructive action':'Please confirm');document.getElementById('sharedConfirmMessage').textContent=trigger.dataset.confirmMessage;const icon=document.getElementById('sharedConfirmIcon');icon.className='fa-solid '+(danger?'fa-triangle-exclamation text-danger':'fa-circle-info text-primary');button.className='btn '+(danger?'btn-danger':'btn-primary');button.textContent=trigger.dataset.confirmButton||(danger?'Confirm':'Continue');pending=trigger;bootstrap.Modal.getOrCreateInstance(modalEl).show();});button.addEventListener('click',function(){if(!pending)return;const trigger=pending;pending=null;trigger.dataset.confirmed='1';bootstrap.Modal.getOrCreateInstance(modalEl).hide();if(trigger.tagName==='A'){window.location.href=trigger.href;return;}if(trigger.form){trigger.form.requestSubmit(trigger);return;}trigger.click();});});
+    document.addEventListener('DOMContentLoaded', function () {
+        const modalEl = document.getElementById('sharedConfirmModal');
+        const button = document.getElementById('sharedConfirmButton');
+        if (!modalEl || !button || !window.bootstrap) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const approved = new WeakSet();
+        let resolvePending = null;
+        let accepted = false;
+        window.adminConfirm = function (options) {
+            if (resolvePending) return Promise.resolve(false);
+            const danger = options.style === 'danger';
+            document.getElementById('sharedConfirmTitle').textContent = options.title || (danger ? 'Confirm destructive action' : 'Please confirm');
+            document.getElementById('sharedConfirmMessage').textContent = options.message;
+            document.getElementById('sharedConfirmIcon').className = 'fa-solid ' + (danger ? 'fa-triangle-exclamation text-danger' : 'fa-circle-info text-primary');
+            button.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+            button.textContent = options.button || (danger ? 'Confirm' : 'Continue');
+            accepted = false;
+            return new Promise(function (resolve) {
+                resolvePending = resolve;
+                modal.show();
+            });
+        };
+        button.addEventListener('click', function () {
+            accepted = true;
+            modal.hide();
+        });
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            const resolve = resolvePending;
+            resolvePending = null;
+            if (resolve) resolve(accepted);
+        });
+        async function confirmTrigger(trigger, proceed) {
+            const confirmed = await window.adminConfirm({
+                title: trigger.dataset.confirmTitle,
+                message: trigger.dataset.confirmMessage,
+                style: trigger.dataset.confirmStyle,
+                button: trigger.dataset.confirmButton
+            });
+            if (!confirmed) return;
+            if (trigger.dataset.confirmField && trigger.form) {
+                const field = trigger.form.elements.namedItem(trigger.dataset.confirmField);
+                if (field) field.value = trigger.dataset.confirmValue;
+            }
+            proceed();
+        }
+        document.addEventListener('submit', function (event) {
+            const form = event.target;
+            if (approved.delete(form)) return;
+            const submitter = event.submitter;
+            const trigger = submitter?.matches('[data-confirm-message]') ? submitter : (form.matches('[data-confirm-message]') ? form : null);
+            if (!trigger) return;
+            event.preventDefault();
+            confirmTrigger(trigger, function () {
+                approved.add(form);
+                form.requestSubmit(submitter || undefined);
+            });
+        });
+        document.addEventListener('click', function (event) {
+            const trigger = event.target.closest('[data-confirm-message]');
+            if (!trigger || trigger.tagName === 'FORM') return;
+            if (trigger.form && (trigger.type === 'submit' || trigger.type === 'image')) return;
+            if (approved.delete(trigger)) return;
+            event.preventDefault();
+            confirmTrigger(trigger, function () {
+                if (trigger.tagName === 'A') { window.location.href = trigger.href; return; }
+                approved.add(trigger);
+                trigger.click();
+            });
+        });
+    });
     </script>
     <script>
         (function() {

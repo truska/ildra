@@ -16,7 +16,7 @@ $venues = fetchVenues($pdo);
 $eligibleOrganisers = fetchEligibleEventOrganisers($pdo);
 $eventSettings = getSiteSettings($pdo);
 $existingTypeId = is_array($event) ? (int)($event['event_type_id'] ?? 0) : 0;
-$existingTypeName = is_array($event) ? (string)($event['event_type_name'] ?? '') : '';
+$existingTypeName = is_array($event) ? (string)($event['event_type_name'] ?? '') : 'Ride';
 $defaultEventType = findEventType($eventTypes, $existingTypeId, $existingTypeName);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -439,7 +439,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         <div class="section-card" id="event-details-section" <?php echo strtolower(trim((string)($selectedEventType['name'] ?? 'Ride'))) === 'ride' ? 'hidden' : ''; ?>>
             <div class="section-title">Additional event details</div>
-            <div class="section-sub">Rich text shown on the public event page above the booking information. This is not used for Ride events.</div>
+            <div class="section-sub">Rich text shown on the public event page above the booking information. <strong>This is not used for Ride events.</strong></div>
             <textarea class="form-control wysiwyg-field" rows="8" name="details_html"><?php echo h((string)($event['details_html'] ?? '')); ?></textarea>
         </div>
 
@@ -850,6 +850,12 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         const defaultPricingSchemeIdsByType = <?php echo json_encode($defaultPricingSchemeIdsByType, JSON_UNESCAPED_UNICODE); ?>;
         const pricingSchemes = <?php echo json_encode($pricingSchemeOptions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
         const eventTypeSelect = document.querySelector('select[name="event_type_id"]');
+        const eventDetailsSection = document.getElementById('event-details-section');
+        const syncEventDetailsVisibility = () => {
+            if (!eventTypeSelect || !eventDetailsSection) return;
+            eventDetailsSection.hidden = (eventTypeSelect.selectedOptions[0]?.textContent || '').trim().toLowerCase() === 'ride';
+        };
+        syncEventDetailsVisibility();
         const pricingTbody = document.getElementById('pricingRowsTbody');
         const addPricingRowBtn = document.getElementById('addPricingRowBtn');
         const pricingSchemeSelect = document.getElementById('pricingSchemeSelect');
@@ -953,11 +959,15 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         };
 
         if (pricingSchemeSelect && applyPricingSchemeBtn && pricingTbody) {
-            applyPricingSchemeBtn.addEventListener('click', () => {
+            applyPricingSchemeBtn.addEventListener('click', async () => {
                 const scheme = pricingSchemeForId(pricingSchemeSelect.value);
                 if (!scheme) return;
                 const hasRows = Array.from(pricingTbody.querySelectorAll('tr')).some((row) => !row.querySelector('td[colspan="9"]'));
-                if (hasRows && !window.confirm(`Apply “${scheme.name}”? This will replace the current classes and prices.`)) return;
+                if (hasRows && !await window.adminConfirm({
+                    title: 'Apply pricing template?',
+                    message: `Apply “${scheme.name}”? This will replace the current classes and prices.`,
+                    button: 'Apply template'
+                })) return;
                 renderPricingRows(scheme.rows || []);
                 if (pricingRowsReplaced) pricingRowsReplaced.value = '1';
             });
@@ -1028,6 +1038,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
                 pendingEventTypeId = nextTypeId;
                 eventTypeSelect.value = lastEventTypeId;
+                syncEventDetailsVisibility();
                 if (eventTypeChangeName) eventTypeChangeName.textContent = nextTypeName;
                 getEventTypeChangeModal()?.show();
             });
@@ -1036,6 +1047,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 if (!pendingEventTypeId) return;
                 lastEventTypeId = pendingEventTypeId;
                 eventTypeSelect.value = lastEventTypeId;
+                syncEventDetailsVisibility();
                 const rows = defaultPricingRowsByType[lastEventTypeId] || defaultPricingRowsByType[Number(lastEventTypeId)] || [];
                 renderPricingRows(rows);
                 if (pricingRowsReplaced) pricingRowsReplaced.value = '1';
@@ -1047,6 +1059,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             eventTypeChangeModalEl?.addEventListener('hidden.bs.modal', () => {
                 pendingEventTypeId = '';
                 eventTypeSelect.value = lastEventTypeId;
+                syncEventDetailsVisibility();
             });
         }
 
@@ -1213,7 +1226,6 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 <?php render_tinymce_bootstrap(); ?>
 <script>
 if (window.tinymce) tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));
-(function(){const select=document.querySelector('select[name="event_type_id"]'),section=document.getElementById('event-details-section');if(!select||!section)return;const sync=()=>{const option=select.options[select.selectedIndex];section.hidden=(option?.textContent||'').trim().toLowerCase()==='ride';};select.addEventListener('change',sync);sync();})();
 </script>
 <?php
 admin_layout_end();

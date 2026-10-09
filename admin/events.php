@@ -262,7 +262,7 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
                     <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">View</a>
                     <a class="btn btn-sm btn-outline-primary" href="<?php echo h($reportUrl); ?>"><?php echo $reportId ? 'Edit Report' : 'Add Report'; ?></a>
                     <?php if ($isAdmin && $canDeleteEvent): ?>
-                        <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
+                        <form method="POST" class="d-inline" data-confirm-message="Delete this event?" data-confirm-style="danger">
                             <input type="hidden" name="action" value="delete_event">
                             <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">
                             <button class="btn btn-sm btn-outline-danger">Delete</button>
@@ -428,7 +428,7 @@ admin_layout_start('Events', 'events');
                                     <i class="fa-solid fa-note-sticky btn-icon"></i><span class="btn-label">Ride Notes</span>
                                 </a>
                             <?php if ($isAdmin && $canDeleteEvent): ?>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Delete this event?');">
+                                <form method="POST" class="d-inline" data-confirm-message="Delete this event?" data-confirm-style="danger">
                                     <input type="hidden" name="action" value="delete_event">
                                     <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">
                                     <input type="hidden" name="view" value="future">

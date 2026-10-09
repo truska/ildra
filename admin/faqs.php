@@ -132,7 +132,7 @@ admin_layout_start('FAQs', 'faqs');
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-success" href="faq_edit.php?id=<?php echo (int)$faq['id']; ?>">Edit</a>
                             <?php if ($isAdmin): ?>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Delete this FAQ?');">
+                                <form method="POST" class="d-inline" data-confirm-message="Delete this FAQ?" data-confirm-style="danger">
                                     <input type="hidden" name="csrf" value="<?php echo h($csrf); ?>">
                                     <input type="hidden" name="action" value="delete_faq">
                                     <input type="hidden" name="faq_id" value="<?php echo (int)$faq['id']; ?>">

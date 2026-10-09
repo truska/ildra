@@ -103,7 +103,7 @@ admin_layout_start('Venues', 'venues');
                             </td>
                             <td class="text-end">
                                 <a class="btn btn-sm btn-outline-secondary" href="venues.php?edit=<?php echo (int)($venue['id'] ?? 0); ?>">Edit</a>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Delete this venue?');">
+                                <form method="POST" class="d-inline" data-confirm-message="Delete this venue?" data-confirm-style="danger">
                                     <input type="hidden" name="action" value="delete_venue">
                                     <input type="hidden" name="id" value="<?php echo h((string)($venue['id'] ?? 0)); ?>">
                                     <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
@@ -165,7 +165,7 @@ admin_layout_start('Venues', 'venues');
             </div>
         </form>
         <?php if (!empty($v['id'])): ?>
-            <form method="POST" class="mt-3 text-end" onsubmit="return confirm('Delete this venue?');">
+            <form method="POST" class="mt-3 text-end" data-confirm-message="Delete this venue?" data-confirm-style="danger">
                 <input type="hidden" name="action" value="delete_venue">
                 <input type="hidden" name="id" value="<?php echo h((string)($v['id'] ?? 0)); ?>">
                 <button class="btn btn-outline-danger" type="submit">Delete</button>

@@ -283,7 +283,7 @@ admin_layout_start('Memberships', 'memberships');
                                         data-status="<?php echo h((string)($type['status'] ?? 'draft')); ?>"
                                     >Edit</a>
                                     <?php if ($canAdmin): ?>
-                                        <form method="POST" class="d-inline" onsubmit="return confirm('Delete this membership type?');">
+                                        <form method="POST" class="d-inline" data-confirm-message="Delete this membership type?" data-confirm-style="danger">
                                             <input type="hidden" name="action" value="delete_membership_type">
                                             <input type="hidden" name="membership_type_id" value="<?php echo (int)$type['id']; ?>">
                                             <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>

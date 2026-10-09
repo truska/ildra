@@ -115,7 +115,7 @@ admin_layout_start('Entry Components', 'entry_components');
 	                                </td>
 	                                <td class="text-end">
 	                                    <a class="btn btn-sm btn-outline-secondary" href="entry_components.php?edit=<?php echo (int)($comp['id'] ?? 0); ?>">Edit</a>
-	                                    <form method="POST" class="d-inline" onsubmit="return confirm('Delete this component?');">
+	                                    <form method="POST" class="d-inline" data-confirm-message="Delete this component?" data-confirm-style="danger">
                                         <input type="hidden" name="action" value="delete_component">
                                         <input type="hidden" name="id" value="<?php echo h((string)($comp['id'] ?? 0)); ?>">
                                         <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>

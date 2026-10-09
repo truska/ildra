@@ -127,7 +127,7 @@ admin_layout_start('Pricing Schemes', 'pricing_schemes');
                     <td class="text-end">
                         <a class="btn btn-sm btn-outline-success" href="pricing_scheme_edit.php?id=<?php echo $sid; ?>">Edit</a>
                         <?php if ($isAdmin): ?>
-                            <form method="POST" class="d-inline" onsubmit="return confirm('Delete this pricing scheme?');">
+                            <form method="POST" class="d-inline" data-confirm-message="Delete this pricing scheme?" data-confirm-style="danger">
                                 <input type="hidden" name="action" value="delete_scheme">
                                 <input type="hidden" name="scheme_id" value="<?php echo $sid; ?>">
                                 <button class="btn btn-sm btn-outline-danger">Delete</button>
