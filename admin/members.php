@@ -59,7 +59,7 @@ $tableColumns = [
     'email' => ['label'=>'Email', 'field'=>'user_email', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm],
     'type' => ['label'=>'Type', 'field'=>'membership_name', 'sortable'=>true, 'filter'=>'select', 'options'=>$typeOptions, 'form'=>$filterForm],
     'status' => ['label'=>'Status', 'field'=>'status', 'sortable'=>true, 'filter'=>'select', 'options'=>$statusOptions, 'form'=>$filterForm],
-    'membership_year' => ['label'=>'Membership year', 'field'=>'membership_year', 'sortable'=>true, 'filter'=>'select', 'options'=>$yearOptions, 'form'=>$filterForm, 'compare'=>'number'],
+    'membership_year' => ['label'=>'Year', 'field'=>'membership_year', 'sortable'=>true, 'filter'=>'select', 'options'=>$yearOptions, 'form'=>$filterForm, 'compare'=>'number'],
     'voting' => ['label'=>'Voting','sortable'=>true,'filter'=>'select','options'=>['1'=>'Yes','0'=>'No'],'form'=>$filterForm,'value'=>static fn(array $row):string=>!empty($row['has_voting_rights'])?'1':'0'],
     'purchased' => ['label'=>'Purchased', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
         'value'=>static fn(array $row): string => format_display_date($row['purchased_at'] ?? null, ''),
