@@ -21,7 +21,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage users.'];
     } else {
         $action = $_POST['action'] ?? '';
-        if ($action === 'update_details') {
+        if ($action === 'delete_user') {
+            try {
+                $outcome = deleteOrArchiveUser($pdo, (int)($_POST['user_id'] ?? 0), $currentUser);
+                $successMessage = $outcome === 'archived'
+                    ? 'User archived because transaction history or linked records exist. Sign-in is disabled.'
+                    : 'User deleted.';
+            } catch (Throwable $e) {
+                $alerts[] = ['type'=>'danger', 'message'=>($e instanceof RuntimeException && !($e instanceof PDOException)) ? $e->getMessage() : 'Could not delete or archive the user. No changes were saved.'];
+            }
+        } elseif ($action === 'update_details') {
             $userId = (int)($_POST['user_id'] ?? 0);
             $firstName = trim((string)($_POST['first_name'] ?? ''));
             $lastName = trim((string)($_POST['last_name'] ?? ''));
@@ -109,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at
                         FROM users u
                         JOIN roles r ON r.id = u.role_id
-                        WHERE u.id = :id
+                        WHERE u.id = :id AND u.is_archived=0
                         LIMIT 1
                     ");
                     $stmt->execute([':id' => $targetUserId]);
@@ -154,6 +163,7 @@ $tableColumns=[
     'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name','form'=>$filterForm,'value'=>static fn(array $r):string=>trim((string)($r['first_name']??'').' '.(string)($r['last_name']??''))],
     'email'=>['label'=>'Email','sortable'=>true,'filter'=>'text','placeholder'=>'Search email','form'=>$filterForm,'data_type'=>'email'],
     'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['developer'=>'Developer','superadmin'=>'SuperAdmin','admin'=>'Admin','manager'=>'Manager','organiser'=>'Organiser','user'=>'User']],
+    'status'=>['label'=>'Status','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['active'=>'Active','archived'=>'Archived'],'value'=>static fn(array $r):string=>!empty($r['is_archived'])?'archived':'active'],
     'last_login'=>['label'=>'Last login','field'=>'last_login_at','sortable'=>true,'filter'=>'text','placeholder'=>'Search last login','form'=>$filterForm],
     'actions'=>['label'=>'Actions'],
 ];
@@ -213,6 +223,7 @@ admin_layout_start('Users', 'users');
                                 <button class="btn btn-sm btn-outline-success">Save</button>
                             </form>
                         </td>
+                        <td><?php echo !empty($userRow['is_archived']) ? 'Archived' : 'Active'; ?></td>
                         <td class="text-muted small"><?php echo $lastLogin; ?></td>
                         <td>
                             <div class="d-flex gap-2 align-items-center">
@@ -236,7 +247,7 @@ admin_layout_start('Users', 'users');
                     </tr>
                 <?php endforeach; ?>
                 <?php if (!$allUsers): ?>
-                    <tr><td colspan="6" class="text-muted">No users found.</td></tr>
+                    <tr><td colspan="7" class="text-muted">No users found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -278,6 +289,9 @@ admin_layout_start('Users', 'users');
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <?php if ($currentRole === 'superadmin' && ($userRow['role'] ?? '') === 'user' && (int)$userRow['id'] !== (int)$currentUser['id'] && empty($userRow['is_archived'])): ?>
+                    <button class="btn btn-danger me-auto" type="submit" form="deleteUserForm<?php echo (int)$userRow['id']; ?>" data-bs-dismiss="modal" data-confirm-style="danger" data-confirm-title="Delete user?" data-confirm-button="Delete or archive" data-confirm-message="Delete this user? If transaction history or linked records exist, the account will be archived instead and sign-in disabled.">Delete</button>
+                    <?php endif; ?>
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button class="btn btn-success">Save details</button>
                 </div>
@@ -285,6 +299,10 @@ admin_layout_start('Users', 'users');
         </div>
     </div>
 </div>
+<form method="post" id="deleteUserForm<?php echo (int)$userRow['id']; ?>">
+    <input type="hidden" name="action" value="delete_user">
+    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
+</form>
 <?php endforeach; ?>
 <?php
 admin_layout_end();

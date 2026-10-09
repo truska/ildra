@@ -32,6 +32,7 @@ admin_layout_start('Reset test data', 'testing_reset');
 <p>Keep existing logins and the selected person for each account. Testers will need to join again, register their horses and make new entries.</p>
 <div class="alert alert-warning">This clears all operational data, including payments, credits, loyalty cards, memberships, horse logbooks, horses, bookings, results, sharing, email history and admin activity history. It clears local Stripe customer links; it does not delete or refund anything at Stripe. Use only for a testing database or the agreed pre-launch cleanup.</div>
 <p>Preserved: login credentials, roles, authentication tokens, website pages and content, help, all email campaign data and templates, venues, event types, entry component definitions, pricing schemes, membership/logbook types, awards, development tasks and site settings. Historical migration backup tables are preserved. Member numbers and qualifications on retained people are cleared.</p>
+<p>Membership numbering restarts at 1000 after all memberships and allocated member numbers are cleared. Other site settings are preserved.</p>
 <?php if ($preview): ?>
 <div class="card-soft p-4 mb-4">
 <h5>Preview — <?= $preview['calendar'] ? 'keep calendar and event setup' : 'remove calendar' ?></h5>

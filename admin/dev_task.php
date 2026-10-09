@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'save_task' && $taskId > 0) {
             $priority = (int)($_POST['priority'] ?? 3);
             $requestedStatus = (string)($_POST['status'] ?? 'open');
-            $status = in_array($requestedStatus, ['open','completed','future','closed'], true) ? $requestedStatus : '';
+            $status = in_array($requestedStatus, ['open','completed','future','closed','on_hold'], true) ? $requestedStatus : '';
             $allocation = devTaskAllocation($pdo, $_POST['next_action_by'] ?? 0, $alerts);
             if ($priority < 1 || $priority > 5) $alerts[] = ['type'=>'danger','message'=>'Priority must be between 1 and 5.'];
             if ($status === '') $alerts[] = ['type'=>'danger','message'=>'Please select a valid status.'];
@@ -50,10 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } elseif ($action === 'status' && $taskId > 0) {
             $requestedStatus = (string)($_POST['status'] ?? 'open');
-            $status = in_array($requestedStatus, ['open','completed','future','closed'], true) ? $requestedStatus : 'open';
+            $status = in_array($requestedStatus, ['open','completed','future','closed','on_hold'], true) ? $requestedStatus : 'open';
             $stmt=$pdo->prepare("UPDATE dev_tasks SET status=:status,closed_by=:by,closed_at=:at,updated_by=:updated_by WHERE id=:id");
             $stmt->execute([':status'=>$status, ':by'=>$status==='closed'?(int)$currentUser['id']:null, ':at'=>$status==='closed'?date('Y-m-d H:i:s'):null, ':updated_by'=>(int)$currentUser['id'], ':id'=>$taskId]);
-            $_SESSION['flash_success']=$status==='closed'?'Task closed.':($status==='completed'?'Task marked completed and ready for review.':($status==='future'?'Task moved to Future.':'Task reopened.')); header('Location: dev_task.php?id='.$taskId); exit;
+            $_SESSION['flash_success']=$status==='closed'?'Task closed.':($status==='completed'?'Task marked completed and ready for review.':($status==='future'?'Task moved to Future.':($status==='on_hold'?'Task placed On Hold.':'Task reopened.'))); header('Location: dev_task.php?id='.$taskId); exit;
         } elseif ($action === 'priority' && $taskId > 0) {
             $priority=(int)($_POST['priority']??3);
             if ($priority >= 1 && $priority <= 5) { $pdo->prepare('UPDATE dev_tasks SET priority=:p,updated_by=:user WHERE id=:id')->execute([':p'=>$priority, ':user'=>(int)$currentUser['id'], ':id'=>$taskId]); $_SESSION['flash_success']='Priority updated.'; header('Location: dev_task.php?id='.$taskId); exit; }
@@ -91,11 +91,11 @@ admin_layout_start($task ? 'Dev Task #'.$taskId : 'New Dev Task', 'dev_tasks');
     .dev-task-notes textarea { min-height:220px; }
 </style>
 <div class="card-soft p-3 mb-4"><div class="d-flex flex-wrap gap-3 align-items-end justify-content-between">
-<div><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?> me-2"><?php echo ucfirst(h($task['status'])); ?></span><?php if((int)($task['next_action_by']??0)===(int)$currentUser['id'] || (($task['next_action_group']??'')==='test_group' && in_array((int)$currentUser['id'], $testerUserIds, true))): ?><span class="badge text-bg-primary me-2">Your next action</span><?php endif; ?><span class="text-muted small">Created <?php echo h(date('j M Y, H:i',(int)$task['created_at_ts'])); ?></span></div>
+<div><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?> me-2"><?php echo h($task['status'] === 'on_hold' ? 'On Hold' : ucfirst($task['status'])); ?></span><?php if((int)($task['next_action_by']??0)===(int)$currentUser['id'] || (($task['next_action_group']??'')==='test_group' && in_array((int)$currentUser['id'], $testerUserIds, true))): ?><span class="badge text-bg-primary me-2">Your next action</span><?php endif; ?><span class="text-muted small">Created <?php echo h(date('j M Y, H:i',(int)$task['created_at_ts'])); ?></span></div>
 <form method="post" class="d-flex flex-wrap gap-2 align-items-end"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="save_task"><input type="hidden" name="task_id" value="<?php echo $taskId; ?>">
 <div><label class="form-label small mb-1" for="task-priority">Priority</label><select class="form-select form-select-sm" id="task-priority" name="priority"><?php for($p=1;$p<=5;$p++): ?><option value="<?php echo $p; ?>" <?php echo (int)$task['priority']===$p?'selected':''; ?>><?php echo $p; ?> — <?php echo ['','Urgent','High','Normal','Low','When possible'][$p]; ?></option><?php endfor; ?></select></div>
 <div><label class="form-label small mb-1" for="task-assignee">Next action by</label><select class="form-select form-select-sm" id="task-assignee" name="next_action_by"><option value="">Unassigned</option><option value="group:testers" <?php echo ($task['next_action_group']??'')==='test_group'?'selected':''; ?>>Test Group</option><?php foreach($assignableUsers as $assignableUser): ?><option value="<?php echo (int)$assignableUser['id']; ?>" <?php echo (($task['next_action_group']??'')!=='test_group' && (int)($task['next_action_by']??0)===(int)$assignableUser['id'])?'selected':''; ?>><?php echo h(devTaskAuthorName($assignableUser)); ?></option><?php endforeach; ?></select></div>
-<div><label class="form-label small mb-1" for="task-status">Status</label><select class="form-select form-select-sm" id="task-status" name="status"><option value="open" <?php echo $task['status']==='open'?'selected':''; ?>>Open</option><option value="completed" <?php echo $task['status']==='completed'?'selected':''; ?>>Completed — ready for review</option><option value="future" <?php echo $task['status']==='future'?'selected':''; ?>>Future</option><option value="closed" <?php echo $task['status']==='closed'?'selected':''; ?>>Closed</option></select></div>
+<div><label class="form-label small mb-1" for="task-status">Status</label><select class="form-select form-select-sm" id="task-status" name="status"><option value="open" <?php echo $task['status']==='open'?'selected':''; ?>>Open</option><option value="completed" <?php echo $task['status']==='completed'?'selected':''; ?>>Completed — ready for review</option><option value="on_hold" <?php echo $task['status']==='on_hold'?'selected':''; ?>>On Hold</option><option value="future" <?php echo $task['status']==='future'?'selected':''; ?>>Future</option><option value="closed" <?php echo $task['status']==='closed'?'selected':''; ?>>Closed</option></select></div>
 <button class="btn btn-sm btn-success">Update Task</button></form></div></div>
 <div id="conversation">
 <div class="row g-3 mb-3 align-items-start">

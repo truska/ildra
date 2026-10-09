@@ -65,6 +65,17 @@ function testingResetApply(PDO $pdo, array $plan): void
     if ($plan['keep_people']) {
         $pdo->exec('UPDATE people SET member_number=NULL, qualification_id=NULL, is_archived=0 WHERE id IN (' . implode(',', $plan['keep_people']) . ')');
     }
+    if (isset($plan['delete']['membership_purchases'])) {
+        if ((int)$pdo->query('SELECT COUNT(*) FROM membership_purchases')->fetchColumn()
+            || (int)$pdo->query('SELECT COUNT(*) FROM people WHERE member_number IS NOT NULL')->fetchColumn()) {
+            throw new RuntimeException('Cannot restart membership numbering while memberships or member numbers remain.');
+        }
+        // Restart test numbering only after all memberships and allocated numbers are cleared.
+        // The enclosing transaction and full backup also cover this setting change.
+        $pdo->exec("INSERT INTO site_settings (setting_key, setting_value, updated_at)
+            VALUES ('next_member_number', '1000', NOW())
+            ON DUPLICATE KEY UPDATE setting_value='1000', updated_at=NOW()");
+    }
 }
 
 function testingResetRun(PDO $pdo, array $plan, int $actorId, array $choices, array $counts): string

@@ -1,5 +1,9 @@
 # Deployment checklist
 
+## Retire the test-data reset tool at launch
+
+After the final agreed pre-launch cleanup, remove the test-data reset tool from production before accepting real memberships or payments. Remove `admin/testing_reset.php`, its shared `testing_reset.php` implementation, and its admin navigation entry through a source change made and committed on development, then deploy that change. Keep private reset backups outside the web root. Verify that the production reset URL is no longer accessible.
+
 ## Ride Report gallery storage
 
 Git carries the gallery directory skeleton, but Git does not preserve the writable directory permissions required by PHP. Before enabling Ride Report galleries, resolve and verify the live web root, then create `filestore/images/news/{original,lg,md,sm,xs}` and apply the live server's shared-write policy.

@@ -148,6 +148,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && !$csrfExemptScript && !c
 ob_start('csrf_protect_forms');
 
 $pdo = createPdo($config, $alerts);
+if ($pdo) ensureUserArchiveColumn($pdo);
 if ($pdo) {
     ensureEmailCampaignTables($pdo);
 }
@@ -188,7 +189,7 @@ if ($currentUser && $pdo) {
                u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in
         FROM users u
         JOIN roles r ON r.id = u.role_id
-        WHERE u.id = :id
+        WHERE u.id = :id AND u.is_archived = 0
         LIMIT 1
     ");
     $stmt->execute([':id' => (int)$currentUser['id']]);

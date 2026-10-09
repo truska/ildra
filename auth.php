@@ -3,6 +3,71 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 
+function ensureUserArchiveColumn(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) return;
+    if (!$pdo->query("SHOW COLUMNS FROM users LIKE 'is_archived'")->fetch()) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0');
+    }
+    $checked = true;
+}
+
+/** Preserve linked records; remove only accounts with no retained history. */
+function deleteOrArchiveUser(PDO $pdo, int $userId, array $actor): string
+{
+    if (strtolower((string)($actor['role'] ?? '')) !== 'superadmin') {
+        throw new RuntimeException('Only SuperAdmins can delete or archive users.');
+    }
+    if ($userId <= 0 || $userId === (int)($actor['id'] ?? 0)) {
+        throw new RuntimeException('You cannot delete your own account or an invalid user.');
+    }
+    ensureUserArchiveColumn($pdo);
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('SELECT u.id, r.name AS role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=:id FOR UPDATE');
+        $stmt->execute([':id'=>$userId]);
+        $target = $stmt->fetch();
+        if (!$target) throw new RuntimeException('User not found.');
+        if (strtolower((string)$target['role']) !== 'user') {
+            throw new RuntimeException('Only standard user accounts can be deleted or archived here.');
+        }
+        // Inspect every installed table, including optional payment/membership modules.
+        $columns = $pdo->query("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND (COLUMN_NAME IN ('user_id','owner_user_id','purchased_by_user_id')
+                OR COLUMN_NAME LIKE '%\_user_id')
+            UNION SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_NAME='users'")->fetchAll();
+        $temporary = ['auth_remember_tokens','auth_magic_tokens','auth_password_resets','baskets'];
+        $linked = false;
+        foreach ($columns as $column) {
+            if (in_array($column['TABLE_NAME'], $temporary, true)) continue;
+            $table = str_replace('`', '``', $column['TABLE_NAME']);
+            $field = str_replace('`', '``', $column['COLUMN_NAME']);
+            $check = $pdo->prepare("SELECT 1 FROM `$table` WHERE `$field`=:id LIMIT 1 FOR UPDATE");
+            $check->execute([':id'=>$userId]);
+            if ($check->fetchColumn() !== false) $linked = true;
+        }
+        foreach ($columns as $column) {
+            if (!in_array($column['TABLE_NAME'], $temporary, true)) continue;
+            $table = str_replace('`', '``', $column['TABLE_NAME']);
+            $field = str_replace('`', '``', $column['COLUMN_NAME']);
+            $pdo->prepare("DELETE FROM `$table` WHERE `$field`=:id")->execute([':id'=>$userId]);
+        }
+        if ($linked) {
+            $pdo->prepare('UPDATE users SET is_archived=1, general_email_opt_in=0, ride_notice_opt_in=0, renewal_reminder_opt_in=0, updated_at=NOW() WHERE id=:id')->execute([':id'=>$userId]);
+        } else {
+            $pdo->prepare('DELETE FROM users WHERE id=:id')->execute([':id'=>$userId]);
+        }
+        $pdo->commit();
+        adminAuditLog($pdo, $linked ? 'users.archive' : 'users.delete', $actor, 'user', $userId);
+        return $linked ? 'archived' : 'deleted';
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
 function ensureAuthTables(PDO $pdo): void
 {
     // Persistent login ("remember me") tokens.
@@ -288,7 +353,7 @@ function attemptRememberMeLogin(PDO $pdo, array $siteSettings, array &$alerts): 
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at
             FROM users u
             JOIN roles r ON r.id = u.role_id
-            WHERE u.id = :id
+            WHERE u.id = :id AND u.is_archived = 0
             LIMIT 1
         ");
         $userStmt->execute([':id' => $userId]);
@@ -450,7 +515,7 @@ function handlePasswordResetRequest(?PDO $pdo, array &$alerts, ?string &$success
     $successMessage = 'If that email is registered, we’ve sent password reset instructions.';
 
     try {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email AND is_archived=0 LIMIT 1");
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch();
         if (!$user) {
@@ -520,7 +585,7 @@ function handlePasswordReset(?PDO $pdo, array &$alerts, ?string &$successMessage
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name
             FROM users u
             JOIN roles r ON r.id = u.role_id
-            WHERE u.id = :id
+            WHERE u.id = :id AND u.is_archived = 0
             LIMIT 1
         ");
         $userStmt->execute([':id' => $userId]);
@@ -628,7 +693,7 @@ function consumeMagicLoginToken(PDO $pdo, string $token, array &$alerts): ?array
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at
             FROM users u
             JOIN roles r ON r.id = u.role_id
-            WHERE u.id = :id
+            WHERE u.id = :id AND u.is_archived = 0
             LIMIT 1
         ");
         $userStmt->execute([':id' => $userId]);
@@ -779,7 +844,7 @@ function fetchLoginUserByEmail(?PDO $pdo, string $email): ?array
     }
     try {
         ensureAuthAppColumns($pdo);
-        $stmt = $pdo->prepare("SELECT id, email, password_hash, auth_app_secret, auth_app_enabled FROM users WHERE email = :email LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id, email, password_hash, auth_app_secret, auth_app_enabled FROM users WHERE email = :email AND is_archived=0 LIMIT 1");
         $stmt->execute([':email' => $email]);
         return $stmt->fetch() ?: null;
     } catch (PDOException $e) {
@@ -872,7 +937,7 @@ function handleAuthAppLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?str
             SELECT u.id, u.email, u.password_hash, u.auth_app_secret, u.auth_app_enabled, r.name AS role, r.level AS level, u.first_name, u.last_name
             FROM users u
             JOIN roles r ON r.id = u.role_id
-            WHERE u.email = :email
+            WHERE u.email = :email AND u.is_archived = 0
             LIMIT 1
         ");
         $stmt->execute([':email' => $email]);
@@ -1146,7 +1211,7 @@ function handleLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$s
         SELECT u.id, u.email, u.password_hash, r.name AS role, r.level AS level, u.first_name, u.last_name
         FROM users u
         JOIN roles r ON r.id = u.role_id
-        WHERE u.email = :email
+        WHERE u.email = :email AND u.is_archived = 0
         LIMIT 1
     ");
     $stmt->execute([':email' => $email]);
@@ -1232,7 +1297,7 @@ function fetchAllUsersForAdmin(?PDO $pdo, array &$alerts): array
     try {
         $stmt = $pdo->query("
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at, u.created_at,
-                   u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in, u.is_tester
+                   u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in, u.is_tester, u.is_archived
             FROM users u
             JOIN roles r ON r.id = u.role_id
             ORDER BY u.created_at DESC

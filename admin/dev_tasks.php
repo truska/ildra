@@ -22,11 +22,11 @@ foreach ($listStateFields as $field) {
 $_SESSION[$listStateKey] = $listState;
 
 $requestedStatus = (string)($_GET['status'] ?? 'default');
-$filter = in_array($requestedStatus, ['default','open','completed','future','closed','all'], true) ? $requestedStatus : 'default';
+$filter = in_array($requestedStatus, ['default','open','completed','future','closed','on_hold','all'], true) ? $requestedStatus : 'default';
 $params = [];
 $where = '';
 if ($filter === 'default') {
-    $where = "WHERE t.status IN ('open','completed')";
+    $where = "WHERE t.status IN ('open','completed','on_hold')";
 } elseif ($filter !== 'all') {
     $where = 'WHERE t.status=:status';
     $params[':status']=$filter;
@@ -44,11 +44,11 @@ $stmt = $pdo->prepare("SELECT t.*, UNIX_TIMESTAMP(t.created_at) AS created_at_ts
     ORDER BY CASE WHEN t.next_action_by IS NULL THEN 1 ELSE 0 END,
         COALESCE(NULLIF(TRIM(CONCAT_WS(' ',au.first_name,au.last_name)),''),au.email,''),
         t.priority ASC,
-        CASE t.status WHEN 'open' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END,
+        CASE t.status WHEN 'open' THEN 0 WHEN 'completed' THEN 1 WHEN 'on_hold' THEN 2 ELSE 3 END,
         t.updated_at DESC");
 $stmt->execute($params);
 $tasks = $stmt->fetchAll() ?: [];
-$counts = ['open'=>0,'completed'=>0,'future'=>0,'closed'=>0];
+$counts = ['open'=>0,'completed'=>0,'on_hold'=>0,'future'=>0,'closed'=>0];
 foreach ($pdo->query('SELECT status,COUNT(*) qty FROM dev_tasks GROUP BY status')->fetchAll() ?: [] as $row) $counts[$row['status']] = (int)$row['qty'];
 
 $filterForm = 'dev-task-filter-form';
@@ -74,7 +74,7 @@ foreach ($tasks as $task) {
     $updatedByOptions[(string)$updatedById] = trim(($task['updated_first_name']??'').' '.($task['updated_last_name']??'')) ?: ($task['updated_email']??'Unknown');
 }
 asort($updatedByOptions, SORT_NATURAL | SORT_FLAG_CASE);
-$statusOptions = ['open'=>'Open','completed'=>'Completed','future'=>'Future','closed'=>'Closed'];
+$statusOptions = ['open'=>'Open','completed'=>'Completed','on_hold'=>'On Hold','future'=>'Future','closed'=>'Closed'];
 $tableColumns = [
     'task_id' => ['label'=>'Task ID','sortable'=>true,'compare'=>'number','filter'=>'text','placeholder'=>'ID','search_min_length'=>1,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['id'],'filter_match'=>static fn(array $row,string $needle,string $value):bool=>$value===ltrim($needle, '#')],
     'priority' => ['label'=>'Priority','sortable'=>true,'compare'=>'number','filter'=>'select','options'=>$priorityOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['priority']],
@@ -99,6 +99,7 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
     <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-sm <?php echo in_array($filter, ['default','open'], true)?'btn-success':'btn-outline-secondary'; ?>" href="?status=open">Open <span class="badge text-bg-light ms-1"><?php echo $counts['open']; ?></span></a>
         <a class="btn btn-sm <?php echo in_array($filter, ['default','completed'], true)?'btn-success':'btn-outline-secondary'; ?>" href="?status=completed">Completed <span class="badge text-bg-light ms-1"><?php echo $counts['completed']; ?></span></a>
+        <a class="btn btn-sm <?php echo $filter==='on_hold'?'btn-success':'btn-outline-secondary'; ?>" href="?status=on_hold">On Hold <span class="badge text-bg-light ms-1"><?php echo $counts['on_hold'] ?? 0; ?></span></a>
         <a class="btn btn-sm <?php echo $filter==='future'?'btn-success':'btn-outline-secondary'; ?>" href="?status=future">Future <span class="badge text-bg-light ms-1"><?php echo $counts['future']; ?></span></a>
         <a class="btn btn-sm <?php echo $filter==='closed'?'btn-success':'btn-outline-secondary'; ?>" href="?status=closed">Closed <span class="badge text-bg-light ms-1"><?php echo $counts['closed']; ?></span></a>
         <a class="btn btn-sm <?php echo $filter==='all'?'btn-success':'btn-outline-secondary'; ?>" href="?status=all">All</a>
@@ -138,7 +139,7 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
     <td><?php echo h($assigneeName); ?></td><td><?php echo h($name); ?></td><td><?php echo h($updatedBy); ?></td>
     <td><?php echo (int)$task['message_count']; ?> message<?php echo (int)$task['message_count']===1?'':'s'; ?></td>
     <td><?php echo h(date('j M Y, H:i', (int)$task['updated_at_ts'])); ?></td>
-    <td><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?>"><?php echo ucfirst(h($task['status'])); ?></span></td>
+    <td><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?>"><?php echo h($statusOptions[$task['status']] ?? ucfirst($task['status'])); ?></span></td>
 </tr></tbody>
 <?php endforeach; ?>
 <?php if (!$tasks): ?><tbody><tr><td colspan="<?php echo count($tableColumns); ?>" class="text-muted py-4 text-center">No <?php echo h(in_array($filter, ['all','default'], true)?'':$filter); ?> tasks found.</td></tr></tbody><?php endif; ?>
