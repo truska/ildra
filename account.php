@@ -90,7 +90,7 @@ if ($isLoggedIn) {
     $userMembershipPurchases = array_values(array_filter(fetchMemberships($pdo), static function (array $row) use ($userId): bool {
         return (int)($row['purchased_by_user_id'] ?? $row['user_id'] ?? 0) === (int)$userId;
     }));
-    $renewalMembershipTypes = fetchMembershipTypes($pdo, true);
+    $renewalMembershipTypes = fetchPublicMembershipTypes($pdo);
 }
 $activeMembershipPurchases = [];
 $previousMembershipPurchases = [];
@@ -1919,6 +1919,8 @@ $accountIntroAutoOpen = false;
                                     $renewalState = membership_renewal_state($purchaseYear, $siteSettings);
 	                                    $renewalActionEnabled = $isPrevious ? !$hasRenewed : !empty($renewalState['action_enabled']);
 	                                    $renewalType = null;
+	                                    $isAdminAllocated = membershipIsAdminAllocated(['name' => $purchase['membership_name'] ?? '', 'admin_allocation_only' => $purchase['admin_allocation_only'] ?? 0]);
+                                    $renewalActionEnabled = $renewalActionEnabled && !$isAdminAllocated;
 	                                    if ($renewalActionEnabled) {
 	                                        $sourceNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($purchase['membership_name'] ?? ''))));
 	                                        $sourceTypeKey = strtolower(trim((string)($purchase['membership_type_key'] ?? '')));
@@ -1935,7 +1937,7 @@ $accountIntroAutoOpen = false;
 	                                    }
 	                                    $renewUrl = $renewalType
 	                                        ? $basePath . '/memberships?member_id=' . $memberId . '&membership_type_id=' . (int)$renewalType['id'] . '#membership-type-' . (int)$renewalType['id']
-	                                        : ($isPrevious && !$hasRenewed ? $basePath . '/memberships?member_id=' . $memberId : '');
+	                                        : ($isPrevious && !$hasRenewed && !$isAdminAllocated ? $basePath . '/memberships?member_id=' . $memberId : '');
 	                                    $renewDisabled = !$renewalActionEnabled || (!$isPrevious && $renewUrl === '');
 	                                    $renewTitle = $hasRenewed
 	                                        ? 'This membership has been renewed'
@@ -1966,8 +1968,10 @@ $accountIntroAutoOpen = false;
 	                                        <td class="membership-purchased-column text-muted small"><?php echo h(format_display_date($purchase['purchased_at'] ?? null, '—')); ?></td>
 	                                        <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($purchase['amount'] ?? 0), 2); ?></td>
 	                                        <td class="membership-actions-column text-end text-nowrap">
+	                                            <?php if (!$isAdminAllocated): ?>
 	                                            <?php if ($renewDisabled): ?><button class="btn btn-sm btn-secondary" type="button" disabled title="<?php echo h($renewTitle); ?>">Renew</button>
 	                                            <?php else: ?><a class="btn btn-sm btn-success" href="<?php echo h($renewUrl); ?>" title="<?php echo h($renewTitle); ?>">Renew</a><?php endif; ?>
+                                            <?php endif; ?>
 	                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-account-detail-open>View</button>
 	                                        </td>
 	                                    </tr>

@@ -317,7 +317,7 @@ foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'membership_options') {
         continue;
     }
-    $membershipTypes = fetchMembershipTypes($pdo, true);
+    $membershipTypes = fetchPublicMembershipTypes($pdo);
     $membershipHref = $basePath . ($isLoggedIn ? '/memberships' : '/account');
     ob_start();
     ?>

@@ -2483,6 +2483,20 @@ function fetchMembershipTypes(?PDO $pdo, bool $publishedOnly = false): array
     }
 }
 
+function membershipIsAdminAllocated(array $membership): bool
+{
+    return !empty($membership['admin_allocation_only'])
+        || preg_match('/\b(?:honorary|honourary)\b/i', (string)($membership['name'] ?? '')) === 1;
+}
+
+function fetchPublicMembershipTypes(?PDO $pdo): array
+{
+    return array_values(array_filter(
+        fetchMembershipTypes($pdo, true),
+        static fn(array $membership): bool => !membershipIsAdminAllocated($membership)
+    ));
+}
+
 function fetchMembershipTypeById(?PDO $pdo, int $id): ?array
 {
     if ($id <= 0) {
@@ -2685,6 +2699,7 @@ function fetchMemberships(?PDO $pdo): array
                 mp.*,
                 mt.name AS membership_name,
                 mt.type AS membership_type_key,
+                mt.admin_allocation_only,
                 mt.membership_code,
                 COALESCE(mp.allows_ride_entries_snapshot, mt.allows_ride_entries, 0) AS allows_ride_entries,
                 COALESCE(mp.allows_competitive_rides_snapshot, mt.allows_competitive_rides, 0) AS allows_competitive_rides,

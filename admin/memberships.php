@@ -372,7 +372,7 @@ admin_layout_start('Memberships', 'memberships');
                             <label class="form-check-label" for="has_voting_rights">Voting rights</label>
                         </div>
                         <div class="form-check form-switch mt-2">
-                            <input class="form-check-input" type="checkbox" role="switch" id="admin_allocation_only" name="admin_allocation_only" value="1" <?php echo !empty($formValues['admin_allocation_only']) ? 'checked' : ''; ?>><label class="form-check-label" for="admin_allocation_only">Admin allocation only (visible publicly, not purchasable)</label>
+                            <input class="form-check-input" type="checkbox" role="switch" id="admin_allocation_only" name="admin_allocation_only" value="1" <?php echo !empty($formValues['admin_allocation_only']) ? 'checked' : ''; ?>><label class="form-check-label" for="admin_allocation_only">Admin allocation only (hidden from public membership options)</label>
                         </div>
                     </div>
                     <div class="col-md-6">

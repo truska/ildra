@@ -41,7 +41,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     $membership = fetchMembershipTypeById($pdo, $typeId);
     if (!$membership) {
         $alerts[] = ['type' => 'danger', 'message' => 'Membership not found.'];
-    } elseif (!empty($membership['admin_allocation_only'])) {
+    } elseif (membershipIsAdminAllocated($membership)) {
         $alerts[] = ['type' => 'warning', 'message' => 'This membership is allocated by an administrator and cannot be purchased online.'];
     } else {
         $memberIdRaw = (string)($_POST['member_id'] ?? '');
@@ -135,7 +135,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     }
 }
 
-$membershipTypes = fetchMembershipTypes($pdo, true);
+$membershipTypes = fetchPublicMembershipTypes($pdo);
 $navItemEventsUrl = $basePath . '/events';
 ?>
 <!DOCTYPE html>
@@ -162,7 +162,7 @@ $navItemEventsUrl = $basePath . '/events';
         .page-hero {
             background: linear-gradient(120deg, rgba(20, 97, 24, 0.9), rgba(20, 97, 24, 0.75)), url('<?php echo h($siteSettings['background_image_url']); ?>') center/cover no-repeat;
             color: #fff;
-            padding: 2.5rem 0;
+            padding: 1.5rem 0;
             position: relative;
             overflow: hidden;
         }
@@ -244,12 +244,12 @@ $navItemEventsUrl = $basePath . '/events';
         </div>
     </header>
 
-    <main class="py-5">
+    <main class="py-4">
         <div class="container">
             <?php include __DIR__ . '/views/alerts.php'; ?>
-            <div class="card-soft p-4">
+            <div class="card-soft p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="section-title mb-0">Available memberships</div>
+                    <div class="section-title mb-0">Available Memberships</div>
                 </div>
                 <?php if (!$membershipTypes): ?>
                     <div class="text-muted small">No memberships available right now.</div>
@@ -257,8 +257,8 @@ $navItemEventsUrl = $basePath . '/events';
                     <div class="row g-3">
                         <?php foreach ($membershipTypes as $type): ?>
                             <?php $isPreselectedType = $preselectedMembershipTypeId === (int)$type['id']; ?>
-                            <div class="col-12" id="membership-type-<?php echo (int)$type['id']; ?>">
-	                                <div class="card-soft h-100 p-3<?php echo $isPreselectedType ? ' border border-success' : ''; ?>">
+                            <div class="col-12 col-md-6 col-lg-4" id="membership-type-<?php echo (int)$type['id']; ?>">
+	                                <div class="card-soft h-100 p-3 d-flex flex-column<?php echo $isPreselectedType ? ' border border-success' : ''; ?>">
 	                                    <div class="d-flex justify-content-between align-items-start mb-2">
 	                                        <div>
 	                                            <div class="fw-bold"><?php echo h($type['name']); ?></div>
@@ -276,11 +276,11 @@ $navItemEventsUrl = $basePath . '/events';
                                     <?php if (!empty($type['admin_allocation_only'])): ?>
                                         <div class="cta-row text-muted small">Allocated by an administrator; this membership cannot be purchased online.</div>
                                     <?php elseif ($isLoggedIn): ?>
-	                                        <form method="POST">
+	                                        <form method="POST" class="d-flex flex-column flex-grow-1">
 	                                            <input type="hidden" name="action" value="add_membership">
 	                                            <input type="hidden" name="membership_type_id" value="<?php echo (int)$type['id']; ?>">
 	                                            <div class="row g-2 align-items-end mb-2">
-	                                                <div class="col-12 col-md-6">
+	                                                <div class="col-12">
 	                                                    <label class="form-label small mb-1">Membership for</label>
 	                                                    <select class="form-select form-select-sm js-member-select person-type-select" name="member_id" required>
 	                                                        <option value="" <?php echo $preselectedMemberId <= 0 ? 'selected' : ''; ?> disabled>Select a member…</option>
@@ -303,7 +303,6 @@ $navItemEventsUrl = $basePath . '/events';
 	                                                            <option value="new">New member…</option>
 	                                                        </optgroup>
 	                                                    </select>
-	                                                    <div class="text-muted small mt-1">Choose who this membership will be assigned to.</div>
 	                                                </div>
 	                                                <div class="col-12 js-new-member-panel" style="display:none">
 	                                                    <div class="new-member-panel">
@@ -312,15 +311,15 @@ $navItemEventsUrl = $basePath . '/events';
 	                                                            <div class="text-muted small">Required</div>
 	                                                        </div>
 	                                                        <div class="row g-2">
-	                                                            <div class="col-12 col-md-4">
+	                                                            <div class="col-12">
 	                                                                <label class="form-label small mb-1">First name</label>
 	                                                                <input class="form-control form-control-sm js-new-member-field" type="text" name="new_member_first_name" autocomplete="given-name">
 	                                                            </div>
-	                                                            <div class="col-12 col-md-4">
+	                                                            <div class="col-12">
 	                                                                <label class="form-label small mb-1">Last name</label>
 	                                                                <input class="form-control form-control-sm js-new-member-field" type="text" name="new_member_last_name" autocomplete="family-name">
 	                                                            </div>
-	                                                            <div class="col-12 col-md-4">
+	                                                            <div class="col-12">
 	                                                                <label class="form-label small mb-1">Date of birth</label>
 	                                                                <input class="form-control form-control-sm js-new-member-field" type="date" name="new_member_dob">
 	                                                            </div>
@@ -328,17 +327,9 @@ $navItemEventsUrl = $basePath . '/events';
 	                                                    </div>
 	                                                </div>
 	                                            </div>
-	                                            <div class="cta-row d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mt-2">
-	                                                <div class="text-muted small">
-	                                                    Total: <?php echo h(format_price($type['cost'] ?? 0)); ?>
-	                                                </div>
-	                                                <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100">
-	                                                    <div class="d-flex gap-2 w-100">
-	                                                        <button class="btn btn-success btn-enter w-100" type="submit">Add Membership</button>
-	                                                        <a class="btn btn-outline-secondary btn-secondary-quiet w-100" href="<?php echo h($basePath); ?>/account#my-memberships">View Memberships</a>
-	                                                    </div>
-	                                                </div>
-	                                            </div>
+                                            <div class="mt-auto pt-2">
+                                                <button class="btn btn-success w-100" type="submit">Buy <?php echo h($type['name']); ?> · <?php echo h(format_price($type['cost'] ?? 0)); ?></button>
+                                            </div>
 	                                        </form>
 	                                    <?php else: ?>
 	                                        <div class="cta-row d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mt-2">
