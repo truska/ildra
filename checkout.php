@@ -74,7 +74,30 @@ if ($defaultContactName === '') {
 $contactNamePrefill = trim((string)($_POST['contact_name'] ?? $defaultContactName));
 $contactEmailPrefill = trim((string)($_POST['contact_email'] ?? ($currentUser['email'] ?? '')));
 $defaultContactPhone = '';
+if ($isLoggedIn) {
+    $accountPeople = array_values(array_filter(
+        fetchMembersForUser($pdo, (int)($currentUser['id'] ?? 0)),
+        static fn(array $person): bool => empty($person['is_linked'])
+    ));
+    foreach (['email', 'name'] as $matchField) {
+        foreach ($accountPeople as $person) {
+            $personPhone = trim((string)($person['phone'] ?? ''));
+            if ($personPhone === '') continue;
+            $matchesAccount = $matchField === 'email'
+                ? personRecordType($person, $currentUser) === 'user'
+                : (trim((string)($currentUser['first_name'] ?? '')) !== ''
+                    && trim((string)($currentUser['last_name'] ?? '')) !== ''
+                    && strcasecmp(trim((string)($person['first_name'] ?? '')), trim((string)$currentUser['first_name'])) === 0
+                    && strcasecmp(trim((string)($person['last_name'] ?? '')), trim((string)$currentUser['last_name'])) === 0);
+            if ($matchesAccount) {
+                $defaultContactPhone = $personPhone;
+                break 2;
+            }
+        }
+    }
+}
 foreach ($basket as $item) {
+    if ($defaultContactPhone !== '') break;
     $basketContactPhone = trim((string)(($item['metadata'] ?? [])['contact_phone'] ?? ($item['contact_phone'] ?? '')));
     if ($basketContactPhone !== '') {
         $defaultContactPhone = $basketContactPhone;
