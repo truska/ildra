@@ -46,7 +46,7 @@ function admin_sort_link(string $key, string $label, string $currentKey, string 
  * Column options: label, field, sort_field, sortable, filter (text|select|date),
  * options, placeholder, value (callable), compare (number|string).
  */
-function admin_table_prepare(array $rows, array $columns, string $defaultSort, string $defaultDir = 'asc'): array
+function admin_table_prepare(array $rows, array $columns, string $defaultSort, string $defaultDir = 'asc', bool $paginate = true): array
 {
     $filters = [];
     foreach ($columns as $key => $column) {
@@ -86,7 +86,7 @@ function admin_table_prepare(array $rows, array $columns, string $defaultSort, s
     if (!in_array($perPage, $allowedPerPage, true)) $perPage = 50;
     $pageCount = max(1, (int)ceil($total / $perPage));
     $page = max(1, min((int)($_GET['p'] ?? 1), $pageCount));
-    $rows = array_slice($rows, ($page - 1) * $perPage, $perPage);
+    if ($paginate) $rows = array_slice($rows, ($page - 1) * $perPage, $perPage);
     return ['rows'=>$rows, 'filters'=>$filters, 'sort_key'=>$sortKey, 'sort_dir'=>$sortDir,
         'pagination'=>['total'=>$total,'per_page'=>$perPage,'page'=>$page,'page_count'=>$pageCount,'show'=>$total>25]];
 }

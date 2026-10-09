@@ -2693,7 +2693,8 @@ function fetchMemberships(?PDO $pdo): array
                 TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS user_name,
                 m.member_number AS member_number,
                 TRIM(CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))) AS member_name,
-                m.dob AS member_dob
+                m.dob AS member_dob,
+                m.email AS member_email, m.address AS member_address, m.postcode AS member_postcode
             FROM membership_purchases mp
             LEFT JOIN membership_types mt ON mp.membership_type_id = mt.id
             LEFT JOIN users u ON mp.purchased_by_user_id = u.id
