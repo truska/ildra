@@ -107,7 +107,7 @@ if ($pdo) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bookings | <?php echo h($siteSettings['hero_title']); ?></title>
+    <title>Purchases | <?php echo h($siteSettings['hero_title']); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <style>
         :root {
@@ -227,8 +227,8 @@ if ($pdo) {
 
     <header class="page-hero">
         <div class="container">
-            <p class="mb-1 text-uppercase small fw-bold text-white-50">Bookings</p>
-            <h1 class="fw-bold mb-1">Completed bookings</h1>
+            <p class="mb-1 text-uppercase small fw-bold text-white-50">Purchases</p>
+            <h1 class="fw-bold mb-1">Transactions</h1>
             <div class="text-white-50">Review past checkouts.</div>
         </div>
     </header>
@@ -238,7 +238,7 @@ if ($pdo) {
             <?php include __DIR__ . '/views/alerts.php'; ?>
             <div class="card-soft p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="section-title mb-0">Bookings</div>
+                    <div class="section-title mb-0">Purchases</div>
                     <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Browse Events</a>
                 </div>
             <?php if (!$orders): ?>
