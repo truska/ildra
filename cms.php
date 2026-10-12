@@ -4610,7 +4610,7 @@ function fetchHorseLogbookTypes(?PDO $pdo, bool $publishedOnly = false): array
         if ($publishedOnly) {
             $sql .= " WHERE status = 'published'";
         }
-        $sql .= " ORDER BY valid_year DESC, cost ASC, id ASC";
+        $sql .= " ORDER BY id ASC";
         $stmt = $pdo->query($sql);
         return $stmt->fetchAll() ?: [];
     } catch (PDOException $e) {
@@ -4624,15 +4624,19 @@ function horse_logbook_purchase_year(array $settings = [], ?DateTimeInterface $d
     return membership_purchase_year($settings, $date);
 }
 
-/** Return the one published logbook product that may be bought today. */
+/** Reuse the published product; the renewal year belongs to each purchase. */
 function fetchPurchasableHorseLogbookType(?PDO $pdo, array $settings = [], ?DateTimeInterface $date = null): ?array
 {
     if (!$pdo) return null;
     ensureHorseLogbookTables($pdo);
     $year = horse_logbook_purchase_year($settings, $date);
-    $stmt = $pdo->prepare("SELECT * FROM horse_logbook_types WHERE status = 'published' AND valid_year = :year ORDER BY id ASC LIMIT 1");
-    $stmt->execute([':year' => $year]);
-    return $stmt->fetch() ?: null;
+    $stmt = $pdo->query("SELECT * FROM horse_logbook_types WHERE status = 'published' ORDER BY id ASC LIMIT 1");
+    $type = $stmt->fetch();
+    if (!$type) return null;
+    // Keep the public product shape compatible with existing basket/display
+    // callers. The stored legacy product year no longer controls availability.
+    $type['valid_year'] = $year;
+    return $type;
 }
 
 function fetchHorseLogbookTypeById(?PDO $pdo, int $id): ?array
@@ -4700,9 +4704,9 @@ function saveHorseLogbookPurchase(?PDO $pdo, array $data, array &$alerts): bool
         $alerts[] = ['type' => 'danger', 'message' => 'Horse, logbook type and year are required.'];
         return false;
     }
-    $type = fetchHorseLogbookTypeById($pdo, $typeId);
+    $type = fetchPurchasableHorseLogbookType($pdo, getSiteSettings($pdo));
     $requiredYear = horse_logbook_purchase_year(getSiteSettings($pdo));
-    if (!$type || strtolower((string)($type['status'] ?? '')) !== 'published' || (int)($type['valid_year'] ?? 0) !== $requiredYear || $validYear !== $requiredYear) {
+    if (!$type || (int)$type['id'] !== $typeId || $validYear !== $requiredYear) {
         $alerts[] = ['type' => 'danger', 'message' => 'This horse logbook is not available for the current renewal year.'];
         return false;
     }

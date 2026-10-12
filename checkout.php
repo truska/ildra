@@ -386,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                     $purchasableLogbookType = fetchPurchasableHorseLogbookType($pdo, getSiteSettings($pdo));
                     $requiredLogbookYear = horse_logbook_purchase_year(getSiteSettings($pdo));
                     $horse = fetchHorseForUserById($pdo, (int)$userId, $horseId);
-                    if (!$logbookType || !$purchasableLogbookType || (int)$purchasableLogbookType['id'] !== $typeId || $year !== $requiredLogbookYear || (int)($logbookType['valid_year'] ?? 0) !== $requiredLogbookYear || !$horse || !empty($horse['is_linked'])) {
+                    if (!$logbookType || !$purchasableLogbookType || (int)$purchasableLogbookType['id'] !== $typeId || $year !== $requiredLogbookYear || !$horse || !empty($horse['is_linked'])) {
                         $alerts[] = ['type' => 'danger', 'message' => 'A horse logbook in your basket is no longer available for the current renewal year. Please remove it and choose the available logbook again.'];
                         break;
                     }
