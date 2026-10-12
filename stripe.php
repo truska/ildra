@@ -71,8 +71,40 @@ function stripe_create_checkout_session(array $stripeConfig, array $params): arr
     return stripe_api_request($stripeConfig, 'POST', '/v1/checkout/sessions', $params);
 }
 
-/** Create or reuse the Stripe Customer belonging to one site account. */
-function stripe_customer_for_user(?PDO $pdo, array $stripeConfig, array $user): ?string
+/** Use the buyer's own person record, never another rider's address. */
+function stripe_buyer_address_params(array $user, array $people): array
+{
+    $buyer = null;
+    foreach (['email', 'name'] as $matchField) {
+        $matches = array_values(array_filter($people, static function (array $person) use ($user, $matchField): bool {
+            if (!empty($person['is_linked']) || (int)($person['owner_user_id'] ?? 0) !== (int)($user['id'] ?? 0)) return false;
+            if ($matchField === 'email') {
+                $email = trim((string)($user['email'] ?? ''));
+                return $email !== '' && strcasecmp(trim((string)($person['email'] ?? '')), $email) === 0;
+            }
+            $first = trim((string)($user['first_name'] ?? ''));
+            $last = trim((string)($user['last_name'] ?? ''));
+            return $first !== '' && $last !== ''
+                && strcasecmp(trim((string)($person['first_name'] ?? '')), $first) === 0
+                && strcasecmp(trim((string)($person['last_name'] ?? '')), $last) === 0;
+        }));
+        if (count($matches) === 1) { $buyer = $matches[0]; break; }
+        if ($matches) return []; // Ambiguous identity: let Stripe collect the address.
+    }
+    if (!$buyer) return [];
+    $params = [];
+    $lines = array_values(array_filter(array_map('trim', preg_split('/\R/u', (string)($buyer['address'] ?? '')) ?: []), static fn(string $line): bool => $line !== ''));
+    if ($lines) {
+        $params['address[line1]'] = array_shift($lines);
+        if ($lines) $params['address[line2]'] = implode(', ', $lines);
+    }
+    $postcode = trim((string)($buyer['postcode'] ?? ''));
+    if ($postcode !== '') $params['address[postal_code]'] = $postcode;
+    return $params;
+}
+
+/** Create or refresh the Stripe Customer belonging to one site account. */
+function stripe_customer_for_user(?PDO $pdo, array $stripeConfig, array $user, array $contact = []): ?string
 {
     $userId = (int)($user['id'] ?? 0);
     if (!$pdo || $userId <= 0) return null;
@@ -81,17 +113,17 @@ function stripe_customer_for_user(?PDO $pdo, array $stripeConfig, array $user): 
         $find = $pdo->prepare('SELECT stripe_customer_id FROM stripe_customers WHERE user_id = :user_id LIMIT 1');
         $find->execute([':user_id' => $userId]);
         $existing = trim((string)$find->fetchColumn());
-        if ($existing !== '') return $existing;
-
-        $name = trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''));
+        $name = trim((string)($contact['name'] ?? ((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''))));
         $params = ['metadata[user_id]' => (string)$userId];
         if ($name !== '') $params['name'] = $name;
-        if (!empty($user['email'])) $params['email'] = (string)$user['email'];
-        $people = fetchMembersForUser($pdo, $userId);
-        foreach ($people as $person) {
-            if (!empty($person['is_linked'])) continue;
-            $postcode = trim((string)($person['postcode'] ?? ''));
-            if ($postcode !== '') { $params['address[postal_code]'] = $postcode; break; }
+        $email = trim((string)($contact['email'] ?? ($user['email'] ?? '')));
+        if ($email !== '') $params['email'] = $email;
+        $phone = trim((string)($contact['phone'] ?? ''));
+        if ($phone !== '') $params['phone'] = $phone;
+        $params += stripe_buyer_address_params($user, fetchMembersForUser($pdo, $userId));
+        if ($existing !== '') {
+            stripe_api_request($stripeConfig, 'POST', '/v1/customers/' . urlencode($existing), $params);
+            return $existing;
         }
         $created = stripe_api_request($stripeConfig, 'POST', '/v1/customers', $params);
         $customerId = trim((string)($created['data']['id'] ?? ''));

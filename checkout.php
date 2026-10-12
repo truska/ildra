@@ -278,11 +278,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             if ($contactEmail !== '') {
                 $params['customer_email'] = $contactEmail;
             }
-            $stripeCustomerId = stripe_customer_for_user($pdo, $stripeConfig, $currentUser);
+            $stripeCustomerId = stripe_customer_for_user($pdo, $stripeConfig, $currentUser, [
+                'name' => $contactName,
+                'email' => $contactEmail,
+                'phone' => $contactPhone,
+            ]);
             if ($stripeCustomerId !== null) {
-                // Passing an existing Customer lets Checkout use its saved name,
-                // email and billing address. customer_email cannot be combined
-                // with customer on a Checkout Session.
+                // Customer email is prefilled. Hosted Checkout prefills billing
+                // details from eligible saved cards, not customer.address alone.
+                // customer_email cannot be combined with customer.
                 unset($params['customer_email']);
                 $params['customer'] = $stripeCustomerId;
                 $params['customer_update[address]'] = 'auto';

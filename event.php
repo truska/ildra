@@ -57,10 +57,14 @@ if ($isLoggedIn && $pdo && $people) {
             continue;
         }
         $status = strtolower((string)($membership['status'] ?? ''));
-        if ($status === 'active' && !empty($membership['allows_ride_entries'])) {
-            $peopleWithActiveMembership[$memberId] = true;
+        // Show the active membership category even when it grants no ride
+        // benefits (for example Supporter). Keep eligibility separate.
+        if ($status === 'active' && (!isset($activeMembershipMarkerByPerson[$memberId]) || !empty($membership['allows_ride_entries']))) {
             $membershipCode = strtoupper(trim((string)($membership['membership_code'] ?? '')));
             $activeMembershipMarkerByPerson[$memberId] = preg_match('/^[A-Z0-9]{3}$/', $membershipCode) ? $membershipCode : 'SNR';
+        }
+        if ($status === 'active' && !empty($membership['allows_ride_entries'])) {
+            $peopleWithActiveMembership[$memberId] = true;
             if (!empty($membership['allows_competitive_rides'])) {
                 $peopleWithCompetitiveMembership[$memberId] = true;
             }
@@ -926,7 +930,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                        if ($pLabel === '') {
 	                                                            $pLabel = 'Person #' . $pId;
 	                                                        }
-                                                        if (!empty($peopleWithActiveMembership[$pId])) $pLabel .= ' [' . ($activeMembershipMarkerByPerson[$pId] ?? 'SM') . ']';
+                                                        if (!empty($activeMembershipMarkerByPerson[$pId])) $pLabel .= ' [' . $activeMembershipMarkerByPerson[$pId] . ']';
                                                             $isJuniorPerson = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
 	                                                        $disableNonMemberRider = !$canViewAdmin && empty($peopleWithActiveMembership[$pId]) && !$nonMemberEntriesOpenNow;
 	                                                        ?>
