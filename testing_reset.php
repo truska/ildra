@@ -47,6 +47,9 @@ function testingResetPlan(PDO $pdo, bool $keepCalendar, array $choices): array
     foreach (testingResetTables($keepCalendar) as $table) {
         if (in_array($table, $existing, true)) $plan[$table] = '1=1';
     }
+    // Horse 1 is the agreed global entry option, maintained by the Horses
+    // admin screen. It is system configuration rather than tester horse data.
+    if (isset($plan['horses'])) $plan['horses'] = 'id <> 1';
     $plan['people'] = $keep ? 'id NOT IN (' . implode(',', $keep) . ')' : '1=1';
     return ['delete' => $plan, 'keep_people' => $keep, 'keep_calendar' => $keepCalendar];
 }
