@@ -1,6 +1,21 @@
 <?php
 declare(strict_types=1);
 
+/** Birth dates must be real calendar dates, no later than today in the UK. */
+function birth_date_is_valid(string $value): bool
+{
+    $zone = new DateTimeZone('Europe/London');
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value, $zone);
+    return $date !== false && $date->format('Y-m-d') === $value
+        && $date <= new DateTimeImmutable('today', $zone);
+}
+
+function birth_year_is_valid(string $value): bool
+{
+    return preg_match('/^[1-9][0-9]{3}$/', $value) === 1
+        && (int)$value <= (int)(new DateTimeImmutable('today', new DateTimeZone('Europe/London')))->format('Y');
+}
+
 function h($value): string
 {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');

@@ -1370,7 +1370,7 @@ $accountIntroAutoOpen = false;
                                         </div>
                                         <div class="col-12 col-md-6">
                                             <label class="form-label fw-bold">Date of birth (required for juniors)</label>
-                                            <input type="date" class="form-control" name="dob" value="<?php echo h($editPerson['dob'] ?? ''); ?>">
+                                            <input type="date" class="form-control" name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($editPerson['dob'] ?? ''); ?>">
                                         </div>
                                         <div class="col-12 d-flex flex-wrap gap-2">
                                             <button class="btn btn-success fw-bold" type="submit"><?php echo $editPerson ? 'Save changes' : 'Add person'; ?></button>
@@ -1785,11 +1785,11 @@ $accountIntroAutoOpen = false;
 	                                        </div>
 	                                        <div class="col-12 col-md-6">
 	                                            <label class="form-label fw-bold">Year of birth</label>
-	                                            <input class="form-control" name="year_of_birth" value="<?php echo h($editHorse['year_of_birth'] ?? ''); ?>">
+	                                            <input class="form-control" type="number" name="year_of_birth" min="1000" max="<?php echo date('Y'); ?>" value="<?php echo h($editHorse['year_of_birth'] ?? ''); ?>">
 	                                        </div>
 	                                        <div class="col-12 col-md-6">
 	                                            <label class="form-label fw-bold">Date of birth</label>
-	                                            <input type="date" class="form-control" name="dob" value="<?php echo h($editHorse['dob'] ?? ''); ?>">
+	                                            <input type="date" class="form-control" name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($editHorse['dob'] ?? ''); ?>">
 	                                        </div>
 	                                        <div class="col-12 col-md-6">
                                             <label class="form-label fw-bold">Passport issuer</label>
@@ -2215,7 +2215,7 @@ $accountIntroAutoOpen = false;
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold">Date of birth (required for juniors)</label>
-                                <input type="date" class="form-control" name="dob" value="<?php echo h($promptPerson['dob'] ?? ''); ?>">
+                                <input type="date" class="form-control" name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($promptPerson['dob'] ?? ''); ?>">
                             </div>
                             <div class="col-12 d-flex gap-2">
                                 <button class="btn btn-success fw-bold" type="submit">Save Details</button>

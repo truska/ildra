@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'alloc
 
     if ($firstName === '' || $lastName === '') $alerts[] = ['type' => 'danger', 'message' => 'First name and last name are required.'];
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];
-    if ($dob !== '' && !DateTimeImmutable::createFromFormat('Y-m-d', $dob)) $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid date of birth.'];
+    if ($dob !== '' && !birth_date_is_valid($dob)) $alerts[] = ['type' => 'danger', 'message' => 'Date of birth must be a valid date and cannot be in the future.'];
     if ($memberNumber !== '' && (!ctype_digit($memberNumber) || (int)$memberNumber <= 0)) $alerts[] = ['type' => 'danger', 'message' => 'Member number must be a positive number.'];
     if (!in_array($juniorSenior, ['', 'Junior', 'Senior'], true)) $juniorSenior = '';
 
@@ -109,7 +109,7 @@ $allocationTypes = $canAllocateMembership ? array_values(array_filter(fetchMembe
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">First name</label><input class="form-control" name="first_name" required value="<?php echo h((string)($person['first_name'] ?? '')); ?>"></div>
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Last name</label><input class="form-control" name="last_name" required value="<?php echo h((string)($person['last_name'] ?? '')); ?>"></div>
         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Member number</label><input type="number" min="1" class="form-control" name="member_number" value="<?php echo h((string)($person['member_number'] ?? '')); ?>"></div>
-        <div class="col-12 col-md-4"><label class="form-label fw-semibold">Date of birth</label><input type="date" class="form-control" name="dob" value="<?php echo h((string)($person['dob'] ?? '')); ?>"></div>
+        <div class="col-12 col-md-4"><label class="form-label fw-semibold">Date of birth</label><input type="date" class="form-control" name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h((string)($person['dob'] ?? '')); ?>"></div>
         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Junior or Senior</label><select class="form-select" name="junior_or_senior"><option value="">Not set</option><option value="Junior" <?php echo ($person['junior_or_senior'] ?? '') === 'Junior' ? 'selected' : ''; ?>>Junior</option><option value="Senior" <?php echo ($person['junior_or_senior'] ?? '') === 'Senior' ? 'selected' : ''; ?>>Senior</option></select></div>
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Email</label><input type="email" class="form-control" name="email" value="<?php echo h((string)($person['email'] ?? '')); ?>"></div>
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Phone</label><input class="form-control" name="phone" value="<?php echo h((string)($person['phone'] ?? '')); ?>"></div>

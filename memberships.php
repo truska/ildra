@@ -321,7 +321,7 @@ $navItemEventsUrl = $basePath . '/events';
 	                                                            </div>
 	                                                            <div class="col-12">
 	                                                                <label class="form-label small mb-1">Date of birth</label>
-	                                                                <input class="form-control form-control-sm js-new-member-field" type="date" name="new_member_dob">
+	                                                                <input class="form-control form-control-sm js-new-member-field" type="date" name="new_member_dob" max="<?php echo date('Y-m-d'); ?>">
 	                                                            </div>
 	                                                        </div>
 	                                                    </div>

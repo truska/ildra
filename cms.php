@@ -3510,9 +3510,9 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
     $dobValue = null;
     $dobDate = null;
     if ($dob !== '') {
-        $dt = DateTimeImmutable::createFromFormat('Y-m-d', $dob);
-        if (!$dt) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Date of birth must be in YYYY-MM-DD format.'];
+        $dt = DateTimeImmutable::createFromFormat('!Y-m-d', $dob);
+        if (!$dt || !birth_date_is_valid($dob)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Date of birth must be a valid date and cannot be in the future.'];
             return null;
         }
         $dobValue = $dt->format('Y-m-d');
@@ -3663,11 +3663,15 @@ function saveHorseForUser(?PDO $pdo, int $ownerUserId, array $data, array &$aler
         $alerts[] = ['type' => 'danger', 'message' => 'Horse name is required.'];
         return null;
     }
+    if ($yearOfBirth !== '' && !birth_year_is_valid($yearOfBirth)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Horse year of birth must be a valid year and cannot be in the future.'];
+        return null;
+    }
     $dobValue = null;
     if ($dob !== '') {
-        $dt = DateTimeImmutable::createFromFormat('Y-m-d', $dob);
-        if (!$dt) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Horse date of birth must be in YYYY-MM-DD format.'];
+        $dt = DateTimeImmutable::createFromFormat('!Y-m-d', $dob);
+        if (!$dt || !birth_date_is_valid($dob)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Horse date of birth must be a valid date and cannot be in the future.'];
             return null;
         }
         $dobValue = $dt->format('Y-m-d');
@@ -4332,9 +4336,9 @@ function createMemberForUser(?PDO $pdo, int $ownerUserId, string $firstName, str
         $alerts[] = ['type' => 'danger', 'message' => 'Member first name, last name, and date of birth are required.'];
         return null;
     }
-    $dt = DateTimeImmutable::createFromFormat('Y-m-d', $dob);
-    if (!$dt) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Date of birth must be a valid date.'];
+    $dt = DateTimeImmutable::createFromFormat('!Y-m-d', $dob);
+    if (!$dt || !birth_date_is_valid($dob)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Date of birth must be a valid date and cannot be in the future.'];
         return null;
     }
 

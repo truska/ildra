@@ -1155,8 +1155,15 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
     $payment = is_array($order['payment_breakdown'] ?? null) ? $order['payment_breakdown'] : [];
 
     $purchaseKinds = [];
+    $purchaseYears = [];
     foreach ($items as $item) {
         $bookingType = strtolower(trim((string)($item['booking_type'] ?? '')));
+        $meta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+        $yearKey = $bookingType === 'membership' ? 'membership_year' : ($bookingType === 'horse_logbook' ? 'logbook_year' : null);
+        if ($yearKey) {
+            $year = (int)($meta[$yearKey] ?? $item[$yearKey] ?? $meta['valid_year'] ?? $item['valid_year'] ?? 0);
+            if ($year > 0) $purchaseYears[] = $year;
+        }
         $purchaseKinds[] = $bookingType === 'membership'
             ? 'membership'
             : ($bookingType === 'horse_logbook' ? 'horse_logbook' : 'entry');
@@ -1170,6 +1177,11 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
             default => 'Purchase Confirmation',
         }
         : 'Purchase Confirmation';
+    if ($purchaseYears && !in_array('entry', $purchaseKinds, true)) {
+        $purchaseYears = array_values(array_unique($purchaseYears));
+        sort($purchaseYears);
+        $confirmationTitle = implode(' / ', $purchaseYears) . ' ' . $confirmationTitle;
+    }
 
     $subject = subject_with_prefix($emailSettings, "{$confirmationTitle} {$bookingRef}");
 
@@ -1179,7 +1191,28 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         $title = (string)($item['event_title'] ?? '');
         $price = format_price($item['price'] ?? 0);
         $type = ucwords(str_replace('_', ' ', (string)($item['booking_type'] ?? 'item')));
-        $meta = $item['metadata'] ?? [];
+        $meta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+        $bookingType = strtolower(trim((string)($item['booking_type'] ?? '')));
+        if (in_array($bookingType, ['membership', 'horse_logbook'], true)) {
+            $yearKey = $bookingType === 'membership' ? 'membership_year' : 'logbook_year';
+            $year = (int)($meta[$yearKey] ?? $item[$yearKey] ?? $meta['valid_year'] ?? $item['valid_year'] ?? 0);
+            $yearLabel = $year > 0 ? (string)$year : 'Year not recorded';
+            if ($bookingType === 'membership') {
+                $membershipType = trim((string)($meta['membership_name'] ?? $item['membership_name'] ?? ''));
+                if ($membershipType === '') $membershipType = trim((string)preg_replace('/^Membership:\s*/i', '', $title));
+                $title = 'Membership: ' . $yearLabel . ' | ' . ($membershipType !== '' ? $membershipType : 'Membership');
+                $nameLine = 'Name: ' . (string)($meta['member_name'] ?? $item['member_name'] ?? $meta['rider_name'] ?? $item['rider_name'] ?? '');
+            } else {
+                $title = 'Horse Logbook: ' . $yearLabel;
+                $nameLine = 'Horse Name: ' . (string)($meta['horse_name'] ?? $item['horse_name'] ?? '');
+            }
+            $rowsHtml .= '<tr><td style="padding:10px 0;">'
+                . '<div style="font-weight:700;color:#0c2a12;">' . h($title) . '</div>'
+                . '<div style="color:#476146;line-height:1.4;">' . h($nameLine) . '</div></td>'
+                . '<td style="padding:10px 0;text-align:right;white-space:nowrap;font-weight:700;color:#0c2a12;">' . h($price) . '</td></tr>';
+            $rowsText[] = "{$title} — {$price}\n{$nameLine}";
+            continue;
+        }
         $details = [];
         if (!empty($meta['class_label'])) {
             $details[] = 'Class: ' . $meta['class_label'];
@@ -1189,12 +1222,6 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         }
         if (!empty($meta['horse_name'])) {
             $details[] = 'Horse: ' . $meta['horse_name'];
-        }
-        if (strtolower((string)($item['booking_type'] ?? '')) === 'membership') {
-            $memberName = trim((string)($meta['member_name'] ?? $item['member_name'] ?? ''));
-            if ($memberName !== '') {
-                $details[] = 'Membership for: ' . $memberName;
-            }
         }
         if (!empty($item['member_number'])) {
             $details[] = 'Member no: ' . $item['member_number'];
