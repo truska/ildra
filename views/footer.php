@@ -77,6 +77,8 @@ $footerCompanyName = trim((string)($footerSettings['company_name'] ?? ''));
 $footerContactEmail = trim((string)($footerSettings['company_contact_email'] ?? ''));
 $footerSocials = fetchCompanySocials($pdo ?? null, true);
 $footerAffiliates = fetchCompanyAffiliates($pdo ?? null, true);
+$footerHasSocialsOrPartners = !empty($footerSocials) || !empty($footerAffiliates);
+$footerPartnersTitle = trim((string)($footerSettings['footer_partners_title'] ?? 'Partners')) ?: 'Partners';
 $footerSocialIcons = [
     'facebook' => 'fa-brands fa-facebook-f',
     'instagram' => 'fa-brands fa-instagram',
@@ -105,6 +107,10 @@ $footerSocialIcons = [
     .site-footer-events { display: grid; gap: 0.65rem; margin: 0; padding: 0; list-style: none; }
     .site-footer-event { display: inline-block; text-decoration: none; line-height: 1.35; }
     .site-footer-event-date { display: block; color: rgba(255,255,255,0.72); font-size: 0.78rem; }
+    .site-footer-socials { display: grid; gap: 0.9rem; }
+    .site-footer-social-link { display: flex; align-items: center; gap: 0.65rem; text-decoration: none; overflow-wrap: anywhere; }
+    .site-footer-social-link i { flex: 0 0 2rem; font-size: 2rem; color: var(--yellow, #dce705); text-align: center; }
+    .site-footer-social-link span { min-width: 0; }
     .site-footer-affiliates { display: grid; gap: 1rem; align-items: start; }
     .site-footer-affiliate { display: block; width: fit-content; padding: 0.45rem; border-radius: 8px; background: rgba(255,255,255,0.94); }
     .site-footer-affiliate:hover,
@@ -153,24 +159,10 @@ $footerSocialIcons = [
                         <i class="fa-solid fa-envelope" aria-hidden="true"></i>
                         <span><?php echo h($footerContactEmail); ?></span>
                     </a><?php endif; ?>
-                    <?php foreach ($footerSocials as $footerSocial): ?>
-                        <?php
-                        $footerSocialPlatform = strtolower((string)($footerSocial['platform'] ?? 'website'));
-                        $footerSocialLabel = trim((string)($footerSocial['label'] ?? ''));
-                        if ($footerSocialLabel === '') {
-                            $footerSocialLabel = $footerSocialPlatform === 'x-twitter' ? 'X / Twitter' : ucfirst($footerSocialPlatform);
-                        }
-                        $footerSocialIcon = $footerSocialIcons[$footerSocialPlatform] ?? $footerSocialIcons['website'];
-                        ?>
-                        <a class="site-footer-contact-link" href="<?php echo h((string)$footerSocial['url']); ?>" target="_blank" rel="noopener noreferrer" aria-label="<?php echo h($footerSocialLabel); ?>">
-                            <i class="<?php echo h($footerSocialIcon); ?>" aria-hidden="true"></i>
-                            <span><?php echo h($footerSocialLabel); ?></span>
-                        </a>
-                    <?php endforeach; ?>
                 </div>
             </div>
 
-            <div class="col-12 <?php echo $footerAffiliates ? 'col-md-4 col-lg-2' : 'col-lg-4'; ?>">
+            <div class="col-12 <?php echo $footerHasSocialsOrPartners ? 'col-md-4 col-lg-2' : 'col-lg-4'; ?>">
                 <div class="site-footer-title mb-3">Events</div>
                 <ul class="site-footer-events">
                     <?php foreach ($footerEvents as $footerEvent): ?>
@@ -196,23 +188,44 @@ $footerSocialIcons = [
                 </ul>
             </div>
 
-            <?php if ($footerAffiliates): ?>
+            <?php if ($footerHasSocialsOrPartners): ?>
                 <div class="col-12 col-md-4 col-lg-2">
-                    <div class="site-footer-title mb-3">Partners</div>
-                    <div class="site-footer-affiliates">
-                        <?php foreach ($footerAffiliates as $footerAffiliate): ?>
-                            <?php
-                            $footerAffiliateName = trim((string)($footerAffiliate['name'] ?? 'Affiliate'));
-                            $footerAffiliateAsset = fetchAssetLibraryById($pdo ?? null, (int)($footerAffiliate['asset_id'] ?? 0));
-                            $footerAffiliateLogo = $footerAffiliateAsset && ($footerAffiliateAsset['asset_type'] ?? '') === 'image' && empty($footerAffiliateAsset['archived'])
-                                ? assetLibraryPublicUrl($footerAffiliateAsset, 'sm')
-                                : '/filestore/images/affiliate-placeholder.svg';
-                            ?>
-                            <a class="site-footer-affiliate" href="<?php echo h((string)$footerAffiliate['website_url']); ?>" target="_blank" rel="noopener noreferrer" aria-label="Visit <?php echo h($footerAffiliateName); ?>">
-                                <img src="<?php echo h($footerAffiliateLogo); ?>" alt="<?php echo h($footerAffiliateName); ?>" loading="lazy">
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
+                    <?php if ($footerSocials): ?>
+                        <div class="site-footer-title mb-3">Socials</div>
+                        <div class="site-footer-socials small mb-4">
+                            <?php foreach ($footerSocials as $footerSocial): ?>
+                                <?php
+                                $footerSocialPlatform = strtolower((string)($footerSocial['platform'] ?? 'website'));
+                                $footerSocialLabel = trim((string)($footerSocial['label'] ?? ''));
+                                if ($footerSocialLabel === '') {
+                                    $footerSocialLabel = $footerSocialPlatform === 'x-twitter' ? 'X / Twitter' : ucfirst($footerSocialPlatform);
+                                }
+                                $footerSocialIcon = $footerSocialIcons[$footerSocialPlatform] ?? $footerSocialIcons['website'];
+                                ?>
+                                <a class="site-footer-social-link" href="<?php echo h((string)$footerSocial['url']); ?>" target="_blank" rel="noopener noreferrer" aria-label="<?php echo h($footerSocialLabel); ?>">
+                                    <i class="<?php echo h($footerSocialIcon); ?>" aria-hidden="true"></i>
+                                    <span><?php echo h($footerSocialLabel); ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($footerAffiliates): ?>
+                        <div class="site-footer-title mb-3"><?php echo h($footerPartnersTitle); ?></div>
+                        <div class="site-footer-affiliates">
+                            <?php foreach ($footerAffiliates as $footerAffiliate): ?>
+                                <?php
+                                $footerAffiliateName = trim((string)($footerAffiliate['name'] ?? 'Affiliate'));
+                                $footerAffiliateAsset = fetchAssetLibraryById($pdo ?? null, (int)($footerAffiliate['asset_id'] ?? 0));
+                                $footerAffiliateLogo = $footerAffiliateAsset && ($footerAffiliateAsset['asset_type'] ?? '') === 'image' && empty($footerAffiliateAsset['archived'])
+                                    ? assetLibraryPublicUrl($footerAffiliateAsset, 'sm')
+                                    : '/filestore/images/affiliate-placeholder.svg';
+                                ?>
+                                <a class="site-footer-affiliate" href="<?php echo h((string)$footerAffiliate['website_url']); ?>" target="_blank" rel="noopener noreferrer" aria-label="Visit <?php echo h($footerAffiliateName); ?>">
+                                    <img src="<?php echo h($footerAffiliateLogo); ?>" alt="<?php echo h($footerAffiliateName); ?>" loading="lazy">
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>

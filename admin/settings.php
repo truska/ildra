@@ -41,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'company_website_url' => trim((string)($_POST['company_website_url'] ?? '')),
             'company_address' => trim((string)($_POST['company_address'] ?? '')),
             'company_postcode' => trim((string)($_POST['company_postcode'] ?? '')),
+            'footer_partners_title' => trim((string)($_POST['footer_partners_title'] ?? 'Partners')) ?: 'Partners',
         ];
 
         foreach (['company_contact_email', 'company_webmaster_email'] as $emailKey) {
@@ -437,7 +438,7 @@ admin_layout_start('Settings', 'settings');
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                         <div>
                             <h4 class="h6 fw-bold mb-1">Social media links</h4>
-                            <p class="text-muted small mb-0">Add any number of pages. Enabled links with a URL appear in the footer.</p>
+                            <p class="text-muted small mb-0">Add any number of pages. Enabled links with a URL appear under Socials in the final footer column. Use a different display label for each page so visitors can tell them apart.</p>
                         </div>
                         <button class="btn btn-outline-success btn-sm" type="button" id="add-social-link"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add social link</button>
                     </div>
@@ -484,6 +485,11 @@ admin_layout_start('Settings', 'settings');
                             <a class="btn btn-outline-secondary btn-sm" href="asset_library.php"><i class="fa-regular fa-images" aria-hidden="true"></i> Upload/manage library images</a>
                             <button class="btn btn-outline-success btn-sm" type="button" id="add-affiliate"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add affiliate</button>
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold" for="footer_partners_title">Footer Title</label>
+                        <input class="form-control" id="footer_partners_title" name="footer_partners_title" value="<?php echo h((string)($siteSettings['footer_partners_title'] ?? 'Partners')); ?>" placeholder="Partners">
+                        <div class="form-text">Heading above enabled partner logos in the footer. Defaults to Partners; hidden when no partners are enabled.</div>
                     </div>
                     <div id="affiliate-links" class="d-grid gap-2">
                         <?php foreach ($companyAffiliates as $affiliateIndex => $affiliate): ?>
