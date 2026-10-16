@@ -79,6 +79,7 @@ $footerSocials = fetchCompanySocials($pdo ?? null, true);
 $footerAffiliates = fetchCompanyAffiliates($pdo ?? null, true);
 $footerHasSocialsOrPartners = !empty($footerSocials) || !empty($footerAffiliates);
 $footerPartnersTitle = trim((string)($footerSettings['footer_partners_title'] ?? 'Partners'));
+$footerServiceLinks = json_decode((string)($footerSettings['footer_service_links'] ?? defaultSiteSettings()['footer_service_links']), true) ?: [];
 $footerPartnersShowRule = !empty($footerSettings['footer_partners_show_rule']);
 $footerSocialIcons = [
     'facebook' => 'fa-brands fa-facebook-f',
@@ -142,7 +143,7 @@ $footerSocialIcons = [
     <div class="container">
         <div class="row g-4">
             <div class="col-12 col-lg-2">
-                <div class="site-footer-title mb-3">Main menu</div>
+                <?php if (trim((string)($footerSettings['footer_main_title'] ?? 'Main menu')) !== ''): ?><div class="site-footer-title mb-3"><?php echo h((string)($footerSettings['footer_main_title'] ?? 'Main menu')); ?></div><?php endif; ?>
                 <ul class="site-footer-links site-footer-links--mobile-columns small">
                     <li><a href="<?php echo h($footerBasePath); ?>/">Home</a></li>
                     <?php foreach ($footerNavTree as $groupKey => $group): ?>
@@ -154,7 +155,7 @@ $footerSocialIcons = [
             </div>
 
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="site-footer-title mb-3">Contact</div>
+                <?php if (trim((string)($footerSettings['footer_contact_title'] ?? 'Contact')) !== ''): ?><div class="site-footer-title mb-3"><?php echo h((string)($footerSettings['footer_contact_title'] ?? 'Contact')); ?></div><?php endif; ?>
                 <div class="site-footer-contact small">
                     <?php if ($footerCompanyName !== ''): ?><div class="site-footer-contact-name"><?php echo h($footerCompanyName); ?></div><?php endif; ?>
                     <?php if ($footerContactEmail !== ''): ?><a class="site-footer-contact-link" href="mailto:<?php echo h($footerContactEmail); ?>">
@@ -165,7 +166,7 @@ $footerSocialIcons = [
             </div>
 
             <div class="col-12 <?php echo $footerHasSocialsOrPartners ? 'col-md-4 col-lg-2' : 'col-lg-4'; ?>">
-                <div class="site-footer-title mb-3">Events</div>
+                <?php if (trim((string)($footerSettings['footer_events_title'] ?? 'Events')) !== ''): ?><div class="site-footer-title mb-3"><?php echo h((string)($footerSettings['footer_events_title'] ?? 'Events')); ?></div><?php endif; ?>
                 <ul class="site-footer-events">
                     <?php foreach ($footerEvents as $footerEvent): ?>
                         <li>
@@ -181,19 +182,19 @@ $footerSocialIcons = [
             </div>
 
             <div class="col-12 col-md-4 col-lg-2">
-                <div class="site-footer-title mb-3">Member services</div>
+                <?php if (trim((string)($footerSettings['footer_services_title'] ?? 'Member services')) !== ''): ?><div class="site-footer-title mb-3"><?php echo h((string)($footerSettings['footer_services_title'] ?? 'Member services')); ?></div><?php endif; ?>
                 <ul class="site-footer-links site-footer-links--mobile-columns small">
-                    <li><a href="<?php echo h($footerBasePath); ?>/memberships">Memberships</a></li>
-                    <li><a href="<?php echo h($footerBasePath); ?>/logbooks">Horse Logbooks</a></li>
-                    <li><a href="<?php echo h($footerBasePath); ?>/bookings">Bookings</a></li>
-                    <li><a href="<?php echo h($footerBasePath); ?>/basket">Basket</a></li>
+                    <?php foreach ($footerServiceLinks as $footerLink): ?>
+                        <?php $footerLinkUrl = (string)$footerLink['url']; if (str_starts_with($footerLinkUrl, '/')) $footerLinkUrl = $footerBasePath . $footerLinkUrl; ?>
+                        <li><a href="<?php echo h($footerLinkUrl); ?>" target="<?php echo ($footerLink['target'] ?? '') === '_blank' ? '_blank' : '_self'; ?>"<?php if (($footerLink['target'] ?? '') === '_blank'): ?> rel="noopener noreferrer"<?php endif; ?>><?php if (!empty($footerLink['icon'])): ?><i class="<?php echo h((string)$footerLink['icon']); ?> me-2" aria-hidden="true"></i><?php endif; ?><?php echo h((string)$footerLink['title']); ?></a></li>
+                    <?php endforeach; ?>
                 </ul>
             </div>
 
             <?php if ($footerHasSocialsOrPartners): ?>
                 <div class="col-12 col-md-4 col-lg-2">
                     <?php if ($footerSocials): ?>
-                        <div class="site-footer-title mb-3">Socials</div>
+                        <?php if (trim((string)($footerSettings['footer_socials_title'] ?? 'Socials')) !== ''): ?><div class="site-footer-title mb-3"><?php echo h((string)($footerSettings['footer_socials_title'] ?? 'Socials')); ?></div><?php endif; ?>
                         <div class="site-footer-socials small mb-4">
                             <?php foreach ($footerSocials as $footerSocial): ?>
                                 <?php

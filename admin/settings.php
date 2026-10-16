@@ -6,6 +6,7 @@ require __DIR__ . '/_bootstrap.php';
 $settingsRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageCampaignEmail = in_array($settingsRole, ['developer', 'superadmin', 'admin'], true);
 $siteSettings = getSiteSettings($pdo);
+$footerServiceLinks = json_decode((string)$siteSettings['footer_service_links'], true) ?: [];
 $companySocials = fetchCompanySocials($pdo);
 $companyAffiliates = fetchCompanyAffiliates($pdo);
 $companyLogoAssets = array_values(array_filter(fetchAssetLibrary($pdo, true), static function (array $asset): bool {
@@ -41,8 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'company_website_url' => trim((string)($_POST['company_website_url'] ?? '')),
             'company_address' => trim((string)($_POST['company_address'] ?? '')),
             'company_postcode' => trim((string)($_POST['company_postcode'] ?? '')),
-            'footer_partners_title' => trim((string)($_POST['footer_partners_title'] ?? '')),
-            'footer_partners_show_rule' => isset($_POST['footer_partners_show_rule']) ? '1' : '0',
         ];
 
         foreach (['company_contact_email', 'company_webmaster_email'] as $emailKey) {
@@ -58,11 +57,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        if (!$alerts && saveSiteSettings($pdo, $payload, $alerts)) {
+            $_SESSION['flash_success'] = 'Company settings saved.';
+            header('Location: settings.php?tab=company');
+            exit;
+        }
+        $siteSettings = array_merge($siteSettings, $payload);
+    } elseif ($settingsSection === 'footer') {
+        $payload = [];
+        foreach (['main', 'contact', 'events', 'services', 'socials', 'partners'] as $column) {
+            $payload['footer_' . $column . '_title'] = trim((string)($_POST['footer_' . $column . '_title'] ?? ''));
+        }
+        $payload['footer_partners_show_rule'] = isset($_POST['footer_partners_show_rule']) ? '1' : '0';
+        $footerServiceLinks = [];
+        foreach ((array)($_POST['footer_links'] ?? []) as $row) {
+            if (!is_array($row)) continue;
+            $title = trim((string)($row['title'] ?? ''));
+            $url = trim((string)($row['url'] ?? ''));
+            $icon = trim((string)($row['icon'] ?? ''));
+            if ($title === '' && $url === '' && $icon === '') continue;
+            // Allow site-relative paths and ordinary web, email and phone links only.
+            if ($title === '' || !preg_match('~^(?:/(?!/)|https?://|mailto:|tel:)\S*$~i', $url)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Each footer link needs a title and a URL starting with /, https://, http://, mailto: or tel:.'];
+            }
+            if ($icon !== '' && !preg_match('/^fa[a-z0-9-]*(?: +fa[a-z0-9-]+)*$/i', $icon)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Enter Font Awesome class names such as fa-solid fa-user, or leave the icon blank.'];
+            }
+            $footerServiceLinks[] = ['title' => $title, 'url' => $url, 'target' => ($row['target'] ?? '') === '_blank' ? '_blank' : '_self', 'icon' => $icon];
+        }
+        $payload['footer_service_links'] = json_encode($footerServiceLinks, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         $postedSocials = isset($_POST['socials']) && is_array($_POST['socials']) ? array_values($_POST['socials']) : [];
         $postedAffiliates = isset($_POST['affiliates']) && is_array($_POST['affiliates']) ? array_values($_POST['affiliates']) : [];
         if (!$alerts && saveSiteSettings($pdo, $payload, $alerts) && saveCompanySocials($pdo, $postedSocials, $alerts) && saveCompanyAffiliates($pdo, $postedAffiliates, $alerts)) {
-            $_SESSION['flash_success'] = 'Company settings saved.';
-            header('Location: settings.php?tab=company');
+            $_SESSION['flash_success'] = 'Footer settings saved.';
+            header('Location: settings.php?tab=footer');
             exit;
         }
         $siteSettings = array_merge($siteSettings, $payload);
@@ -170,7 +198,7 @@ $manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), stat
 }));
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 $requestedSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'company'));
-$allowedSettingsTabs = ['company', 'home', 'events', 'ride_notes_email', 'marketing', 'global'];
+$allowedSettingsTabs = ['footer', 'company', 'home', 'events', 'ride_notes_email', 'marketing', 'global'];
 if ($canManageCampaignEmail) $allowedSettingsTabs[] = 'campaign_email';
 $activeSettingsTab = in_array($requestedSettingsTab, $allowedSettingsTabs, true) ? $requestedSettingsTab : 'company';
 
@@ -197,6 +225,7 @@ admin_layout_start('Settings', 'settings');
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'global' ? 'active' : ''; ?>" id="global-tab" data-bs-toggle="tab" data-bs-target="#global-settings" type="button" role="tab" aria-controls="global-settings" aria-selected="<?php echo $activeSettingsTab === 'global' ? 'true' : 'false'; ?>">Global</button>
         </li>
+        <li class="nav-item" role="presentation"><button class="nav-link <?php echo $activeSettingsTab === 'footer' ? 'active' : ''; ?>" id="footer-tab" data-bs-toggle="tab" data-bs-target="#footer-settings" type="button" role="tab" aria-controls="footer-settings" aria-selected="<?php echo $activeSettingsTab === 'footer' ? 'true' : 'false'; ?>">Footer</button></li>
     </ul>
     <div class="tab-content">
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'home' ? 'show active' : ''; ?>" id="home-settings" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
@@ -434,8 +463,42 @@ admin_layout_start('Settings', 'settings');
                     <label class="form-label fw-semibold" for="company_postcode">Postcode</label>
                     <input class="form-control" id="company_postcode" name="company_postcode" value="<?php echo h((string)($siteSettings['company_postcode'] ?? '')); ?>" placeholder="Optional">
                 </div>
+                <div class="col-12"><button class="btn btn-success">Save company settings</button></div>
+            </form>
+        </div>
+    </div>
+    <div class="tab-pane fade <?php echo $activeSettingsTab === 'footer' ? 'show active' : ''; ?>" id="footer-settings" role="tabpanel" aria-labelledby="footer-tab" tabindex="0">
+        <h3 class="h5 fw-bold mb-1">Footer settings</h3>
+        <p class="text-muted small mb-3">Manage the five column headings, column 4 links, socials and partners. Main menu links come from Pages, contact details from Company, and events from the calendar.</p>
+        <div class="card-soft p-3">
+            <form method="POST" class="row g-3">
+                <input type="hidden" name="settings_section" value="footer">
+                <?php foreach (['main' => 'Column 1 — Main menu', 'contact' => 'Column 2 — Contact', 'events' => 'Column 3 — Events', 'services' => 'Column 4 — Custom links'] as $column => $label): $titleKey = 'footer_' . $column . '_title'; ?>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label fw-semibold" for="<?php echo h($titleKey); ?>"><?php echo h($label); ?></label>
+                        <input class="form-control" id="<?php echo h($titleKey); ?>" name="<?php echo h($titleKey); ?>" value="<?php echo h((string)$siteSettings[$titleKey]); ?>">
+                        <div class="form-text">Leave blank to hide this heading.</div>
+                        <?php $columnSource = ['main' => 'Content sourced from Pages.', 'contact' => 'Content sourced from Settings → Company.', 'events' => 'Content sourced from the events calendar.'][$column] ?? ''; ?>
+                        <?php if ($columnSource !== ''): ?><div class="form-text"><?php echo h($columnSource); ?></div><?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-2"><h4 class="h6 fw-bold mb-0">Column 4 links</h4><button class="btn btn-outline-success btn-sm" type="button" id="add-footer-link">Add link</button></div>
+                    <p class="form-text">Use a site path such as /memberships or a full URL. Links appear in row order; use the arrows to reorder. Icons are optional, e.g. fa-solid fa-user.</p>
+                    <div id="footer-links" class="d-grid gap-2">
+                        <?php foreach ($footerServiceLinks as $linkIndex => $link): ?>
+                            <?php renderFooterSettingsLinkRow((string)$linkIndex, $link); ?>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
                 <div class="col-12">
                     <hr class="my-2">
+                    <h4 class="h6 fw-bold mb-3">Column 5 — Socials and partners</h4>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="footer_socials_title">Socials title</label>
+                        <input class="form-control" id="footer_socials_title" name="footer_socials_title" value="<?php echo h((string)$siteSettings['footer_socials_title']); ?>">
+                        <div class="form-text">Leave blank to hide this heading.</div>
+                    </div>
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                         <div>
                             <h4 class="h6 fw-bold mb-1">Social media links</h4>
@@ -490,7 +553,7 @@ admin_layout_start('Settings', 'settings');
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label small fw-semibold" for="footer_partners_title">Footer Title</label>
-                            <input class="form-control" id="footer_partners_title" name="footer_partners_title" value="<?php echo h((string)($siteSettings['footer_partners_title'] ?? 'Partners')); ?>" placeholder="Partners">
+                            <input class="form-control" id="footer_partners_title" name="footer_partners_title" value="<?php echo h((string)($siteSettings['footer_partners_title'] ?? 'Partners')); ?>" placeholder="Footer Title below Social">
                             <div class="form-text">Optional heading above enabled partner logos in the footer. Leave blank for no heading.</div>
                         </div>
                         <div class="col-12 col-md-6">
@@ -527,7 +590,7 @@ admin_layout_start('Settings', 'settings');
                     </div>
                 </div>
                 <div class="col-12 d-flex gap-2">
-                    <button class="btn btn-success">Save company settings</button>
+                    <button class="btn btn-success">Save footer settings</button>
                     <a class="btn btn-outline-secondary" href="index.php">Back to dashboard</a>
                 </div>
             </form>
@@ -535,6 +598,42 @@ admin_layout_start('Settings', 'settings');
     </div>
     </div>
 </div>
+<?php
+function renderFooterSettingsLinkRow(string $index, array $link): void { ?>
+    <div class="footer-link-row border rounded p-3"><div class="row g-2 align-items-end">
+        <?php foreach (['title' => 'Title', 'url' => 'URL', 'icon' => 'Font Awesome icon'] as $field => $label): ?>
+            <div class="col-12 col-md-3"><label class="form-label small fw-semibold"><?php echo h($label); ?></label><input class="form-control" data-footer-field="<?php echo h($field); ?>" name="footer_links[<?php echo h($index); ?>][<?php echo h($field); ?>]" value="<?php echo h((string)($link[$field] ?? '')); ?>"></div>
+        <?php endforeach; ?>
+        <div class="col-12 col-md-3"><label class="form-label small fw-semibold">Target</label><select class="form-select" data-footer-field="target" name="footer_links[<?php echo h($index); ?>][target]"><option value="_self">Same tab</option><option value="_blank" <?php echo ($link['target'] ?? '') === '_blank' ? 'selected' : ''; ?>>New tab</option></select></div>
+        <div class="col-12 d-flex gap-2"><button type="button" class="btn btn-sm btn-outline-secondary" data-footer-action="up" aria-label="Move link up">↑</button><button type="button" class="btn btn-sm btn-outline-secondary" data-footer-action="down" aria-label="Move link down">↓</button><button type="button" class="btn btn-sm btn-outline-danger" data-footer-action="remove">Remove</button></div>
+    </div></div>
+<?php } ?>
+<template id="footer-link-template"><?php renderFooterSettingsLinkRow('__INDEX__', []); ?></template>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const list = document.getElementById('footer-links');
+    function renumber() {
+        list.querySelectorAll('.footer-link-row').forEach(function (row, index) {
+            row.querySelectorAll('[data-footer-field]').forEach(function (field) {
+                field.name = 'footer_links[' + index + '][' + field.dataset.footerField + ']';
+            });
+        });
+    }
+    document.getElementById('add-footer-link').addEventListener('click', function () {
+        list.appendChild(document.getElementById('footer-link-template').content.cloneNode(true));
+        renumber();
+    });
+    list.addEventListener('click', function (event) {
+        const button = event.target.closest('[data-footer-action]');
+        if (!button) return;
+        const row = button.closest('.footer-link-row');
+        if (button.dataset.footerAction === 'remove') row.remove();
+        if (button.dataset.footerAction === 'up' && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+        if (button.dataset.footerAction === 'down' && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+        renumber();
+    });
+});
+</script>
 <template id="social-link-template">
     <div class="social-link-row border rounded p-3">
         <div class="row g-2 align-items-end">
