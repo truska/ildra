@@ -41,7 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'company_website_url' => trim((string)($_POST['company_website_url'] ?? '')),
             'company_address' => trim((string)($_POST['company_address'] ?? '')),
             'company_postcode' => trim((string)($_POST['company_postcode'] ?? '')),
-            'footer_partners_title' => trim((string)($_POST['footer_partners_title'] ?? 'Partners')) ?: 'Partners',
+            'footer_partners_title' => trim((string)($_POST['footer_partners_title'] ?? '')),
+            'footer_partners_show_rule' => isset($_POST['footer_partners_show_rule']) ? '1' : '0',
         ];
 
         foreach (['company_contact_email', 'company_webmaster_email'] as $emailKey) {
@@ -486,10 +487,19 @@ admin_layout_start('Settings', 'settings');
                             <button class="btn btn-outline-success btn-sm" type="button" id="add-affiliate"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add affiliate</button>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold" for="footer_partners_title">Footer Title</label>
-                        <input class="form-control" id="footer_partners_title" name="footer_partners_title" value="<?php echo h((string)($siteSettings['footer_partners_title'] ?? 'Partners')); ?>" placeholder="Partners">
-                        <div class="form-text">Heading above enabled partner logos in the footer. Defaults to Partners; hidden when no partners are enabled.</div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold" for="footer_partners_title">Footer Title</label>
+                            <input class="form-control" id="footer_partners_title" name="footer_partners_title" value="<?php echo h((string)($siteSettings['footer_partners_title'] ?? 'Partners')); ?>" placeholder="Partners">
+                            <div class="form-text">Optional heading above enabled partner logos in the footer. Leave blank for no heading.</div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="form-check mt-md-4 pt-md-2">
+                                <input class="form-check-input" type="checkbox" id="footer_partners_show_rule" name="footer_partners_show_rule" value="1" <?php echo !empty($siteSettings['footer_partners_show_rule']) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="footer_partners_show_rule">Show rule above partners</label>
+                                <div class="form-text">Shows a centred rule at 75% of the column width, above the title if one is entered. Hidden when no partners are enabled.</div>
+                            </div>
+                        </div>
                     </div>
                     <div id="affiliate-links" class="d-grid gap-2">
                         <?php foreach ($companyAffiliates as $affiliateIndex => $affiliate): ?>

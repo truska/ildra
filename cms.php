@@ -116,6 +116,7 @@ function defaultSiteSettings(): array
         'company_name' => 'Irish Long Distance Riding Association Ltd.',
         'company_short_name' => 'ILDRA',
         'footer_partners_title' => 'Partners',
+        'footer_partners_show_rule' => '0',
         'company_contact_email' => '',
         'company_webmaster_email' => '',
         'company_facebook_url' => 'https://www.facebook.com/EnduranceRidingIreland',

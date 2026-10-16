@@ -78,7 +78,8 @@ $footerContactEmail = trim((string)($footerSettings['company_contact_email'] ?? 
 $footerSocials = fetchCompanySocials($pdo ?? null, true);
 $footerAffiliates = fetchCompanyAffiliates($pdo ?? null, true);
 $footerHasSocialsOrPartners = !empty($footerSocials) || !empty($footerAffiliates);
-$footerPartnersTitle = trim((string)($footerSettings['footer_partners_title'] ?? 'Partners')) ?: 'Partners';
+$footerPartnersTitle = trim((string)($footerSettings['footer_partners_title'] ?? 'Partners'));
+$footerPartnersShowRule = !empty($footerSettings['footer_partners_show_rule']);
 $footerSocialIcons = [
     'facebook' => 'fa-brands fa-facebook-f',
     'instagram' => 'fa-brands fa-instagram',
@@ -112,6 +113,7 @@ $footerSocialIcons = [
     .site-footer-social-link i { flex: 0 0 2rem; font-size: 2rem; color: var(--yellow, #dce705); text-align: center; }
     .site-footer-social-link span { min-width: 0; }
     .site-footer-affiliates { display: grid; gap: 1rem; align-items: start; }
+    .site-footer-partners-rule { width: 75%; margin: 0 auto 1rem; border: 0; border-top: 1px solid currentColor; opacity: 0.4; }
     .site-footer-affiliate { display: block; width: fit-content; padding: 0.45rem; border-radius: 8px; background: rgba(255,255,255,0.94); }
     .site-footer-affiliate:hover,
     .site-footer-affiliate:focus-visible { background: var(--yellow, #dce705); }
@@ -210,7 +212,8 @@ $footerSocialIcons = [
                         </div>
                     <?php endif; ?>
                     <?php if ($footerAffiliates): ?>
-                        <div class="site-footer-title mb-3"><?php echo h($footerPartnersTitle); ?></div>
+                        <?php if ($footerPartnersShowRule): ?><hr class="site-footer-partners-rule"><?php endif; ?>
+                        <?php if ($footerPartnersTitle !== ''): ?><div class="site-footer-title mb-3"><?php echo h($footerPartnersTitle); ?></div><?php endif; ?>
                         <div class="site-footer-affiliates">
                             <?php foreach ($footerAffiliates as $footerAffiliate): ?>
                                 <?php
