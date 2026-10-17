@@ -59,3 +59,22 @@ function event_announcement(array $events, ?DateTimeImmutable $now = null): ?arr
     });
     return $notices[0] ?? null;
 }
+
+/** Reuse the normal announcement's inclusive UK date window. */
+function super_announcement_visible(array $settings, ?DateTimeImmutable $now = null): bool
+{
+    $normal = [];
+    foreach ($settings as $key => $value) {
+        if (str_starts_with($key, 'super_announcement_')) $normal[substr($key, 6)] = $value;
+    }
+    return manual_announcement_visible($normal, $now);
+}
+
+function super_announcement_token(array $settings): string
+{
+    return hash('sha256', implode('|', [
+        $settings['super_announcement_from'] ?? '',
+        $settings['super_announcement_to'] ?? '',
+        $settings['super_announcement_revision'] ?? '1',
+    ]));
+}

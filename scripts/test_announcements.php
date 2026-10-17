@@ -38,3 +38,14 @@ check(event_announcement([$dst], at('2026-10-26 09:00:00')) === null, 'DST windo
 // When a newer notice expires, an older closing notice may still qualify.
 check(event_announcement([$opening,$event], at('2026-11-01 18:00:00'))['event']['id'] === 2, 'Remaining opening did not resume');
 echo "Announcement schedule, audience, priority, expiry, capacity and DST checks passed.\n";
+
+$super = [];
+foreach ($manual as $key => $value) $super['super_' . $key] = $value;
+check(super_announcement_visible($super, at('2026-10-24')), 'Super notice not visible in window');
+check(!super_announcement_visible($super, at('2026-10-26')), 'Super notice did not expire');
+check(!super_announcement_visible(array_replace($super, ['super_announcement_enabled'=>'0']), at('2026-10-24')), 'Disabled super notice shown');
+$token = super_announcement_token($super);
+check($token === super_announcement_token(array_replace($super, ['super_announcement_body_html'=>'Edited copy'])), 'Copy edit unexpectedly resets hidden notices');
+check($token !== super_announcement_token(array_replace($super, ['super_announcement_revision'=>'reset'])), 'Explicit reset does not reset hidden notices');
+check($token !== super_announcement_token(array_replace($super, ['super_announcement_to'=>'2026-10-28'])), 'New schedule does not reset hidden notices');
+echo "Super announcement schedule and dismissal reset checks passed.\n";

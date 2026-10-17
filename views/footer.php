@@ -255,3 +255,5 @@ $footerSocialIcons = [
         </div>
     </div>
 </footer>
+
+<?php include __DIR__ . '/super_announcement.php'; ?>
