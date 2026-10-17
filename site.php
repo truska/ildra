@@ -22,6 +22,12 @@ foreach ($pages as $candidatePage) {
 $counts = contentCounts($pages, $events, $faqs);
 $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
+$eventAnnouncement = !empty($siteSettings['event_announcement_enabled']) && $pdo ? event_announcement($events) : null;
+$manualAnnouncementVisible = manual_announcement_visible($siteSettings);
+$announcementAsset = $manualAnnouncementVisible ? fetchAssetLibraryById($pdo, (int)$siteSettings['announcement_asset_id']) : null;
+$announcementImage = $announcementAsset && ($announcementAsset['asset_type'] ?? '') === 'image' && empty($announcementAsset['archived']) ? assetLibraryPublicUrl($announcementAsset, 'md') : '';
+$announcementImageRight = $siteSettings['announcement_image_side'] === 'right';
+
 $aboutIldra = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-ildra'));
 $aboutEndurance = array_values(array_filter($pages, fn($p) => ($p['nav_group'] ?? '') === 'about-endurance'));
 $eventsByDate = array_slice($events, 0, 5);
@@ -147,9 +153,14 @@ function event_url(array $event): string
         .page-advertising-item { display: block; border-radius: 12px; overflow: hidden; background: #fff; }
         .page-advertising-item img { display: block; width: 100%; height: auto; max-height: 110px; object-fit: contain; }
         .announcement-bar {
-            background: var(--green-strong);
-            color: #fff;
+            background: var(--announcement-bg, var(--green-strong));
+            color: var(--announcement-text, #fff);
         }
+        .event-announcement--opening { background: #dce705; color: #0c4522; }
+        .event-announcement--closing { background: #8b1e24; color: #fff; }
+        .event-announcement a { color: inherit; text-decoration: none; }
+        .event-announcement a:hover { text-decoration: underline; }
+        .announcement-bar h2, .announcement-bar h3, .announcement-copy, .announcement-copy a { color: inherit; }
         .announcement-toggle {
             position: relative;
             width: 100%;
@@ -166,10 +177,15 @@ function event_url(array $event): string
             font-weight: 800;
             text-align: center;
         }
-        .announcement-toggle > span { width: 100%; padding: 0 2.5rem; }
+        .announcement-toggle > span {
+            width: 100%;
+            padding: 0 2.5rem;
+            font-size: clamp(1.35rem, 1.1rem + 1vw, 1.75rem);
+            line-height: 1.25;
+        }
         .announcement-toggle .collapse-icon { position: absolute; right: 0; }
         .announcement-toggle:hover,
-        .announcement-toggle:focus-visible { color: var(--yellow); }
+        .announcement-toggle:focus-visible { color: inherit; text-decoration: underline; }
         .announcement-toggle .collapse-icon { transition: transform .2s ease; }
         .announcement-toggle[aria-expanded="true"] .collapse-icon { transform: rotate(180deg); }
         .announcement-detail {
@@ -183,12 +199,12 @@ function event_url(array $event): string
             background: rgba(255,255,255,.08);
             border-radius: var(--radius-md);
         }
-        .announcement-copy { color: rgba(255,255,255,.9); }
+
         .announcement-collapse {
-            color: #fff;
-            border-color: rgba(255,255,255,.65);
+            color: inherit;
+            border-color: currentColor;
         }
-        .announcement-collapse:hover { background: #fff; color: var(--green-strong); }
+        .announcement-collapse:hover { background: var(--announcement-text); color: var(--announcement-bg); }
         .entry-status {
             display: inline-flex;
             flex-direction: column;
@@ -242,30 +258,32 @@ function event_url(array $event): string
         <?php $headerIsHome = true; $headerPage = $homePage; include __DIR__ . '/views/header.php'; ?>
     </header>
 
-    <section class="announcement-bar" aria-labelledby="home-announcement-title">
+    <?php if ($eventAnnouncement): ?>
+        <div class="event-announcement event-announcement--<?php echo h($eventAnnouncement['kind']); ?>"><a class="container d-block py-2 text-center fw-bold" href="<?php echo h(event_url($eventAnnouncement['event'])); ?>"><?php echo h($eventAnnouncement['text']); ?></a></div>
+    <?php endif; ?>
+    <?php if ($manualAnnouncementVisible): ?>
+    <section class="announcement-bar" aria-labelledby="home-announcement-title" style="--announcement-bg: <?php echo h(announcement_colour((string)$siteSettings['announcement_bg_colour'], '#0c4522')); ?>; --announcement-text: <?php echo h(announcement_colour((string)$siteSettings['announcement_text_colour'], '#ffffff')); ?>;">
         <div class="container">
             <button class="announcement-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#homeAnnouncement" aria-expanded="false" aria-controls="homeAnnouncement">
-                <span id="home-announcement-title">St. Patrick's Coast Entries are open</span>
+                <span id="home-announcement-title"><?php echo h((string)$siteSettings['announcement_title']); ?></span>
                 <i class="fa-solid fa-chevron-down collapse-icon" aria-hidden="true"></i>
             </button>
             <div class="collapse" id="homeAnnouncement">
-                <div class="announcement-detail">
-                    <div class="row g-4 align-items-center">
-                        <div class="col-md-5">
-                            <img class="announcement-image" src="<?php echo h($basePath); ?>/filestore/images/advertising/md/st-patrick-s-2026.png" alt="St. Patrick's Coast event holding image">
-                        </div>
-                        <div class="col-md-7 announcement-copy">
-                            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis dapibus posuere velit aliquet.</p>
-                            <p>Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Donec sed odio dui. Cras mattis consectetur purus sit amet fermentum.</p>
-                            <button class="btn btn-outline-light announcement-collapse" type="button" data-bs-toggle="collapse" data-bs-target="#homeAnnouncement" aria-expanded="true" aria-controls="homeAnnouncement">
-                                Collapse <i class="fa-solid fa-chevron-up ms-1" aria-hidden="true"></i>
-                            </button>
+                <div class="announcement-detail"><div class="row g-4 align-items-center">
+                    <?php if (trim((string)$siteSettings['announcement_heading']) !== ''): ?><div class="col-12<?php echo $announcementImage !== '' ? ' text-center' : ''; ?>"><h2 class="h4 mb-0"><?php echo h((string)$siteSettings['announcement_heading']); ?></h2></div><?php endif; ?>
+                    <?php if ($announcementImage !== ''): ?><div class="col-md-6 <?php echo $announcementImageRight ? 'order-md-2' : ''; ?>"><img class="announcement-image" src="<?php echo h($announcementImage); ?>" alt="<?php echo h((string)(($announcementAsset['alt_text'] ?? '') ?: ($announcementAsset['title'] ?? '') ?: $siteSettings['announcement_title'])); ?>"></div><?php endif; ?>
+                    <div class="<?php echo $announcementImage !== '' ? 'col-md-6 ' . ($announcementImageRight ? 'order-md-1' : '') : 'col-12'; ?> announcement-copy">
+                        <?php if (trim((string)$siteSettings['announcement_subheading']) !== ''): ?><h3 class="h5"><?php echo h((string)$siteSettings['announcement_subheading']); ?></h3><?php endif; ?>
+                        <?php echo render_wysiwyg((string)$siteSettings['announcement_body_html']); ?>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button class="btn announcement-collapse" type="button" data-bs-toggle="collapse" data-bs-target="#homeAnnouncement" aria-expanded="true" aria-controls="homeAnnouncement">Collapse <i class="fa-solid fa-chevron-up ms-1" aria-hidden="true"></i></button>
                         </div>
                     </div>
-                </div>
+                </div></div>
             </div>
         </div>
     </section>
+    <?php endif; ?>
 
     <main class="py-5">
         <div class="container">

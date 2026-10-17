@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/announcements.php';
 require_once __DIR__ . '/bookings_store.php';
 
 const NAV_GROUPS = [
@@ -115,6 +116,18 @@ function defaultSiteSettings(): array
         'auth_app_login_enabled' => '0',
         'company_name' => 'Irish Long Distance Riding Association Ltd.',
         'company_short_name' => 'ILDRA',
+        'announcement_enabled' => '0',
+        'announcement_from' => '',
+        'announcement_to' => '',
+        'announcement_title' => '',
+        'announcement_heading' => '',
+        'announcement_subheading' => '',
+        'announcement_body_html' => '',
+        'announcement_asset_id' => '0',
+        'announcement_image_side' => 'left',
+        'announcement_bg_colour' => '#0c4522',
+        'announcement_text_colour' => '#ffffff',
+        'event_announcement_enabled' => '1',
         'footer_main_title' => 'Main menu',
         'footer_contact_title' => 'Contact',
         'footer_events_title' => 'Events',
