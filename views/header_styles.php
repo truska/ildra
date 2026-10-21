@@ -265,7 +265,7 @@ main.container.py-5 > h1.h2 + .mb-4 {
     padding-bottom: 22px;
 }
 .home-intro-established { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.home-intro-title { margin-top: .3rem; font-size: clamp(1.9rem, 4vw, 3.6rem); line-height: 1.12; font-weight: 500; }
+.home-intro-title { margin-top: .3rem; font-size: clamp(1.9rem, 4vw, 3.3rem); line-height: 1.12; font-weight: 500; }
 .home-intro-tagline { margin-top: .35rem; font-size: clamp(.95rem, 1.6vw, 1.22rem); font-weight: 400; }
 .home-intro-copy { grid-column: 1; grid-row: 1 / 3; min-width: 0; }
 .home-intro-join { display: flex; align-items: center; justify-content: center; width: 100%; min-width: 0; padding: .7rem 1rem; font-size: 1.05rem; }
@@ -275,16 +275,18 @@ main.container.py-5 > h1.h2 + .mb-4 {
 .home-intro-button-column { display: flex; width: auto; flex: 1 1 0; }
 .home-mobile-calendar { display: none; }
 .home-mobile-toggler { display: none; }
-/* Desktop buttons share the tagline row; tablet retains the heading-side layout. */
+/* Keep heading wrapping independent of the tagline and button row. */
 @media (min-width: 1200px) {
-    .home-intro-inner { grid-template-rows: auto auto auto; }
+    .home-intro-inner { grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto auto auto; column-gap: 0; }
     .home-intro-copy { display: contents; }
-    .home-intro-established { grid-column: 1; grid-row: 1; }
-    .home-intro-copy > .home-intro-title { grid-column: 1; grid-row: 2; }
-    .home-intro-tagline { grid-column: 1; grid-row: 3; align-self: center; }
-    .home-intro-actions { grid-row: 1 / 3; align-self: end; }
-    .home-intro-buttons { grid-row: 3; align-self: center; }
-    .home-intro-join { min-width: 160px; }
+    .home-intro-established { grid-column: 1 / -1; grid-row: 1; }
+    .home-intro-copy > .home-intro-title { grid-column: 1 / 10; grid-row: 2; padding-right: 1.25rem; }
+    .home-intro-tagline { grid-column: 1 / 10; grid-row: 3; align-self: center; padding-right: 1.25rem; }
+    .home-intro-actions { grid-column: 10 / -1; grid-row: 2; align-self: start; }
+    .home-intro-short-name { margin-top: .3rem; }
+    .home-intro-buttons { grid-column: 10 / -1; grid-row: 3; align-self: center; width: 100%; margin: 0; --bs-gutter-x: 0; --bs-gutter-y: 0; gap: .5rem; }
+    .home-intro-button-column { width: calc(50% - .25rem); flex: 0 0 calc(50% - .25rem); padding: 0; }
+    .home-intro-join { min-width: 0; }
 }
 @media (min-width: 576px) and (max-width: 1199.98px) {
     .home-intro-buttons { max-width: 300px; }

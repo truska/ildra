@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($settingsSection === 'home') {
         $payload = [
             'hero_title' => trim((string)($_POST['hero_title'] ?? '')),
+            'company_short_name' => trim((string)($_POST['company_short_name'] ?? '')),
             'hero_tagline' => trim((string)($_POST['hero_tagline'] ?? '')),
             'hero_cta_label' => trim((string)($_POST['hero_cta_label'] ?? '')),
             'hero_cta_url' => trim((string)($_POST['hero_cta_url'] ?? '')),
@@ -37,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($settingsSection === 'company') {
         $payload = [
             'company_name' => trim((string)($_POST['company_name'] ?? '')),
-            'company_short_name' => trim((string)($_POST['company_short_name'] ?? '')),
             'company_contact_email' => trim((string)($_POST['company_contact_email'] ?? '')),
             'company_webmaster_email' => trim((string)($_POST['company_webmaster_email'] ?? '')),
             'company_website_url' => trim((string)($_POST['company_website_url'] ?? '')),
@@ -208,10 +208,10 @@ admin_layout_start('Settings', 'settings');
 <div class="card-soft p-4">
     <ul class="nav nav-tabs admin-tabs mb-4" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?php echo $activeSettingsTab === 'home' ? 'active' : ''; ?>" id="home-tab" data-bs-toggle="tab" data-bs-target="#home-settings" type="button" role="tab" aria-controls="home-settings" aria-selected="<?php echo $activeSettingsTab === 'home' ? 'true' : 'false'; ?>">Home Page</button>
+            <button class="nav-link <?php echo $activeSettingsTab === 'company' ? 'active' : ''; ?>" id="company-tab" data-bs-toggle="tab" data-bs-target="#company-settings" type="button" role="tab" aria-controls="company-settings" aria-selected="<?php echo $activeSettingsTab === 'company' ? 'true' : 'false'; ?>">Company</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?php echo $activeSettingsTab === 'company' ? 'active' : ''; ?>" id="company-tab" data-bs-toggle="tab" data-bs-target="#company-settings" type="button" role="tab" aria-controls="company-settings" aria-selected="<?php echo $activeSettingsTab === 'company' ? 'true' : 'false'; ?>">Company</button>
+            <button class="nav-link <?php echo $activeSettingsTab === 'home' ? 'active' : ''; ?>" id="home-tab" data-bs-toggle="tab" data-bs-target="#home-settings" type="button" role="tab" aria-controls="home-settings" aria-selected="<?php echo $activeSettingsTab === 'home' ? 'true' : 'false'; ?>">Home Page</button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'events' ? 'active' : ''; ?>" id="events-tab" data-bs-toggle="tab" data-bs-target="#event-settings" type="button" role="tab" aria-controls="event-settings" aria-selected="<?php echo $activeSettingsTab === 'events' ? 'true' : 'false'; ?>">Events</button>
@@ -236,7 +236,10 @@ admin_layout_start('Settings', 'settings');
             <form method="POST" class="row g-3">
                 <input type="hidden" name="settings_section" value="home">
                 <div class="col-6"><label class="form-label fw-semibold" for="hero_title">Site name</label><input class="form-control" id="hero_title" name="hero_title" value="<?php echo h((string)$siteSettings['hero_title']); ?>"></div>
-                <div class="col-6" aria-hidden="true"></div>
+                <div class="col-6">
+                    <label class="form-label fw-semibold" for="company_short_name">Company short name</label>
+                    <input class="form-control" id="company_short_name" name="company_short_name" value="<?php echo h((string)($siteSettings['company_short_name'] ?? '')); ?>" placeholder="ILDRA">
+                </div>
                 <div class="col-6"><label class="form-label fw-semibold" for="home_heading_text">Heading</label><input class="form-control" id="home_heading_text" name="home_heading_text" value="<?php echo h((string)$siteSettings['home_heading_text']); ?>"></div>
                 <div class="col-6"><label class="form-label fw-semibold" for="home_established_text">Established text</label><input class="form-control" id="home_established_text" name="home_established_text" value="<?php echo h((string)$siteSettings['home_established_text']); ?>"></div>
                 <div class="col-12"><label class="form-label fw-semibold" for="hero_tagline">Tagline</label><input class="form-control" id="hero_tagline" name="hero_tagline" value="<?php echo h((string)$siteSettings['hero_tagline']); ?>"></div>
@@ -438,13 +441,9 @@ admin_layout_start('Settings', 'settings');
         <div class="card-soft p-3">
             <form method="POST" class="row g-3">
                 <input type="hidden" name="settings_section" value="company">
-                <div class="col-12 col-lg-8">
+                <div class="col-12">
                     <label class="form-label fw-semibold" for="company_name">Company name</label>
                     <input class="form-control" id="company_name" name="company_name" value="<?php echo h((string)($siteSettings['company_name'] ?? '')); ?>" placeholder="Irish Long Distance Riding Association Ltd.">
-                </div>
-                <div class="col-12 col-lg-4">
-                    <label class="form-label fw-semibold" for="company_short_name">Company short name</label>
-                    <input class="form-control" id="company_short_name" name="company_short_name" value="<?php echo h((string)($siteSettings['company_short_name'] ?? '')); ?>" placeholder="ILDRA">
                 </div>
                 <div class="col-12 col-lg-6">
                     <label class="form-label fw-semibold" for="company_contact_email">General contact email</label>
