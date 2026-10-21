@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-$superSettings = $siteSettings ?? getSiteSettings($pdo ?? null);
+$superSettings = announcement_public_settings($pdo ?? null, $siteSettings ?? getSiteSettings($pdo ?? null));
 if (!super_announcement_visible($superSettings)) return;
 $superAsset = fetchAssetLibraryById($pdo ?? null, (int)$superSettings['super_announcement_asset_id']);
 $superImage = $superAsset && ($superAsset['asset_type'] ?? '') === 'image' && empty($superAsset['archived']) ? assetLibraryPublicUrl($superAsset, 'md') : '';

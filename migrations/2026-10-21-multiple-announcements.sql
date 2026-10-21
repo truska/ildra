@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS announcements (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    announcement_type VARCHAR(10) NOT NULL,
+    legacy_key VARCHAR(10) NULL UNIQUE,
+    display_order INT NOT NULL DEFAULT 0,
+    enabled TINYINT(1) NOT NULL DEFAULT 0,
+    show_from DATE NULL,
+    show_to DATE NULL,
+    title VARCHAR(255) NOT NULL DEFAULT '',
+    heading VARCHAR(255) NOT NULL DEFAULT '',
+    subheading VARCHAR(255) NOT NULL DEFAULT '',
+    body_html MEDIUMTEXT NULL,
+    asset_id INT UNSIGNED NOT NULL DEFAULT 0,
+    image_side VARCHAR(5) NOT NULL DEFAULT 'left',
+    bg_colour VARCHAR(7) NOT NULL DEFAULT '#0c4522',
+    text_colour VARCHAR(7) NOT NULL DEFAULT '#ffffff',
+    revision VARCHAR(64) NOT NULL DEFAULT '1',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX announcement_schedule (announcement_type, enabled, show_from, show_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

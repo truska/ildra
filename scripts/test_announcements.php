@@ -49,3 +49,17 @@ check($token === super_announcement_token(array_replace($super, ['super_announce
 check($token !== super_announcement_token(array_replace($super, ['super_announcement_revision'=>'reset'])), 'Explicit reset does not reset hidden notices');
 check($token !== super_announcement_token(array_replace($super, ['super_announcement_to'=>'2026-10-28'])), 'New schedule does not reset hidden notices');
 echo "Super announcement schedule and dismissal reset checks passed.\n";
+
+$baseNotice = ['id'=>1,'announcement_type'=>'manual','enabled'=>1,'title'=>'First','show_from'=>'2026-10-24','show_to'=>'2026-10-25','display_order'=>10];
+$higherPriority = array_replace($baseNotice, ['id'=>2,'title'=>'Priority','display_order'=>1]);
+$hidden = array_replace($higherPriority, ['id'=>3,'enabled'=>0,'display_order'=>-10]);
+$superNotice = array_replace($higherPriority, ['id'=>4,'announcement_type'=>'super']);
+check(select_announcement([$baseNotice,$hidden,$higherPriority,$superNotice], 'manual', at('2026-10-24'))['id'] === 2, 'Order/type/show-hide selection failed');
+check(select_announcement([$baseNotice,$superNotice], 'super', at('2026-10-24'))['id'] === 4, 'Super type selection failed');
+check(select_announcement([$baseNotice], 'manual', at('2026-10-26')) === null, 'Expired stored notice shown');
+$newStart = array_replace($baseNotice, ['id'=>5,'show_from'=>'2026-10-25']);
+check(select_announcement([$baseNotice,$newStart], 'manual', at('2026-10-25'))['id'] === 5, 'Latest start tie-break failed');
+$newId = array_replace($baseNotice, ['id'=>6]);
+check(select_announcement([$baseNotice,$newId], 'manual', at('2026-10-24'))['id'] === 6, 'Newest ID tie-break failed');
+check(select_announcement([$baseNotice,$higherPriority], 'manual', at('2026-10-25 23:59:59'))['id'] === 2, 'Stored end date not inclusive');
+echo "Multiple announcement selection, type isolation and tie-break checks passed.\n";

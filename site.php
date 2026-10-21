@@ -23,6 +23,7 @@ $counts = contentCounts($pages, $events, $faqs);
 $contactEmail = trim((string)($siteSettings['company_contact_email'] ?? ''));
 
 $eventAnnouncement = !empty($siteSettings['event_announcement_enabled']) && $pdo ? event_announcement($events) : null;
+$siteSettings = announcement_public_settings($pdo, $siteSettings);
 $manualAnnouncementVisible = manual_announcement_visible($siteSettings);
 $announcementAsset = $manualAnnouncementVisible ? fetchAssetLibraryById($pdo, (int)$siteSettings['announcement_asset_id']) : null;
 $announcementImage = $announcementAsset && ($announcementAsset['asset_type'] ?? '') === 'image' && empty($announcementAsset['archived']) ? assetLibraryPublicUrl($announcementAsset, 'md') : '';

@@ -19,3 +19,15 @@ done
 ```
 
 If the live server uses a more restrictive web-user ACL policy, apply that equivalent ACL instead. Finally, upload multiple images through a Ride Report's **Ride Gallery** screen and confirm every generated size is created.
+
+## Multiple Manual and Super announcements
+
+After backing up the live database and pulling the development source with `git pull --ff-only`, run from the live web root:
+
+```bash
+php scripts/migrate_announcements.php
+```
+
+This creates the shared `announcements` table and copies the existing Manual and Super notices from `site_settings`. It is safe to rerun: previously imported notices are not overwritten. Use this PHP command rather than applying only the table SQL, which does not import existing content. The management page also runs this idempotent setup when first opened. No new image upload directories are required; announcements continue to use the asset library.
+
+Verify both tabs under Announcements, the imported HTML/images/colours/dates, and the public Manual bar and Super dialog. Enabled notices with inclusive Europe/London dates qualify; within each type, lowest display order wins, then latest start date, then newest ID. Manual and Super may display together. Automatic event notices retain their existing rules. Super dismissals are independent for new records; existing imported notices retain their previous dismissal token.
