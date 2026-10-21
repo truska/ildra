@@ -168,14 +168,24 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                 </div>
                 <div class="home-intro-actions navbar-dark">
                     <div class="home-intro-title home-intro-short-name"><?php echo h($headerShortName); ?></div>
-                    <a class="btn button1 home-intro-join" href="<?php echo h((string)($siteSettings['hero_cta_url'] ?? '/memberships')); ?>"><?php echo h((string)($siteSettings['hero_cta_label'] ?? 'JOIN')); ?></a>
-                    <div class="home-mobile-controls">
-                        <a class="home-mobile-quick-action" href="<?php echo h($basePath); ?>/events"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span>Calendar</span></a>
-                        <button class="home-mobile-quick-action" type="button" disabled><span>AN Other</span></button>
-                        <button class="navbar-toggler home-mobile-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                            <span class="navbar-toggler-icon"></span>
-                        </button>
-                    </div>
+                    <button class="navbar-toggler home-mobile-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
+                <div class="home-intro-buttons row g-2">
+                    <div class="col-4 home-mobile-calendar"><a class="home-mobile-quick-action" href="<?php echo h($basePath); ?>/events"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><span>Calendar</span></a></div>
+                    <?php foreach (['hero_cta', 'hero_cta_2'] as $heroButtonKey): ?>
+                        <?php
+                        $heroButtonLabel = trim((string)($siteSettings[$heroButtonKey . '_label'] ?? ''));
+                        $heroButtonUrl = trim((string)($siteSettings[$heroButtonKey . '_url'] ?? ''));
+                        if ($heroButtonLabel === '' || $heroButtonUrl === '') continue;
+                        // Resolve CMS destinations consistently from any homepage URL.
+                        if (!preg_match('~^(?:[a-z][a-z0-9+.-]*:|//|#|\?)~i', $heroButtonUrl)) {
+                            $heroButtonUrl = rtrim($basePath, '/') . '/' . ltrim($heroButtonUrl, '/');
+                        }
+                        ?>
+                        <div class="col-4 home-intro-button-column"><a class="btn button1 home-intro-join" href="<?php echo h($heroButtonUrl); ?>"><?php echo h($heroButtonLabel); ?></a></div>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div>

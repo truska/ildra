@@ -257,23 +257,42 @@ main.container.py-5 > h1.h2 + .mb-4 {
 .home-intro-bar { background: #3f7555; color: #fff; }
 .home-intro-inner {
     min-height: 162px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 2rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 1.25rem;
+    row-gap: .55rem;
     padding-top: 22px;
     padding-bottom: 22px;
 }
 .home-intro-established { font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .home-intro-title { margin-top: .3rem; font-size: clamp(1.9rem, 4vw, 3.6rem); line-height: 1.12; font-weight: 500; }
 .home-intro-tagline { margin-top: .35rem; font-size: clamp(.95rem, 1.6vw, 1.22rem); font-weight: 400; }
-.home-intro-join { flex: 0 0 auto; min-width: 180px; padding: .7rem 1.5rem; font-size: 1.05rem; }
-.home-intro-actions { align-self: stretch; display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: .55rem; text-align: right; }
+.home-intro-copy { grid-column: 1; grid-row: 1 / 3; min-width: 0; }
+.home-intro-join { display: flex; align-items: center; justify-content: center; width: 100%; min-width: 0; padding: .7rem 1rem; font-size: 1.05rem; }
+.home-intro-actions { grid-column: 2; grid-row: 1; text-align: center; }
 .home-intro-short-name { margin-top: 1.25rem; letter-spacing: .1em; text-align: center; text-indent: .1em; }
-.home-mobile-controls { display: none; }
+.home-intro-buttons { grid-column: 2; grid-row: 2; align-self: end; align-items: stretch; flex-wrap: nowrap; }
+.home-intro-button-column { display: flex; width: auto; flex: 1 1 0; }
+.home-mobile-calendar { display: none; }
+.home-mobile-toggler { display: none; }
+/* Desktop buttons share the tagline row; tablet retains the heading-side layout. */
+@media (min-width: 1200px) {
+    .home-intro-inner { grid-template-rows: auto auto auto; }
+    .home-intro-copy { display: contents; }
+    .home-intro-established { grid-column: 1; grid-row: 1; }
+    .home-intro-copy > .home-intro-title { grid-column: 1; grid-row: 2; }
+    .home-intro-tagline { grid-column: 1; grid-row: 3; align-self: center; }
+    .home-intro-actions { grid-row: 1 / 3; align-self: end; }
+    .home-intro-buttons { grid-row: 3; align-self: center; }
+    .home-intro-join { min-width: 160px; }
+}
+@media (min-width: 576px) and (max-width: 1199.98px) {
+    .home-intro-buttons { max-width: 300px; }
+    .home-intro-join { font-size: .95rem; padding: .65rem .75rem; }
+}
 .home-mobile-quick-action { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 44px; padding: .45rem .6rem; border: 1px solid rgba(255,255,255,.8); border-radius: 4px; background: transparent; color: #fff; font-size: .76rem; font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; }
 .home-mobile-quick-action:disabled { opacity: .65; }
-.home-mobile-toggler { display: none; align-self: flex-end; }
+
 .navbar {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
@@ -614,20 +633,16 @@ body.show-page-hero .page-hero {
     }
     .site-header-home .home-banner-identity { display: none; }
     .site-header-home .header-help-btn { display: none; }
-    .home-intro-inner { position: relative; min-height: 0; gap: 1rem; padding-top: 16px; padding-bottom: 76px; }
+    .home-intro-inner { min-height: 0; column-gap: .75rem; row-gap: 1rem; padding-top: 16px; padding-bottom: 14px; }
+    .home-intro-copy { grid-row: 1; }
     .home-intro-title { font-size: 1.65rem; }
     .home-intro-tagline { font-size: .9rem; }
-    .home-intro-join { min-width: 92px; padding: .55rem .8rem; font-size: .9rem; }
-    .site-header-home .home-mobile-controls {
-        display: flex;
-        position: absolute;
-        right: 12px;
-        bottom: 14px;
-        left: 12px;
-        align-items: center;
-        justify-content: flex-start;
-        gap: .55rem;
-    }
+    .home-intro-actions { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: .55rem; }
+    .home-intro-buttons { grid-column: 1 / -1; grid-row: 2; }
+    .home-intro-button-column { flex: 0 0 auto; width: 33.33333333%; }
+    .home-intro-join { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: .5rem .35rem; font-size: .8rem; line-height: 1.2; }
+    .home-mobile-calendar { display: flex; }
+    .home-mobile-quick-action { width: 100%; white-space: normal; }
     .site-header-home .home-mobile-toggler {
         display: block;
         margin: 0 0 0 auto;

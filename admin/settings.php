@@ -18,10 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($settingsSection === 'home') {
         $payload = [
             'hero_title' => trim((string)($_POST['hero_title'] ?? '')),
-            'hero_subtitle' => trim((string)($_POST['hero_subtitle'] ?? '')),
             'hero_tagline' => trim((string)($_POST['hero_tagline'] ?? '')),
             'hero_cta_label' => trim((string)($_POST['hero_cta_label'] ?? '')),
             'hero_cta_url' => trim((string)($_POST['hero_cta_url'] ?? '')),
+            'hero_cta_2_label' => trim((string)($_POST['hero_cta_2_label'] ?? '')),
+            'hero_cta_2_url' => trim((string)($_POST['hero_cta_2_url'] ?? '')),
             'home_established_text' => trim((string)($_POST['home_established_text'] ?? '')),
             'home_heading_text' => trim((string)($_POST['home_heading_text'] ?? '')),
             'sponsor_image_url' => trim((string)($_POST['sponsor_image_url'] ?? '')),
@@ -234,13 +235,16 @@ admin_layout_start('Settings', 'settings');
         <div class="card-soft p-3">
             <form method="POST" class="row g-3">
                 <input type="hidden" name="settings_section" value="home">
-                <div class="col-md-6"><label class="form-label fw-semibold" for="hero_title">Site name</label><input class="form-control" id="hero_title" name="hero_title" value="<?php echo h((string)$siteSettings['hero_title']); ?>"></div>
-                <div class="col-md-6"><label class="form-label fw-semibold" for="hero_subtitle">Inside-page eyebrow</label><input class="form-control" id="hero_subtitle" name="hero_subtitle" value="<?php echo h((string)$siteSettings['hero_subtitle']); ?>"></div>
-                <div class="col-md-6"><label class="form-label fw-semibold" for="home_established_text">Established text</label><input class="form-control" id="home_established_text" name="home_established_text" value="<?php echo h((string)$siteSettings['home_established_text']); ?>"></div>
-                <div class="col-md-6"><label class="form-label fw-semibold" for="home_heading_text">Heading</label><input class="form-control" id="home_heading_text" name="home_heading_text" value="<?php echo h((string)$siteSettings['home_heading_text']); ?>"></div>
-                <div class="col-md-6"><label class="form-label fw-semibold" for="hero_tagline">Tagline</label><input class="form-control" id="hero_tagline" name="hero_tagline" value="<?php echo h((string)$siteSettings['hero_tagline']); ?>"></div>
+                <div class="col-6"><label class="form-label fw-semibold" for="hero_title">Site name</label><input class="form-control" id="hero_title" name="hero_title" value="<?php echo h((string)$siteSettings['hero_title']); ?>"></div>
+                <div class="col-6" aria-hidden="true"></div>
+                <div class="col-6"><label class="form-label fw-semibold" for="home_heading_text">Heading</label><input class="form-control" id="home_heading_text" name="home_heading_text" value="<?php echo h((string)$siteSettings['home_heading_text']); ?>"></div>
+                <div class="col-6"><label class="form-label fw-semibold" for="home_established_text">Established text</label><input class="form-control" id="home_established_text" name="home_established_text" value="<?php echo h((string)$siteSettings['home_established_text']); ?>"></div>
+                <div class="col-12"><label class="form-label fw-semibold" for="hero_tagline">Tagline</label><input class="form-control" id="hero_tagline" name="hero_tagline" value="<?php echo h((string)$siteSettings['hero_tagline']); ?>"></div>
                 <div class="col-md-3"><label class="form-label fw-semibold" for="hero_cta_label">Heading button label</label><input class="form-control" id="hero_cta_label" name="hero_cta_label" value="<?php echo h((string)$siteSettings['hero_cta_label']); ?>"></div>
                 <div class="col-md-9"><label class="form-label fw-semibold" for="hero_cta_url">Heading button destination</label><input class="form-control" id="hero_cta_url" name="hero_cta_url" value="<?php echo h((string)$siteSettings['hero_cta_url']); ?>"></div>
+                <div class="col-md-3"><label class="form-label fw-semibold" for="hero_cta_2_label">Second button label</label><input class="form-control" id="hero_cta_2_label" name="hero_cta_2_label" value="<?php echo h((string)$siteSettings['hero_cta_2_label']); ?>"></div>
+                <div class="col-md-9"><label class="form-label fw-semibold" for="hero_cta_2_url">Second button destination</label><input class="form-control" id="hero_cta_2_url" name="hero_cta_2_url" value="<?php echo h((string)$siteSettings['hero_cta_2_url']); ?>"></div>
+                <div class="col-12 text-muted small">Each button appears only when both its label and destination are filled in.</div>
                 <div class="col-md-6"><label class="form-label fw-semibold" for="sponsor_image_url">Site logo URL</label><input class="form-control" id="sponsor_image_url" name="sponsor_image_url" value="<?php echo h((string)$siteSettings['sponsor_image_url']); ?>"></div>
                 <div class="col-md-6"><label class="form-label fw-semibold" for="home_carousel_interval_seconds">Banner slide interval</label><div class="input-group"><input type="number" min="2" max="60" class="form-control" id="home_carousel_interval_seconds" name="home_carousel_interval_seconds" value="<?php echo (int)$siteSettings['home_carousel_interval_seconds']; ?>"><span class="input-group-text">seconds</span></div></div>
                 <div class="col-12"><button class="btn btn-success">Save home page settings</button></div>
