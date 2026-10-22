@@ -21,6 +21,19 @@ function stripe_config(array $config): array
     ];
 }
 
+/** Public webhook address for the current site's standard HTTPS hostname. */
+function stripe_misc_webhook_url(string $basePath = '', ?array $server = null): string
+{
+    $server = $server ?? $_SERVER;
+    $authority = trim((string)($server['HTTP_HOST'] ?? $server['SERVER_NAME'] ?? ''));
+    if (!preg_match('/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]{1,5})?$/iD', $authority)) {
+        throw new InvalidArgumentException('A valid site hostname is required for the Stripe webhook URL.');
+    }
+    $host = strtolower((string)parse_url('https://' . $authority, PHP_URL_HOST));
+    $path = trim($basePath, '/');
+    return 'https://' . $host . ($path !== '' ? '/' . $path : '') . '/stripe_misc_webhook.php';
+}
+
 function stripe_is_enabled(array $stripeConfig): bool
 {
     return $stripeConfig['publishable_key'] !== '' && $stripeConfig['secret_key'] !== '';

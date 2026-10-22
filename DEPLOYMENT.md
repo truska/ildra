@@ -59,3 +59,21 @@ Check Add Horse with name only, the Yes/No logbook choice, full mandatory logboo
 Pull the development source before enabling the new Events tab. The event loader adds the nullable `events.external_entry_url` column on first use; `migrations/2026-10-22-third-party-events.sql` provides the equivalent explicit migration. Back up the database before applying schema changes in another environment.
 
 Third-party event images reuse `filestore/images/events/{original,lg,sm,xs}`. Verify these live directories exist, follow the environment's shared-write policy, and accept an image upload from **Events → 3rd Party Events**. Check that a published item appears in calendar date order, its entry button opens the external organiser's website in a new tab, and no ILDRA entry form is displayed. Draft items must remain hidden from visitors.
+
+## Stripe webhook addresses for development, staging and live
+
+Checkout return URLs already follow the hostname used for that environment. **Finance → Payment requests → Stripe webhook setup for this site** also generates the webhook address from the current hostname, using its public standard HTTPS address rather than a local forwarded browser port.
+
+Register the corresponding explicit URL in Stripe; Stripe does not discover a changed hostname from deployed PHP:
+
+| Environment | Webhook URL | Stripe mode |
+| --- | --- | --- |
+| Development | `https://dev-ildra.witecanvas.com/stripe_misc_webhook.php` | Test |
+| Staging | `https://ildra.witecanvas.com/stripe_misc_webhook.php` | Test |
+| Live | `https://enduranceridingireland.com/stripe_misc_webhook.php` | Live |
+
+Use `checkout.session.completed` snapshot events. Each environment must have the appropriate Stripe API keys and that endpoint's matching `webhook_secret` in its private Stripe configuration. Keep secrets out of Git. The endpoint handler itself contains no hard-coded hostname. Registering an additional endpoint produces a different signing secret; changing only an existing endpoint's URL preserves its existing secret.
+
+On 22 October 2026, the existing ILDRA test endpoint's incorrect `ildra-witecanvas.com` URL was corrected to `ildra.witecanvas.com`. Its subscription and enabled status were retained; live-mode configuration was not changed. In Stripe's test Dashboard, resend a failed delivery and verify a `2xx` response and that the corresponding miscellaneous payment request is recorded once. An unsigned browser or HEAD request returning `400 Invalid signature` is expected and establishes reachability only, not successful signature verification or payment processing.
+
+When launching the final domain, configure and verify the live-mode endpoint separately. Do not resend live-mode payments into development or staging, or route test payments to the live database. No database migration is needed for these URL changes.
