@@ -1,6 +1,60 @@
 <?php
 declare(strict_types=1);
 
+function screenGuidanceGroups(): array
+{
+    return ['accounts' => 'Accounts', 'horses-logbooks' => 'Horses & Logbooks', 'email-consent' => 'Email Consent'];
+}
+
+/** One catalogue and one stored record per piece of screen guidance. */
+function screenGuidanceDefinitions(): array
+{
+    $definitions = [
+        'people' => ['accounts', 'People information', 'Information popup on Account → People; opens automatically when no people are saved.', '/account?view=people', 'popup', 'Adding People', '<p>Add people here so their details can be selected when completing entries and membership forms.</p>'],
+        'shares' => ['accounts', 'Shares information', 'Information popup on Account → Shares.', '/account?view=shares', 'popup', 'Managing Shares', '<p>Shares allow approved account holders to select people or horses without changing their private details.</p>'],
+        'my-account' => ['accounts', 'My Account information', 'Information popup on Account → My Account.', '/account?view=my-account', 'popup', 'My Account', '<p>Use this page to update your website login details, change your password and manage authenticator app access. These details belong to your user account and are separate from people and membership records.</p>'],
+        'horses' => ['horses-logbooks', 'Horses information', 'Information popup on Account → Horses; opens automatically when no horses are saved.', '/account?view=horses', 'popup', 'Adding Horses', '<p>Add horses here to manage their details, registrations and logbooks.</p>'],
+        'horse_add_intro' => ['horses-logbooks', 'Add Horse introduction', 'Below the Add Horse heading. Open Add Horse from the Horses page.', '/account?view=horses', 'inline', 'Add Horse introduction', '<p>Save your horse’s name first. You can choose to register for a logbook next.</p>'],
+        'horse_edit_intro' => ['horses-logbooks', 'Edit Horse introduction', 'Below the Edit horse heading. Choose Edit beside an existing horse.', '/account?view=horses', 'inline', 'Edit Horse introduction', '<p>Update your horse’s name and logbook details.</p>'],
+        'logbook_choice_intro' => ['horses-logbooks', 'Horse saved confirmation', 'Below the Yes/No logbook question after saving a new horse. Requires a horse selected in the registration flow.', '/account?view=horses', 'inline', 'Horse saved confirmation', '<p>Your horse has been saved and can now be selected on entry forms.</p>'],
+        'logbook_about' => ['horses-logbooks', 'About logbooks panel', 'Beside the logbook choice and full logbook registration form. Select a horse to see the panel.', '/logbooks', 'panel', 'About logbooks', '<p><strong>Buy Logbook</strong> if you want to take part in competitive rides or registered VPRs.</p><p>A horse saved with just its name is available on entry forms. Without a logbook, the horse cannot claim mileage awards or take part in competitive rides.</p>'],
+        'logbook_form_intro' => ['horses-logbooks', 'Logbook form introduction', 'Red explanatory text above the full logbook details form, after selecting a horse.', '/logbooks', 'inline', 'Logbook form introduction', '<p>All fields are required. Save to add the logbook to your basket.</p>'],
+        'person_general_email' => ['email-consent', 'General news consent', 'Information popup beside the General news email checkbox in the person editor.', '/account?view=people', 'popup', 'General news and announcements', '<p>Choose this only when you or this person agree to receive general ILDRA news and announcements by email.</p>'],
+        'person_ride_notice' => ['email-consent', 'Ride Notice consent', 'Information popup beside the Ride Notice email checkbox in the person editor.', '/account?view=people', 'popup', 'Ride Notice emails', '<p>Choose this only when you or this person agree to receive Ride Notice emails, including automated event-entry opening and closing reminders.</p>'],
+        'person_renewal_reminder' => ['email-consent', 'Renewal reminder consent', 'Information popup beside the renewal reminders checkbox in the person editor.', '/account?view=people', 'popup', 'Renewal reminders', '<p>Choose this only when you or this person agree to receive membership and renewal reminder emails.</p>'],
+    ];
+    $result = [];
+    foreach ($definitions as $key => [$group, $label, $location, $url, $type, $heading, $body]) {
+        $result[$key] = ['group' => $group, 'label' => $label, 'location' => $location,
+            'url' => $url, 'type' => $type, 'heading' => $heading, 'body_html' => $body];
+    }
+    return $result;
+}
+
+/** Inline text uses the same records as the existing account information popups. */
+function fetchScreenGuidance(?PDO $pdo, string $key): ?array
+{
+    $definition = screenGuidanceDefinitions()[$key] ?? null;
+    if (!$definition) return null;
+    $fallback = ['view_key' => $key, 'heading' => $definition['heading'], 'body_html' => $definition['body_html'], 'is_active' => 1];
+    if (!$pdo) return $fallback;
+    try {
+        ensureHelpTables($pdo);
+        $stmt = $pdo->prepare('SELECT view_key, heading, body_html, is_active FROM account_intro_modals WHERE view_key = ?');
+        $stmt->execute([$key]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return $fallback;
+        if (empty($row['is_active'])) return null;
+        $row['body_html'] = sanitize_rich_html((string)$row['body_html']);
+        return $row;
+    } catch (PDOException $e) { return $fallback; }
+}
+
+function screenGuidanceHtml(?PDO $pdo, string $key): string
+{
+    return (string)(fetchScreenGuidance($pdo, $key)['body_html'] ?? '');
+}
+
 function ensureHelpTables(?PDO $pdo): void
 {
     if (!$pdo) return;
@@ -59,18 +113,8 @@ function ensureHelpTables(?PDO $pdo): void
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $seed = $pdo->prepare("INSERT IGNORE INTO account_intro_modals (view_key, heading, body_html, is_active) VALUES (:view_key, :heading, :body_html, 1)");
-    $defaults = [
-        'people' => ['Adding People', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Add people here so their details can be selected when completing entries and membership forms.</p>'],
-        'horses' => ['Adding Horses', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Add horses here to manage their details, registrations and logbooks.</p>'],
-        'shares' => ['Managing Shares', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Shares allow approved account holders to select people or horses without changing their private details.</p>'],
-        'security' => ['Account Security', '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Use this area to manage your password and additional sign-in security.</p>'],
-        'my-account' => ['My Account', '<p>Use this page to update your website login details, change your password and manage authenticator app access. These details belong to your user account and are separate from people and membership records.</p>'],
-        'person_general_email' => ['General news and announcements', '<p>Choose this only when you or this person agree to receive general ILDRA news and announcements by email.</p>'],
-        'person_ride_notice' => ['Ride Notice emails', '<p>Choose this only when you or this person agree to receive Ride Notice emails, including automated event-entry opening and closing reminders.</p>'],
-        'person_renewal_reminder' => ['Renewal reminders', '<p>Choose this only when you or this person agree to receive membership and renewal reminder emails.</p>'],
-    ];
-    foreach ($defaults as $viewKey => [$heading, $bodyHtml]) {
-        $seed->execute([':view_key' => $viewKey, ':heading' => $heading, ':body_html' => $bodyHtml]);
+    foreach (screenGuidanceDefinitions() as $viewKey => $definition) {
+        $seed->execute([':view_key' => $viewKey, ':heading' => $definition['heading'], ':body_html' => $definition['body_html']]);
     }
 }
 
@@ -100,24 +144,43 @@ function fetchAccountIntroModals(?PDO $pdo): array
 
 function saveAccountIntroModals(?PDO $pdo, array $data, array &$alerts): bool
 {
-    if (!$pdo) return false;
-    ensureHelpTables($pdo);
+    if (!$pdo) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return false;
+    }
+    $definitions = screenGuidanceDefinitions();
     $posted = isset($data['intros']) && is_array($data['intros']) ? $data['intros'] : [];
-    try {
-        $stmt = $pdo->prepare("UPDATE account_intro_modals SET heading = :heading, body_html = :body_html, is_active = :active WHERE view_key = :view_key");
-        foreach (['people', 'horses', 'shares', 'my-account', 'person_general_email', 'person_ride_notice', 'person_renewal_reminder'] as $viewKey) {
-            $row = isset($posted[$viewKey]) && is_array($posted[$viewKey]) ? $posted[$viewKey] : [];
-            $heading = trim((string)($row['heading'] ?? ''));
-            $bodyHtml = sanitize_rich_html((string)($row['body_html'] ?? ''));
-            if ($heading === '' || $bodyHtml === '') {
-                $alerts[] = ['type' => 'danger', 'message' => 'Every active account introduction needs a heading and text.'];
-                return false;
-            }
-            $stmt->execute([':heading' => $heading, ':body_html' => $bodyHtml, ':active' => !empty($row['is_active']) ? 1 : 0, ':view_key' => $viewKey]);
+    if (!$posted) {
+        $alerts[] = ['type' => 'danger', 'message' => 'No screen guidance was submitted.'];
+        return false;
+    }
+    $updates = [];
+    foreach ($posted as $key => $row) {
+        if (!isset($definitions[$key]) || !is_array($row)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Unknown screen guidance item.'];
+            return false;
         }
+        $definition = $definitions[$key];
+        $heading = $definition['type'] === 'inline' ? $definition['heading'] : trim((string)($row['heading'] ?? ''));
+        $body = sanitize_rich_html((string)($row['body_html'] ?? ''));
+        if ($heading === '' || mb_strlen($heading) > 200 || rich_html_plain_text($body) === '') {
+            $alerts[] = ['type' => 'danger', 'message' => $definition['label'] . ' needs a heading (maximum 200 characters) and text.'];
+            return false;
+        }
+        $updates[$key] = [':heading' => $heading, ':body_html' => $body, ':active' => !empty($row['is_active']) ? 1 : 0, ':view_key' => $key];
+    }
+    $ownsTransaction = false;
+    try {
+        ensureHelpTables($pdo);
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        $stmt = $pdo->prepare('UPDATE account_intro_modals SET heading = :heading, body_html = :body_html, is_active = :active WHERE view_key = :view_key');
+        foreach ($updates as $values) $stmt->execute($values);
+        if ($ownsTransaction) $pdo->commit();
         return true;
     } catch (PDOException $e) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Could not save account introduction modals.'];
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not save screen guidance.'];
         return false;
     }
 }

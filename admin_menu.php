@@ -22,7 +22,7 @@ function defaultAdminMenuItems(): array
         ['entry_components', 'Entry Components', 'entry_components.php', 'fa-solid fa-puzzle-piece'],
         ['faqs', 'FAQs', 'faqs.php', 'fa-solid fa-circle-question'],
         ['help', 'Help', 'help.php', 'fa-solid fa-life-ring'],
-        ['help_accounts', 'Account Help', 'account_intros.php', 'fa-solid fa-circle-info'],
+        ['help_accounts', 'Screen Guidance', 'account_intros.php', 'fa-solid fa-circle-info'],
         ['dev_tasks', 'Dev Tasks', 'dev_tasks.php', 'fa-solid fa-list-check'],
         ['memberships', 'Memberships', 'memberships.php', 'fa-solid fa-id-card'],
         ['members', 'Members', 'members.php', 'fa-solid fa-user-group'],
@@ -111,7 +111,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
         $iconUpdate = $pdo->prepare("UPDATE admin_menu_items SET icon_class=:icon WHERE menu_key=:menu_key AND (icon_class='' OR icon_class='fa-solid fa-circle')");
         $iconUpdate->execute([':icon'=>$item['icon_class'], ':menu_key'=>$item['menu_key']]);
     }
-    $pdo->exec("UPDATE admin_menu_items SET parent_id = NULL, label = 'Account Help', href = 'account_intros.php' WHERE menu_key = 'help_accounts'");
+    $pdo->exec("UPDATE admin_menu_items SET parent_id = NULL, label = 'Screen Guidance', href = 'account_intros.php' WHERE menu_key = 'help_accounts'");
     $pdo->exec("UPDATE admin_menu_items SET is_active = 0 WHERE menu_key = 'hero'");
     $pdo->exec("
         UPDATE admin_menu_items child

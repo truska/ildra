@@ -37,6 +37,7 @@ foreach ($horses as $horse) {
     }
 }
 $isHorseRegistrationFlow = $preselectedHorse !== null;
+$logbookAbout = fetchScreenGuidance($pdo, 'logbook_about');
 
 $horseDetails = $preselectedHorse ?: [];
 $horseQualifications = fetchHorseQualifications($pdo);
@@ -247,7 +248,7 @@ $navItemEventsUrl = $basePath . '/events';
                             <div class="col-12">
                                 <div class="card-soft h-100 p-4">
                                     <div class="row g-4">
-                                        <div class="col-12 <?php echo $isHorseRegistrationFlow ? 'col-lg-6' : ''; ?>">
+                                        <div class="col-12 <?php echo $isHorseRegistrationFlow && $logbookAbout ? 'col-lg-6' : ''; ?>">
                                             <div class="fw-bold"><?php echo h($type['name']); ?></div>
                                             <div class="text-muted small">Valid year: <?php echo h((string)($type['valid_year'] ?? date('Y'))); ?></div>
                                             <div class="chip my-3"><?php echo h(format_price($type['cost'] ?? 0)); ?></div>
@@ -261,12 +262,12 @@ $navItemEventsUrl = $basePath . '/events';
                                         <?php if ($isHorseRegistrationFlow): ?>
                                             <?php if ($isChoiceStep): ?>
                                                 <h2 class="h5">Do you want to register <?php echo h($preselectedHorse['name']); ?> for a logbook?</h2>
-                                                <p>Your horse has been saved and can now be selected on entry forms.</p>
+                                                <div class="screen-guidance mb-3"><?php echo screenGuidanceHtml($pdo, 'logbook_choice_intro'); ?></div>
                                                 <a class="btn btn-success" href="<?php echo h($basePath); ?>/logbooks?horse_id=<?php echo (int)$preselectedHorse['id']; ?>">Yes, register for a logbook</a>
                                                 <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=horses">No, back to Horses</a>
                                             <?php else: ?>
                                                 <h2 class="h5">Horse logbook registration</h2>
-                                                <p class="text-danger small">All fields are required. Save to add the logbook to your basket.</p>
+                                                <div class="text-danger small mb-3 screen-guidance"><?php echo screenGuidanceHtml($pdo, 'logbook_form_intro'); ?></div>
                                                 <form method="post" class="row g-3">
                                                     <input type="hidden" name="action" value="add_logbook">
                                                     <input type="hidden" name="save_details" value="1">
@@ -307,12 +308,11 @@ $navItemEventsUrl = $basePath . '/events';
                                         </div>
                                     <?php endif; ?>
                                         </div>
-                                        <?php if ($isHorseRegistrationFlow): ?>
+                                        <?php if ($isHorseRegistrationFlow && $logbookAbout): ?>
                                             <div class="col-12 col-lg-6">
                                                 <div class="cta-row h-100">
-                                                    <h2 class="h5 fw-bold">About logbooks</h2>
-                                                    <p><strong>Buy Logbook</strong> if you want to take part in competitive rides or registered VPRs.</p>
-                                                    <p class="mb-0">A horse saved with just its name is available on entry forms. Without a logbook, the horse cannot claim mileage awards or take part in competitive rides.</p>
+                                                    <h2 class="h5 fw-bold"><?php echo h($logbookAbout['heading']); ?></h2>
+                                                    <div class="screen-guidance"><?php echo $logbookAbout['body_html']; ?></div>
                                                 </div>
                                             </div>
                                         <?php endif; ?>

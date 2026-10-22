@@ -1708,7 +1708,7 @@ $accountIntroAutoOpen = false;
 	                                            <div class="modal-header">
 	                                                <div>
 	                                                    <h4 class="modal-title fw-bold mb-1" id="horseEditorModalLabel"><?php echo $editHorse ? 'Edit horse' : 'Add Horse'; ?></h4>
-	                                                    <div class="text-muted small"><?php echo $editHorse ? 'Update your horse’s name and logbook details.' : 'Save your horse’s name first. You can choose to register for a logbook next.'; ?></div>
+	                                                    <div class="text-muted small screen-guidance"><?php echo screenGuidanceHtml($pdo, $editHorse ? 'horse_edit_intro' : 'horse_add_intro'); ?></div>
 	                                                </div>
 	                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 	                                            </div>
