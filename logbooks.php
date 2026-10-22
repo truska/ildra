@@ -28,7 +28,7 @@ $horses = $isLoggedIn ? array_values(array_filter(
 )) : [];
 $purchasableLogbookType = fetchPurchasableHorseLogbookType($pdo, $siteSettings);
 $logbookTypes = $purchasableLogbookType ? [$purchasableLogbookType] : [];
-$preselectedHorseId = max(0, (int)($_GET['horse_id'] ?? 0));
+$preselectedHorseId = max(0, (int)($_POST['horse_id'] ?? $_GET['horse_id'] ?? 0));
 $preselectedHorse = null;
 foreach ($horses as $horse) {
     if ((int)($horse['id'] ?? 0) === $preselectedHorseId) {
@@ -37,6 +37,10 @@ foreach ($horses as $horse) {
     }
 }
 $isHorseRegistrationFlow = $preselectedHorse !== null;
+
+$horseDetails = $preselectedHorse ?: [];
+$horseQualifications = fetchHorseQualifications($pdo);
+$isChoiceStep = isset($_GET['choose']) && $preselectedHorse !== null;
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'register_only') {
     if (!$isLoggedIn) {
@@ -59,6 +63,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please login to buy a logbook.']];
         header('Location: ' . $basePath . '/account');
         exit;
+    }
+
+    if (empty($_POST['save_details'])) {
+        header('Location: ' . $basePath . '/logbooks?horse_id=' . (int)($_POST['horse_id'] ?? 0));
+        exit;
+    }
+    $horseDetails = array_replace($preselectedHorse ?: [], $_POST);
+    $isChoiceStep = false;
+    if (!$preselectedHorse || !horseLogbookDetailsAreValid($pdo, $horseDetails, $alerts)) {
+        if (!$preselectedHorse) $alerts[] = ['type' => 'danger', 'message' => 'Select a horse for this logbook.'];
     }
 
     $typeId = (int)($_POST['logbook_type_id'] ?? 0);
@@ -94,6 +108,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         }
 
         if (!$alerts) {
+            $savedId = saveHorseForUser($pdo, (int)$currentUser['id'], $horseDetails, $alerts, $horseId);
+            $horseName = trim((string)($horseDetails['name'] ?? ''));
+        }
+        if (!$alerts && !empty($savedId)) {
             $entry = [
                 'id' => uniqid('log', true),
                 'booking_type' => 'horse_logbook',
@@ -216,7 +234,8 @@ $navItemEventsUrl = $basePath . '/events';
                     <div class="section-title mb-0">Available logbooks</div>
                 </div>
                 <?php if (!$logbookTypes): ?>
-                    <div class="text-muted small">No logbooks available right now.</div>
+                    <div class="text-muted small">No logbooks available right now. Your saved horses can still be selected on entry forms.</div>
+                    <a class="btn btn-outline-success mt-3" href="<?php echo h($basePath); ?>/account?view=horses">Back to Horses</a>
                 <?php else: ?>
                     <div class="row g-3">
                         <?php foreach ($logbookTypes as $type): ?>
@@ -235,27 +254,24 @@ $navItemEventsUrl = $basePath . '/events';
                                     <?php endif; ?>
                                     <?php if ($isLoggedIn): ?>
                                         <?php if ($isHorseRegistrationFlow): ?>
-                                            <div class="mb-3">
-                                                <label class="form-label small mb-1">Horse</label>
-                                                <div class="form-control bg-light fw-semibold"><?php echo h((string)$preselectedHorse['name']); ?></div>
-                                            </div>
-                                            <div class="row g-2">
-                                                <div class="col-6 d-grid">
-                                                    <form method="post" class="d-grid h-100">
-                                                        <input type="hidden" name="action" value="add_logbook">
-                                                        <input type="hidden" name="logbook_type_id" value="<?php echo (int)$type['id']; ?>">
-                                                        <input type="hidden" name="horse_id" value="<?php echo (int)$preselectedHorse['id']; ?>">
-                                                        <button class="btn btn-success">Add Logbook to Basket</button>
-                                                    </form>
-                                                </div>
-                                                <div class="col-6 d-grid">
-                                                    <form method="post" class="d-grid h-100">
-                                                        <input type="hidden" name="action" value="register_only">
-                                                        <input type="hidden" name="horse_id" value="<?php echo (int)$preselectedHorse['id']; ?>">
-                                                        <button class="btn btn-outline-success">Register Only</button>
-                                                    </form>
-                                                </div>
-                                            </div>
+                                            <?php if ($isChoiceStep): ?>
+                                                <h2 class="h5">Do you want to register <?php echo h($preselectedHorse['name']); ?> for a logbook?</h2>
+                                                <p>Your horse has been saved and can now be selected on entry forms.</p>
+                                                <a class="btn btn-success" href="<?php echo h($basePath); ?>/logbooks?horse_id=<?php echo (int)$preselectedHorse['id']; ?>">Yes, register for a logbook</a>
+                                                <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/account?view=horses">No, back to Horses</a>
+                                            <?php else: ?>
+                                                <h2 class="h5">Horse logbook registration</h2>
+                                                <p class="text-danger small">All fields are required. Save to add the logbook to your basket.</p>
+                                                <form method="post" class="row g-3">
+                                                    <input type="hidden" name="action" value="add_logbook">
+                                                    <input type="hidden" name="save_details" value="1">
+                                                    <input type="hidden" name="logbook_type_id" value="<?php echo (int)$type['id']; ?>">
+                                                    <input type="hidden" name="horse_id" value="<?php echo (int)$preselectedHorse['id']; ?>">
+<?php $horseDetailsRequired = true; include __DIR__ . '/views/horse_details_fields.php'; ?>
+                                                    <div class="col-12 d-flex gap-2"><button class="btn btn-success">Save and add logbook to basket</button>
+                                                    <a class="btn btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=horses">Cancel</a></div>
+                                                </form>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                         <form method="POST" class="row g-2 align-items-end mb-2">
                                             <input type="hidden" name="action" value="add_logbook">
@@ -273,7 +289,7 @@ $navItemEventsUrl = $basePath . '/events';
                                                 <div class="text-muted small mt-1">One logbook per horse per year.</div>
                                             </div>
                                             <div class="col-12 col-md-auto d-grid">
-                                                <button class="btn btn-success btn-enter">Add Logbook to Basket</button>
+                                                <button class="btn btn-success btn-enter">Continue</button>
                                             </div>
                                         </form>
                                         <?php endif; ?>
@@ -289,9 +305,9 @@ $navItemEventsUrl = $basePath . '/events';
                                         <?php if ($isHorseRegistrationFlow): ?>
                                             <div class="col-12 col-lg-6">
                                                 <div class="cta-row h-100">
-                                                    <h2 class="h5 fw-bold">Which option should I choose?</h2>
+                                                    <h2 class="h5 fw-bold">About logbooks</h2>
                                                     <p><strong>Buy Logbook</strong> if you want to take part in competitive rides or registered VPRs.</p>
-                                                    <p class="mb-0"><strong>Register Only</strong> if you only need the horse available on entry forms. Without a logbook, the horse cannot claim mileage awards or take part in competitive rides.</p>
+                                                    <p class="mb-0">A horse saved with just its name is available on entry forms. Without a logbook, the horse cannot claim mileage awards or take part in competitive rides.</p>
                                                 </div>
                                             </div>
                                         <?php endif; ?>

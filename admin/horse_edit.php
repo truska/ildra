@@ -48,6 +48,7 @@ admin_layout_start('Edit horse', 'horses');
         <input type="hidden" name="horse_id" value="<?php echo $horseId; ?>">
         <div class="col-12"><div class="small text-muted">Owned by: <?php echo h((string)($horse['owner_email'] ?? 'Unknown user')); ?></div></div>
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Horse name</label><input class="form-control" name="name" required value="<?php echo h((string)($horse['name'] ?? '')); ?>"></div>
+        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Owner name</label><input class="form-control" name="owner_name" maxlength="255" value="<?php echo h((string)($horse['owner_name'] ?? '')); ?>"></div>
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Breed</label><input class="form-control" name="breed" value="<?php echo h((string)($horse['breed'] ?? '')); ?>"></div>
         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Colour</label><input class="form-control" name="colour" value="<?php echo h((string)($horse['colour'] ?? '')); ?>"></div>
         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Sex</label><select class="form-select" name="sex"><option value="">Not set</option><?php foreach (['Mare', 'Gelding', 'Stallion'] as $sex): ?><option value="<?php echo h($sex); ?>" <?php echo ($horse['sex'] ?? '') === $sex ? 'selected' : ''; ?>><?php echo h($sex); ?></option><?php endforeach; ?></select></div>

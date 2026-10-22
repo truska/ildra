@@ -3149,6 +3149,7 @@ function ensureHorsesTables(?PDO $pdo): void
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             owner_user_id INT UNSIGNED NOT NULL,
             name VARCHAR(255) NOT NULL,
+            owner_name VARCHAR(255) NULL,
             dob DATE NULL,
             year_of_birth VARCHAR(10) NULL,
             breed VARCHAR(120) NULL,
@@ -3175,13 +3176,14 @@ function ensureHorsesTables(?PDO $pdo): void
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
     try {
-        $seed = $pdo->prepare("INSERT IGNORE INTO horse_qualifications (name) VALUES ('Bronze'), ('Silver'), ('Gold'), ('Platinum'), ('Diamond')");
+        $seed = $pdo->prepare("INSERT IGNORE INTO horse_qualifications (name) VALUES ('Bronze'), ('Silver'), ('Gold'), ('Platinum'), ('Diamond'), ('None'), ('Other')");
         $seed->execute();
     } catch (PDOException $e) {
         // ignore
     }
     // Backfill columns if missing on upgraded installs.
     $maybeAddCols = [
+        "ALTER TABLE horses ADD COLUMN owner_name VARCHAR(255) NULL",
         "ALTER TABLE horses ADD COLUMN qualification_id INT UNSIGNED NULL",
         "ALTER TABLE horses ADD COLUMN passport_issuer VARCHAR(32) NULL",
         "ALTER TABLE horses ADD COLUMN passport_number VARCHAR(32) NULL",
@@ -3348,7 +3350,7 @@ function fetchHorsesForUser(?PDO $pdo, int $ownerUserId, bool $includeArchived =
     ensureShareTables($pdo);
     $where = $includeArchived ? '' : ' AND is_archived = 0';
     $stmt = $pdo->prepare("
-        SELECT id, owner_user_id, name, dob, year_of_birth, breed, colour, qualification_id, passport_issuer, passport_number, sex, height_cm, flu_vac_date, is_archived, 0 AS is_linked, 'owner' AS link_permission
+        SELECT id, owner_user_id, name, owner_name, dob, year_of_birth, breed, colour, qualification_id, passport_issuer, passport_number, sex, height_cm, flu_vac_date, is_archived, 0 AS is_linked, 'owner' AS link_permission
         FROM horses
         WHERE owner_user_id = :uid
           AND id <> 1{$where}
@@ -3469,7 +3471,7 @@ function fetchHorseForUserById(?PDO $pdo, int $ownerUserId, int $horseId): ?arra
     }
     ensureShareTables($pdo);
     $stmt = $pdo->prepare("
-        SELECT id, owner_user_id, name, dob, year_of_birth, breed, colour, qualification_id, passport_issuer, passport_number, sex, height_cm, flu_vac_date, is_archived, 0 AS is_linked, 'owner' AS link_permission
+        SELECT id, owner_user_id, name, owner_name, dob, year_of_birth, breed, colour, qualification_id, passport_issuer, passport_number, sex, height_cm, flu_vac_date, is_archived, 0 AS is_linked, 'owner' AS link_permission
         FROM horses
         WHERE id = :id AND owner_user_id = :uid
         LIMIT 1
@@ -3674,6 +3676,29 @@ function archivePersonForUser(?PDO $pdo, int $ownerUserId, int $personId, array 
     }
 }
 
+function horseLogbookDetailsAreValid(?PDO $pdo, array $data, array &$alerts): bool
+{
+    $fields = ['name' => 'Horse name', 'owner_name' => 'Owner name', 'breed' => 'Breed',
+        'colour' => 'Colour', 'sex' => 'Sex', 'height_cm' => 'Height',
+        'qualification_id' => 'Qualification', 'year_of_birth' => 'Year of birth',
+        'passport_number' => 'Passport number'];
+    foreach ($fields as $field => $label) {
+        if (trim((string)($data[$field] ?? '')) === '') {
+            $alerts[] = ['type' => 'danger', 'message' => $label . ' is required.'];
+        }
+    }
+    $qualificationIds = array_map(static fn(array $row): int => (int)$row['id'], fetchHorseQualifications($pdo));
+    if (!in_array((int)($data['qualification_id'] ?? 0), $qualificationIds, true)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Select a valid qualification.'];
+    }
+    foreach (['name' => 255, 'owner_name' => 255, 'breed' => 120, 'colour' => 120, 'passport_number' => 32] as $field => $limit) {
+        if (mb_strlen((string)($data[$field] ?? '')) > $limit) {
+            $alerts[] = ['type' => 'danger', 'message' => $fields[$field] . ' is too long.'];
+        }
+    }
+    return !$alerts;
+}
+
 function saveHorseForUser(?PDO $pdo, int $ownerUserId, array $data, array &$alerts, ?int $horseId = null): ?int
 {
     if (!$pdo || $ownerUserId <= 0) {
@@ -3683,6 +3708,7 @@ function saveHorseForUser(?PDO $pdo, int $ownerUserId, array $data, array &$aler
     ensureHorsesTables($pdo);
 
     $name = trim((string)($data['name'] ?? ''));
+    $ownerName = trim((string)($data['owner_name'] ?? ''));
     $dob = trim((string)($data['dob'] ?? ''));
     $yearOfBirth = trim((string)($data['year_of_birth'] ?? ''));
     $breed = trim((string)($data['breed'] ?? ''));
@@ -3740,6 +3766,7 @@ function saveHorseForUser(?PDO $pdo, int $ownerUserId, array $data, array &$aler
             $stmt = $pdo->prepare("
                 UPDATE horses
                 SET name = :name,
+                    owner_name = :owner_name,
                     dob = :dob,
                     year_of_birth = :yob,
                     breed = :breed,
@@ -3756,6 +3783,7 @@ function saveHorseForUser(?PDO $pdo, int $ownerUserId, array $data, array &$aler
             ");
             $stmt->execute([
                 ':name' => $name,
+                ':owner_name' => $ownerName !== '' ? $ownerName : null,
                 ':dob' => $dobValue,
                 ':yob' => $yearOfBirth !== '' ? $yearOfBirth : null,
                 ':breed' => $breed !== '' ? $breed : null,
@@ -3773,12 +3801,13 @@ function saveHorseForUser(?PDO $pdo, int $ownerUserId, array $data, array &$aler
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO horses (owner_user_id, name, dob, year_of_birth, breed, colour, qualification_id, passport_issuer, passport_number, sex, height_cm, flu_vac_date, is_archived, created_at, updated_at)
-            VALUES (:uid, :name, :dob, :yob, :breed, :colour, :qualification_id, :passport_issuer, :passport_number, :sex, :height_cm, :flu_vac_date, 0, NOW(), NOW())
+            INSERT INTO horses (owner_user_id, name, owner_name, dob, year_of_birth, breed, colour, qualification_id, passport_issuer, passport_number, sex, height_cm, flu_vac_date, is_archived, created_at, updated_at)
+            VALUES (:uid, :name, :owner_name, :dob, :yob, :breed, :colour, :qualification_id, :passport_issuer, :passport_number, :sex, :height_cm, :flu_vac_date, 0, NOW(), NOW())
         ");
         $stmt->execute([
             ':uid' => $ownerUserId,
             ':name' => $name,
+                ':owner_name' => $ownerName !== '' ? $ownerName : null,
             ':dob' => $dobValue,
             ':yob' => $yearOfBirth !== '' ? $yearOfBirth : null,
             ':breed' => $breed !== '' ? $breed : null,
@@ -4828,7 +4857,7 @@ function fetchHorseQualifications(?PDO $pdo): array
     }
     ensureHorsesTables($pdo);
     try {
-        $stmt = $pdo->query("SELECT id, name FROM horse_qualifications ORDER BY FIELD(name, 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'), name ASC");
+        $stmt = $pdo->query("SELECT id, name FROM horse_qualifications ORDER BY FIELD(name, 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'None', 'Other'), name ASC");
         return $stmt->fetchAll() ?: [];
     } catch (PDOException $e) {
         return [];

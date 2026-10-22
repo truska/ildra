@@ -364,10 +364,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
         } elseif ($action === 'save_horse') {
             $horseId = (int)($_POST['horse_id'] ?? 0);
-            $savedId = saveHorseForUser($pdo, $userId, $_POST, $alerts, $horseId > 0 ? $horseId : null);
+            $existingHorse = $horseId > 0 ? fetchHorseForUserById($pdo, $userId, $horseId) : null;
+            if ($horseId > 0 && (!$existingHorse || !empty($existingHorse['is_linked']))) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Horse not available to edit.'];
+                $savedId = null;
+            } else {
+                $horseData = $existingHorse ?: [];
+                $editableFields = $existingHorse
+                    ? ['name', 'owner_name', 'breed', 'colour', 'sex', 'height_cm', 'qualification_id', 'year_of_birth', 'passport_number']
+                    : ['name'];
+                foreach ($editableFields as $field) {
+                    if (array_key_exists($field, $_POST)) $horseData[$field] = $_POST[$field];
+                }
+                $savedId = null;
+                if (!$existingHorse || horseLogbookDetailsAreValid($pdo, $horseData, $alerts)) {
+                    $savedId = saveHorseForUser($pdo, $userId, $horseData, $alerts, $horseId > 0 ? $horseId : null);
+                }
+            }
             if ($savedId && !$alerts) {
                 if ($horseId <= 0) {
-                    header('Location: ' . $basePath . '/logbooks?horse_id=' . (int)$savedId . '#available-logbooks');
+                    header('Location: ' . $basePath . '/logbooks?horse_id=' . (int)$savedId . '&choose=1');
                 } else {
                     $_SESSION['flash_success'] = 'Horse updated.';
                     header('Location: ' . $basePath . '/account?view=horses');
@@ -382,53 +398,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 exit;
             }
         } elseif ($action === 'add_logbook') {
-            $typeId = (int)($_POST['logbook_type_id'] ?? 0);
-            $logbookType = fetchPurchasableHorseLogbookType($pdo, $siteSettings);
-            if (!$logbookType || (int)$logbookType['id'] !== $typeId) {
-                $alerts[] = ['type' => 'danger', 'message' => 'Logbook type not available.'];
-            } else {
-                $horseId = (int)($_POST['horse_id'] ?? 0);
-                $horse = $horseId > 0 ? fetchHorseForUserById($pdo, $userId, $horseId) : null;
-                if (!$horse || !empty($horse['is_linked'])) {
-                    $alerts[] = ['type' => 'danger', 'message' => 'Select a horse for this logbook.'];
-                }
-                $logbookYear = (int)($logbookType['valid_year'] ?? (int)date('Y'));
-                if (!$alerts) {
-                    foreach ($_SESSION['basket'] ?? [] as $item) {
-                        if (($item['booking_type'] ?? '') === 'horse_logbook'
-                            && (int)($item['horse_id'] ?? 0) === $horseId
-                            && (int)($item['logbook_year'] ?? 0) === $logbookYear) {
-                            $alerts[] = ['type' => 'warning', 'message' => 'That horse already has this year\'s logbook in the basket.'];
-                            break;
-                        }
-                    }
-                }
-                if (!$alerts && horse_has_logbook_for_year($pdo, $horseId, $logbookYear)) {
-                    $alerts[] = ['type' => 'warning', 'message' => 'That horse already has a logbook for this year.'];
-                }
-                if (!$alerts && $horse) {
-                    $basket = $_SESSION['basket'] ?? [];
-                    $entry = [
-                        'id' => uniqid('log', true),
-                        'booking_type' => 'horse_logbook',
-                        'logbook_type_id' => $logbookType['id'],
-                        'logbook_year' => $logbookYear,
-                        'horse_id' => $horseId,
-                        'horse_name' => $horse['name'] ?? '',
-                        'membership_name' => $logbookType['name'],
-                        'event_title' => 'Horse logbook: ' . ($horse['name'] ?? 'Horse'),
-                        'class_label' => 'Horse logbook ' . $logbookYear,
-                        'price' => $logbookType['cost'] ?? '0',
-                    ];
-                    $basket[] = $entry;
-                    $_SESSION['basket'] = $basket;
-                    $_SESSION['basket_last_added'] = time();
-                    saveBasketForSession($pdo, session_id(), $basket, $userId, $_SESSION['basket_last_added']);
-                    $_SESSION['flash_success'] = 'Logbook added to basket.';
-                    header('Location: ' . $basePath . '/basket');
-                    exit;
-                }
-            }
+            header('Location: ' . $basePath . '/logbooks?horse_id=' . (int)($_POST['horse_id'] ?? 0));
+            exit;
         }
     }
     $activeTab = $action === 'register' ? 'register' : 'login';
@@ -1558,7 +1529,7 @@ $accountIntroAutoOpen = false;
                                 $horsesAll = fetchHorsesForUser($pdo, $userId, true);
                                 $activeHorses = array_values(array_filter($horsesAll, static fn(array $h): bool => (int)($h['is_archived'] ?? 0) === 0));
                                 $archivedHorses = array_values(array_filter($horsesAll, static fn(array $h): bool => (int)($h['is_archived'] ?? 0) === 1));
-                                $editHorseId = (int)($_GET['horse_id'] ?? 0);
+                                $editHorseId = (int)(($action ?? '') === 'save_horse' ? ($_POST['horse_id'] ?? 0) : ($_GET['horse_id'] ?? 0));
                                 $editHorse = $editHorseId > 0 ? fetchHorseForUserById($pdo, $userId, $editHorseId) : null;
                                 if ($editHorse && !empty($editHorse['is_linked'])) {
                                     $editHorse = null;
@@ -1586,7 +1557,7 @@ $accountIntroAutoOpen = false;
 	                                        </div>
 	                                        <div class="d-flex gap-2">
                                                 <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
-	                                            <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#horseEditorModal">Add Horse Registration / Logbook</button>
+	                                            <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#horseEditorModal">Add Horse</button>
                                             </div>
 	                                    </div>
                                     <div class="table-responsive">
@@ -1726,12 +1697,12 @@ $accountIntroAutoOpen = false;
 	                                </div>
 
 	                                <div class="modal fade" id="horseEditorModal" tabindex="-1" aria-labelledby="horseEditorModalLabel" aria-hidden="true">
-	                                    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+	                                    <div class="modal-dialog <?php echo $editHorse ? 'modal-lg' : ''; ?> modal-dialog-scrollable modal-dialog-centered">
 	                                        <div class="modal-content">
 	                                            <div class="modal-header">
 	                                                <div>
-	                                                    <h4 class="modal-title fw-bold mb-1" id="horseEditorModalLabel"><?php echo $editHorse ? 'Edit horse' : 'Add Horse Registration / Logbook'; ?></h4>
-	                                                    <div class="text-muted small">Horses can be selected on event entry forms to prefill details.</div>
+	                                                    <h4 class="modal-title fw-bold mb-1" id="horseEditorModalLabel"><?php echo $editHorse ? 'Edit horse' : 'Add Horse'; ?></h4>
+	                                                    <div class="text-muted small"><?php echo $editHorse ? 'Update your horse’s name and logbook details.' : 'Save your horse’s name first. You can choose to register for a logbook next.'; ?></div>
 	                                                </div>
 	                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 	                                            </div>
@@ -1739,72 +1710,22 @@ $accountIntroAutoOpen = false;
 	                                    <form method="post" class="row g-3">
 	                                        <input type="hidden" name="action" value="save_horse">
 	                                        <input type="hidden" name="horse_id" value="<?php echo $editHorse ? (int)$editHorse['id'] : 0; ?>">
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Horse name</label>
-	                                            <input class="form-control" name="name" required value="<?php echo h($editHorse['name'] ?? ''); ?>">
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Breed</label>
-	                                            <input class="form-control" name="breed" value="<?php echo h($editHorse['breed'] ?? ''); ?>">
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Colour</label>
-	                                            <input class="form-control" name="colour" value="<?php echo h($editHorse['colour'] ?? ''); ?>">
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Sex</label>
-	                                            <select class="form-select" name="sex">
-	                                                <option value="">Select...</option>
-	                                                <?php
-	                                                $sexes = ['Mare', 'Gelding', 'Stallion'];
-	                                                foreach ($sexes as $sexOpt):
-	                                                ?>
-	                                                    <option value="<?php echo h($sexOpt); ?>" <?php echo (($editHorse['sex'] ?? '') === $sexOpt) ? 'selected' : ''; ?>><?php echo h($sexOpt); ?></option>
-	                                                <?php endforeach; ?>
-	                                            </select>
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Height</label>
-	                                            <select class="form-select" name="height_cm">
-	                                                <option value="">Select...</option>
-	                                                <?php foreach ([102=>'10.0',112=>'11.0',122=>'12.0',127=>'12.2',132=>'13.0',137=>'13.2',142=>'14.0',145=>'14.1',147=>'14.2',150=>'14.3',152=>'15.0',155=>'15.1',157=>'15.2',160=>'15.3',163=>'16.0',165=>'16.1',168=>'16.2',170=>'16.3',173=>'17.0',175=>'17.1',178=>'17.2',180=>'17.3',183=>'18.0'] as $heightCm => $heightHands): ?>
-	                                                    <option value="<?php echo $heightCm; ?>" <?php echo ((int)($editHorse['height_cm'] ?? 0) === $heightCm) ? 'selected' : ''; ?>><?php echo $heightCm; ?> cm [<?php echo h($heightHands); ?> hh]</option>
-	                                                <?php endforeach; ?>
-	                                            </select>
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Qualification</label>
-	                                            <select class="form-select" name="qualification_id">
-	                                                <option value="">None</option>
-	                                                <?php foreach ($horseQualifications as $hq): ?>
-	                                                    <option value="<?php echo (int)($hq['id'] ?? 0); ?>" <?php echo ((int)($editHorse['qualification_id'] ?? 0) === (int)($hq['id'] ?? 0)) ? 'selected' : ''; ?>>
-	                                                        <?php echo h($hq['name'] ?? ''); ?>
-	                                                    </option>
-	                                                <?php endforeach; ?>
-	                                            </select>
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Year of birth</label>
-	                                            <input class="form-control" type="number" name="year_of_birth" min="1000" max="<?php echo date('Y'); ?>" value="<?php echo h($editHorse['year_of_birth'] ?? ''); ?>">
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Date of birth</label>
-	                                            <input type="date" class="form-control" name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($editHorse['dob'] ?? ''); ?>">
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-                                            <label class="form-label fw-bold">Passport issuer</label>
-                                            <input class="form-control" name="passport_issuer" value="<?php echo h($editHorse['passport_issuer'] ?? ''); ?>" maxlength="32">
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Passport number</label>
-	                                            <input class="form-control" name="passport_number" value="<?php echo h($editHorse['passport_number'] ?? ''); ?>" maxlength="32">
-	                                        </div>
-	                                        <div class="col-12 col-md-6">
-	                                            <label class="form-label fw-bold">Flu vaccination date</label>
-	                                            <input type="date" class="form-control" name="flu_vac_date" value="<?php echo h($editHorse['flu_vac_date'] ?? ''); ?>">
-	                                        </div>
+<?php if ($editHorse): ?>
+    <div class="col-12"><p class="text-danger small mb-0">All fields are required.</p></div>
+    <?php
+    $horseDetails = $editHorse;
+    if (($action ?? '') === 'save_horse') $horseDetails = array_replace($horseDetails, $_POST);
+    $horseDetailsRequired = true;
+    include __DIR__ . '/views/horse_details_fields.php';
+    ?>
+<?php else: ?>
+<div class="col-12">
+    <label class="form-label fw-bold">Horse name</label>
+    <input class="form-control" name="name" required maxlength="255" value="<?php echo h($_POST['name'] ?? ''); ?>">
+</div>
+<?php endif; ?>
                                         <div class="col-12 d-flex gap-2">
-                                            <button class="btn btn-success fw-bold" type="submit"><?php echo $editHorse ? 'Save changes' : 'Continue'; ?></button>
+                                            <button class="btn btn-success fw-bold" type="submit"><?php echo $editHorse ? 'Save changes' : 'Save'; ?></button>
 	                                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                                         </div>
                                     </form>
