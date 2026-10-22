@@ -325,7 +325,7 @@ function event_url(array $event): string
                     <section class="card-soft p-4 bg-white" aria-labelledby="next-events-heading">
                         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
                             <div class="section-title mb-0" id="next-events-heading">Next Ride</div>
-                            <a class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
+                            <a title="ILDRA Events Calendar" class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
                         </div>
                         <?php foreach (array_slice($eventsByDate, 0, 1) as $event): ?>
                             <?php
@@ -422,7 +422,7 @@ function event_url(array $event): string
                 <section class="card-soft p-4 bg-white mt-4" aria-labelledby="following-rides-heading">
                     <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
                         <div class="section-title mb-0" id="following-rides-heading">Following Rides</div>
-                        <a class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
+                        <a title="ILDRA Events Calendar" class="btn button2 btn-sm" href="<?php echo h($basePath); ?>/events">All Events</a>
                     </div>
                     <div class="row row-cols-1 g-3">
                         <?php foreach ($followingEvents as $event): ?>

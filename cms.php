@@ -80,7 +80,7 @@ function defaultSiteSettings(): array
         'hero_subtitle' => 'Recognised by Horse Sport Ireland',
         'hero_tagline' => 'Home for Endurance Riding in Ireland',
         'hero_cta_label' => 'JOIN',
-        'hero_cta_url' => '/memberships',
+        'hero_cta_url' => '/pages/membership',
         'hero_cta_2_label' => 'Horse Logbook',
         'hero_cta_2_url' => '/pages/horse-logbooks',
         'home_established_text' => 'Established in 1990',

@@ -183,8 +183,12 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                         if (!preg_match('~^(?:[a-z][a-z0-9+.-]*:|//|#|\?)~i', $heroButtonUrl)) {
                             $heroButtonUrl = rtrim($basePath, '/') . '/' . ltrim($heroButtonUrl, '/');
                         }
+                        $heroButtonTitle = '';
+                        if (preg_match('~/(?:pages/membership|memberships)/?$~', $heroButtonUrl)) $heroButtonTitle = 'Join Now - Membership Open';
+                        elseif (preg_match('~/(?:pages/horse-logbooks|logbooks)/?$~', $heroButtonUrl)) $heroButtonTitle = 'Horse Logbooks';
+                        elseif (preg_match('~/(?:pages/ride-calendar|events)/?$~', $heroButtonUrl)) $heroButtonTitle = 'ILDRA Events Calendar';
                         ?>
-                        <div class="col-4 home-intro-button-column"><a class="btn button1 home-intro-join" href="<?php echo h($heroButtonUrl); ?>"><?php echo h($heroButtonLabel); ?></a></div>
+                        <div class="col-4 home-intro-button-column"><a class="btn button1 home-intro-join" href="<?php echo h($heroButtonUrl); ?>"<?php if ($heroButtonTitle !== ''): ?> title="<?php echo h($heroButtonTitle); ?>"<?php endif; ?>><?php echo h($heroButtonLabel); ?></a></div>
                     <?php endforeach; ?>
                 </div>
             </div>
@@ -193,8 +197,12 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
     <nav class="navbar navbar-expand-lg navbar-dark bg-success bg-gradient py-0">
         <div class="container nav-shell">
         <?php if (!$headerIsHome): ?>
-            <a class="inside-mobile-calendar" href="<?php echo h($basePath); ?>/events" aria-label="Calendar"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></a>
+            <div class="inside-mobile-purchases">
+                <a class="inside-mobile-action" href="<?php echo h($basePath); ?>/pages/membership" aria-label="Membership"><i class="fa-solid fa-id-card" aria-hidden="true"></i></a>
+                <a class="inside-mobile-action" href="<?php echo h($basePath); ?>/pages/horse-logbooks" aria-label="Logbooks"><i class="fa-solid fa-book" aria-hidden="true"></i></a>
+            </div>
             <div class="mobile-nav-short-name"><?php echo h($headerShortName); ?></div>
+            <a class="inside-mobile-calendar" href="<?php echo h($basePath); ?>/events" aria-label="Calendar"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></a>
         <?php endif; ?>
         <button class="navbar-toggler main-navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>

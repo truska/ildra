@@ -178,7 +178,7 @@ $footerSocialIcons = [
                     <?php endforeach; ?>
                     <?php if (!$footerEvents): ?><li class="site-footer-muted small">No upcoming events published.</li><?php endif; ?>
                 </ul>
-                <a class="btn button3 btn-sm fw-bold mt-3" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
+                <a title="ILDRA Events Calendar" class="btn button3 btn-sm fw-bold mt-3" href="<?php echo h($footerBasePath); ?>/events">All Events</a>
             </div>
 
             <div class="col-12 col-md-4 col-lg-2">
@@ -249,7 +249,7 @@ $footerSocialIcons = [
                 <?php if ($footerCanViewAdmin): ?>
                     <a class="btn button3 btn-sm fw-bold" href="<?php echo h($footerBasePath); ?>/admin/index.php"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> View admin area</a>
                 <?php elseif (!$footerIsLoggedIn): ?>
-                    <a class="btn button3 btn-sm fw-bold text-center" href="<?php echo h($footerBasePath); ?>/account">Login / Register<br>Membership</a>
+                    <a title="Join Now - Membership Open" class="btn button3 btn-sm fw-bold text-center" href="<?php echo h($footerBasePath); ?>/account">Login / Register<br>Membership</a>
                 <?php endif; ?>
             </div>
         </div>

@@ -67,7 +67,7 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
             </a>
         <?php else: ?>
             <div class="guest-help-actions">
-                <a class="utility-btn guest-login-btn text-center" href="<?php echo h($basePath); ?>/account">Login / Register<br>Membership</a>
+                <a title="Join Now - Membership Open" class="utility-btn guest-login-btn text-center" href="<?php echo h($basePath); ?>/account">Login / Register<br>Membership</a>
                 <a class="utility-btn header-icon-btn header-help-btn" href="<?php echo h($helpHref); ?>" target="_blank" rel="noopener" aria-label="Help for this page (opens in a new tab)" title="Help for this page (opens in a new tab)">
                     <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                     <span class="visually-hidden">Help</span>

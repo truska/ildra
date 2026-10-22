@@ -1746,7 +1746,7 @@ $accountIntroAutoOpen = false;
                                 <div class="card-soft p-4 mt-4" id="horse-logbooks">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
                                         <div class="fw-bold">Horse Logbooks</div>
-                                        <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/logbooks">Buy / Renew</a>
+                                        <a title="Horse Logbooks" class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/logbooks">Buy / Renew</a>
                                     </div>
                                     <?php if (!$logbooks): ?>
                                         <div class="text-muted small">No logbooks yet.</div>
@@ -1824,7 +1824,7 @@ $accountIntroAutoOpen = false;
                                 <div class="card-soft p-4 mt-4" id="my-memberships">
 	                            <div class="d-flex justify-content-between align-items-center mb-3">
 	                                <div class="fw-bold">Memberships</div>
-	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships">Buy / Renew</a>
+	                                <a title="Join Now - Membership Open" class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships">Buy / Renew</a>
 	                            </div>
 
 	                            <?php

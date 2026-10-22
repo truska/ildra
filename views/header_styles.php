@@ -218,7 +218,8 @@ a:visited {
 }
 .nav-shell { gap: 1rem; }
 .mobile-nav-short-name { display: none; }
-.inside-mobile-calendar { display: none; }
+.inside-mobile-calendar,
+.inside-mobile-purchases { display: none; }
 
 /* Rich event details on attendee-profile event pages use the same card surface
    as the booking-contact section that follows them. */
@@ -662,14 +663,18 @@ body.show-page-hero .page-hero {
     }
     .site-header-home > .navbar > .nav-shell > .navbar-toggler { display: none; }
     .site-header-home > .navbar { min-height: 0; }
+
+}
+@media (max-width: 991.98px) {
     .site-header-inner .nav-shell {
         display: grid;
-        grid-template-columns: 48px minmax(0, 1fr) 48px;
+        grid-template-columns: auto minmax(0, 1fr) 48px 48px;
         align-items: center;
         width: 100%;
-        gap: .5rem;
+        gap: .375rem;
     }
-    .site-header-inner .inside-mobile-calendar {
+    .site-header-inner .inside-mobile-calendar,
+    .site-header-inner .inside-mobile-action {
         display: inline-flex;
         width: 48px;
         height: 48px;
@@ -684,10 +689,11 @@ body.show-page-hero .page-hero {
     .site-header-inner .mobile-nav-short-name {
         display: block;
         color: #fff;
-        font-size: 1.2rem;
+        font-size: 1rem;
         font-weight: 800;
         line-height: 1.2;
         text-align: center;
+        overflow-wrap: anywhere;
     }
     .site-header-inner .main-navbar-toggler {
         width: 48px;
@@ -696,5 +702,6 @@ body.show-page-hero .page-hero {
         padding: .5rem;
     }
     .site-header-inner #mainNav { grid-column: 1 / -1; }
+    .site-header-inner .inside-mobile-purchases { display:flex; align-items:center; gap:.375rem; }
 }
 </style>
