@@ -12,6 +12,14 @@ if (!$isAdmin) {
 }
 
 $eventId = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
+$organiserView = !empty($_GET['organiser']);
+$organiserReturn = [];
+parse_str((string)($_GET['return_query'] ?? ''), $organiserReturn);
+$organiserReturn = array_filter(array_intersect_key($organiserReturn, array_flip(['q', 'period', 'venue_filter', 'organiser_filter', 'sort', 'dir', 'p', 'per_page'])), 'is_scalar');
+$organiserReturnQuery = http_build_query($organiserReturn);
+$organiserContext = $organiserView ? '&organiser=1&return_query=' . rawurlencode($organiserReturnQuery) : '';
+$entriesBackUrl = $organiserView ? 'ride_organiser.php?' . $organiserReturnQuery : 'events.php';
+
 $sortKey = $_GET['sort'] ?? 'placed';
 $sortDir = strtolower($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 $requestedPrint = (string)($_GET['print'] ?? '');
@@ -29,6 +37,10 @@ $sortFields = [
     'price' => 'bi.price',
 ];
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
+if ($event && !canAccessRideOrganiserEvent($currentUser, $event)) {
+    http_response_code(403);
+    exit('You do not have access to this event.');
+}
 $isAttendeeEvent = $event && (($event['form_profile'] ?? 'ride') === 'attendees');
 $siteSettings = getSiteSettings($pdo);
 if (empty($_SESSION['admin_entry_cancel_csrf'])) {
@@ -49,7 +61,8 @@ function sort_link_entries(int $eventId, string $key, string $label, string $cur
     if ($currentKey === $key) {
         $arrow = $currentDir === 'asc' ? '↑' : '↓';
     }
-    $url = '?event_id=' . $eventId . '&sort=' . urlencode($key) . '&dir=' . urlencode($dir);
+    global $organiserContext;
+    $url = '?event_id=' . $eventId . '&sort=' . urlencode($key) . '&dir=' . urlencode($dir) . $organiserContext;
     return '<a class="text-decoration-none text-dark sort-link" href="' . h($url) . '">' . h($label) . '<span class="sort-arrow">' . h($arrow) . '</span></a>';
 }
 
@@ -360,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $event && $pdo) {
             $_SESSION['flash_alerts'] = $alerts ?: [['type' => 'success', 'message' => 'Entry withdrawn.']];
         }
     }
-    $redir = 'event_entries.php?event_id=' . $eventId;
+    $redir = 'event_entries.php?event_id=' . $eventId . $organiserContext;
     $redir .= '&sort=' . urlencode((string)$sortKey) . '&dir=' . urlencode((string)$sortDir);
     header('Location: ' . $redir);
     exit;
@@ -561,7 +574,7 @@ if ($event && $printMode) {
     exit;
 }
 
-admin_layout_start($pageTitle, 'events');
+admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
 ?>
 <style>
     .entries-card { border-radius: 18px; border: 1px solid rgba(0,0,0,0.06); background: #fff; box-shadow: 0 14px 40px rgba(0,0,0,0.06); }
@@ -602,16 +615,16 @@ admin_layout_start($pageTitle, 'events');
         <?php endif; ?>
     </div>
     <div class="admin-page-actions">
-        <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
+        <a class="btn btn-outline-secondary has-icon" href="<?php echo h($entriesBackUrl); ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
         <?php if ($event): ?>
             <?php if ($isAttendeeEvent): ?>
                 <a class="btn btn-outline-primary has-icon" href="attendee_report.php?event_id=<?php echo (int)$eventId; ?>" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Event Organiser List</span></a>
             <?php else: ?>
-                <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=organiser_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Organiser List</span></a>
-                <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&print=rider_info_list" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Rider Info List</span></a>
+                <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&amp;print=organiser_list<?php echo h($organiserContext); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Organiser List</span></a>
+                <a class="btn btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$eventId; ?>&amp;print=rider_info_list<?php echo h($organiserContext); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Entry Rider Info List</span></a>
             <?php endif; ?>
         <?php endif; ?>
-        <?php if ($event): ?>
+        <?php if ($event && !$organiserView): ?>
             <a class="btn btn-outline-success has-icon" href="event_edit.php?id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit event</span></a>
         <?php endif; ?>
     </div>

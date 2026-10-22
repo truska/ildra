@@ -11,6 +11,7 @@ function defaultAdminMenuItems(): array
         ['advertising', 'Advertising', 'advertising.php', 'fa-solid fa-rectangle-ad'],
         ['asset_library', 'Document & Image Library', 'asset_library.php', 'fa-solid fa-photo-film'],
         ['events', 'Events', 'events.php', 'fa-solid fa-calendar-days'],
+        ['ride_organiser', 'Ride Organiser', 'ride_organiser.php', 'fa-solid fa-clipboard-list'],
         ['event_types', 'Event Types', 'event_types.php', 'fa-solid fa-list-check'],
         ['venues', 'Venues', 'venues.php', 'fa-solid fa-location-dot'],
         ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php', 'fa-solid fa-tags'],

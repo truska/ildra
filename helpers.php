@@ -444,6 +444,16 @@ function roleCanAccessAdmin(string $role): bool
     return in_array(strtolower(trim($role)), ['developer', 'superadmin', 'admin', 'manager', 'organiser'], true);
 }
 
+/** Access to the organiser workspace and its event-specific reports. */
+function canAccessRideOrganiserEvent(array $user, array $event): bool
+{
+    $role = strtolower(trim((string)($user['role'] ?? '')));
+    if (!roleCanAccessAdmin($role)) return false;
+    if ($role !== 'organiser') return true;
+    $userId = (int)($user['id'] ?? 0);
+    return $userId > 0 && (int)($event['organiser_user_id'] ?? 0) === $userId;
+}
+
 function entry_components_summary(array $metadata): string
 {
     $components = $metadata['components'] ?? [];

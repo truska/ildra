@@ -6,6 +6,10 @@ $isAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 if (!$isAdmin) { header('Location: index.php'); exit; }
 $eventId = max(0, (int)($_GET['event_id'] ?? 0));
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
+if ($event && !canAccessRideOrganiserEvent($currentUser, $event)) {
+    http_response_code(403);
+    exit('You do not have access to this event.');
+}
 if (!$event || ($event['form_profile'] ?? 'ride') !== 'attendees') { admin_layout_start('Attendee organiser list', 'events'); echo '<div class="alert alert-warning">Choose an attendee-profile event.</div>'; admin_layout_end(); exit; }
 
 $stmt = $pdo->prepare("SELECT bi.*, b.booking_ref, b.created_at AS booking_created_at, b.contact_name, b.contact_email, b.contact_phone FROM booking_items bi LEFT JOIN bookings b ON b.new_id=bi.booking_id WHERE bi.event_id=:event_id AND COALESCE(bi.is_withdrawn,0)=0 ORDER BY b.created_at ASC, bi.id ASC");
