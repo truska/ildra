@@ -1243,6 +1243,14 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         $rowsText[] = "- {$title} ({$type}) — {$price}" . ($detailsStr !== '' ? " — {$detailsStr}" : '');
     }
 
+    $itemsTotalLabel = count($purchaseKinds) === 1
+        ? match ($purchaseKinds[0]) {
+            'horse_logbook' => 'Registration Total',
+            'membership' => 'Membership Total',
+            default => 'Entry total',
+        }
+        : 'Purchase total';
+
     $paymentHtml = '<tr><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);font-weight:800;">Total</td>'
         . '<td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;font-weight:800;">' . h($total) . '</td></tr>';
     $paymentText = "Total: {$total}";
@@ -1252,8 +1260,8 @@ function render_booking_confirmation_email(array $order, array $siteSettings, ar
         $accountCredit = max(0.0, (float)($payment['account_credit'] ?? 0));
         $accountDebit = max(0.0, (float)($payment['account_debit'] ?? 0));
         $cardPayment = max(0.0, (float)($payment['card_payment'] ?? 0));
-        $paymentHtml = '<tr><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);">Entry total</td><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;">' . h(format_price($itemsTotal)) . '</td></tr>';
-        $paymentText = 'Entry total: ' . format_price($itemsTotal);
+        $paymentHtml = '<tr><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);">' . h($itemsTotalLabel) . '</td><td style="padding-top:12px;border-top:1px solid rgba(0,0,0,0.06);text-align:right;">' . h(format_price($itemsTotal)) . '</td></tr>';
+        $paymentText = $itemsTotalLabel . ': ' . format_price($itemsTotal);
         if ($couponDiscount > 0) { $paymentHtml .= '<tr><td style="padding-top:5px;color:#146118;">Less coupon</td><td style="padding-top:5px;text-align:right;color:#146118;">−' . h(format_price($couponDiscount)) . '</td></tr>'; $paymentText .= "\nLess coupon: −" . format_price($couponDiscount); }
         if ($accountCredit > 0) { $paymentHtml .= '<tr><td style="padding-top:5px;color:#146118;">Less account credit</td><td style="padding-top:5px;text-align:right;color:#146118;">−' . h(format_price($accountCredit)) . '</td></tr>'; $paymentText .= "\nLess account credit: −" . format_price($accountCredit); }
         if ($accountDebit > 0) { $paymentHtml .= '<tr><td style="padding-top:5px;">Plus account debit</td><td style="padding-top:5px;text-align:right;">+' . h(format_price($accountDebit)) . '</td></tr>'; $paymentText .= "\nPlus account debit: +" . format_price($accountDebit); }
