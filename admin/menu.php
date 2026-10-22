@@ -10,6 +10,18 @@ if (!in_array($roleKey, ['developer', 'superadmin'], true)) {
     exit;
 }
 
+// Carry list state in local URLs, keeping it separate from editable menu fields.
+$listState = array_filter(array_intersect_key($_GET, array_flip([
+    'order', 'label', 'parent', 'destination', 'minimum_role', 'status',
+    'sort', 'dir', 'p', 'per_page',
+])), 'is_scalar');
+$menuUrl = static function (?string $edit = null) use ($adminBase, $listState): string {
+    $query = $listState;
+    if ($edit !== null) $query['edit'] = $edit;
+    return $adminBase . '/menu.php' . ($query ? '?' . http_build_query($query) : '');
+};
+$listUrl = $menuUrl();
+
 ensureAdminMenuTable($pdo);
 $editParam = (string)($_GET['edit'] ?? '');
 $editId = ctype_digit($editParam) ? (int)$editParam : 0;
@@ -20,14 +32,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'delete') {
         if (deleteAdminMenuItem($pdo, (int)($_POST['id'] ?? 0), $alerts, $roleKey)) {
             $_SESSION['flash_success'] = 'Menu item deleted.';
-            header('Location: ' . $adminBase . '/menu.php');
+            header('Location: ' . $listUrl);
             exit;
         }
     } else {
         $savedId = saveAdminMenuItem($pdo, $_POST, $alerts);
         if ($savedId) {
             $_SESSION['flash_success'] = 'Menu item saved.';
-            header('Location: ' . $adminBase . '/menu.php');
+            header('Location: ' . $listUrl);
             exit;
         }
     }
@@ -104,10 +116,13 @@ admin_layout_start('Menu', 'menu');
         <div class="small text-muted">Manage the admin sidebar hierarchy, labels and order.</div>
         <h5 class="mb-0">Admin menu</h5>
     </div>
-    <a class="btn btn-success" href="<?php echo h($adminBase); ?>/menu.php?edit=new">Add menu item</a>
+    <a class="btn btn-success" href="<?php echo h($menuUrl('new')); ?>">Add menu item</a>
 </div>
 
 <form method="get" id="<?php echo h($filterForm); ?>">
+    <input type="hidden" name="sort" value="<?php echo h($table['sort_key']); ?>">
+    <input type="hidden" name="dir" value="<?php echo h($table['sort_dir']); ?>">
+    <input type="hidden" name="per_page" value="<?php echo (int)$table['pagination']['per_page']; ?>">
     <?php if ($editParam !== ''): ?><input type="hidden" name="edit" value="<?php echo h($editParam); ?>"><?php endif; ?>
 </form>
 <div class="row g-3">
@@ -147,7 +162,7 @@ admin_layout_start('Menu', 'menu');
                                 <td class="small"><?php echo $hasChildren ? '<span class="badge bg-secondary-subtle text-secondary">Expandable section</span>' : h((string)($item['href'] ?? '—')); ?></td>
                                 <td class="small"><?php echo h($roleLabels[$item['minimum_role']]); ?></td>
                                 <td><?php echo !empty($item['is_active']) ? '<span class="badge bg-success-subtle text-success">Visible</span>' : '<span class="badge bg-secondary-subtle text-secondary">Hidden</span>'; ?></td>
-                                <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/menu.php?edit=<?php echo $id; ?>">Edit</a></td>
+                                <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?php echo h($menuUrl((string)$id)); ?>">Edit</a></td>
                             </tr>
                         <?php endforeach; ?>
                         <?php if (!$items): ?><tr><td colspan="7" class="text-muted">No menu items match these filters.</td></tr><?php endif; ?>
@@ -170,9 +185,9 @@ admin_layout_start('Menu', 'menu');
                         <div class="fw-bold"><?php echo !empty($editItem['id']) ? 'Edit menu item' : 'Add menu item'; ?></div>
                         <div class="small text-muted">Items with children automatically render as expandable sections.</div>
                     </div>
-                    <a class="btn-close" aria-label="Close" href="<?php echo h($adminBase); ?>/menu.php"></a>
+                    <a class="btn-close" aria-label="Close" href="<?php echo h($listUrl); ?>"></a>
                 </div>
-                <form method="post" class="row g-3">
+                <form method="post" action="<?php echo h($menuUrl($editParam)); ?>" class="row g-3">
                     <input type="hidden" name="action" value="save">
                     <input type="hidden" name="id" value="<?php echo (int)($editItem['id'] ?? 0); ?>">
                     <div class="col-12">
@@ -228,12 +243,12 @@ admin_layout_start('Menu', 'menu');
                     </div>
                     <div class="col-12 d-flex flex-wrap gap-2">
                         <button class="btn btn-success" type="submit">Save menu item</button>
-                        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/menu.php">Cancel</a>
+                        <a class="btn btn-outline-secondary" href="<?php echo h($listUrl); ?>">Cancel</a>
                     </div>
                 </form>
                 <?php if (!empty($editItem['id']) && roleIsDeveloper($roleKey)): ?>
                     <hr>
-                    <form method="post" onsubmit="return confirm('Delete this menu item?');">
+                    <form method="post" action="<?php echo h($menuUrl($editParam)); ?>" onsubmit="return confirm('Delete this menu item?');">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$editItem['id']; ?>">
                         <button class="btn btn-sm btn-outline-danger" type="submit">Delete menu item</button>
