@@ -66,7 +66,7 @@ foreach (devTaskTesterUsers($pdo) as $tester) {
 }
 asort($nextActionOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $nextActionOptions = ['0'=>'Unassigned'] + $nextActionOptions;
-$priorityOptions = ['1'=>'1 — Urgent','2'=>'2 — High','3'=>'3 — Normal','4'=>'4 — Low','5'=>'5 — When possible'];
+$priorityOptions = ['1'=>'1 — Urgent','2'=>'2 — High','3'=>'3 — Normal','4'=>'4 — Low','5'=>'5 — When possible','6'=>'6 — N/A-Done'];
 $updatedByOptions = [];
 foreach ($tasks as $task) {
     $updatedById = (int)($task['updated_by'] ?? 0);
@@ -134,7 +134,7 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
 <tr class="dev-task-title-row"><td colspan="<?php echo count($tableColumns); ?>"><a class="fw-semibold text-decoration-none" href="dev_task.php?id=<?php echo (int)$task['id']; ?>"><?php echo h($task['title']); ?></a></td></tr>
 <tr class="dev-task-details-row">
     <td class="small text-muted"><?php echo (int)$task['id']; ?></td>
-    <td><span class="badge <?php echo (int)$task['priority']<=2?'text-bg-danger':((int)$task['priority']===3?'text-bg-warning':'text-bg-secondary'); ?>">P<?php echo (int)$task['priority']; ?></span></td>
+    <td><span class="badge <?php echo (int)$task['priority']<=2?'text-bg-danger':((int)$task['priority']===3?'text-bg-warning':'text-bg-secondary'); ?>"><?php echo (int)$task['priority'] === 6 ? 'N/A-Done' : 'P' . (int)$task['priority']; ?></span></td>
     <td class="small text-muted"><?php echo h(date('j M Y, H:i', (int)$task['created_at_ts'])); ?></td>
     <td><?php echo h($assigneeName); ?></td><td><?php echo h($name); ?></td><td><?php echo h($updatedBy); ?></td>
     <td><?php echo (int)$task['message_count']; ?> message<?php echo (int)$task['message_count']===1?'':'s'; ?></td>

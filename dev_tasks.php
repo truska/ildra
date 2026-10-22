@@ -117,7 +117,7 @@ function devTaskCreate(PDO $pdo, array $data, array $file, array $user, array &$
     $allocation = devTaskAllocation($pdo, $data['next_action_by'] ?? 0, $alerts);
     if ($title === '') $alerts[] = ['type' => 'danger', 'message' => 'Please enter a task title.'];
     if ($message === '') $alerts[] = ['type' => 'danger', 'message' => 'Please describe the task, question or fault.'];
-    if ($priority < 1 || $priority > 5) $alerts[] = ['type' => 'danger', 'message' => 'Priority must be between 1 and 5.'];
+    if ($priority < 1 || $priority > 6) $alerts[] = ['type' => 'danger', 'message' => 'Priority must be between 1 and 6.'];
     if ($alerts) return null;
     $image = devTaskUpload($file, $alerts);
     if ($alerts) return null;
