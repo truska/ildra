@@ -5,7 +5,7 @@ require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 
 $roleKey = strtolower((string)($currentUser['role'] ?? ''));
-if (!in_array($roleKey, ['developer', 'superadmin', 'admin', 'manager'], true)) {
+if (!in_array($roleKey, ['developer', 'superadmin'], true)) {
     header('Location: ' . $adminBase . '/index.php');
     exit;
 }
@@ -18,7 +18,7 @@ $isCreate = $editParam === 'new';
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $action = (string)($_POST['action'] ?? 'save');
     if ($action === 'delete') {
-        if (deleteAdminMenuItem($pdo, (int)($_POST['id'] ?? 0), $alerts)) {
+        if (deleteAdminMenuItem($pdo, (int)($_POST['id'] ?? 0), $alerts, $roleKey)) {
             $_SESSION['flash_success'] = 'Menu item deleted.';
             header('Location: ' . $adminBase . '/menu.php');
             exit;
@@ -62,6 +62,21 @@ foreach ($items as $item) {
     }
 }
 
+// Use the actual saved menu visibility rules, including parent restrictions.
+$roleLabels = ['organiser'=>'Organiser', 'manager'=>'Manager', 'admin'=>'Admin', 'superadmin'=>'Superadmin', 'developer'=>'Developer'];
+$minimumRoles = [];
+foreach ($roleLabels as $role => $label) {
+    foreach (buildAdminMenuTree($items, $role) as $section) {
+        foreach (array_merge([$section], $section['children'] ?? []) as $visibleItem) {
+            $minimumRoles[(string)$visibleItem['menu_key']] ??= $role;
+        }
+    }
+}
+foreach ($items as &$item) {
+    $item['minimum_role'] = $minimumRoles[(string)$item['menu_key']] ?? 'developer';
+}
+unset($item);
+
 $filterForm = 'menu-filter-form';
 $parentOptions = ['0' => 'Top level'];
 foreach ($topLevelItems as $parent) {
@@ -75,6 +90,8 @@ $tableColumns = [
         'sort_value' => static fn(array $item): string => (string)($itemsById[(int)($item['parent_id'] ?? 0)]['label'] ?? 'Top level')],
     'destination' => ['label' => 'Destination', 'sortable' => true, 'filter' => 'text', 'form' => $filterForm,
         'value' => static fn(array $item): string => !empty($childCounts[(int)$item['id']]) ? 'Expandable section' : (string)($item['href'] ?? '')],
+    'minimum_role' => ['label'=>'Lowest role', 'sortable'=>true, 'filter'=>'select', 'options'=>$roleLabels, 'form'=>$filterForm,
+        'sort_value'=>static fn(array $item): int => (int)array_search($item['minimum_role'], array_keys($roleLabels), true), 'compare'=>'number'],
     'status' => ['label' => 'Status', 'field' => 'is_active', 'sortable' => true, 'filter' => 'select', 'options' => ['1' => 'Visible', '0' => 'Hidden'], 'compare' => 'number', 'form' => $filterForm],
 ];
 $table = admin_table_prepare($items, $tableColumns, 'order');
@@ -128,11 +145,12 @@ admin_layout_start('Menu', 'menu');
                                 </td>
                                 <td class="small text-muted"><?php echo $parentId > 0 ? h((string)($itemsById[$parentId]['label'] ?? 'Unknown')) : 'Top level'; ?></td>
                                 <td class="small"><?php echo $hasChildren ? '<span class="badge bg-secondary-subtle text-secondary">Expandable section</span>' : h((string)($item['href'] ?? '—')); ?></td>
+                                <td class="small"><?php echo h($roleLabels[$item['minimum_role']]); ?></td>
                                 <td><?php echo !empty($item['is_active']) ? '<span class="badge bg-success-subtle text-success">Visible</span>' : '<span class="badge bg-secondary-subtle text-secondary">Hidden</span>'; ?></td>
                                 <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/menu.php?edit=<?php echo $id; ?>">Edit</a></td>
                             </tr>
                         <?php endforeach; ?>
-                        <?php if (!$items): ?><tr><td colspan="6" class="text-muted">No menu items match these filters.</td></tr><?php endif; ?>
+                        <?php if (!$items): ?><tr><td colspan="7" class="text-muted">No menu items match these filters.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -196,14 +214,11 @@ admin_layout_start('Menu', 'menu');
                         <div class="form-label fw-semibold">Visible to roles</div>
                         <?php foreach (['developer' => 'Developer', 'superadmin' => 'Superadmin', 'admin' => 'Admin', 'manager' => 'Manager', 'organiser' => 'Organiser'] as $role => $label): ?>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" name="required_roles[]" value="<?php echo h($role); ?>" id="menu-role-<?php echo h($role); ?>" <?php echo in_array($role, $editRoles, true) ? 'checked' : ''; ?> <?php echo !empty($editItem['is_system']) ? 'disabled' : ''; ?>>
+                                <input class="form-check-input" type="checkbox" name="required_roles[]" value="<?php echo h($role); ?>" id="menu-role-<?php echo h($role); ?>" <?php echo in_array($role, $editRoles, true) ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="menu-role-<?php echo h($role); ?>"><?php echo h($label); ?></label>
                             </div>
                         <?php endforeach; ?>
-                        <?php if (!empty($editItem['is_system'])): ?>
-                            <?php foreach ($editRoles as $role): ?><input type="hidden" name="required_roles[]" value="<?php echo h($role); ?>"><?php endforeach; ?>
-                            <div class="form-text">Built-in role restrictions remain enforced in code.</div>
-                        <?php endif; ?>
+
                     </div>
                     <div class="col-12">
                         <div class="form-check form-switch">
@@ -216,7 +231,7 @@ admin_layout_start('Menu', 'menu');
                         <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/menu.php">Cancel</a>
                     </div>
                 </form>
-                <?php if (!empty($editItem['id']) && empty($editItem['is_system'])): ?>
+                <?php if (!empty($editItem['id']) && roleIsDeveloper($roleKey)): ?>
                     <hr>
                     <form method="post" onsubmit="return confirm('Delete this menu item?');">
                         <input type="hidden" name="action" value="delete">

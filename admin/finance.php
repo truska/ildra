@@ -6,9 +6,9 @@ require_once __DIR__ . '/table_sort.php';
 require_once __DIR__ . '/../bookings_store.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
-$canManageFinance = in_array($currentRole, ['developer', 'superadmin', 'admin', 'manager'], true);
+$canManageFinance = in_array($currentRole, ['developer', 'superadmin', 'admin'], true);
 $paymentReturnEventId=max(0,(int)($_GET['payment_return_event_id']??$_POST['payment_return_event_id']??0));
-$entryPaymentRequestFlow=$currentRole==='organiser'&&$paymentReturnEventId>0;
+$entryPaymentRequestFlow=false;
 if (!$canManageFinance && !$entryPaymentRequestFlow) {
     header('Location: index.php');
     exit;

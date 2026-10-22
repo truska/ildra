@@ -59,6 +59,8 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
+    if ($key === 'menu') return ['developer', 'superadmin'];
+    if ($key === 'finance') return ['superadmin', 'admin'];
     if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons'], true)) {
         return ['superadmin'];
     }
@@ -90,6 +92,12 @@ function ensureAdminMenuTable(?PDO $pdo): void
             INDEX idx_admin_menu_parent_order (parent_id, display_order)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
+    if (!table_column_exists($pdo, 'admin_menu_items', 'is_deleted')) {
+        $pdo->exec("ALTER TABLE admin_menu_items ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0");
+        // Apply the revised Finance default once; later menu edits remain intact.
+        $pdo->exec("UPDATE admin_menu_items SET required_roles = 'developer,superadmin,admin' WHERE menu_key = 'finance'");
+        $pdo->exec("UPDATE admin_menu_items SET required_roles = 'developer,superadmin' WHERE menu_key = 'menu'");
+    }
     if (!table_column_exists($pdo, 'admin_menu_items', 'icon_class')) {
         $pdo->exec("ALTER TABLE admin_menu_items ADD COLUMN icon_class VARCHAR(100) NOT NULL DEFAULT 'fa-solid fa-circle' AFTER href");
     }
@@ -129,12 +137,12 @@ function fetchAdminMenuItems(?PDO $pdo, bool $activeOnly = true): array
     }
     try {
         ensureAdminMenuTable($pdo);
-        $sql = 'SELECT * FROM admin_menu_items';
+        $sql = 'SELECT * FROM admin_menu_items WHERE is_deleted = 0';
         if ($activeOnly) {
-            $sql .= ' WHERE is_active = 1';
+            $sql .= ' AND is_active = 1';
         }
         $sql .= ' ORDER BY display_order ASC, label ASC, id ASC';
-        return $pdo->query($sql)->fetchAll() ?: defaultAdminMenuItems();
+        return $pdo->query($sql)->fetchAll() ?: [];
     } catch (PDOException $e) {
         return defaultAdminMenuItems();
     }
@@ -147,9 +155,9 @@ function adminMenuRoleAllowed(array $item, string $role): bool
         return true;
     }
     $key = (string)($item['menu_key'] ?? '');
-    $allowed = !empty($item['is_system'])
-        ? adminMenuFixedRoles($key)
-        : array_values(array_filter(array_map('trim', explode(',', strtolower((string)($item['required_roles'] ?? ''))))));
+    // Menu permissions cannot grant access to their own editor below Superadmin.
+    if ($key === 'menu' && $role !== 'superadmin') return false;
+    $allowed = array_values(array_filter(array_map('trim', explode(',', strtolower((string)($item['required_roles'] ?? implode(',', adminMenuFixedRoles($key))))))));
     return in_array($role, $allowed ?: ['superadmin', 'admin', 'manager', 'organiser'], true);
 }
 
@@ -253,9 +261,7 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
             $alerts[] = ['type' => 'danger', 'message' => 'Menu item not found.'];
             return null;
         }
-        $requiredRoles = !empty($existing['is_system'])
-            ? (string)$existing['required_roles']
-            : implode(',', $roles);
+        $requiredRoles = implode(',', $roles);
         $stmt = $pdo->prepare("
             UPDATE admin_menu_items
             SET label = :label, href = :href, icon_class=:icon_class, parent_id = :parent_id,
@@ -305,24 +311,28 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     return (int)$pdo->lastInsertId();
 }
 
-function deleteAdminMenuItem(?PDO $pdo, int $id, array &$alerts): bool
+function deleteAdminMenuItem(?PDO $pdo, int $id, array &$alerts, string $actorRole): bool
 {
+    if (!roleIsDeveloper($actorRole)) {
+        $alerts[] = ['type'=>'danger', 'message'=>'Only Developers can delete menu items.'];
+        return false;
+    }
     if (!$pdo || $id <= 0) {
         return false;
     }
     ensureAdminMenuTable($pdo);
-    $stmt = $pdo->prepare('SELECT is_system, (SELECT COUNT(*) FROM admin_menu_items c WHERE c.parent_id = m.id) AS child_count FROM admin_menu_items m WHERE m.id = :id LIMIT 1');
+    $stmt = $pdo->prepare('SELECT is_system, (SELECT COUNT(*) FROM admin_menu_items c WHERE c.parent_id = m.id AND c.is_deleted = 0) AS child_count FROM admin_menu_items m WHERE m.id = :id AND m.is_deleted = 0 LIMIT 1');
     $stmt->execute([':id' => $id]);
     $item = $stmt->fetch();
-    if (!$item || !empty($item['is_system'])) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Built-in menu items cannot be deleted; disable them instead.'];
+    if (!$item) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Menu item not found.'];
         return false;
     }
     if ((int)($item['child_count'] ?? 0) > 0) {
         $alerts[] = ['type' => 'danger', 'message' => 'Move or delete this section’s child items first.'];
         return false;
     }
-    $delete = $pdo->prepare('DELETE FROM admin_menu_items WHERE id = :id');
+    $delete = $pdo->prepare('UPDATE admin_menu_items SET is_deleted = 1, is_active = 0 WHERE id = :id');
     $delete->execute([':id' => $id]);
     return true;
 }
