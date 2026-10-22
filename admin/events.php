@@ -44,6 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $events = fetchEvents($pdo, false);
+$thirdPartyEvents = array_values(array_filter($events, 'isThirdPartyEvent'));
+$events = array_values(array_filter($events, static fn(array $event): bool => !isThirdPartyEvent($event)));
 $rideReportsByEvent = [];
 foreach (fetchNewsArticles($pdo, false) as $newsItem) {
     if (($newsItem['article_type'] ?? 'news') === 'ride_report' && !empty($newsItem['event_id'])) {
@@ -98,7 +100,7 @@ $events=array_values(array_filter($events,static function(array $event)use($filt
     return true;
 }));
 $today = date('Y-m-d');
-$activeView = (($_GET['view'] ?? 'future') === 'past') ? 'past' : 'future';
+$activeView = in_array($_GET['view'] ?? '', ['past', 'third-party'], true) ? $_GET['view'] : 'future';
 $sortKey = $_GET['sort'] ?? 'start';
 $sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
 $allowedSortKeys = ['start', 'end', 'title', 'venue', 'status', 'type', 'entries', 'organiser'];
@@ -322,9 +324,9 @@ admin_layout_start('Events', 'events');
         <h5 class="mb-0">Events</h5>
     </div>
     <div class="admin-page-actions">
-        <a class="btn btn-success has-icon" href="event_edit.php">
+        <a class="btn btn-success has-icon" href="<?php echo $activeView === 'third-party' ? 'third_party_event_edit.php' : 'event_edit.php'; ?>">
             <i class="fa-solid fa-calendar-plus btn-icon"></i>
-            <span class="btn-label">Add New Event</span>
+            <span class="btn-label"><?php echo $activeView === 'third-party' ? 'Add 3rd Party Event' : 'Add New Event'; ?></span>
         </a>
     </div>
 </div>
@@ -340,7 +342,22 @@ admin_layout_start('Events', 'events');
             Past <span class="badge text-bg-light ms-1"><?php echo count($past); ?></span>
         </a>
     </li>
+    <li class="nav-item"><a class="nav-link future-tab <?php echo $activeView === 'third-party' ? 'active' : ''; ?>" href="?view=third-party">3rd Party Events <span class="badge text-bg-light ms-1"><?php echo count($thirdPartyEvents); ?></span></a></li>
 </ul>
+
+<?php if ($activeView === 'third-party'): ?>
+<div class="card-soft p-3"><p class="small text-muted">Events run by other organisations. Entries are handled on their websites.</p>
+<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Date</th><th>Heading</th><th>Location</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody>
+<?php foreach ($thirdPartyEvents as $thirdPartyEvent): ?>
+<tr id="event-<?php echo (int)$thirdPartyEvent['id']; ?>"><td><?php echo h(format_display_date($thirdPartyEvent['event_date'])); ?></td><td><?php echo h($thirdPartyEvent['title']); ?></td><td><?php echo h($thirdPartyEvent['venue']); ?></td><td><?php echo h($thirdPartyEvent['status']); ?></td><td class="text-end">
+<a class="btn btn-sm btn-outline-success" href="third_party_event_edit.php?id=<?php echo (int)$thirdPartyEvent['id']; ?>">Edit</a>
+<a class="btn btn-sm btn-outline-secondary" href="<?php echo h($siteBase); ?>/event.php?id=<?php echo (int)$thirdPartyEvent['id']; ?>" target="_blank" rel="noopener">View</a>
+<?php if ($canDeleteEvent && $thirdPartyEvent['event_date'] >= date('Y-m-d')): ?><form method="post" class="d-inline"><input type="hidden" name="action" value="delete_event"><input type="hidden" name="event_id" value="<?php echo (int)$thirdPartyEvent['id']; ?>"><button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this third-party event?');">Delete</button></form><?php endif; ?>
+</td></tr>
+<?php endforeach; ?>
+<?php if (!$thirdPartyEvents): ?><tr><td colspan="5" class="text-muted">No third-party events yet.</td></tr><?php endif; ?>
+</tbody></table></div></div>
+<?php admin_layout_end(); exit; endif; ?>
 
 <form method="get" id="event-filter-form" class="card-soft px-3 py-2 mb-3">
     <input type="hidden" name="view" value="<?php echo h($activeView); ?>">

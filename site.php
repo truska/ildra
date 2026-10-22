@@ -365,6 +365,9 @@ function event_url(array $event): string
                                 $entryStatusDate = $entryCloseDt ? $entryCloseDt->format('d M Y') : '';
                             }
 
+                            if (isThirdPartyEvent($event)) {
+                                $entryStatusClass = 'not-open'; $entryStatusLabel = '3rd Party Event'; $entryStatusDate = '';
+                            }
                             $classNames = [];
                             if ($pdo) {
                                 $classNames = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)($event['id'] ?? 0)));
@@ -445,6 +448,9 @@ function event_url(array $event): string
                                 $entryStatusClass = 'closing'; $entryStatusLabel = 'Entries Closing Soon'; $entryStatusDate = $entryCloseDt->format('d M Y');
                             } else {
                                 $entryStatusClass = 'open'; $entryStatusLabel = 'Entries Close'; $entryStatusDate = $entryCloseDt ? $entryCloseDt->format('d M Y') : '';
+                            }
+                            if (isThirdPartyEvent($event)) {
+                                $entryStatusClass = 'not-open'; $entryStatusLabel = '3rd Party Event'; $entryStatusDate = '';
                             }
                             $classNames = $pdo ? class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)($event['id'] ?? 0))) : [];
                             if (!$classNames) $classNames = class_names_from_classes_offered($event['classes_offered'] ?? '');

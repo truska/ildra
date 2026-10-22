@@ -29,6 +29,7 @@ function event_announcement(array $events, ?DateTimeImmutable $now = null): ?arr
     $now = $now ?? new DateTimeImmutable('now', $zone);
     $notices = [];
     foreach ($events as $event) {
+        if (!empty($event['external_entry_url'])) continue;
         if (($event['status'] ?? '') !== 'published' || (int)($event['id'] ?? 0) <= 0) continue;
         if (!empty($event['capacity_enabled']) && (int)($event['capacity_limit'] ?? 0) > 0 && (int)($event['entry_count'] ?? 0) >= (int)$event['capacity_limit']) continue;
         try {

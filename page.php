@@ -239,6 +239,19 @@ foreach ($pageElements as &$pageElement) {
             $endDate = (string)($event['end_date'] ?? '');
             if ($endDate && $endDate !== $eventDate) $dateLabel .= ' to ' . date('jS M Y', strtotime($endDate));
             $eventUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title']));
+            if (isThirdPartyEvent($event)) {
+                ?>
+                <a class="d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
+                    <div class="row g-3 align-items-start"><div class="col-12 col-lg-9 calendar-event-details">
+                        <div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div>
+                        <div class="fs-5 fw-bold"><?php echo h($event['title']); ?></div>
+                        <div class="text-muted small"><?php echo h($event['venue']); ?></div>
+                        <div class="text-muted small mt-1 fst-italic"><?php echo h(rich_html_plain_text((string)$event['description'])); ?></div>
+                    </div><div class="col-12 col-lg-3 calendar-event-actions d-flex flex-column align-items-start align-items-lg-end gap-2"><span class="badge text-bg-secondary">3rd Party Event</span><span class="btn btn-sm btn-outline-success">View Event &amp; Entry Link</span></div></div>
+                </a>
+                <?php
+                continue;
+            }
             $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
             if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');
             $entryOpenAt = $event['entry_open_at'] ?? null;
@@ -289,6 +302,13 @@ foreach ($pageElements as &$pageElement) {
             $dateLabel = date('jS M Y', strtotime($eventDate));
             $endDate = (string)($event['end_date'] ?? '');
             if ($endDate && $endDate !== $eventDate) $dateLabel .= ' to ' . date('jS M Y', strtotime($endDate));
+            if (isThirdPartyEvent($event)) {
+                $thirdPartyUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title']));
+                ?>
+                <div class="border rounded-3 p-3 mb-2 shadow-sm"><div class="row g-3 align-items-start"><div class="col-12 col-lg-9"><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h($event['title']); ?></div><div class="text-muted small"><?php echo h($event['venue']); ?></div></div><div class="col-12 col-lg-3 text-lg-end"><span class="badge text-bg-secondary mb-2">3rd Party Event</span><br><a class="btn btn-sm btn-outline-success" href="<?php echo h($thirdPartyUrl); ?>">View Event</a></div></div></div>
+                <?php
+                continue;
+            }
             $rideReport = $publishedRideReportsByEvent[(int)$event['id']] ?? null;
             $reportUrl = $rideReport ? $basePath . '/ride-reports/' . (int)$event['id'] . '-' . rawurlencode((string)$rideReport['slug']) : '';
             $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));

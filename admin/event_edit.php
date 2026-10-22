@@ -9,6 +9,10 @@ $eventsReturnUrl = (string)($_SESSION['admin_list_returns']['events'] ?? 'events
 if (!preg_match('/^events\.php(?:\?[^#]*)?$/', $eventsReturnUrl)) $eventsReturnUrl = 'events.php';
 $eventsReturnWithRow = $eventsReturnUrl . ($eventId > 0 ? '#event-' . $eventId : '');
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
+if ($event && isThirdPartyEvent($event)) {
+    header('Location: third_party_event_edit.php?id=' . $eventId);
+    exit;
+}
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
 $eventTypes = fetchEventTypes($pdo);

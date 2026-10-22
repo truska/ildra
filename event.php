@@ -26,6 +26,10 @@ $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
 $canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
 $basketCount = count($basket);
+if ($event && isThirdPartyEvent($event)) {
+    include __DIR__ . '/views/third_party_event.php';
+    exit;
+}
 $people = $isLoggedIn ? fetchMembersForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];
 $horses = $isLoggedIn ? fetchHorsesForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];
 $notRegisteredHorseId = 1;

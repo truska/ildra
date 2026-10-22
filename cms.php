@@ -2338,8 +2338,76 @@ function hydrateVenueForRow(array $row): array
     return $row;
 }
 
+function ensureThirdPartyEventColumn(?PDO $pdo): void
+{
+    if ($pdo && !table_column_exists($pdo, 'events', 'external_entry_url')) {
+        $pdo->exec('ALTER TABLE events ADD COLUMN external_entry_url VARCHAR(2048) NULL DEFAULT NULL');
+    }
+}
+
+function isThirdPartyEvent(array $event): bool
+{
+    return trim((string)($event['external_entry_url'] ?? '')) !== '';
+}
+
+function saveThirdPartyEvent(?PDO $pdo, array $data, array &$alerts, int $eventId = 0): ?int
+{
+    if (!$pdo) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        return null;
+    }
+    ensureThirdPartyEventColumn($pdo);
+    $title = trim((string)($data['title'] ?? ''));
+    $date = trim((string)($data['event_date'] ?? ''));
+    $location = trim((string)($data['venue'] ?? ''));
+    $text = trim((string)($data['description'] ?? ''));
+    $url = trim((string)($data['external_entry_url'] ?? ''));
+    $status = ($data['status'] ?? '') === 'published' ? 'published' : 'draft';
+    foreach (['Heading' => $title, 'Location' => $location, 'Text' => rich_html_plain_text($text)] as $label => $value) {
+        if ($value === '') $alerts[] = ['type' => 'danger', 'message' => $label . ' is required.'];
+    }
+    if (mb_strlen($title) > 255 || mb_strlen($location) > 255) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Heading and location must be no longer than 255 characters.'];
+    }
+    $parsedDate = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    if (!$parsedDate || $parsedDate->format('Y-m-d') !== $date) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid event date.'];
+    }
+    if (mb_strlen($url) > 2048 || !filter_var($url, FILTER_VALIDATE_URL)
+        || !in_array(strtolower((string)parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid entry link URL starting with https:// or http://.'];
+    }
+    if ($eventId > 0) {
+        $stmt = $pdo->prepare('SELECT external_entry_url FROM events WHERE id = ?');
+        $stmt->execute([$eventId]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$existing || !isThirdPartyEvent($existing)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Third-party event not found.'];
+        }
+    }
+    if ($alerts) return null;
+    try {
+        $params = [':title' => $title, ':date' => $date, ':venue' => $location,
+            ':text' => $text, ':url' => $url, ':status' => $status];
+        if ($eventId > 0) {
+            $params[':id'] = $eventId;
+            $stmt = $pdo->prepare('UPDATE events SET title=:title,event_date=:date,venue=:venue,description=:text,external_entry_url=:url,status=:status,updated_at=NOW() WHERE id=:id');
+        } else {
+            $types = fetchEventTypes($pdo);
+            $params[':type'] = (int)($types[0]['id'] ?? 0);
+            $stmt = $pdo->prepare('INSERT INTO events (title,event_date,venue,description,external_entry_url,status,event_type_id,classes_offered,capacity_enabled,send_reminder_emails) VALUES (:title,:date,:venue,:text,:url,:status,:type,\'[]\',0,0)');
+        }
+        $stmt->execute($params);
+        return $eventId > 0 ? $eventId : (int)$pdo->lastInsertId();
+    } catch (PDOException $e) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not save the third-party event.'];
+        return null;
+    }
+}
+
 function fetchEvents(?PDO $pdo, bool $upcomingOnly = false): array
 {
+    ensureThirdPartyEventColumn($pdo);
     $eventTypes = fetchEventTypes($pdo);
 
     if (!$pdo) {
@@ -2414,6 +2482,7 @@ function fetchEvents(?PDO $pdo, bool $upcomingOnly = false): array
 
 function fetchEventById(?PDO $pdo, int $id): ?array
 {
+    ensureThirdPartyEventColumn($pdo);
     if ($id <= 0) {
         return null;
     }
