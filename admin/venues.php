@@ -153,7 +153,7 @@ admin_layout_start('Venues', 'venues');
                     <div class="small text-muted mt-1">Notes or description for this venue to appear in Rider Notes.</div>
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Information</label>
+                    <label class="form-label">Private Venue Information</label>
                     <textarea name="internal_notes_html" rows="6" class="form-control wysiwyg-field"><?php echo h((string)($v['internal_notes_html'] ?? '')); ?></textarea>
                     <div class="small text-muted mt-1">Internal Contact and other Venue information for Ride Organisers ONLY</div>
                 </div>
