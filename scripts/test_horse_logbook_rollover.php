@@ -27,3 +27,14 @@ $assert($futureOnly['label'] === '2027 renewal purchased', 'A future-only purcha
 $assert($futureOnly['action_enabled'] === true, 'A future-only purchase must still allow purchase of the current year.');
 
 echo "Horse logbook rollover tests passed.\n";
+
+$current = [['valid_year'=>2026, 'status'=>'active']];
+$state = horse_logbook_renewal_state($current, $settings, $beforeRollover);
+$assert($state['action_label'] === 'Current Logbook' && !$state['action_enabled'], 'Current logbook must be disabled before renewal date.');
+$state = horse_logbook_renewal_state($current, $settings, $afterRollover);
+$assert($state['action_label'] === 'Renew Logbook' && $state['action_enabled'], 'Renewal must become active on the configured date.');
+$state = horse_logbook_renewal_state([['valid_year'=>2027, 'status'=>'active']], $settings, $afterRollover);
+$assert($state['action_label'] === 'Current Logbook' && !$state['action_enabled'], 'Renewed logbook must be disabled.');
+$state = horse_logbook_renewal_state([], $settings, $afterRollover);
+$assert($state['action_label'] === 'Buy Logbook' && $state['action_enabled'], 'Horse without a logbook must offer Buy Logbook.');
+echo "Horse logbook button states passed.\n";

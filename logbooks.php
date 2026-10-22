@@ -37,6 +37,15 @@ foreach ($horses as $horse) {
     }
 }
 $isHorseRegistrationFlow = $preselectedHorse !== null;
+$isHorseRenewal = false;
+if ($preselectedHorse) {
+    foreach (fetchHorseLogbooksForUser($pdo, (int)$currentUser['id']) as $previousLogbook) {
+        if ((int)$previousLogbook['horse_id'] === $preselectedHorseId) {
+            $isHorseRenewal = true;
+            break;
+        }
+    }
+}
 $logbookAbout = fetchScreenGuidance($pdo, 'logbook_about');
 
 $horseDetails = $preselectedHorse ?: [];
@@ -70,9 +79,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         header('Location: ' . $basePath . '/logbooks?horse_id=' . (int)($_POST['horse_id'] ?? 0));
         exit;
     }
-    $horseDetails = array_replace($preselectedHorse ?: [], $_POST);
+    $horseDetails = $isHorseRenewal
+        ? array_replace($preselectedHorse, ['qualification_id' => $_POST['qualification_id'] ?? ''])
+        : array_replace($preselectedHorse ?: [], $_POST);
     $isChoiceStep = false;
-    if (!$preselectedHorse || !horseLogbookDetailsAreValid($pdo, $horseDetails, $alerts)) {
+    if ($isHorseRenewal) {
+        $allowedQualificationIds = array_column(array_filter($horseQualifications, static fn(array $q): bool => !in_array(strtolower(trim((string)$q['name'])), ['platinum', 'diamond'], true)), 'id');
+        if (!in_array((int)$horseDetails['qualification_id'], array_map('intval', $allowedQualificationIds), true)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Select a valid qualification.'];
+        }
+    }
+    if (!$preselectedHorse || (!$isHorseRenewal && !horseLogbookDetailsAreValid($pdo, $horseDetails, $alerts))) {
         if (!$preselectedHorse) $alerts[] = ['type' => 'danger', 'message' => 'Select a horse for this logbook.'];
     }
 
@@ -109,7 +126,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         }
 
         if (!$alerts) {
-            $savedId = saveHorseForUser($pdo, (int)$currentUser['id'], $horseDetails, $alerts, $horseId);
+            if ($isHorseRenewal) {
+                $stmt = $pdo->prepare('UPDATE horses SET qualification_id = ? WHERE id = ? AND owner_user_id = ?');
+                $stmt->execute([(int)$horseDetails['qualification_id'], $horseId, (int)$currentUser['id']]);
+                $savedId = $horseId;
+            } else {
+                $savedId = saveHorseForUser($pdo, (int)$currentUser['id'], $horseDetails, $alerts, $horseId);
+            }
             $horseName = trim((string)($horseDetails['name'] ?? ''));
         }
         if (!$alerts && !empty($savedId)) {
@@ -273,7 +296,7 @@ $navItemEventsUrl = $basePath . '/events';
                                                     <input type="hidden" name="save_details" value="1">
                                                     <input type="hidden" name="logbook_type_id" value="<?php echo (int)$type['id']; ?>">
                                                     <input type="hidden" name="horse_id" value="<?php echo (int)$preselectedHorse['id']; ?>">
-<?php $horseDetailsRequired = true; include __DIR__ . '/views/horse_details_fields.php'; ?>
+<?php $horseDetailsRequired = true; $horseDetailsReadOnly = $isHorseRenewal; include __DIR__ . '/views/horse_details_fields.php'; ?>
                                                     <div class="col-12 d-flex gap-2"><button class="btn btn-success">Save and add logbook to basket</button>
                                                     <a class="btn btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=horses">Cancel</a></div>
                                                 </form>

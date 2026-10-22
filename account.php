@@ -102,6 +102,8 @@ if ($isLoggedIn) {
         return strtolower((string)($row['status'] ?? '')) === 'expired';
     }));
 }
+$userHorseLogbooks = $isLoggedIn ? fetchHorseLogbooksForUser($pdo, $userId) : [];
+$activeHorseLogbookCount = count(array_filter($userHorseLogbooks, static fn(array $row): bool => ($row['status'] ?? '') === 'active'));
 $activeMembershipCount = count($activeMembershipPurchases);
 $previousMembershipCount = count($previousMembershipPurchases);
 $loggedInMembershipNumber = '';
@@ -650,6 +652,10 @@ $accountIntroAutoOpen = false;
             font-size: 0.75rem;
             font-weight: 800;
         }
+        .btn-logbook-action {
+            width: 140px;
+            white-space: nowrap;
+        }
         .btn-logbook-action:disabled,
         .btn-logbook-action.disabled {
             background: #e5e7e9;
@@ -904,6 +910,10 @@ $accountIntroAutoOpen = false;
 	                                <div class="stat-pill account-stat-memberships">
 	                                    <div class="fw-bold"><?php echo $activeMembershipCount; ?></div>
 	                                    <div class="small text-uppercase">Active memberships</div>
+	                                </div>
+	                                <div class="stat-pill account-stat-horse-logbooks">
+	                                    <div class="fw-bold"><?php echo $activeHorseLogbookCount; ?></div>
+	                                    <div class="small text-uppercase">Active Horse Logbooks</div>
 	                                </div>
 	                                <div class="stat-pill account-stat-basket">
 	                                    <div class="fw-bold"><?php echo $basketCount; ?></div>
@@ -1547,7 +1557,7 @@ $accountIntroAutoOpen = false;
                                     $horseQualificationLookup[(int)($hq['id'] ?? 0)] = (string)($hq['name'] ?? '');
                                 }
                                 $logbookType = fetchPurchasableHorseLogbookType($pdo, $siteSettings);
-                                $logbooks = fetchHorseLogbooksForUser($pdo, $userId);
+                                $logbooks = $userHorseLogbooks;
                                 $horseLogbooksByHorse = [];
                                 foreach ($logbooks as $horseLogbook) {
                                     $registeredHorseId = (int)($horseLogbook['horse_id'] ?? 0);
@@ -1588,6 +1598,7 @@ $accountIntroAutoOpen = false;
                                                     <?php
                                                     $logbookStatus = horse_logbook_renewal_state($horseLogbooksByHorse[(int)$h['id']] ?? [], $siteSettings);
                                                     $horseLogbookActionEnabled = !empty($logbookStatus['action_enabled']);
+                                                    $horseLogbookActionLabel = $logbookStatus['action_label'];
                                                     ?>
                                                     <tr class="horse-data-row">
                                                         <td class="fw-semibold">
@@ -1615,13 +1626,12 @@ $accountIntroAutoOpen = false;
                                                                     <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked horse from your account?');">Remove Link</button>
                                                                 </form>
                                                             <?php else: ?>
-                                                                <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=horses&horse_id=<?php echo (int)$h['id']; ?>">Edit</a>
                                                                 <?php if ($logbookType): ?>
                                                                     <form method="post" class="d-inline">
                                                                         <input type="hidden" name="action" value="add_logbook">
                                                                         <input type="hidden" name="logbook_type_id" value="<?php echo (int)($logbookType['id'] ?? 0); ?>">
                                                                         <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
-                                                                        <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo h($logbookStatus['action_title']); ?>">Register / Renew</button>
+                                                                        <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo $horseLogbookActionLabel === 'Buy Logbook' ? 'New Logbook registration' : h($horseLogbookActionLabel); ?>"><?php echo h($horseLogbookActionLabel); ?></button>
                                                                     </form>
                                                                 <?php endif; ?>
                                                                 <form method="post" class="d-inline">
@@ -1644,13 +1654,12 @@ $accountIntroAutoOpen = false;
                                                                         <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this linked horse from your account?');">Remove Link</button>
                                                                     </form>
                                                                 <?php else: ?>
-                                                                    <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($basePath); ?>/account?view=horses&amp;horse_id=<?php echo (int)$h['id']; ?>">Edit</a>
                                                                     <?php if ($logbookType): ?>
                                                                         <form method="post">
                                                                             <input type="hidden" name="action" value="add_logbook">
                                                                             <input type="hidden" name="logbook_type_id" value="<?php echo (int)($logbookType['id'] ?? 0); ?>">
                                                                             <input type="hidden" name="horse_id" value="<?php echo (int)$h['id']; ?>">
-                                                                            <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo h($logbookStatus['action_title']); ?>">Register / Renew</button>
+                                                                            <button type="submit" class="btn btn-sm btn-outline-success btn-logbook-action" <?php echo $horseLogbookActionEnabled ? '' : 'disabled'; ?> title="<?php echo $horseLogbookActionLabel === 'Buy Logbook' ? 'New Logbook registration' : h($horseLogbookActionLabel); ?>"><?php echo h($horseLogbookActionLabel); ?></button>
                                                                         </form>
                                                                     <?php endif; ?>
                                                                     <form method="post">
@@ -1746,7 +1755,6 @@ $accountIntroAutoOpen = false;
                                 <div class="card-soft p-4 mt-4" id="horse-logbooks">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
                                         <div class="fw-bold">Horse Logbooks</div>
-                                        <a title="Horse Logbooks" class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/logbooks">Buy / Renew</a>
                                     </div>
                                     <?php if (!$logbooks): ?>
                                         <div class="text-muted small">No logbooks yet.</div>

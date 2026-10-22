@@ -4811,6 +4811,7 @@ function calc_logbook_status(array $row, array $settings = [], ?DateTimeInterfac
 function horse_logbook_renewal_state(array $logbooks, array $settings = [], ?DateTimeInterface $date = null): array
 {
     $requiredYear = horse_logbook_purchase_year($settings, $date);
+    $actionLabel = $logbooks ? 'Renew Logbook' : 'Buy Logbook';
     $hasCurrent = false;
     $futureYear = 0;
     foreach ($logbooks as $logbook) {
@@ -4820,8 +4821,8 @@ function horse_logbook_renewal_state(array $logbooks, array $settings = [], ?Dat
         if ($year > $requiredYear && ($futureYear === 0 || $year < $futureYear)) $futureYear = $year;
     }
     if ($hasCurrent) return ['class'=>'text-success','icon'=>'fa-solid fa-circle-check','label'=>'Valid','title'=>'Logbook valid for ' . $requiredYear,'action_label'=>'Current Logbook','action_enabled'=>false,'action_title'=>'Already valid for ' . $requiredYear . '.'];
-    if ($futureYear > 0) return ['class'=>'text-warning','icon'=>'fa-solid fa-clock','label'=>$futureYear . ' renewal purchased','title'=>'A future logbook has been purchased, but a ' . $requiredYear . ' logbook is still required.','action_label'=>'Register / Renew','action_enabled'=>true,'action_title'=>'Buy the ' . $requiredYear . ' logbook.'];
-    return ['class'=>'text-danger','icon'=>'fa-solid fa-circle-xmark','label'=>'No logbook','title'=>'No logbook has been purchased for ' . $requiredYear . '.','action_label'=>'Register / Renew','action_enabled'=>true,'action_title'=>'Buy the ' . $requiredYear . ' logbook.'];
+    if ($futureYear > 0) return ['class'=>'text-warning','icon'=>'fa-solid fa-clock','label'=>$futureYear . ' renewal purchased','title'=>'A future logbook has been purchased, but a ' . $requiredYear . ' logbook is still required.','action_label'=>$actionLabel,'action_enabled'=>true,'action_title'=>'Buy the ' . $requiredYear . ' logbook.'];
+    return ['class'=>'text-danger','icon'=>'fa-solid fa-circle-xmark','label'=>'No logbook','title'=>'No logbook has been purchased for ' . $requiredYear . '.','action_label'=>$actionLabel,'action_enabled'=>true,'action_title'=>'Buy the ' . $requiredYear . ' logbook.'];
 }
 
 function saveHorseLogbookPurchase(?PDO $pdo, array $data, array &$alerts): bool
@@ -4926,7 +4927,7 @@ function fetchHorseQualifications(?PDO $pdo): array
     }
     ensureHorsesTables($pdo);
     try {
-        $stmt = $pdo->query("SELECT id, name FROM horse_qualifications ORDER BY FIELD(name, 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'None', 'Other'), name ASC");
+        $stmt = $pdo->query("SELECT id, name FROM horse_qualifications ORDER BY FIELD(name, 'None', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Other'), name ASC");
         return $stmt->fetchAll() ?: [];
     } catch (PDOException $e) {
         return [];
