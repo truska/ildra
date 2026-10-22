@@ -712,9 +712,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             box-shadow: 0 0 0 1px rgba(220,53,69,0.4);
         }
 
-        .event-gallery-main { display:flex; width:100%; max-width:300px; margin:0 auto 1.25rem; justify-content:center; border:0; padding:0; background:none; cursor:zoom-in; }
-        .event-gallery-main img { display:block; width:auto; max-width:100%; height:auto; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.12); }
-        .event-gallery-caption { max-width:300px; margin:-.7rem auto 1.25rem; color:var(--muted); font-size:.9rem; text-align:center; }
+        .event-summary-copy { overflow-wrap:anywhere; }
+        .event-summary-copy img { max-width:100%; height:auto; }
+        .event-gallery-main { display:flex; width:100%; margin:0 0 1rem; justify-content:center; border:0; padding:0; background:none; cursor:zoom-in; }
+        .event-gallery-main img { display:block; width:100%; max-width:100%; height:auto; max-height:600px; object-fit:contain; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.12); }
+        .event-gallery-caption { margin:0 0 1rem; color:var(--muted); font-size:.9rem; text-align:center; }
         .event-lightbox { position:fixed; inset:0; z-index:4000; display:none; place-items:center; padding:2rem; background:rgba(0,0,0,.9); }
         .event-lightbox.open { display:grid; }
         .event-lightbox img { max-width:94vw; max-height:88vh; object-fit:contain; }
@@ -756,7 +758,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     <?php endif; ?>
                 </div>
                 <div class="d-flex flex-column align-items-end gap-2">
-                    <a class="btn btn-outline-light btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
+                    <a title="ILDRA Events Calendar" class="btn btn-outline-light btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
                     <?php if ($showRideNotesLink): ?><a class="btn btn-light btn-sm text-success" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
                 </div>
             </div>
@@ -805,54 +807,60 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <span class="fw-bold"><?php echo h($event['title']); ?></span>
                         </div>
                         <div class="d-flex flex-column align-items-end gap-2">
-                            <a class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
+                            <a title="ILDRA Events Calendar" class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
                             <?php if ($showRideNotesLink): ?><a class="btn btn-outline-success btn-sm" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
                         </div>
                     </div>
-                    <?php if (trim((string)($event['details_html'] ?? '')) !== ''): ?>
-                        <div class="event-extra-details mb-4"><?php echo (string)$event['details_html']; ?></div>
-                    <?php endif; ?>
-                    <?php if ($eventImage && $eventImageBatch): ?>
-                        <button type="button" class="event-gallery-main" data-event-gallery data-lightbox-src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" aria-label="Enlarge event image"><img src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'sm')); ?>" alt="<?php echo h((string)($eventImage['alt_text'] ?: $eventImage['title'] ?: $event['title'])); ?>"></button>
-                        <?php if (!empty($eventImage['caption'])): ?><div class="event-gallery-caption"><?php echo h((string)$eventImage['caption']); ?></div><?php endif; ?>
-                    <?php endif; ?>
-                    <?php if (!empty($event['description'])): ?>
-                        <div class="mb-3"><?php echo render_wysiwyg((string)$event['description']); ?></div>
-                    <?php endif; ?>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="fw-semibold mb-2">Event details</div>
-                            <ul class="list-unstyled mb-0 text-muted small">
-                                <?php
-                                    $eventDateText = 'TBC';
-                                    if (!empty($event['event_date'])) {
-                                        $eventDateText = (new DateTimeImmutable((string)$event['event_date']))->format('jS M Y');
-                                    }
-                                    $endDateText = '';
-                                    if (!empty($event['end_date']) && ($event['end_date'] !== $event['event_date'])) {
-                                        $endDateText = (new DateTimeImmutable((string)$event['end_date']))->format('jS M Y');
-                                    }
-                                ?>
-                                <li><strong class="text-dark">Dates:</strong> <?php echo h($eventDateText); ?><?php echo $endDateText !== '' ? ' to ' . h($endDateText) : ''; ?></li>
-                                <li><strong class="text-dark">Venue:</strong> <?php echo h($event['venue'] ?: 'Venue TBC'); ?></li>
-                                <?php if (!empty($event['organiser'])): ?>
-                                    <li><strong class="text-dark">Organiser:</strong> <?php echo h($event['organiser']); ?></li>
-                                <?php endif; ?>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="fw-semibold mb-2">Classes offered</div>
-                            <?php if ($classesList): ?>
-                                <ul class="list-unstyled mb-0 text-muted small">
-                                    <?php foreach ($classesList as $cls): ?>
-                                        <li><?php echo h($cls); ?></li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php else: ?>
-                                <div class="text-muted small">No classes available to book.</div>
+                    <div class="row g-4 align-items-start event-summary-row">
+                        <div class="col-12 col-lg-8 event-summary-copy">
+                            <?php if (trim((string)($event['details_html'] ?? '')) !== ''): ?>
+                                <div class="event-extra-details mb-4"><?php echo (string)$event['details_html']; ?></div>
                             <?php endif; ?>
-                            <?php if ($hasLimit): ?>
-                                <div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?><?php if ($isFull): ?> · <span class="text-danger fw-semibold">Event full</span><?php endif; ?></div>
+                            <?php if (!empty($event['description'])): ?>
+                                <div class="mb-3"><?php echo render_wysiwyg((string)$event['description']); ?></div>
+                            <?php endif; ?>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="fw-semibold mb-2">Event details</div>
+                                    <ul class="list-unstyled mb-0 text-muted small">
+                                        <?php
+                                            $eventDateText = 'TBC';
+                                            if (!empty($event['event_date'])) {
+                                                $eventDateText = (new DateTimeImmutable((string)$event['event_date']))->format('jS M Y');
+                                            }
+                                            $endDateText = '';
+                                            if (!empty($event['end_date']) && ($event['end_date'] !== $event['event_date'])) {
+                                                $endDateText = (new DateTimeImmutable((string)$event['end_date']))->format('jS M Y');
+                                            }
+                                        ?>
+                                        <li><strong class="text-dark">Dates:</strong> <?php echo h($eventDateText); ?><?php echo $endDateText !== '' ? ' to ' . h($endDateText) : ''; ?></li>
+                                        <li><strong class="text-dark">Venue:</strong> <?php echo h($event['venue'] ?: 'Venue TBC'); ?></li>
+                                        <?php if (!empty($event['organiser'])): ?>
+                                            <li><strong class="text-dark">Organiser:</strong> <?php echo h($event['organiser']); ?></li>
+                                        <?php endif; ?>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="fw-semibold mb-2">Classes offered</div>
+                                    <?php if ($classesList): ?>
+                                        <ul class="list-unstyled mb-0 text-muted small">
+                                            <?php foreach ($classesList as $cls): ?>
+                                                <li><?php echo h($cls); ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    <?php else: ?>
+                                        <div class="text-muted small">No classes available to book.</div>
+                                    <?php endif; ?>
+                                    <?php if ($hasLimit): ?>
+                                        <div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?><?php if ($isFull): ?> · <span class="text-danger fw-semibold">Event full</span><?php endif; ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4 event-summary-image<?php echo $eventImage && $eventImageBatch ? '' : ' d-none d-lg-block'; ?>">
+                            <?php if ($eventImage && $eventImageBatch): ?>
+                                <button type="button" class="event-gallery-main" data-event-gallery data-lightbox-src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" aria-label="Enlarge event image"><img src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" alt="<?php echo h((string)($eventImage['alt_text'] ?: $eventImage['title'] ?: $event['title'])); ?>"></button>
+                                <?php if (!empty($eventImage['caption'])): ?><div class="event-gallery-caption"><?php echo h((string)$eventImage['caption']); ?></div><?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>

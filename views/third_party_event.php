@@ -11,14 +11,22 @@ if (!$thirdPartyVisible) { http_response_code(404); $event = null; }
 <?php include __DIR__ . '/header.php'; ?>
 <header class="py-4 bg-light border-bottom"><div class="container"><div class="row align-items-center g-3"><div class="col-12 col-lg-9"><div class="small text-uppercase text-muted fw-bold">3rd Party Event</div><h1 class="fw-bold mb-1"><?php echo $event ? h($event['title']) : 'Event not found'; ?></h1><?php if ($event): ?><div class="text-muted"><?php echo h(format_display_date($event['event_date'])); ?> · <?php echo h($event['venue']); ?></div><?php endif; ?></div><?php include __DIR__ . '/page_heading_actions.php'; ?></div></div></header>
 <main class="py-4"><div class="container">
+<div class="d-flex justify-content-end align-items-start mb-3">
+    <div class="d-flex flex-column align-items-end gap-2">
+        <a title="ILDRA Events Calendar" class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/events">Back to Events</a>
+    </div>
+</div>
 <?php if ($event): ?>
 <?php if ($event['status'] !== 'published'): ?><div class="alert alert-warning">Admin preview — this event is a draft.</div><?php endif; ?>
 <div class="row g-4">
-<?php if ($eventImage): ?><div class="col-lg-5"><img class="third-party-image" src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" alt="<?php echo h($eventImage['alt_text'] ?: $event['title']); ?>"></div><?php endif; ?>
-<div class="<?php echo $eventImage ? 'col-lg-7' : 'col-12'; ?>"><div class="third-party-copy mb-4"><?php echo render_wysiwyg((string)$event['description']); ?></div>
+<div class="col-12 col-lg-8"><div class="third-party-copy mb-4"><?php echo render_wysiwyg((string)$event['description']); ?></div>
 <p class="text-muted small">This event is run by another organisation. Please use their website for entries and enquiries.</p>
 <a class="btn button1" href="<?php echo h($event['external_entry_url']); ?>" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Enter on organiser’s website<span class="visually-hidden"> (opens in a new tab)</span></a>
+</div>
+<div class="col-12 col-lg-4<?php echo $eventImage ? '' : ' d-none d-lg-block'; ?>">
+<?php if ($eventImage): ?><img class="third-party-image" src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" alt="<?php echo h($eventImage['alt_text'] ?: $event['title']); ?>"><?php endif; ?>
 </div></div>
 <?php else: ?><div class="alert alert-info">We could not find that event.</div><?php endif; ?>
-<a class="btn btn-outline-success mt-4" href="<?php echo h($basePath); ?>/pages/ride-calendar">Back to Calendar</a>
-</div></main><?php include __DIR__ . '/footer.php'; ?></body></html>
+</div></main><?php include __DIR__ . '/footer.php'; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</body></html>
