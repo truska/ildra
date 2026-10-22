@@ -842,14 +842,26 @@ admin_layout_start('Finance', 'finance');
         if (paymentRequestsTable && reminderControls?.classList.contains('mt-2')) {
             paymentRequestsTable.querySelector('thead th:first-child')?.remove();
             const allRequestRows = Array.from(paymentRequestsTable.querySelectorAll('tbody tr'));
-            allRequestRows.forEach(row => row.querySelector('td:first-child')?.remove());
+            const actionHeading = document.createElement('th');
+            actionHeading.textContent = 'Actions';
+            paymentRequestsTable.tHead.rows[0].appendChild(actionHeading);
+            allRequestRows.forEach(row => {
+                if (row.cells.length === 1 && row.cells[0].colSpan > 1) {
+                    row.cells[0].colSpan = paymentRequestsTable.tHead.rows[0].cells.length;
+                } else {
+                    row.querySelector('td:first-child')?.remove();
+                    const cell = document.createElement('td');
+                    cell.dataset.requestActions = '1';
+                    row.appendChild(cell);
+                }
+            });
             const pendingRows = allRequestRows.filter(row => row.querySelector('.bg-warning-subtle'));
             pendingRows.forEach((row, index) => {
                 const form = reminderControls.querySelector('form');
                 if (!form) return;
-                const cell = document.createElement('td');
+                const cell = row.querySelector('[data-request-actions]');
                 form.querySelector('button').textContent = 'Resend';
-                cell.appendChild(form); row.appendChild(cell);
+                cell.appendChild(form);
             });
             reminderControls.remove();
         }

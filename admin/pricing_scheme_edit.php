@@ -158,7 +158,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
                 #rowsTable .pricing-row-dragging { opacity: .55; box-shadow: 0 4px 14px rgba(15,45,23,.16); }
                 @media (max-width: 767.98px) { #pricingReorderStart, #pricingReorderCancel { display: none !important; } }
             </style>
-            <table class="table table-sm align-middle" id="rowsTable">
+            <table class="table table-sm align-middle" id="rowsTable" data-admin-table-static>
                 <colgroup><col style="width:12%"><col style="width:18%"><col style="width:36%"><col style="width:14%"><col style="width:20%"></colgroup>
                 <thead class="table-light">
                     <tr>

@@ -40,6 +40,9 @@ $adminBase = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin'), '/');
 $adminBase = $adminBase === '' ? '/admin' : $adminBase;
 $siteBase = rtrim(dirname($adminBase), '/');
 
+require_once __DIR__ . '/table_state.php';
+admin_table_state_init();
+
 $adminNavItems = fetchAdminMenuItems($pdo, true);
 
 $adminManualHref = ($siteBase ?: '') . '/help_manual.php';
@@ -84,6 +87,8 @@ function admin_layout_start(string $title, string $activeKey): void
             color: var(--text-main);
             font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
+        [data-admin-table-enhanced] tr[hidden], [data-admin-table-paging][hidden] { display:none !important; }
+        @media print { .admin-table-filter-row { display:none !important; } }
         body.admin-nav-open {
             overflow: hidden;
         }
@@ -556,6 +561,8 @@ function admin_layout_end(): void
         </footer>
         </main>
     </div>
+    <script type="application/json" id="admin-table-state"><?php echo json_encode(admin_table_state_config(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
+    <script src="<?php echo h($GLOBALS['adminBase']); ?>/table_controls.js?v=<?php echo (int)filemtime(__DIR__ . '/table_controls.js'); ?>"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <div class="modal fade" id="sharedConfirmModal" tabindex="-1" aria-labelledby="sharedConfirmTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title d-flex align-items-center gap-2"><i id="sharedConfirmIcon" class="fa-solid" aria-hidden="true"></i><span id="sharedConfirmTitle">Please confirm</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" id="sharedConfirmMessage"></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn" id="sharedConfirmButton">Continue</button></div></div></div></div>
     <script>
@@ -687,10 +694,11 @@ function admin_layout_end(): void
                 const form = control.form || (control.getAttribute('form') ? document.getElementById(control.getAttribute('form')) : null);
                 if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
             }
-            document.querySelectorAll('.admin-table-filter-row select').forEach(select => {
+            document.querySelectorAll('.admin-table-filter-row select:not([data-client-table-filter])').forEach(select => {
                 select.addEventListener('change', () => submitControl(select));
             });
-            document.querySelectorAll('.admin-table-filter-row input[type="text"], .admin-table-filter-row input[type="search"]').forEach(input => {
+            document.querySelectorAll('.admin-table-filter-row input[type="date"]:not([data-client-table-filter])').forEach(input => input.addEventListener('change', () => submitControl(input)));
+            document.querySelectorAll('.admin-table-filter-row input[type="text"]:not([data-client-table-filter]), .admin-table-filter-row input[type="search"]:not([data-client-table-filter])').forEach(input => {
                 input.addEventListener('input', () => {
                     clearTimeout(timer);
                     const value = input.value.trim();

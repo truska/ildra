@@ -1,0 +1,83 @@
+// Run with Playwright available; optional PLAYWRIGHT_MODULE and CHROMIUM_EXECUTABLE_PATH overrides.
+const {chromium} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '../..');
+(async()=>{
+ const browser=await chromium.launch({headless:true, ...(process.env.CHROMIUM_EXECUTABLE_PATH ? {executablePath:process.env.CHROMIUM_EXECUTABLE_PATH} : {})});
+ const page=await browser.newPage();
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ const config={candidate:'a'.repeat(24),incoming:'',origin:null,query:{label:'Ride',sort:'label',dir:'desc',p:'2'},userId:1};
+ const content=`<main class="admin-content"><a id="edit" href="edit.php?id=7">Edit</a><a id="clear" href="list.php">Clear</a><form id="filters" method="get"><table><thead><tr><th>Name</th></tr><tr class="admin-table-filter-row"><th><input name="label" value="Ride"></th></tr></thead><tbody><tr><td>Ride</td></tr></tbody></table></form><form id="save" method="post"></form><table id="legacy"><thead><tr><th>Name</th><th>Status</th><th>Action</th></tr></thead><tbody>${Array.from({length:60},(_,i)=>`<tr><td>Rider ${i+1}</td><td>${i%2?'Active':'Expired'}</td><td><input name="x${i}" value="preserved"><button type="button">Edit</button></td></tr>`).join('')}</tbody></table></main><script type="application/json" id="admin-table-state">${JSON.stringify(config)}</script>`;
+ await page.route('http://test.local/**',r=>r.fulfill({contentType:'text/html',body:content}));
+ await page.goto('http://test.local/admin/list.php?label=Ride&sort=label&dir=desc&p=2');
+ await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
+ const check=(ok,msg)=>{if(!ok)throw Error(msg)};
+ check((await page.locator('#edit').getAttribute('href')).includes('_table_context='),'Edit context');
+ check((await page.locator('#clear').getAttribute('href')).includes('_table_clear=1'),'Clear must reset');
+ check(await page.locator('#save input[name=_table_context]').count()===1,'POST context');
+ check(await page.locator('#filters input[name=sort]').inputValue()==='label','Filter retains sort');
+ check(await page.locator('#legacy .admin-table-filter-row input[type=search]').count()===1,'Legacy text filter');
+ check(await page.locator('#legacy .admin-table-filter-row select').count()===1,'Legacy status selection');
+ await page.locator('#legacy .admin-table-filter-row input[type=search]').fill('Rider 11');
+ check(await page.locator('#legacy tbody tr:not([hidden])').count()===1,'Legacy search');
+ check(await page.locator('#legacy input[name=x10]').inputValue()==='preserved','Inline values preserved');
+ await page.reload();await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
+ check(await page.locator('#legacy .admin-table-filter-row input[type=search]').inputValue()==='Rider 11','Legacy state restored after reload');
+ await page.locator('#legacy .admin-table-filter-row button').click();
+ check(await page.locator('#legacy tbody tr:not([hidden])').count()===50,'Clear and pagination');
+ await page.locator('#legacy thead tr:first-child button').first().click();
+ check(await page.locator('#legacy tbody tr:not([hidden])').first().textContent().then(t=>t.startsWith('Rider 1Active')||t.startsWith('Rider 1Expired')),'Numeric natural sorting');
+ await page.locator('#legacy .admin-table-filter-row select').selectOption('Active');
+ check(await page.locator('#legacy tbody tr:not([hidden])').count()===30,'Status filter');
+ check(await page.locator('#legacy tbody tr').count()===61,'No records removed');
+ console.log('Browser checks passed: server filter forms, edit/save contexts, Clear, legacy header search/select/sort, pagination, reload retention and inline values.');
+
+ // Existing auto-submit handlers must never submit a bulk-edit form when a
+ // client-side header filter changes, even when that table is inside the form.
+ await page.setContent(`<main class="admin-content"><form method="post" id="bulk"><input name="action" value="save"><table id="inline"><thead><tr><th>Name</th><th>Value</th><th>Action</th></tr></thead><tbody><tr><td>Alpha</td><td><input name="value1" value="kept"></td><td><button type="submit">Save</button></td></tr><tr><td>Beta</td><td><input name="value2" value="also kept"></td><td><button type="submit">Save</button></td></tr></tbody></table></form><table data-admin-table-static id="grid"><thead><tr><th>Grid</th></tr></thead><tbody><tr><td>Editable grid</td></tr></tbody></table><table id="empty"><thead><tr><th>Name</th><th>Action</th></tr></thead><tbody><tr><td colspan="2">No records yet.</td></tr></tbody></table></main><script type="application/json" id="admin-table-state">${JSON.stringify(config)}</script>`);
+ await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
+ const bootstrap=fs.readFileSync(path.join(root,'admin/_bootstrap.php'),'utf8');
+ const nativeStart=bootstrap.indexOf('        (function() {\n            let timer;');
+ const nativeEnd=bootstrap.indexOf('        })();',nativeStart)+18;
+ await page.addScriptTag({content:bootstrap.slice(nativeStart,nativeEnd)});
+ await page.evaluate(()=>{window.submits=0;document.querySelector('#bulk').addEventListener('submit',event=>{event.preventDefault();window.submits++;});});
+ await page.locator('#inline .admin-table-filter-row input').first().fill('Alpha');
+ await page.locator('#inline .admin-table-filter-row input').first().press('Enter');
+ await page.waitForTimeout(550);
+ check(await page.evaluate(()=>window.submits)===0,'Filtering/Enter must never submit inline edits');
+ check(await page.locator('#inline input[name=value2]').inputValue()==='also kept','Hidden inline rows retain values');
+ check(await page.locator('#grid .admin-table-filter-row').count()===0,'Row-building editor grid must remain unchanged');
+ check(await page.locator('#empty .admin-table-filter-row').count()===1,'Empty lists retain header controls');
+ // The existing reorder helper inserts a new handle column after enhancement.
+ await page.evaluate(()=>{document.querySelectorAll('#inline tr').forEach(row=>row.insertBefore(document.createElement(row.closest('thead')?'th':'td'),row.firstChild));});
+ await page.locator('#inline .admin-table-filter-row input').first().fill('Beta');
+ check(await page.locator('#inline tbody tr:not([hidden])').first().textContent().then(text=>text.includes('Beta')),'Reorder handles must not shift filter column indexing');
+ await page.setViewportSize({width:375,height:800});
+ check(await page.locator('#inline .admin-table-filter-row input').first().isVisible(),'Header controls available on mobile');
+ console.log('Inline-edit safety, native-handler isolation, empty lists, editor opt-out, reorder handles and mobile checks passed.');
+
+ await page.setContent(`<main class="admin-content"><form id="multi" method="get"></form><div style="display:none"><table><thead><tr><th>Name</th></tr><tr class="admin-table-filter-row"><th><input name="label" form="multi" value="stale"></th></tr></thead></table></div><table><thead><tr><th>Name</th></tr><tr class="admin-table-filter-row"><th><input name="label" form="multi" value="current"></th></tr></thead></table><a id="outside" href="https://example.com/admin/list.php">Outside</a><a id="reset" href="list.php">Clear filters</a></main><script type="application/json" id="admin-table-state">${JSON.stringify(config)}</script>`);
+ await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
+ const labels=await page.evaluate(()=>new FormData(document.querySelector('#multi')).getAll('label'));
+ check(labels.length===1 && labels[0]==='current','Hidden duplicate table filters must not overwrite the visible table');
+ check(await page.locator('#outside').getAttribute('href')==='https://example.com/admin/list.php','Never attach contexts to external links');
+ check(!(await page.locator('#reset').getAttribute('href')).includes('_table_context='),'Clear must not inherit context');
+ await page.goto('http://test.local/admin/campaigns.php?view=edit&id=7');
+ await page.setContent(`<main class="admin-content"><form method="post" id="direct-editor"><input name="action" value="save"></form><a id="direct-back" href="campaigns.php">Back</a></main><script type="application/json" id="admin-table-state">${JSON.stringify(config)}</script>`);
+ await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
+ check(await page.locator('#direct-editor input[name=_table_context]').count()===0,'A direct editor without a source list must not invent a return context');
+ check(!(await page.locator('#direct-back').getAttribute('href')).includes('_table_context='),'Direct editor return keeps the existing destination');
+ await page.setContent(`<main class="admin-content"><section data-finance-section="requests"><table id="requests"><thead><tr><th>Created</th><th>Recipient</th><th>Status</th></tr></thead><tbody><tr><td>Today</td><td>Anne</td><td><span class="bg-warning-subtle">Pending</span></td></tr><tr><td>Yesterday</td><td>Bob</td><td>Completed</td></tr></tbody></table></section><div class="mt-2"><form method="post"><button>Send reminder</button></form></div></main><script type="application/json" id="admin-table-state">${JSON.stringify(config)}</script>`);
+ const finance=fs.readFileSync(path.join(root,'admin/finance.php'),'utf8');
+ const financeStart=finance.indexOf('        const paymentRequestsSection =');
+ const financeEnd=finance.indexOf('        const collectModal =',financeStart);
+ await page.addScriptTag({content:finance.slice(financeStart,financeEnd)});
+ await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
+ check(await page.locator('#requests .admin-table-filter-row').count()===1,'Payment requests must get standard header filters');
+ check(await page.locator('#requests tbody tr:not([hidden])').count()===2,'Completed and pending payment requests stay aligned');
+ check(await page.locator('#requests [data-request-actions] button').textContent()==='Resend','Existing reminder action must be preserved');
+ check(errors.length===0,'No browser errors: '+errors.join('; '));
+ console.log('Hidden-table duplicate filters, external-link isolation and explicit Clear checks passed.');
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

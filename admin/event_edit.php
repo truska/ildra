@@ -536,7 +536,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
             <div class="border rounded overflow-hidden">
                 <div class="table-responsive">
-                    <table class="pricing-table" id="pricingRowsTable">
+                    <table class="pricing-table" id="pricingRowsTable" data-admin-table-static>
                         <thead>
                         <tr>
                             <th class="compact">On</th>

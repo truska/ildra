@@ -208,15 +208,15 @@ function event_filter_row(array $filterValues, array $filterOptions): string
 {
     ob_start(); ?>
     <tr class="admin-table-filter-row">
-        <th><?php echo event_filter_select('start_filter',$filterOptions['start_filter'],$filterValues['start_filter']); ?></th>
-        <th class="col-end"><?php echo event_filter_select('end_filter',$filterOptions['end_filter'],$filterValues['end_filter']); ?></th>
+        <th><?php echo event_filter_select('start_filter',$filterOptions['start_filter'],$filterValues['start_filter']); ?><input class="form-control form-control-sm mt-1" form="event-filter-form" type="date" name="date_from" aria-label="From date" value="<?php echo h($filterValues['date_from']); ?>"></th>
+        <th class="col-end"><?php echo event_filter_select('end_filter',$filterOptions['end_filter'],$filterValues['end_filter']); ?><input class="form-control form-control-sm mt-1" form="event-filter-form" type="date" name="date_to" aria-label="To date" value="<?php echo h($filterValues['date_to']); ?>"></th>
         <th><?php echo event_filter_select('title_filter',$filterOptions['title_filter'],$filterValues['title_filter']); ?></th>
         <th class="col-venue"><?php echo event_filter_select('venue_filter',$filterOptions['venue_filter'],$filterValues['venue_filter']); ?></th>
         <th class="col-status"><?php echo event_filter_select('status_filter',$filterOptions['status_filter'],$filterValues['status_filter']); ?></th>
         <th class="col-type"><?php echo event_filter_select('type_filter',$filterOptions['type_filter'],$filterValues['type_filter']); ?></th>
         <th class="col-classes"><input class="form-control form-control-sm" form="event-filter-form" name="classes_filter" value="<?php echo h($filterValues['classes_filter']); ?>" placeholder="Search"></th>
         <th><input class="form-control form-control-sm" form="event-filter-form" name="entries_filter" value="<?php echo h($filterValues['entries_filter']); ?>" placeholder="Search"></th>
-        <th class="col-organiser"><?php echo event_filter_select('organiser_filter',$filterOptions['organiser_filter'],$filterValues['organiser_filter']); ?></th>
+        <th class="col-organiser"><?php echo event_filter_select('organiser_filter',$filterOptions['organiser_filter'],$filterValues['organiser_filter']); ?><a class="btn btn-sm btn-outline-secondary mt-1" href="events.php?view=<?php echo h($GLOBALS['activeView']); ?>">Clear all</a></th>
     </tr><?php return (string)ob_get_clean();
 }
 
@@ -359,13 +359,8 @@ admin_layout_start('Events', 'events');
 </tbody></table></div></div>
 <?php admin_layout_end(); exit; endif; ?>
 
-<form method="get" id="event-filter-form" class="card-soft px-3 py-2 mb-3">
+<form method="get" id="event-filter-form">
     <input type="hidden" name="view" value="<?php echo h($activeView); ?>">
-    <div class="d-flex flex-wrap align-items-end gap-2">
-        <div><label class="form-label small mb-1">From</label><input class="form-control form-control-sm" type="date" name="date_from" value="<?php echo h($filterValues['date_from']); ?>"></div>
-        <div><label class="form-label small mb-1">To</label><input class="form-control form-control-sm" type="date" name="date_to" value="<?php echo h($filterValues['date_to']); ?>"></div>
-        <button class="btn btn-sm btn-outline-secondary">Filter dates</button><a class="btn btn-sm btn-secondary" href="events.php?view=<?php echo h($activeView); ?>">Clear all</a>
-    </div>
 </form>
 
 <div class="card-soft p-3 <?php echo $activeView === 'future' ? '' : 'd-none'; ?>">

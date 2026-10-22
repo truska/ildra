@@ -48,6 +48,7 @@ function admin_sort_link(string $key, string $label, string $currentKey, string 
  */
 function admin_table_prepare(array $rows, array $columns, string $defaultSort, string $defaultDir = 'asc', bool $paginate = true): array
 {
+    $GLOBALS['adminTableFilterKeys'] = array_unique(array_merge($GLOBALS['adminTableFilterKeys'] ?? [], array_keys(array_filter($columns, static fn(array $column): bool => !empty($column['filter'])))));
     $filters = [];
     foreach ($columns as $key => $column) {
         if (!empty($column['filter'])) $filters[$key] = trim((string)($_GET[$key] ?? ''));
