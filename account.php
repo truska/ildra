@@ -810,6 +810,8 @@ $accountIntroAutoOpen = false;
 
 	    <header class="page-hero">
 	        <div class="container">
+<div class="row align-items-center g-3">
+<div class="col-12 col-lg-9">
 	            <p class="mb-1 text-uppercase small fw-bold text-white-50">Account</p>
 	            <h1 class="fw-bold mb-1">
                     <?php
@@ -838,7 +840,11 @@ $accountIntroAutoOpen = false;
 	                    <span class="meta-chip text-white bg-success border-0">Role: <?php echo h($currentUser['role'] ?? 'user'); ?></span>
 	                <?php endif; ?>
             </div>
-        </div>
+
+</div>
+<?php include __DIR__ . '/views/page_heading_actions.php'; ?>
+</div>
+</div>
     </header>
 
     <main class="py-5">

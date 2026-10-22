@@ -76,10 +76,16 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
 <body>
 <?php include __DIR__ . '/views/header.php'; ?>
 <header class="page-hero">
-    <div class="container d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div class="container">
+<div class="row align-items-center g-3">
+<div class="col-12 col-lg-9">
         <div><p class="mb-1 text-uppercase small fw-bold text-white-50">Ride Report and Results</p><h1 class="fw-bold mb-1"><?php echo $event ? h($event['title']) : 'Report not found'; ?></h1><?php if ($event): ?><div class="text-white-50"><?php echo h($dateRange); ?><?php echo !empty($event['venue']) ? ' • ' . h($event['venue']) : ''; ?></div><?php endif; ?></div>
         <a class="btn btn-outline-light btn-sm" href="<?php echo h($basePath); ?>/pages/ildra-reports-results">Back to Reports</a>
-    </div>
+
+</div>
+<?php include __DIR__ . '/views/page_heading_actions.php'; ?>
+</div>
+</div>
 </header>
 <main class="py-5"><div class="container">
     <?php if ($event && $report): ?>

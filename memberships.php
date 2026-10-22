@@ -238,10 +238,16 @@ $navItemEventsUrl = $basePath . '/events';
 
     <header class="page-hero">
         <div class="container">
+<div class="row align-items-center g-3">
+<div class="col-12 col-lg-9">
             <p class="mb-1 text-uppercase small fw-bold text-white-50">Memberships</p>
             <h1 class="fw-bold mb-1">Join or renew</h1>
             <div class="text-white-50">Choose the right membership and add to your basket.</div>
-        </div>
+
+</div>
+<?php include __DIR__ . '/views/page_heading_actions.php'; ?>
+</div>
+</div>
     </header>
 
     <main class="py-4">

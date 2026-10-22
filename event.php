@@ -731,6 +731,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
     <header class="page-hero">
         <div class="container">
+<div class="row align-items-center g-3">
+<div class="col-12 col-lg-9">
             <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
                     <p class="mb-1 text-uppercase small fw-bold text-white-50">Event detail</p>
@@ -754,7 +756,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     <?php if ($showRideNotesLink): ?><a class="btn btn-light btn-sm text-success" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
                 </div>
             </div>
-        </div>
+
+</div>
+<?php include __DIR__ . '/views/page_heading_actions.php'; ?>
+</div>
+</div>
     </header>
 
     <main class="py-5">

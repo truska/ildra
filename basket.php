@@ -196,10 +196,16 @@ $userBalance = fetch_user_credit_balance($pdo, (int)($currentUser['id'] ?? 0));
 
     <header class="page-hero">
         <div class="container">
+<div class="row align-items-center g-3">
+<div class="col-12 col-lg-9">
             <p class="mb-1 text-uppercase small fw-bold text-white-50">Event basket</p>
             <h1 class="fw-bold mb-1">Your entries</h1>
             <div class="text-white-50">Review entries, adjust, and checkout.</div>
-        </div>
+
+</div>
+<?php include __DIR__ . '/views/page_heading_actions.php'; ?>
+</div>
+</div>
     </header>
 
     <main class="py-5">

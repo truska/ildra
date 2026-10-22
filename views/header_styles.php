@@ -560,6 +560,10 @@ main.container.py-5 > h1.h2 + .mb-4 {
     transform: translateY(0);
 }
 
+/* Purchase shortcuts in existing desktop page heading rows. */
+.page-heading-actions { display:flex; align-items:center; justify-content:flex-end; gap:.5rem; }
+.page-heading-actions .btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; min-height:44px; padding:.7rem .5rem; white-space:nowrap; }
+
 /* Hide page hero on non-home pages; opt-in via body.show-page-hero */
 .page-hero {
     display: none;

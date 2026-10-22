@@ -220,9 +220,14 @@ $navItemEventsUrl = $basePath . '/events';
 
     <header class="page-hero">
         <div class="container">
+            <div class="row align-items-center g-3">
+                <div class="col-12 col-lg-9">
             <p class="mb-1 text-uppercase small fw-bold text-white-50">Logbooks</p>
             <h1 class="fw-bold mb-1">Horse logbooks</h1>
             <div class="text-white-50">Register or renew a logbook for your horses.</div>
+                </div>
+                <?php include __DIR__ . '/views/page_heading_actions.php'; ?>
+            </div>
         </div>
     </header>
 

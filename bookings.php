@@ -227,10 +227,16 @@ if ($pdo) {
 
     <header class="page-hero">
         <div class="container">
+<div class="row align-items-center g-3">
+<div class="col-12 col-lg-9">
             <p class="mb-1 text-uppercase small fw-bold text-white-50">Purchases</p>
             <h1 class="fw-bold mb-1">Transactions</h1>
             <div class="text-white-50">Review past checkouts.</div>
-        </div>
+
+</div>
+<?php include __DIR__ . '/views/page_heading_actions.php'; ?>
+</div>
+</div>
     </header>
 
     <main class="py-5">
