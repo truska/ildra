@@ -27,6 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (devTaskSaveNotes($pdo, $taskId, (string)($_POST['task_notes'] ?? ''), $currentUser)) {
                 $_SESSION['flash_success']='Task notes updated.'; header('Location: dev_task.php?id='.$taskId.'#task-notes'); exit;
             }
+        } elseif ($action === 'close_task' && $taskId > 0) {
+            $stmt = $pdo->prepare("UPDATE dev_tasks SET status='closed',priority=6,next_action_by=NULL,next_action_group=NULL,closed_by=:closed_by,closed_at=:closed_at,updated_by=:updated_by WHERE id=:id");
+            $stmt->execute([':closed_by'=>(int)$currentUser['id'], ':closed_at'=>date('Y-m-d H:i:s'), ':updated_by'=>(int)$currentUser['id'], ':id'=>$taskId]);
+            $_SESSION['flash_success']='Task closed, next action unassigned and priority set to 6 — N/A-Done.';
+            header('Location: dev_task.php?id='.$taskId); exit;
         } elseif ($action === 'save_task' && $taskId > 0) {
             $priority = (int)($_POST['priority'] ?? 3);
             $requestedStatus = (string)($_POST['status'] ?? 'open');
@@ -92,11 +97,11 @@ admin_layout_start($task ? 'Dev Task #'.$taskId : 'New Dev Task', 'dev_tasks');
 </style>
 <div class="card-soft p-3 mb-4"><div class="d-flex flex-wrap gap-3 align-items-end justify-content-between">
 <div><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?> me-2"><?php echo h($task['status'] === 'on_hold' ? 'On Hold' : ucfirst($task['status'])); ?></span><?php if((int)($task['next_action_by']??0)===(int)$currentUser['id'] || (($task['next_action_group']??'')==='test_group' && in_array((int)$currentUser['id'], $testerUserIds, true))): ?><span class="badge text-bg-primary me-2">Your next action</span><?php endif; ?><span class="text-muted small">Created <?php echo h(date('j M Y, H:i',(int)$task['created_at_ts'])); ?></span></div>
-<form method="post" class="d-flex flex-wrap gap-2 align-items-end"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="save_task"><input type="hidden" name="task_id" value="<?php echo $taskId; ?>">
+<form method="post" class="d-flex flex-wrap gap-2 align-items-end"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="task_id" value="<?php echo $taskId; ?>">
 <div><label class="form-label small mb-1" for="task-priority">Priority</label><select class="form-select form-select-sm" id="task-priority" name="priority"><?php for($p=1;$p<=6;$p++): ?><option value="<?php echo $p; ?>" <?php echo (int)$task['priority']===$p?'selected':''; ?>><?php echo $p; ?> — <?php echo ['','Urgent','High','Normal','Low','When possible','N/A-Done'][$p]; ?></option><?php endfor; ?></select></div>
 <div><label class="form-label small mb-1" for="task-assignee">Next action by</label><select class="form-select form-select-sm" id="task-assignee" name="next_action_by"><option value="">Unassigned</option><option value="group:testers" <?php echo ($task['next_action_group']??'')==='test_group'?'selected':''; ?>>Test Group</option><?php foreach($assignableUsers as $assignableUser): ?><option value="<?php echo (int)$assignableUser['id']; ?>" <?php echo (($task['next_action_group']??'')!=='test_group' && (int)($task['next_action_by']??0)===(int)$assignableUser['id'])?'selected':''; ?>><?php echo h(devTaskAuthorName($assignableUser)); ?></option><?php endforeach; ?></select></div>
 <div><label class="form-label small mb-1" for="task-status">Status</label><select class="form-select form-select-sm" id="task-status" name="status"><option value="open" <?php echo $task['status']==='open'?'selected':''; ?>>Open</option><option value="completed" <?php echo $task['status']==='completed'?'selected':''; ?>>Completed — ready for review</option><option value="on_hold" <?php echo $task['status']==='on_hold'?'selected':''; ?>>On Hold</option><option value="future" <?php echo $task['status']==='future'?'selected':''; ?>>Future</option><option value="closed" <?php echo $task['status']==='closed'?'selected':''; ?>>Closed</option></select></div>
-<button class="btn btn-sm btn-success">Update Task</button></form></div></div>
+<button class="btn btn-sm btn-success" type="submit" name="action" value="save_task">Update Task</button><button class="btn btn-sm btn-outline-secondary" type="submit" name="action" value="close_task">Close Task</button></form></div></div>
 <div id="conversation">
 <div class="row g-3 mb-3 align-items-start">
 <div class="col-md-8">
