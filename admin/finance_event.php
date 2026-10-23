@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../finance.php';
+require_once __DIR__ . '/../finance_fulfilment.php';
 require_once __DIR__ . '/../bookings_store.php';
 require_once __DIR__ . '/table_sort.php';
 
@@ -25,6 +26,7 @@ $transactions = [];
 $paymentRequests = [];
 $grossFees = 0.0;
 $refundTotal = 0.0;
+$miscReceiptTotal = 0.0;
 $withdrawnCount = 0;
 $refundedCount = 0;
 $entrySortKey = $_GET['entry_sort'] ?? 'placed';
@@ -203,6 +205,17 @@ if ($event && $pdo) {
         $refundTotal += $adjustment;
     }
 
+    $cashReport = finance_collection_reports($pdo, 'events')[$eventId] ?? null;
+    foreach ($cashReport['transactions'] ?? [] as $receipt) {
+        if (($receipt['type'] ?? '') !== 'payment_stripe_misc') continue;
+        $receipt['amount'] = $receipt['allocated_amount'] / 100;
+        $receipt['stripe_fee'] = $receipt['allocated_fee'] / 100;
+        $meta = finance_month_metadata($receipt);
+        $receipt['entry_ids'] = !empty($meta['booking_item_id']) ? [(int)$meta['booking_item_id']] : [];
+        $transactions[] = $receipt;
+        $miscReceiptTotal += (float)$receipt['amount'];
+    }
+
     $refundedIds = [];
     $stmt = $pdo->prepare("
         SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.booking_item_id')) AS booking_item_id
@@ -261,7 +274,7 @@ $displayedEntryRefunds = array_sum(array_map(static fn(array $entry): float => (
 $acceptedCount = max(0, $totalEntryCount - $withdrawnCount);
 $withdrawnOnlyCount = max(0, $withdrawnCount - $refundedCount);
 $pageTitle = $event ? 'Finance · ' . ($event['title'] ?? 'Event') : 'Event finance';
-admin_layout_start($pageTitle, 'finance');
+admin_layout_start($pageTitle, 'stripe_fulfilment');
 ?>
 <style>
     .finance-detail-grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
@@ -277,7 +290,7 @@ admin_layout_start($pageTitle, 'finance');
             <div class="text-muted small"><?php echo h($event['event_date'] ?: 'Date TBC'); ?> · <?php echo h($event['event_type_name'] ?? ''); ?></div>
         <?php endif; ?>
     </div>
-    <a class="btn btn-outline-secondary" href="finance.php?tab=events">Back to finance</a>
+    <a class="btn btn-outline-secondary" href="stripe_fulfilment.php?tab=events">Back to Stripe Fulfilment</a>
 </div>
 
 <?php if (!$event): ?>
@@ -290,6 +303,10 @@ admin_layout_start($pageTitle, 'finance');
             <div class="meta">
                 <div class="small text-muted">Gross entries</div>
                 <div class="fw-semibold"><?php echo format_price($grossFees); ?></div>
+            </div>
+            <div class="meta">
+                <div class="small text-muted">Payment Request receipts</div>
+                <div class="fw-semibold"><?php echo format_price($miscReceiptTotal); ?></div>
             </div>
             <div class="meta">
                 <div class="small text-muted">Refunds &amp; credits</div>

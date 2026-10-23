@@ -1,8 +1,31 @@
 # Deployment checklist
 
+## Stripe Fulfilment
+
+All collection tools now live at **Stripe Fulfilment** (`admin/stripe_fulfilment.php`), with its own admin menu entry. Its three collection tabs are **Events**, **Memberships & Logbooks**, and **Miscellaneous**; **Reconciliation** contains missing fees, unallocated receipts and a read-only recent Stripe activity comparison. Finance retains the transaction ledger, entry revenue report, account credits/balances and Payment Request creation/tracking. Old Finance Events/Memberships links redirect to the new page, and existing open collection forms are handled there.
+
+No new schema migration or upload folders are required. After backing up the destination, pull the development commits with `git pull --ff-only`. Menu defaults insert the new system link on the next normal admin load without overwriting existing menu customizations. Default page access is Admin/Superadmin/Developer; collection and fee reconciliation use the existing `finance.create_payout` action permission. Collections remain **Stripe test-mode only** across all three groups.
+
+Paid Payment Requests with an event/entry link increase that event's collectible receipts; requests without an event link go into Miscellaneous by payment transaction month in Europe/London. They are never also placed in Memberships & Logbooks. Mixed checkout receipts and fees are split in pennies across every event and product group, conserving the total exactly. Missing fees, duplicate receipt references and ambiguous refunds block affected collections. Existing event payouts continue to reduce their event balance; Refresh status can check these payouts without creating a new payout.
+
+New Payment Request completions retrieve fee metadata when available. A browser return and webhook arriving together lock the request and atomically save one ledger receipt plus its paid state. Amount and currency must match the request. When fees are unavailable, the receipt is still recorded with an unknown fee and can be completed later using **Reconciliation → Retrieve Stripe fee**. Existing paid requests can use the same fee-retrieval action; do not assume their missing fees are zero. A failed receipt save returns a webhook error so Stripe can retry.
+
+Reconciliation's activity check reads the latest 100 Stripe balance transactions and compares charge/payout/refund references with the local ledger. Unmatched entries, Dashboard payouts, disputes and other adjustments require review; this comparison does not automatically import them or constitute a full historical reconciliation. It does not move money. Fees must match the original receipt's amount, currency and Stripe mode before they are saved. Stripe references: [expanded responses](https://docs.stripe.com/api/expanding_objects), [balance transactions](https://docs.stripe.com/api/balance_transactions/list), [idempotent requests](https://docs.stripe.com/api/idempotent_requests).
+
+Verify all three collection tabs, the menu link and role restrictions, a linked and an unlinked Payment Request, fee retrieval for an older paid request, partial collections, failure/status refresh, prior collection history and the old Finance redirects. Check event entry detail still opens and includes Payment Request receipts. Signed-in Stripe test-mode verification remains required on the destination; development's automated tests mock Stripe and make no payouts.
+
+```bash
+php scripts/test_stripe_fulfilment.php
+php scripts/test_stripe_fulfilment.php --mysql
+php scripts/tests/misc_payment_receipts.php
+node scripts/tests/finance_monthly.cjs
+```
+
+MariaDB tests use session-only temporary tables; no persistent test receipts or payouts are created.
+
 ## Monthly Memberships & Logbooks collections
 
-Finance now has a **Memberships & Logbooks** tab. Months follow the original `payment_stripe` transaction timestamp converted to Europe/London, never the membership/logbook product year. Membership and logbook receipts share one monthly balance, with separate subtotals. Booking items allocated to events remain in the Events report. Mixed-basket payments and Stripe fees are allocated proportionally in pennies. Internal checkout debits, simulated payments and credit-only purchases do not create collectible Stripe funds.
+Stripe Fulfilment has a **Memberships & Logbooks** tab. Months follow the original `payment_stripe` transaction timestamp converted to Europe/London, never the membership/logbook product year. Membership and logbook receipts share one monthly balance, with separate subtotals. Booking items allocated to events remain in the Events report. Mixed-basket payments and Stripe fees are allocated proportionally in pennies. Internal checkout debits, simulated payments and credit-only purchases do not create collectible Stripe funds.
 
 No migration or new upload directories are required. After the normal environment backup, pull the committed source with `git pull --ff-only`. Existing `finance_transactions` store monthly payouts with `metadata.collection_scope=memberships_logbooks` and `metadata.collection_month=YYYY-MM`. These payouts appear with their month in the main Finance transaction list and are not event payouts. Collection uses the existing `finance.create_payout` permission and remains restricted to Stripe test keys; no live-money collection has been enabled.
 

@@ -6,6 +6,13 @@ require_once __DIR__ . '/table_sort.php';
 require_once __DIR__ . '/../bookings_store.php';
 require_once __DIR__ . '/../finance_monthly.php';
 
+if (isset($_GET['stripe_balance']) || in_array((string)($_GET['tab'] ?? ''), ['events','memberships'], true) || in_array((string)($_POST['action'] ?? ''), ['create_event_payout','collect_membership_month'], true)) {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') { require __DIR__ . '/stripe_fulfilment.php'; exit; }
+    header('Location: stripe_fulfilment.php?' . http_build_query($_GET));
+    exit;
+}
+
+
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageFinance = in_array($currentRole, ['developer', 'superadmin', 'admin'], true);
 $paymentReturnEventId=max(0,(int)($_GET['payment_return_event_id']??$_POST['payment_return_event_id']??0));
@@ -21,10 +28,6 @@ $canCreateMiscPayment = adminActionAllowed($pdo, 'finance.create_misc_payment', 
 ensure_finance_tables($pdo, $alerts);
 $stripeConfig = stripe_config($config);
 $stripeIsTest = str_starts_with((string)($stripeConfig['secret_key'] ?? ''), 'sk_test_');
-$payoutSummary=$_SESSION['finance_payout_summary']??null;unset($_SESSION['finance_payout_summary']);
-if(empty($_SESSION['finance_payout_csrf']))$_SESSION['finance_payout_csrf']=bin2hex(random_bytes(24));
-if(empty($_SESSION['finance_payout_key']))$_SESSION['finance_payout_key']=bin2hex(random_bytes(16));
-$financePayoutCsrf=(string)$_SESSION['finance_payout_csrf'];$financePayoutKey=(string)$_SESSION['finance_payout_key'];
 if(empty($_SESSION['misc_payment_csrf']))$_SESSION['misc_payment_csrf']=bin2hex(random_bytes(24));
 $miscPaymentCsrf=(string)$_SESSION['misc_payment_csrf']; ensureMiscPaymentTables($pdo);
 $upcomingPaymentRequestEvents=$pdo->query("SELECT id,title,event_date FROM events WHERE event_date>=CURDATE() ORDER BY event_date ASC,id ASC LIMIT 2")->fetchAll()?:[];
@@ -32,24 +35,6 @@ $recentPaymentRequestEvents=$pdo->query("SELECT id,title,event_date FROM events 
 $paymentRequestEvents=array_merge(array_reverse($upcomingPaymentRequestEvents),$recentPaymentRequestEvents);
 $paymentRequestPrefillEventId=max(0,(int)($_GET['payment_event_id']??0)); $paymentRequestPrefillEntryId=max(0,(int)($_GET['payment_entry_id']??0));
 $paymentRequestPrefillEmail=trim((string)($_GET['payment_email']??''));
-
-function finance_event_payout_capacity(PDO $pdo,int $eventId):array{
-    $payments=0.0;$fees=0.0;
-    $stmt=$pdo->prepare("SELECT ft.amount,ft.metadata,SUM(CASE WHEN bi.event_id=:event_id THEN bi.price ELSE 0 END) event_amount,SUM(bi.price) booking_amount FROM finance_transactions ft JOIN bookings b ON b.booking_ref=ft.reference JOIN booking_items bi ON bi.booking_id=b.new_id WHERE ft.type='payment_stripe' GROUP BY ft.id,ft.amount,ft.metadata HAVING event_amount>0");$stmt->execute([':event_id'=>$eventId]);
-    foreach($stmt->fetchAll()?:[] as$row){$total=(float)($row['booking_amount']??0);if($total<=0)continue;$share=min(1,max(0,(float)$row['event_amount']/$total));$payments+=(float)$row['amount']*$share;$meta=json_decode((string)($row['metadata']??''),true);$fees+=(is_array($meta)&&isset($meta['stripe_fee'])?(float)$meta['stripe_fee']:0)*$share;}
-    $stmt=$pdo->prepare("SELECT COALESCE(SUM(ABS(ft.amount)),0) FROM finance_transactions ft JOIN booking_items bi ON bi.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata,'$.booking_item_id')) AS UNSIGNED) WHERE ft.type IN ('entry_refund','entry_stripe_refund','entry_credit') AND bi.event_id=:event_id");$stmt->execute([':event_id'=>$eventId]);$refunds=(float)$stmt->fetchColumn();
-    $stmt=$pdo->prepare("SELECT COALESCE(SUM(ABS(amount)),0) FROM finance_transactions WHERE type='stripe_payout' AND CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata,'$.event_id')) AS UNSIGNED)=:event_id");$stmt->execute([':event_id'=>$eventId]);$paid=(float)$stmt->fetchColumn();
-    $net=$payments-$refunds-$fees;return['payments'=>$payments,'refunds'=>$refunds,'stripe_fee'=>$fees,'net'=>$net,'paid'=>$paid,'remaining'=>max(0,$net-$paid)];
-}
-
-if(isset($_GET['stripe_balance'])){
-    if (!$canCreatePayout) { http_response_code(403); echo json_encode(['ok'=>false,'error'=>'You do not have permission to create payouts.']); exit; }
-    header('Content-Type: application/json');
-    if(!$stripeIsTest){http_response_code(403);echo json_encode(['ok'=>false,'error'=>'Development payouts require Stripe test mode.']);exit;}
-    $response=stripe_retrieve_balance($stripeConfig);if(!($response['ok']??false)){http_response_code(502);echo json_encode(['ok'=>false,'error'=>$response['error']??'Could not read Stripe balance.']);exit;}
-    $available=stripe_available_source_balance($response['data']??[],$stripeConfig['currency']??'gbp','card');$pending=stripe_pending_source_balance($response['data']??[],$stripeConfig['currency']??'gbp','card');
-    echo json_encode(['ok'=>true,'available'=>$available,'pending'=>$pending,'balance'=>$available+$pending,'currency'=>strtoupper((string)($stripeConfig['currency']??'gbp'))]);exit;
-}
 
 if (isset($_GET['recipient_lookup'])) {
     if (!$canCreateMiscPayment) { http_response_code(403); echo json_encode(['ok'=>false,'error'=>'You do not have permission to create payment requests.']); exit; }
@@ -77,52 +62,7 @@ if (isset($_GET['recipient_lookup'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    if ($action === 'collect_membership_month') {
-        $month = (string)($_POST['month'] ?? '');
-        $requestKey = (string)($_POST['request_key'] ?? '');
-        try {
-            if (!$canCreatePayout) throw new RuntimeException('You do not have permission to create payouts.');
-            if (!csrf_is_valid($_POST['csrf'] ?? null)) throw new RuntimeException('Your session token expired. Please try again.');
-            if (!finance_month_valid($month)) throw new RuntimeException('Select a valid collection month.');
-            if (!empty($_POST['refresh_collection'])) {
-                $existing = $pdo->prepare("SELECT id FROM finance_transactions WHERE type='stripe_payout' AND JSON_UNQUOTE(JSON_EXTRACT(metadata,'$.collection_request_key'))=:request_key");
-                $existing->execute([':request_key' => $requestKey]);
-                if (!$existing->fetchColumn()) throw new RuntimeException('Collection not found.');
-            } elseif (!hash_equals((string)($_SESSION['finance_month_keys'][$month] ?? ''), $requestKey) || $requestKey === '') {
-                throw new RuntimeException('This collection form has expired. Reload the page and try again.');
-            }
-            $result = finance_month_collect($pdo, $stripeConfig, $month,
-                (int)round(price_to_number($_POST['amount'] ?? '0') * 100), $requestKey,
-                trim((string)($_POST['notes'] ?? '')), (string)($currentUser['email'] ?? 'admin'));
-            $meta = finance_month_metadata($result);
-            unset($_SESSION['finance_month_keys'][$month]);
-            $status = (string)($meta['stripe_status'] ?? 'unknown');
-            if (!empty($meta['last_error'])) $alerts[] = ['type' => 'warning', 'message' => $meta['last_error'] . (in_array($status, ['unknown','submitting'], true) ? ' The amount remains reserved. Use Confirm collection in the month’s history.' : '')];
-            else $_SESSION['flash_success'] = 'Test collection ' . format_price(abs((float)$result['amount'])) . ' — ' . $status . '. See the month’s collection history for the Stripe reference and expected arrival.';
-        } catch (Throwable $e) {
-            $alerts[] = ['type' => 'danger', 'message' => $e instanceof PDOException ? 'The collection could not be recorded. Check the month’s history before trying again.' : $e->getMessage()];
-        }
-        if ($alerts) $_SESSION['flash_alerts'] = $alerts;
-        header('Location: finance.php?tab=memberships&include_collected=1' . (finance_month_valid($month) ? '&month=' . rawurlencode($month) : '') . '#month-detail');
-        exit;
-    } elseif($action==='create_event_payout'){
-        $eventId=(int)($_POST['event_id']??0);$event=$eventId>0?fetchEventById($pdo,$eventId):null;$amount=price_to_number($_POST['amount']??0);$notes=trim((string)($_POST['notes']??''));
-        if(!$canCreatePayout)$alerts[]=['type'=>'danger','message'=>'You do not have permission to create payouts.'];
-        elseif(!hash_equals($financePayoutCsrf,(string)($_POST['csrf']??'')))$alerts[]=['type'=>'danger','message'=>'Your session token expired. Please try again.'];
-        elseif(!$stripeIsTest)$alerts[]=['type'=>'danger','message'=>'Development payouts are locked to Stripe test mode.'];
-        elseif(!$event)$alerts[]=['type'=>'danger','message'=>'Event not found.'];
-        else{
-            $capacity=finance_event_payout_capacity($pdo,$eventId);$balanceResponse=stripe_retrieve_balance($stripeConfig);$stripeAvailable=($balanceResponse['ok']??false)?stripe_available_source_balance($balanceResponse['data']??[],$stripeConfig['currency']??'gbp','card'):0.0;$maximum=min((float)$capacity['remaining'],$stripeAvailable);
-            if(!($balanceResponse['ok']??false))$alerts[]=['type'=>'danger','message'=>$balanceResponse['error']??'Could not check the Stripe balance.'];
-            elseif($amount<=0||$amount>$maximum+0.0001)$alerts[]=['type'=>'danger','message'=>'The payout must be greater than zero and no more than '.format_price($maximum).'.'];
-            else{$descriptor=preg_replace('/[^A-Za-z0-9 .-]+/',' ',(string)($event['title']??''));$descriptor=trim(preg_replace('/\s+/',' ',$descriptor));if($descriptor==='')$descriptor='ILDRA EVENT '.$eventId;$descriptor=substr($descriptor,0,22);$idempotencyKey='ildra-event-'.$eventId.'-'.$financePayoutKey;
-                $payoutResponse=stripe_create_payout($stripeConfig,['amount'=>(int)round($amount*100),'currency'=>$stripeConfig['currency']??'gbp','source_type'=>'card','description'=>'ILDRA event payout: '.(string)($event['title']??''),'statement_descriptor'=>$descriptor,'metadata[event_id]'=>$eventId,'metadata[event_title]'=>substr((string)($event['title']??''),0,500),'metadata[admin_notes]'=>substr($notes,0,500)],$idempotencyKey);
-                if(!($payoutResponse['ok']??false))$alerts[]=['type'=>'danger','message'=>$payoutResponse['error']??'Stripe could not create the payout.'];
-                else{$payout=$payoutResponse['data']??[];$financeAlerts=[];if(record_finance_transaction($pdo,['user_id'=>null,'type'=>'stripe_payout','amount'=>-$amount,'reference'=>(string)($payout['id']??''),'notes'=>$notes!==''?$notes:'Event payout to nominated bank account','metadata'=>['event_id'=>$eventId,'event_title'=>$event['title']??'','stripe_payout_id'=>$payout['id']??'','stripe_status'=>$payout['status']??'pending','statement_descriptor'=>$descriptor,'livemode'=>$payout['livemode']??false,'actor'=>$currentUser['email']??'admin']],$financeAlerts)){$_SESSION['flash_success']='Test payout '.format_price($amount).' created for '.(string)$event['title'].'.';$_SESSION['finance_payout_summary']=['event_title'=>(string)($event['title']??''),'requested_at'=>date('Y-m-d H:i:s'),'arrival_date'=>(int)($payout['arrival_date']??0),'amount'=>$amount,'statement_descriptor'=>$descriptor,'stripe_payout_id'=>(string)($payout['id']??''),'status'=>(string)($payout['status']??'pending')];unset($_SESSION['finance_payout_key']);}else$alerts=array_merge($alerts,$financeAlerts);}
-            }
-        }
-        if($alerts)$_SESSION['flash_alerts']=$alerts;header('Location: finance.php?tab=events');exit;
-    } elseif ($action === 'create_misc_payment') {
+    if ($action === 'create_misc_payment') {
         $email=strtolower(trim((string)($_POST['recipient_email']??''))); $description=trim((string)($_POST['description']??'')); $amount=price_to_number($_POST['amount']??0); $eventId=max(0,(int)($_POST['event_id']??0)); $entryId=max(0,(int)($_POST['booking_item_id']??0));
         if(!$canCreateMiscPayment)$alerts[]=['type'=>'danger','message'=>'You do not have permission to send miscellaneous payment requests.'];
         elseif(!hash_equals($miscPaymentCsrf,(string)($_POST['csrf']??'')))$alerts[]=['type'=>'danger','message'=>'Your session token expired. Please try again.'];
@@ -204,7 +144,7 @@ function finance_transaction_type_label(string $type): string {
 function finance_transaction_notes(array $transaction): string {
     $notes = (string)($transaction['notes'] ?? '');
     $meta = $transaction['metadata'] ?? [];
-    if (is_array($meta) && ($meta['collection_scope'] ?? '') === 'memberships_logbooks') {
+    if (is_array($meta) && in_array($meta['collection_scope'] ?? '', ['memberships_logbooks','miscellaneous','events'], true)) {
         return ($notes !== '' ? $notes . ' — ' : '') . 'Collection status: ' . (string)($meta['stripe_status'] ?? 'unknown');
     }
     if (is_array($meta) && ($transaction['type'] ?? '') === 'entry_refund' && !empty($meta['actor_name'])) return 'Entry refunded and withdrawn by admin (' . (string)$meta['actor_name'] . ')';
@@ -226,14 +166,14 @@ function finance_transaction_movement(array $transaction): string {
 }
 function finance_transaction_applies_to(array $transaction, array $eventLabels, array $bookingEventLabels = [], array $bookingKinds = []): string {
     $type=(string)($transaction['type'] ?? ''); $meta=is_array($transaction['metadata'] ?? null)?$transaction['metadata']:[];
-    if (($meta['collection_scope'] ?? '') === 'memberships_logbooks' && finance_month_valid((string)($meta['collection_month'] ?? ''))) {
-        return 'Memberships & Logbooks: ' . (new DateTimeImmutable($meta['collection_month'] . '-01'))->format('F Y');
+    if (in_array($meta['collection_scope'] ?? '', ['memberships_logbooks','miscellaneous'], true) && finance_month_valid((string)($meta['collection_month'] ?? ''))) {
+        return (($meta['collection_scope'] === 'miscellaneous') ? 'Miscellaneous: ' : 'Memberships & Logbooks: ') . (new DateTimeImmutable($meta['collection_month'] . '-01'))->format('F Y');
     }
-    if ($type === 'payment_stripe_misc') return 'Miscellaneous';
     $eventIds=[]; if(!empty($meta['event_id']))$eventIds[]=(int)$meta['event_id'];
     if(!empty($meta['event_ids']))foreach(explode(',',(string)$meta['event_ids'])as$id)if((int)$id>0)$eventIds[]=(int)$id;
     $eventIds=array_values(array_unique($eventIds));
     if($eventIds){$labels=[];foreach($eventIds as$id)$labels[]=$eventLabels[$id]??('Event #'.$id);return 'Event: '.implode(', ',$labels);}
+    if ($type === 'payment_stripe_misc') return 'Miscellaneous';
     $bookingReference=(string)($transaction['reference']??'');
     if($bookingReference!==''&&!empty($bookingEventLabels[$bookingReference]))return 'Event: '.$bookingEventLabels[$bookingReference];
     if(!empty($meta['membership_years'])){
@@ -279,11 +219,6 @@ $transactionTable=admin_table_prepare($transactionsDisplayed,$transactionColumns
 $events = $transactionEvents;
 $eventStats = [];
 $eventRefunds = [];
-$eventPayments = [];
-$eventStripeFees = [];
-$eventPayouts = [];
-$eventSortKey = $_GET['event_sort'] ?? 'date';
-$eventSortDir = strtolower($_GET['event_dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
 
 if ($pdo) {
     ensure_bookings_tables($pdo);
@@ -343,118 +278,11 @@ if ($pdo) {
                 $eventRefunds = [];
             }
 
-            try {
-                $stmt = $pdo->query("
-                    SELECT ft.amount, ft.metadata, bi.event_id, SUM(bi.price) AS event_amount,
-                           (SELECT SUM(all_items.price) FROM booking_items all_items WHERE all_items.booking_id = bi.booking_id) AS booking_amount
-                    FROM finance_transactions ft
-                    JOIN bookings b ON b.booking_ref = ft.reference
-                    JOIN booking_items bi ON bi.booking_id = b.new_id
-                    WHERE ft.type = 'payment_stripe'
-                    GROUP BY ft.id, bi.event_id, ft.amount, ft.metadata, bi.booking_id
-                ");
-                foreach ($stmt->fetchAll() ?: [] as $row) {
-                    $eventId = (int)($row['event_id'] ?? 0);
-                    $bookingAmount = (float)($row['booking_amount'] ?? 0);
-                    if ($eventId <= 0 || $bookingAmount <= 0) continue;
-                    $share = min(1, max(0, (float)($row['event_amount'] ?? 0) / $bookingAmount));
-                    $eventPayments[$eventId] = ($eventPayments[$eventId] ?? 0) + ((float)$row['amount'] * $share);
-                    $meta = json_decode((string)($row['metadata'] ?? ''), true);
-                    $stripeFee = is_array($meta) && isset($meta['stripe_fee']) ? (float)$meta['stripe_fee'] : 0.0;
-                    $eventStripeFees[$eventId] = ($eventStripeFees[$eventId] ?? 0) + ($stripeFee * $share);
-                }
-            } catch (PDOException $e) {
-                $eventPayments = [];
-                $eventStripeFees = [];
-            }
-            try{$stmt=$pdo->query("SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata,'$.event_id')) AS UNSIGNED) event_id,SUM(ABS(amount)) payout_total FROM finance_transactions WHERE type='stripe_payout' GROUP BY event_id");foreach($stmt->fetchAll()?:[] as$row)$eventPayouts[(int)$row['event_id']]=(float)$row['payout_total'];}catch(PDOException $e){$eventPayouts=[];}
         }
     }
 }
 
-function finance_event_sort_link(string $key, string $label, string $currentKey, string $currentDir): string
-{
-    $dir = ($currentKey === $key && $currentDir === 'asc') ? 'desc' : 'asc';
-    $arrow = '↕';
-    if ($currentKey === $key) {
-        $arrow = $currentDir === 'asc' ? '↑' : '↓';
-    }
-    $query = $_GET;
-    $query['event_sort'] = $key;
-    $query['event_dir'] = $dir;
-    $query['tab'] = 'events';
-    $url = '?' . http_build_query($query);
-    return '<a class="text-decoration-none text-dark sort-link" href="' . h($url) . '">'
-        . h($label)
-        . '<span class="sort-arrow" aria-hidden="true">' . h($arrow) . '</span>'
-        . '</a>';
-}
-
-if ($events) {
-    $events = array_values(array_filter($events, static function(array $event) use ($eventPayments, $eventRefunds): bool {
-        $id = (int)($event['id'] ?? 0);
-        return abs((float)($eventPayments[$id] ?? 0)) > 0.0001 || abs((float)($eventRefunds[$id] ?? 0)) > 0.0001;
-    }));
-    $allowedEventSort = ['date', 'title', 'type', 'transactions', 'stripe_fee', 'net', 'paid_out', 'balance'];
-    if (!in_array($eventSortKey, $allowedEventSort, true)) {
-        $eventSortKey = 'date';
-    }
-    usort($events, function (array $a, array $b) use ($eventSortKey, $eventSortDir, $eventPayments, $eventRefunds, $eventStripeFees, $eventPayouts): int {
-        $dir = $eventSortDir === 'asc' ? 1 : -1;
-        $va = '';
-        $vb = '';
-        if ($eventSortKey === 'date') {
-            $va = (string)($a['event_date'] ?? '');
-            $vb = (string)($b['event_date'] ?? '');
-        } elseif ($eventSortKey === 'title') {
-            $va = mb_strtolower((string)($a['title'] ?? ''));
-            $vb = mb_strtolower((string)($b['title'] ?? ''));
-        } elseif ($eventSortKey === 'type') {
-            $va = mb_strtolower((string)($a['event_type_name'] ?? ''));
-            $vb = mb_strtolower((string)($b['event_type_name'] ?? ''));
-        } elseif (in_array($eventSortKey, ['transactions', 'stripe_fee', 'net', 'paid_out', 'balance'], true)) {
-            $ida = (int)($a['id'] ?? 0);
-            $idb = (int)($b['id'] ?? 0);
-            $paymentA = (float)($eventPayments[$ida] ?? 0.0);
-            $paymentB = (float)($eventPayments[$idb] ?? 0.0);
-            $refundA = (float)($eventRefunds[$ida] ?? 0.0);
-            $refundB = (float)($eventRefunds[$idb] ?? 0.0);
-            $feeA = (float)($eventStripeFees[$ida] ?? 0.0);
-            $feeB = (float)($eventStripeFees[$idb] ?? 0.0);
-            if ($eventSortKey === 'transactions') {
-                $va = (string)($paymentA - $refundA);
-                $vb = (string)($paymentB - $refundB);
-            } elseif ($eventSortKey === 'stripe_fee') {
-                $va = (string)$feeA;
-                $vb = (string)$feeB;
-            } elseif ($eventSortKey === 'paid_out') {
-                $va = (string)(float)($eventPayouts[$ida] ?? 0.0);
-                $vb = (string)(float)($eventPayouts[$idb] ?? 0.0);
-            } elseif ($eventSortKey === 'balance') {
-                $va = (string)max(0, $paymentA - $refundA - $feeA - (float)($eventPayouts[$ida] ?? 0.0));
-                $vb = (string)max(0, $paymentB - $refundB - $feeB - (float)($eventPayouts[$idb] ?? 0.0));
-            } else {
-                $va = (string)($paymentA - $refundA - $feeA);
-                $vb = (string)($paymentB - $refundB - $feeB);
-            }
-        }
-
-        if (is_numeric($va) && is_numeric($vb)) {
-            $na = (float)$va;
-            $nb = (float)$vb;
-            if ($na === $nb) {
-                return 0;
-            }
-            return ($na < $nb ? -1 : 1) * $dir;
-        }
-        if ($va === $vb) {
-            return 0;
-        }
-        return ($va < $vb ? -1 : 1) * $dir;
-    });
-}
-
-// This is deliberately separate from the Stripe/cash view below.  Revenue is
+// Revenue is separate from Stripe Fulfilment and is
 // earned by an entry in the ride, regardless of whether the customer paid by
 // card or spent account credit.  A refund or cancellation credit reverses the
 // revenue on the original entry; a withdrawal by itself does not.
@@ -519,12 +347,11 @@ admin_layout_start('Finance', 'finance');
     <div>
         <div class="small text-muted">Manage credits, balances, and transactions</div>
         <h5 class="mb-0">Finance</h5>
+        <a class="small" href="stripe_fulfilment.php">Stripe Fulfilment — collections and reconciliation</a>
     </div>
     <div class="finance-tabs" role="tablist" aria-label="Finance sections">
         <button class="finance-tab active" data-finance-tab="transactions" type="button" role="tab" aria-selected="true">Transactions</button>
         <button class="finance-tab" data-finance-tab="revenue" type="button" role="tab" aria-selected="false">Revenue report</button>
-        <button class="finance-tab" data-finance-tab="events" type="button" role="tab" aria-selected="false">Events</button>
-        <button class="finance-tab" data-finance-tab="memberships" type="button" role="tab" aria-selected="false">Memberships &amp; Logbooks</button>
         <button class="finance-tab" data-finance-tab="credits" type="button" role="tab" aria-selected="false">Credits</button>
         <button class="finance-tab" data-finance-tab="balances" type="button" role="tab" aria-selected="false">Balances</button>
         <?php if ($canCreateMiscPayment): ?><button class="finance-tab" data-finance-tab="requests" type="button" role="tab" aria-selected="false">Payment requests</button><?php endif; ?>
@@ -705,79 +532,6 @@ admin_layout_start('Finance', 'finance');
     </div>
 </section>
 
-<section class="card-soft p-3 mt-3 finance-section" data-finance-section="events">
-    <div class="d-flex justify-content-between align-items-start mb-3">
-        <div>
-            <div class="small text-muted text-uppercase fw-bold letter-spacing-1">Events</div>
-            <h6 class="mb-0 fw-bold">Stripe money by event</h6>
-            <div class="text-muted small">Only events with recorded Stripe payments or refunds/credits are shown. Checkout ledger entries are excluded.</div>
-        </div>
-        <div class="small text-end" id="stripe-balance-summary"><div class="text-muted">Stripe balance: checking…</div><div class="text-muted">Stripe available: checking…</div></div>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0 finance-events-table">
-            <thead class="table-light">
-                <tr>
-                    <th><?php echo finance_event_sort_link('title', 'Event', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th><?php echo finance_event_sort_link('date', 'Date', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th><?php echo finance_event_sort_link('type', 'Type', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th class="text-end"><?php echo finance_event_sort_link('transactions', '£ Total', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th class="text-end"><?php echo finance_event_sort_link('stripe_fee', '£ Stripe', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th class="text-end"><?php echo finance_event_sort_link('net', '£ NET', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th class="text-end"><?php echo finance_event_sort_link('paid_out', '£ Paid Out', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th class="text-end"><?php echo finance_event_sort_link('balance', '£ Balance', (string)$eventSortKey, (string)$eventSortDir); ?></th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($events as $event): ?>
-                    <?php
-                    $eventId = (int)($event['id'] ?? 0);
-                    $payments = (float)($eventPayments[$eventId] ?? 0.0);
-                    $refunds = (float)($eventRefunds[$eventId] ?? 0.0);
-                    $stripeFee = (float)($eventStripeFees[$eventId] ?? 0.0);
-                    $transactionTotal = $payments - $refunds;
-                    $net = $transactionTotal - $stripeFee;
-                    $paidOut=(float)($eventPayouts[$eventId]??0);$remaining=max(0,$net-$paidOut);
-                    $statementDescriptor=preg_replace('/[^A-Za-z0-9 .-]+/',' ',(string)($event['title']??''));$statementDescriptor=trim(preg_replace('/\s+/',' ',$statementDescriptor));if($statementDescriptor==='')$statementDescriptor='ILDRA EVENT '.$eventId;$statementDescriptor=substr($statementDescriptor,0,22);
-                    $dateLabel = $event['event_date'] ?: 'Date TBC';
-                    ?>
-                    <tr>
-                        <td class="fw-semibold"><?php echo h($event['title'] ?? 'Untitled'); ?></td>
-                        <td><?php echo h($dateLabel); ?></td>
-                        <td class="text-muted"><?php echo h($event['event_type_name'] ?? ''); ?></td>
-                        <td class="text-end"><?php echo format_price($transactionTotal); ?></td>
-                        <td class="text-end"><?php echo format_price($stripeFee); ?></td>
-                        <td class="text-end fw-semibold"><?php echo format_price($net); ?></td>
-                        <td class="text-end"><?php echo format_price($paidOut); ?></td>
-                        <td class="text-end fw-semibold"><?php echo format_price($remaining); ?></td>
-                        <td class="text-end">
-                            <div class="finance-events-actions">
-                                <a class="btn btn-sm btn-outline-success" href="finance_event.php?event_id=<?php echo $eventId; ?>">View</a>
-                                <?php if ($canCreatePayout): ?><button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#collectStripeModal" data-event-id="<?php echo $eventId; ?>" data-event-title="<?php echo h($event['title'] ?? 'Untitled'); ?>" data-descriptor="<?php echo h($statementDescriptor); ?>" data-event-max="<?php echo h(number_format($remaining,2,'.','')); ?>" data-paid="<?php echo h(number_format($paidOut,2,'.','')); ?>" <?php echo !$stripeIsTest||!in_array($currentRole,['developer','superadmin','admin'],true)?'disabled':''; ?>>Collect from Stripe</button><?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php if (!$events): ?>
-                    <tr><td colspan="9" class="text-muted">No events have recorded Stripe money movements yet.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<div class="modal fade" id="collectStripeModal" tabindex="-1" aria-labelledby="collectStripeModalLabel" aria-hidden="true"><div class="modal-dialog"><form method="post" class="modal-content" id="collect-payout-form"><input type="hidden" name="action" value="create_event_payout"><input type="hidden" name="csrf" value="<?php echo h($financePayoutCsrf); ?>"><input type="hidden" name="event_id" id="collect-event-id"><div class="modal-header"><h5 class="modal-title" id="collectStripeModalLabel">Collect from Stripe</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-warning mb-3">Stripe test mode — no real money will move.</div><div class="mb-3"><label class="form-label">Ride / event</label><div class="form-control bg-light" id="collect-event-title"></div></div><div class="row g-3 mb-3"><div class="col-6"><div class="small text-muted">Event available</div><div class="fw-semibold" id="collect-event-available">—</div><div class="small text-muted" id="collect-already-paid"></div></div><div class="col-6"><div class="small text-muted">Stripe available balance</div><div class="fw-semibold" id="collect-stripe-balance">Checking…</div></div></div><div class="mb-3"><label class="form-label" for="collect-amount">Amount to collect</label><div class="input-group"><span class="input-group-text">£</span><input class="form-control" id="collect-amount" name="amount" type="number" min="0.01" step="0.01" required></div><div class="form-text" id="collect-maximum"></div></div><div><label class="form-label" for="collect-notes">Notes</label><textarea class="form-control" id="collect-notes" name="notes" rows="3" maxlength="255"></textarea></div></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" id="collect-submit" disabled>Collect</button></div></form></div></div>
-
-<?php
-try {
-    $monthlyReports = finance_month_reports($pdo);
-    require __DIR__ . '/finance_memberships.php';
-} catch (PDOException $e) {
-    echo '<section class="card-soft p-3 mt-3 finance-section" data-finance-section="memberships"><div class="alert alert-danger">Monthly finance records could not be loaded. Please try again.</div></section>';
-}
-?>
-
 <section class="card-soft p-3 mt-3 finance-section" data-finance-section="transactions">
     <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
@@ -848,7 +602,7 @@ try {
     </div>
     <?php echo admin_table_pagination($transactionTable); ?>
 
-<?php if(is_array($payoutSummary)): ?><div class="modal fade" id="payoutCompleteModal" tabindex="-1" aria-labelledby="payoutCompleteModalLabel" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="payoutCompleteModalLabel">Payout requested</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><dl class="row mb-0"><dt class="col-sm-5">Ride / event</dt><dd class="col-sm-7"><?php echo h($payoutSummary['event_title']??''); ?></dd><dt class="col-sm-5">Date requested</dt><dd class="col-sm-7"><?php echo h(format_display_datetime($payoutSummary['requested_at']??null,'')); ?></dd><dt class="col-sm-5">Expected payout date</dt><dd class="col-sm-7"><?php echo !empty($payoutSummary['arrival_date'])?h(date('j M Y',(int)$payoutSummary['arrival_date'])):'Stripe has not supplied a date'; ?></dd><dt class="col-sm-5">Amount</dt><dd class="col-sm-7"><?php echo format_price((float)($payoutSummary['amount']??0)); ?></dd><dt class="col-sm-5">Bank reference</dt><dd class="col-sm-7"><?php echo h($payoutSummary['statement_descriptor']??''); ?></dd><dt class="col-sm-5">Stripe reference</dt><dd class="col-sm-7 text-break"><?php echo h($payoutSummary['stripe_payout_id']??''); ?></dd><dt class="col-sm-5">Status</dt><dd class="col-sm-7 text-capitalize"><?php echo h($payoutSummary['status']??''); ?></dd></dl></div><div class="modal-footer"><button class="btn btn-success" type="button" data-bs-dismiss="modal">Done</button></div></div></div></div><?php endif; ?>
+
 <script>
     (() => {
         const tabs = document.querySelectorAll('[data-finance-tab]');
@@ -911,47 +665,6 @@ try {
             reminderControls.remove();
         }
 
-        const collectModal = document.getElementById('collectStripeModal');
-        collectModal?.addEventListener('show.bs.modal', async event => {
-            const button = event.relatedTarget;
-            const eventMaximum = Number(button?.dataset.eventMax || 0);
-            const paid = Number(button?.dataset.paid || 0);
-            document.getElementById('collect-event-id').value = button?.dataset.eventId || '';
-            const eventTitle = button?.dataset.eventTitle || '';
-            const descriptor = button?.dataset.descriptor || '';
-            document.getElementById('collect-event-title').textContent = eventTitle + (descriptor ? ' — bank ref: ' + descriptor : '');
-            const amount = document.getElementById('collect-amount');
-            const submit = document.getElementById('collect-submit');
-            document.getElementById('collect-event-available').textContent = '£' + eventMaximum.toFixed(2);
-            document.getElementById('collect-already-paid').textContent = paid > 0 ? 'Already paid out: £' + paid.toFixed(2) : 'No earlier event payouts';
-            document.getElementById('collect-stripe-balance').textContent = 'Checking…';
-            amount.value = ''; amount.disabled = true; submit.disabled = true;
-            document.getElementById('collect-notes').value = '';
-            try {
-                const response = await fetch('finance.php?stripe_balance=1', {headers:{'Accept':'application/json'}});
-                const result = await response.json();
-                if (!result.ok) throw new Error(result.error || 'Could not read Stripe balance.');
-                const stripeAvailable = Number(result.available || 0);
-                const maximum = Math.max(0, Math.min(eventMaximum, stripeAvailable));
-                const stripeBalance = Number(result.balance || stripeAvailable);
-                document.getElementById('collect-stripe-balance').textContent = '£' + stripeAvailable.toFixed(2) + ' available (balance £' + stripeBalance.toFixed(2) + ')';
-                document.getElementById('collect-maximum').textContent = 'Maximum payout: £' + maximum.toFixed(2) + ' (the lower of event funds and Stripe available balance).';
-                amount.max = maximum.toFixed(2); amount.value = maximum > 0 ? maximum.toFixed(2) : ''; amount.disabled = maximum <= 0; submit.disabled = maximum <= 0;
-            } catch (error) {
-                document.getElementById('collect-stripe-balance').textContent = 'Unavailable';
-                document.getElementById('collect-maximum').textContent = error.message;
-            }
-        });
-
-        fetch('finance.php?stripe_balance=1', {headers:{'Accept':'application/json'}})
-            .then(response => response.json())
-            .then(result => {
-                if (!result.ok) throw new Error();
-                const summary = document.getElementById('stripe-balance-summary');
-                if (summary) summary.innerHTML = '<div class="text-muted">Stripe balance: £' + Number(result.balance || 0).toFixed(2) + '</div><div class="text-muted">Stripe available: £' + Number(result.available || 0).toFixed(2) + '</div>';
-            })
-            .catch(() => { const summary=document.getElementById('stripe-balance-summary'); if(summary)summary.textContent='Stripe balance unavailable'; });
-
         const requestModalElement = document.getElementById('newMiscPaymentModal');
         const lookupModalElement = document.getElementById('recipientLookupModal');
         const lookupQuery = document.getElementById('recipient-lookup-query');
@@ -1007,13 +720,6 @@ try {
             lookupDir = nextSort === lookupSort && lookupDir === 'asc' ? 'desc' : 'asc'; lookupSort = nextSort; searchRecipients();
         }));
 
-        window.addEventListener('load', () => {
-            const payoutCompleteModal = document.getElementById('payoutCompleteModal');
-            if (payoutCompleteModal && window.bootstrap) {
-                document.body.appendChild(payoutCompleteModal);
-                new window.bootstrap.Modal(payoutCompleteModal).show();
-            }
-        });
 
     })();
 </script>

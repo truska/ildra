@@ -8,7 +8,7 @@ declare(strict_types=1);
 function defaultAdminActionRestrictions(): array
 {
     return [
-        ['finance.create_payout', 'finance', 'Create Stripe payout', 'Move an event balance from Stripe to the nominated account.', 1, 'admin', 10],
+        ['finance.create_payout', 'finance', 'Create Stripe payout', 'Collect event, membership/logbook or miscellaneous funds through Stripe Fulfilment.', 1, 'admin', 10],
         ['finance.adjust_balance', 'finance', 'Adjust account balance', 'Manually credit or debit a user account balance.', 1, 'admin', 20],
         ['finance.create_misc_payment', 'finance', 'Send miscellaneous payment request', 'Email a recipient a one-off Stripe payment request.', 1, 'admin', 25],
         ['memberships.change_logbook_rate', 'memberships', 'Change horse logbook rate', 'Change the annual horse logbook price or status.', 1, 'admin', 30],

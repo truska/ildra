@@ -17,6 +17,11 @@ if($month==='2026-07')$r['missing_fees']=1;
 $monthlyReports[$month]=$r;
 }
 $monthlyReports['2026-10']['transactions'][]=['id'=>1,'created_at'=>'2026-10-15 12:00:00','report_kind'=>'Payment','reference'=>'BOOK-1','person_name'=>'<script>window.injected=1</script>','allocated_amount'=>5000,'allocated_fee'=>100,'fee_known'=>true];
+$collectionScope=getenv('COLLECTION_SCOPE')?:'memberships_logbooks';
+$collectionTab=match($collectionScope){'events'=>'events','miscellaneous'=>'miscellaneous',default=>'memberships'};
+$collectionTitle=match($collectionScope){'events'=>'Events','miscellaneous'=>'Miscellaneous',default=>'Memberships & Logbooks'};
+if($collectionScope==='events'){$monthlyReports=[36=>$monthlyReports['2026-10']];$monthlyReports[36]['label']='Shanes Castle';$_GET['month']='36';}
+
 echo '<!doctype html><meta charset="utf-8"><main class="admin-content">';
 require getcwd().'/admin/finance_memberships.php';
 echo '</main>';
@@ -66,7 +71,15 @@ const check=(value,message)=>{if(!value)throw Error(message);};
  // Ensure the shared admin table controls can enhance these tables without losing forms or detail.
  await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
  check(await page.locator('#month-detail').count()===1,'Detail disappeared after table enhancement');
+ html=render({COLLECTION_SCOPE:'events'});await page.reload();
+ check(await page.locator('button[data-month="36"]').count()===1,'Event group not rendered');
+ check((await page.locator('#month-detail').textContent()).includes('Shanes Castle'),'Event label missing');
+ check(await page.locator('#month-detail a[href="finance_event.php?event_id=36"]').count()===1,'Event drilldown missing');
+ check(await page.locator('#collectMonthModal input[name=collection_scope]').inputValue()==='events','Event POST scope incorrect');
+ html=render({COLLECTION_SCOPE:'miscellaneous'});await page.reload();
+ check(await page.locator('#collectMonthModal input[name=collection_scope]').inputValue()==='miscellaneous','Miscellaneous POST scope incorrect');
+ check(await page.locator('#collectMonthModal form').getAttribute('action')==='stripe_fulfilment.php','Collection still posts to Finance');
  check(errors.length===0,'Browser errors: '+errors.join('; '));
- console.log('Monthly Finance browser checks: month visibility, shortfalls, missing fees, escaping, partial amounts, Stripe limits, unavailable balances, permissions and live-mode restriction passed.');
+ console.log('Stripe Fulfilment browser checks: month visibility, shortfalls, missing fees, escaping, partial amounts, Stripe limits, unavailable balances, permissions and live-mode restriction passed.');
  } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});

@@ -17,6 +17,7 @@ function defaultAdminMenuItems(): array
         ['pricing_schemes', 'Pricing Schemes', 'pricing_schemes.php', 'fa-solid fa-tags'],
         ['bookings', 'Bookings', 'bookings.php', 'fa-solid fa-ticket'],
         ['finance', 'Finance', 'finance.php', 'fa-solid fa-sterling-sign'],
+        ['stripe_fulfilment', 'Stripe Fulfilment', 'stripe_fulfilment.php', 'fa-solid fa-money-bill-transfer'],
         ['coupons', 'Coupons', 'coupons.php', 'fa-solid fa-ticket'],
         ['email', 'Email', 'email.php', 'fa-solid fa-envelope'],
         ['email_campaigns', 'Email Campaigns', 'campaigns.php', 'fa-solid fa-paper-plane'],
@@ -60,7 +61,7 @@ function defaultAdminMenuItems(): array
 function adminMenuFixedRoles(string $key): array
 {
     if ($key === 'menu') return ['developer', 'superadmin'];
-    if ($key === 'finance') return ['superadmin', 'admin'];
+    if (in_array($key, ['finance', 'stripe_fulfilment'], true)) return ['superadmin', 'admin'];
     if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons'], true)) {
         return ['superadmin'];
     }
