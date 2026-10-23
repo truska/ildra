@@ -8,6 +8,7 @@ $testerUserIds = array_map('intval', array_column(devTaskTesterUsers($pdo), 'id'
 $taskId = max(0, (int)($_GET['id'] ?? $_POST['task_id'] ?? 0));
 if (empty($_SESSION['dev_task_csrf'])) $_SESSION['dev_task_csrf'] = bin2hex(random_bytes(24));
 $csrf = (string)$_SESSION['dev_task_csrf'];
+$canEditTaskTitle = strtolower((string)($currentUser['role'] ?? '')) === 'developer';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
@@ -17,6 +18,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'create') {
             $newId = devTaskCreate($pdo, $_POST, $_FILES['image'] ?? [], $currentUser, $alerts);
             if ($newId) { $_SESSION['flash_success']='Dev task created.'; header('Location: dev_task.php?id='.$newId); exit; }
+        } elseif ($action === 'save_title' && $taskId > 0) {
+            if (!$canEditTaskTitle) {
+                http_response_code(403);
+                $alerts[] = ['type'=>'danger','message'=>'Only Developers can edit task titles.'];
+            } else {
+                $title = trim((string)($_POST['title'] ?? ''));
+                if ($title === '' || mb_strlen($title) > 255) {
+                    $alerts[] = ['type'=>'danger','message'=>'Enter a task title between 1 and 255 characters.'];
+                } else {
+                    $stmt = $pdo->prepare('UPDATE dev_tasks SET title=:title,updated_by=:user WHERE id=:id');
+                    $stmt->execute([':title'=>$title, ':user'=>(int)$currentUser['id'], ':id'=>$taskId]);
+                    $_SESSION['flash_success']='Task title updated.';
+                    header('Location: dev_task.php?id='.$taskId); exit;
+                }
+            }
         } elseif ($action === 'reply' && $taskId > 0) {
             if (devTaskAddMessage($pdo, $taskId, (string)($_POST['message'] ?? ''), $_FILES['image'] ?? [], $currentUser, $alerts)) {
                 // Return to the task header after adding a reply so the assignment controls
@@ -79,7 +95,16 @@ admin_layout_start($task ? 'Dev Task #'.$taskId : 'New Dev Task', 'dev_tasks');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
 <div><div class="small text-muted"><?php echo $task?'Dev Task #'.$taskId:'Create a question, fault or suggestion'; ?></div><h5 class="mb-0"><?php echo $task?h($task['title']):'New Dev Task'; ?></h5></div>
-<a class="btn btn-outline-secondary" href="dev_tasks.php">Back to tasks</a></div>
+<div class="d-flex flex-wrap gap-2">
+<?php if ($task && $canEditTaskTitle): ?><button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-task-title" aria-expanded="<?php echo ($_POST['action'] ?? '') === 'save_title' ? 'true' : 'false'; ?>" aria-controls="edit-task-title">Edit title</button><?php endif; ?>
+<a class="btn btn-outline-secondary" href="dev_tasks.php">Back to tasks</a></div></div>
+<?php if ($task && $canEditTaskTitle): ?>
+<div class="collapse <?php echo ($_POST['action'] ?? '') === 'save_title' ? 'show' : ''; ?>" id="edit-task-title"><form method="post" class="card-soft p-3 mb-3">
+<input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="save_title"><input type="hidden" name="task_id" value="<?php echo $taskId; ?>">
+<label class="form-label" for="edit-title">Task title</label><input class="form-control mb-2" id="edit-title" name="title" maxlength="255" required value="<?php echo h(($_POST['action'] ?? '') === 'save_title' ? (string)($_POST['title'] ?? '') : $task['title']); ?>">
+<button class="btn btn-sm btn-success">Save title</button>
+</form></div>
+<?php endif; ?>
 
 <?php if (!$task && $taskId===0): ?>
 <div class="card-soft p-4"><form method="post" enctype="multipart/form-data">
