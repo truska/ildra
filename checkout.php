@@ -31,6 +31,25 @@ if (!$basket) {
     exit;
 }
 
+// Check again before any price, credit or Stripe amount is calculated. This
+// catches accounts already registered when the opening-balance file was imported.
+if ($pdo && legacyBalancesAvailable($pdo)) {
+    try {
+        if (!empty($_SESSION['act_as_original_user']) && legacyBalancePending($pdo, $currentUser)) throw new RuntimeException('Exit acting-as mode before checking out with migrated opening balances.');
+        ensure_finance_tables($pdo, $alerts);
+        if (empty($_SESSION['act_as_original_user'])) legacyBalanceAutoAllocate($pdo, $currentUser);
+        if (legacyBalancePending($pdo, $currentUser)) {
+            $_SESSION['legacy_balance_login_check'] = true;
+            $_SESSION['legacy_balance_return_checkout'] = true;
+            $_SESSION['flash_alerts'] = [['type'=>'warning','message'=>'Please confirm your opening balance from the previous system before checking out. Your basket is retained.']];
+            header('Location: '.$basePath.'/account'); exit;
+        }
+    } catch (Throwable $e) {
+        $_SESSION['flash_alerts'] = [['type'=>'warning','message'=>'Your opening balance must be checked before payment. Please try again or contact an administrator.']];
+        header('Location: '.$basePath.'/account'); exit;
+    }
+}
+
 $navItemEventsUrl = $basePath . '/events';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'apply_coupon') {

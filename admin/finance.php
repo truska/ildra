@@ -348,6 +348,7 @@ admin_layout_start('Finance', 'finance');
         <div class="small text-muted">Manage credits, balances, and transactions</div>
         <h5 class="mb-0">Finance</h5>
         <a class="small" href="stripe_fulfilment.php">Stripe Fulfilment — collections and reconciliation</a>
+        <a class="small ms-2" href="legacy_balances.php">Legacy opening balances</a>
     </div>
     <div class="finance-tabs" role="tablist" aria-label="Finance sections">
         <button class="finance-tab active" data-finance-tab="transactions" type="button" role="tab" aria-selected="true">Transactions</button>

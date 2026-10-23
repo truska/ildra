@@ -368,6 +368,7 @@ function attemptRememberMeLogin(PDO $pdo, array $siteSettings, array &$alerts): 
         $user['level'] = (int)($user['level'] ?? 0);
         session_regenerate_id(true);
         $_SESSION['user'] = $user;
+        $_SESSION['legacy_balance_login_check'] = true;
 
         $ttlSeconds = (int)($siteSettings['remember_me_ttl_seconds'] ?? (30 * 86400));
         rotateRememberMeToken($pdo, (int)$row['id'], $selector, $ttlSeconds);
@@ -706,6 +707,7 @@ function consumeMagicLoginToken(PDO $pdo, string $token, array &$alerts): ?array
         $user['level'] = (int)($user['level'] ?? 0);
         session_regenerate_id(true);
         $_SESSION['user'] = $user;
+        $_SESSION['legacy_balance_login_check'] = true;
         return $user;
     } catch (PDOException $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not sign you in right now.'];
@@ -878,6 +880,7 @@ function currentLoginEmail(): string
 function finishUserLogin(PDO $pdo, array $user, array $siteSettings, bool $rememberMe, ?string &$successMessage): array
 {
     session_regenerate_id(true);
+    $_SESSION['legacy_balance_login_check'] = true;
     $_SESSION['user'] = [
         'id' => (int)$user['id'],
         'email' => $user['email'],

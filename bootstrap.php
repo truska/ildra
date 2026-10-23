@@ -118,6 +118,7 @@ require_once __DIR__ . '/image_upload.php';
 require_once __DIR__ . '/media_batches.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/finance.php';
+require_once __DIR__ . '/legacy_balances.php';
 require_once __DIR__ . '/coupons.php';
 require_once __DIR__ . '/misc_payments.php';
 require_once __DIR__ . '/cms.php';

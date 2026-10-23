@@ -39,6 +39,36 @@ if (!$currentUser && $pdo && isset($_GET['magic'])) {
     }
 }
 
+$legacyBalanceReady = $pdo && legacyBalancesAvailable($pdo);
+$legacyBalancePending = false;
+$legacyBalanceNotifications = [];
+if ($legacyBalanceReady && isset($_GET['legacy_confirm'])) {
+    $confirmation = (string)$_GET['legacy_confirm'];
+    if (preg_match('/^[a-f0-9]{64}$/D', $confirmation)) $_SESSION['legacy_balance_confirmation'] = $confirmation;
+    header('Location: ' . $basePath . '/account'); exit;
+}
+if ($legacyBalanceReady && $currentUser && empty($_SESSION['act_as_original_user'])) {
+    try {
+        ensure_finance_tables($pdo, $alerts);
+        if (!empty($_SESSION['legacy_balance_confirmation'])) {
+            $confirmation = (string)$_SESSION['legacy_balance_confirmation'];
+            unset($_SESSION['legacy_balance_confirmation']);
+            legacyBalanceVerify($pdo, $currentUser, $confirmation);
+        }
+        legacyBalanceAutoAllocate($pdo, $currentUser);
+        $legacyBalancePending = legacyBalancePending($pdo, $currentUser);
+        if (!empty($_SESSION['legacy_balance_login_check'])) {
+            unset($_SESSION['legacy_balance_login_check']);
+            if ($legacyBalancePending && legacyBalanceSendConfirmation($pdo, $currentUser, $basePath)) $successMessage = 'Please check your email to confirm the opening balance transfer from the previous system.';
+        }
+        $notificationQuery = $pdo->prepare('SELECT id,opening_amount FROM legacy_balances WHERE allocated_user_id=:user AND notification_seen_at IS NULL ORDER BY id');
+        $notificationQuery->execute([':user'=>(int)$currentUser['id']]);
+        $legacyBalanceNotifications = $notificationQuery->fetchAll() ?: [];
+    } catch (Throwable $e) {
+        $alerts[] = ['type'=>'warning','message'=>$e instanceof PDOException ? 'Your opening balance could not be checked. Please try again or contact an administrator.' : $e->getMessage()];
+    }
+}
+
 $pages = fetchPages($pdo, true);
 if (!$pages) {
     $pages = defaultPages();
@@ -157,10 +187,26 @@ if ($isLoggedIn) {
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $action = $_POST['action'] ?? '';
-    if ($action === 'register') {
+    if ($action === 'legacy_balance_email' && $currentUser && $legacyBalanceReady && empty($_SESSION['act_as_original_user'])) {
+        try {
+            $sent = legacyBalanceSendConfirmation($pdo, $currentUser, $basePath);
+            $_SESSION['flash_success'] = $sent ? 'Confirmation email sent. Please check your inbox.' : 'No confirmation email was sent. Please try again or contact an administrator.';
+        } catch (Throwable $e) { $_SESSION['flash_alerts'] = [['type'=>'warning','message'=>$e instanceof PDOException ? 'The confirmation email could not be prepared.' : $e->getMessage()]]; }
+        header('Location: '.$basePath.'/account'); exit;
+    } elseif ($action === 'legacy_balance_acknowledge' && $currentUser && $legacyBalanceReady && empty($_SESSION['act_as_original_user'])) {
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string)($_POST['balance_ids'] ?? ''))), static fn(int $id): bool => $id > 0));
+        if ($ids) {
+            $sql = 'UPDATE legacy_balances SET notification_seen_at=NOW() WHERE allocated_user_id=? AND id IN ('.implode(',',array_fill(0,count($ids),'?')).')';
+            $pdo->prepare($sql)->execute(array_merge([(int)$currentUser['id']],$ids));
+        }
+        $returnToCheckout = !empty($_SESSION['legacy_balance_return_checkout']);
+        unset($_SESSION['legacy_balance_return_checkout']);
+        header('Location: '.$basePath.($returnToCheckout ? '/checkout' : '/account')); exit;
+    } elseif ($action === 'register') {
         $user = handleRegister($pdo, $alerts, $successMessage);
         if ($user) {
             $currentUser = $user;
+            unset($_SESSION['legacy_balance_login_check']); // Signup itself does not trigger migration email.
             $_SESSION['flash_success'] = $successMessage;
             header('Location: ' . $basePath . '/account');
             exit;
@@ -856,6 +902,7 @@ $accountIntroAutoOpen = false;
     <main class="py-5">
         <div class="container">
             <?php include __DIR__ . '/views/alerts.php'; ?>
+            <?php include __DIR__ . '/views/legacy_balance_notice.php'; ?>
 
 	            <?php if ($isLoggedIn): ?>
 	                <div class="row g-4">
@@ -2335,13 +2382,17 @@ $accountIntroAutoOpen = false;
             new bootstrap.Modal(horseEditorModalEl).show();
         }
         <?php endif; ?>
-        <?php if ($accountIntroModal && $accountIntroAutoOpen): ?>
+        <?php if ($legacyBalanceNotifications): ?>
+        new bootstrap.Modal(document.getElementById('legacyBalanceModal')).show();
+        <?php if ($promptPerson) $_SESSION['prompt_person_completion'] = (int)$promptPerson['id']; ?>
+        <?php endif; ?>
+        <?php if (!$legacyBalanceNotifications && $accountIntroModal && $accountIntroAutoOpen): ?>
         const accountIntroModalEl = document.getElementById('accountIntroModal');
         if (accountIntroModalEl) {
             new bootstrap.Modal(accountIntroModalEl).show();
         }
         <?php endif; ?>
-        <?php if ($promptPerson): ?>
+        <?php if (!$legacyBalanceNotifications && $promptPerson): ?>
         const personModalEl = document.getElementById('personCompletionModal');
         if (personModalEl) {
             const personModal = new bootstrap.Modal(personModalEl);

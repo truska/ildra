@@ -1,5 +1,32 @@
 # Deployment checklist
 
+## Legacy opening balances (credits and debits)
+
+After an environment database backup, deploy the development commits with `git pull --ff-only`. Apply `migrations/2026-10-23-legacy-opening-balances.sql` to that environment's website database, or open **Legacy Opening Balances** as a finance administrator: the page applies that same idempotent table setup. The schema adds a pending-balance register, import batches and email-ownership confirmations. It does not modify user accounts or balances. Keep source-code fixes on development; destination environments receive only deployment and environment-specific data operations.
+
+Copy the approved CSV privately to `../private/source-data/ildra-credits.csv` on the destination. It must have semicolon-delimited `id;email;name;balance` columns. Review the complete preview on **Legacy Opening Balances**, confirm the sign convention, and use **Import reviewed opening balances** only after the backup and review. Original negative balances become positive GBP credit; original positive balances become debit. The supplied development sample has 41 rows: £803 credit, £51 debit, net £752 credit. Do not treat this sample as a production cutover snapshot without obtaining a final approved export. Keep the original unchanged; use separate synthetic fixtures for tests.
+
+Check readability as the destination PHP user: it needs read access to this one CSV and the migration SQL file, and traversal of their parent folders. Preserve the private source folder's restrictions; do not grant directory listing or inherited access to other uploads. Development uses a named ACL for web7 granting traversal only on `private/source-data` and `web/migrations`, and read-only access to the specific CSV and new SQL file. ACLs are environment-specific and are not preserved by Git. New PHP/view files use mode 664. Development's HTTP check confirmed the CSV is readable but not writable by PHP and the source directory cannot be listed.
+
+Importing creates pending records only. Source system plus source ID identify each balance; repeat imports are unchanged and changed values for an existing source record are rejected without a partial import. Duplicate emails/IDs or malformed money values reject the file. The reviewed file hash is checked again when submitting the import. The original addresses and names remain private and are not committed to Git.
+
+The check runs at normal password/authenticator/magic-link login, and is repeated before checkout calculates amounts. Signup itself does not send a migration email or allocate balances. For a matching pending balance, the account page requests email ownership confirmation using a one-time, account-and-email-bound link valid for 24 hours. The user must sign in to the same account; changing the email, using another account, expired links and replayed tokens cannot claim balances. Approved link origins cover development, staging and the live ILDRA domain (plus localhost for tests). Account impersonation cannot claim a user's balance. Existing signed-in accounts imported later are caught by the checkout fallback, with their basket retained.
+
+After confirmation, each balance is allocated once, atomically with its `manual_credit` or `manual_debit` ledger transaction and the account-balance update. A debit reduces existing credit and is carried into the normal checkout amount due. Missing confirmation blocks checkout when there is a matching pending balance. Pending verification and allocation failures leave the balance for retry or administrator review. No Stripe payout or new Stripe receipt is created by an opening balance.
+
+The admin register shows every pending/allocated balance, its original email/name, credit/debit amount, recipient, allocating administrator or verified-email method, date and finance transaction. Admin/Superadmin/Developer roles may view it; imports and manual allocations also require `finance.adjust_balance`. Manual allocation can select a different active account after ownership has been checked. Already allocated balances cannot be assigned again or moved to another account through this page. If a correction is needed, preserve the audit trail and use the normal controlled finance adjustment process.
+
+The recipient sees a popup listing the transferred credit/debit on their next account visit. Acknowledgement is recorded for that recipient and those rows only; unacknowledged notices persist. Test-data reset includes these migration records and confirmations alongside finance records, so a reset requires reimporting the pending register; the private CSV is retained. Do not use the reset tool on real balances.
+
+Verify in the destination with synthetic/test data: mixed-case email matching, a credit, a debit, an already registered account, a changed email, manual allocation to a different active account, replayed imports/claims, popup acknowledgement and checkout totals. Perform cutover before opening checkout so no pre-migration Stripe Checkout sessions remain outstanding. No production source CSV or real account balance is imported by automated tests:
+
+```bash
+php scripts/test_legacy_balances.php
+node scripts/tests/legacy_balances.cjs
+```
+
+The PHP test redirects table setup into session-only MariaDB temporary tables, uses synthetic addresses, and sends no email. Browser checks use fixture HTML only. A signed-in confirmation email and checkout smoke test remains a destination verification step.
+
 ## Stripe Fulfilment
 
 All collection tools now live at **Stripe Fulfilment** (`admin/stripe_fulfilment.php`), with its own admin menu entry. Its three collection tabs are **Events**, **Memberships & Logbooks**, and **Miscellaneous**; **Reconciliation** contains missing fees, unallocated receipts and a read-only recent Stripe activity comparison. Finance retains the transaction ledger, entry revenue report, account credits/balances and Payment Request creation/tracking. Old Finance Events/Memberships links redirect to the new page, and existing open collection forms are handled there.
