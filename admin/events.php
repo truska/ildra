@@ -437,7 +437,7 @@ admin_layout_start('Events', 'events');
                                     <i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span>
                                 </a>
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="ride_notes.php?event_id=<?php echo (int)$event['id']; ?>">
-                                    <i class="fa-solid fa-note-sticky btn-icon"></i><span class="btn-label">Ride Notes</span>
+                                    <i class="fa-solid fa-note-sticky btn-icon"></i><span class="btn-label">Rider Notes</span>
                                 </a>
                             <?php if ($isAdmin && $canDeleteEvent): ?>
                                 <form method="POST" class="d-inline" data-confirm-message="Delete this event?" data-confirm-style="danger">

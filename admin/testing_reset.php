@@ -51,7 +51,7 @@ admin_layout_start('Reset test data', 'testing_reset');
 <?php endif; ?>
 <form method="post" class="card-soft p-4">
 <input type="hidden" name="action" value="preview">
-<label class="d-block mb-3"><input type="checkbox" name="keep_calendar" value="1" <?= $keepCalendar ? 'checked' : '' ?>> Keep the calendar, event pricing, components, class setup and ride notes (entries and results are still removed)</label>
+<label class="d-block mb-3"><input type="checkbox" name="keep_calendar" value="1" <?= $keepCalendar ? 'checked' : '' ?>> Keep the calendar, event pricing, components, class setup and rider notes (entries and results are still removed)</label>
 <p>Select each login’s own person. Suggestions use a unique matching email or name among people owned by that login. Choose “No existing person” if none represents them; they can create their person after logging in.</p>
 <?php foreach ($identities as $user): $selected = $choices[$user['id']] ?? $user['suggested']; ?>
 <label class="form-label" for="person-<?= (int)$user['id'] ?>"><?= h($user['email']) ?></label>

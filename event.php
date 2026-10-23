@@ -760,7 +760,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 </div>
                 <div class="d-flex flex-column align-items-end gap-2">
                     <a title="ILDRA Events Calendar" class="btn btn-outline-light btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
-                    <?php if ($showRideNotesLink): ?><a class="btn btn-light btn-sm text-success" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
+                    <?php if ($showRideNotesLink): ?><a class="btn btn-light btn-sm text-success" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Rider Notes</a><?php endif; ?>
                 </div>
             </div>
 
@@ -810,7 +810,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                         </div>
                         <div class="d-flex flex-column align-items-end gap-2">
                             <a title="ILDRA Events Calendar" class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
-                            <?php if ($showRideNotesLink): ?><a class="btn btn-outline-success btn-sm" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Ride Notes</a><?php endif; ?>
+                            <?php if ($showRideNotesLink): ?><a class="btn btn-outline-success btn-sm" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Rider Notes</a><?php endif; ?>
                         </div>
                     </div>
                     <div class="row g-4 align-items-start event-summary-row">

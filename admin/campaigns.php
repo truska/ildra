@@ -15,7 +15,7 @@ function campaign_admin_back_link(array $campaign): array
 {
     $type=(string)($campaign['campaign_type']??'');
     if(in_array($type,['event_entries_open_members','event_entries_open_non_members','event_entries_closing','weekly_ride_notice'],true))return ['campaigns.php?tab=automatic','Back to automatic campaigns'];
-    if($type==='ride_notes'&&!empty($campaign['event_id']))return ['ride_notes.php?event_id='.(int)$campaign['event_id'],'Back to Ride Notes'];
+    if($type==='ride_notes'&&!empty($campaign['event_id']))return ['ride_notes.php?event_id='.(int)$campaign['event_id'],'Back to Rider Notes'];
     return ['campaigns.php?tab=manual','Back to manual campaigns'];
 }
 function campaign_template_back_link(array $template): array
