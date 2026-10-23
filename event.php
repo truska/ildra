@@ -25,6 +25,7 @@ if (!$pages) {
 $navTree = buildNavTree($pages);
 $isLoggedIn = !empty($currentUser);
 $canViewAdmin = roleCanAccessAdmin((string)($currentUser['role'] ?? ''));
+$canEditPublicEvent = in_array(strtolower((string)($currentUser['role'] ?? '')), ['developer', 'superadmin', 'admin'], true);
 $basketCount = count($basket);
 if ($event && isThirdPartyEvent($event)) {
     include __DIR__ . '/views/third_party_event.php';
@@ -803,8 +804,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
                 <div class="card-soft p-4 mb-4">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-                        <div class="meta-chip">
-                            <span class="fw-bold"><?php echo h($event['title']); ?></span>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="meta-chip"><span class="fw-bold"><?php echo h($event['title']); ?></span></div>
+                            <?php if ($canEditPublicEvent): ?><a class="event-editor-tool" href="<?php echo h($basePath); ?>/admin/event_edit.php?id=<?php echo (int)$event['id']; ?>" target="_blank" rel="noopener" title="Edit event" aria-label="Edit event"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a><?php endif; ?>
                         </div>
                         <div class="d-flex flex-column align-items-end gap-2">
                             <a title="ILDRA Events Calendar" class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>

@@ -17,6 +17,7 @@ if (!$thirdPartyVisible) { http_response_code(404); $event = null; }
 <div class="d-flex justify-content-end align-items-start mb-3">
     <div class="d-flex flex-column align-items-end gap-2">
         <a title="ILDRA Events Calendar" class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/events">Back to Events</a>
+        <?php if ($event && $canEditPublicEvent): ?><a class="event-editor-tool" href="<?php echo h($basePath); ?>/admin/third_party_event_edit.php?id=<?php echo (int)$event['id']; ?>" target="_blank" rel="noopener" title="Edit event" aria-label="Edit event"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a><?php endif; ?>
     </div>
 </div>
 <?php if ($event): ?>

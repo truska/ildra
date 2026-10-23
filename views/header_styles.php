@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-title" content="ILDRA">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
+.event-editor-tool { display:inline-flex; flex:0 0 2rem; align-items:center; justify-content:center; width:2rem; height:2rem; border:1px solid rgba(20,97,24,.35); border-radius:999px; background:rgba(255,255,255,.94); color:var(--green); box-shadow:0 3px 10px rgba(0,0,0,.16); text-decoration:none; }
+.event-editor-tool:hover, .event-editor-tool:focus-visible { background:var(--green); border-color:var(--green); color:#fff; }
 :root {
     --site-btn-main-bg: var(--yellow, #dce705);
     --site-btn-main-bg-hover: #c7d300;
