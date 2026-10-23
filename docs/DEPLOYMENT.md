@@ -1,5 +1,25 @@
 # Deployment checklist
 
+## Monthly Memberships & Logbooks collections
+
+Finance now has a **Memberships & Logbooks** tab. Months follow the original `payment_stripe` transaction timestamp converted to Europe/London, never the membership/logbook product year. Membership and logbook receipts share one monthly balance, with separate subtotals. Booking items allocated to events remain in the Events report. Mixed-basket payments and Stripe fees are allocated proportionally in pennies. Internal checkout debits, simulated payments and credit-only purchases do not create collectible Stripe funds.
+
+No migration or new upload directories are required. After the normal environment backup, pull the committed source with `git pull --ff-only`. Existing `finance_transactions` store monthly payouts with `metadata.collection_scope=memberships_logbooks` and `metadata.collection_month=YYYY-MM`. These payouts appear with their month in the main Finance transaction list and are not event payouts. Collection uses the existing `finance.create_payout` permission and remains restricted to Stripe test keys; no live-money collection has been enabled.
+
+Verify a December payment for a following-year product appears under December. Check a mixed membership/logbook/event booking, fees, a partial collection, its remaining balance, a second collection, and the month detail's transaction and collection history. Fully collected months are hidden by default; **Include fully collected months** restores them. Older months can still be collected. Later linked refunds/credits reduce the original payment month, and a negative balance remains visible as a shortfall. Refunds must identify a booking item or an unambiguous original booking; refunds involving multiple possible payments block collection pending reconciliation. Unallocated standalone account adjustments are not guessed into a month. Missing Stripe fees also block collection rather than assuming zero.
+
+The Collect dialog checks Stripe's available card balance; the POST checks it and the monthly remaining balance again under a database advisory lock. Each request reserves its amount in the ledger before calling Stripe. Pending/paid payouts count as collected; a failed/cancelled payout releases its balance when **Refresh status** confirms that result. For a timeout or uncertain result, the amount stays reserved: use **Confirm collection** in that month's history to retry with the persisted Stripe idempotency key and original parameters. Unconfirmed requests older than 23 hours require reconciliation against Stripe before any manual correction; do not resend them with a new key or delete their reservation without checking Stripe. This avoids duplicate payouts after Stripe's documented idempotency retention period. See [Stripe's idempotency guidance](https://docs.stripe.com/api/idempotent_requests).
+
+Development verification (mocked Stripe responses; no external payouts):
+
+```bash
+php scripts/test_finance_monthly.php
+php scripts/test_finance_monthly.php --mysql
+node scripts/tests/finance_monthly.cjs
+```
+
+The default PHP test uses PDO SQLite; `--mysql` uses session-only temporary tables in the configured development CLI database. The browser test requires Playwright/Chromium and uses generated fixture HTML and mocked balance responses. A signed-in end-to-end Stripe test collection remains a deployment verification step.
+
 ## Event-linked account adjustments
 
 The event finance detail and summary include both `manual_credit` and `manual_debit` adjustments linked by `metadata.event_id`. The signed amount controls their effect: a positive account credit reduces event revenue; a negative credit reversal restores it. Existing records with contradictory type labels, including T-77 (positive £2, `manual_debit`, event 36), require no database correction. Refund transactions retain their existing absolute-value treatment. New adjustments normalize manual type labels to the selected direction.

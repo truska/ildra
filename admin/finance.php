@@ -4,6 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/table_sort.php';
 require_once __DIR__ . '/../bookings_store.php';
+require_once __DIR__ . '/../finance_monthly.php';
 
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageFinance = in_array($currentRole, ['developer', 'superadmin', 'admin'], true);
@@ -76,7 +77,35 @@ if (isset($_GET['recipient_lookup'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    if($action==='create_event_payout'){
+    if ($action === 'collect_membership_month') {
+        $month = (string)($_POST['month'] ?? '');
+        $requestKey = (string)($_POST['request_key'] ?? '');
+        try {
+            if (!$canCreatePayout) throw new RuntimeException('You do not have permission to create payouts.');
+            if (!csrf_is_valid($_POST['csrf'] ?? null)) throw new RuntimeException('Your session token expired. Please try again.');
+            if (!finance_month_valid($month)) throw new RuntimeException('Select a valid collection month.');
+            if (!empty($_POST['refresh_collection'])) {
+                $existing = $pdo->prepare("SELECT id FROM finance_transactions WHERE type='stripe_payout' AND JSON_UNQUOTE(JSON_EXTRACT(metadata,'$.collection_request_key'))=:request_key");
+                $existing->execute([':request_key' => $requestKey]);
+                if (!$existing->fetchColumn()) throw new RuntimeException('Collection not found.');
+            } elseif (!hash_equals((string)($_SESSION['finance_month_keys'][$month] ?? ''), $requestKey) || $requestKey === '') {
+                throw new RuntimeException('This collection form has expired. Reload the page and try again.');
+            }
+            $result = finance_month_collect($pdo, $stripeConfig, $month,
+                (int)round(price_to_number($_POST['amount'] ?? '0') * 100), $requestKey,
+                trim((string)($_POST['notes'] ?? '')), (string)($currentUser['email'] ?? 'admin'));
+            $meta = finance_month_metadata($result);
+            unset($_SESSION['finance_month_keys'][$month]);
+            $status = (string)($meta['stripe_status'] ?? 'unknown');
+            if (!empty($meta['last_error'])) $alerts[] = ['type' => 'warning', 'message' => $meta['last_error'] . (in_array($status, ['unknown','submitting'], true) ? ' The amount remains reserved. Use Confirm collection in the month’s history.' : '')];
+            else $_SESSION['flash_success'] = 'Test collection ' . format_price(abs((float)$result['amount'])) . ' — ' . $status . '. See the month’s collection history for the Stripe reference and expected arrival.';
+        } catch (Throwable $e) {
+            $alerts[] = ['type' => 'danger', 'message' => $e instanceof PDOException ? 'The collection could not be recorded. Check the month’s history before trying again.' : $e->getMessage()];
+        }
+        if ($alerts) $_SESSION['flash_alerts'] = $alerts;
+        header('Location: finance.php?tab=memberships&include_collected=1' . (finance_month_valid($month) ? '&month=' . rawurlencode($month) : '') . '#month-detail');
+        exit;
+    } elseif($action==='create_event_payout'){
         $eventId=(int)($_POST['event_id']??0);$event=$eventId>0?fetchEventById($pdo,$eventId):null;$amount=price_to_number($_POST['amount']??0);$notes=trim((string)($_POST['notes']??''));
         if(!$canCreatePayout)$alerts[]=['type'=>'danger','message'=>'You do not have permission to create payouts.'];
         elseif(!hash_equals($financePayoutCsrf,(string)($_POST['csrf']??'')))$alerts[]=['type'=>'danger','message'=>'Your session token expired. Please try again.'];
@@ -175,6 +204,9 @@ function finance_transaction_type_label(string $type): string {
 function finance_transaction_notes(array $transaction): string {
     $notes = (string)($transaction['notes'] ?? '');
     $meta = $transaction['metadata'] ?? [];
+    if (is_array($meta) && ($meta['collection_scope'] ?? '') === 'memberships_logbooks') {
+        return ($notes !== '' ? $notes . ' — ' : '') . 'Collection status: ' . (string)($meta['stripe_status'] ?? 'unknown');
+    }
     if (is_array($meta) && ($transaction['type'] ?? '') === 'entry_refund' && !empty($meta['actor_name'])) return 'Entry refunded and withdrawn by admin (' . (string)$meta['actor_name'] . ')';
     if (is_array($meta) && ($transaction['type'] ?? '') === 'payment_stripe_misc') {
         $recipient = trim((string)($meta['recipient_email'] ?? ''));
@@ -194,6 +226,9 @@ function finance_transaction_movement(array $transaction): string {
 }
 function finance_transaction_applies_to(array $transaction, array $eventLabels, array $bookingEventLabels = [], array $bookingKinds = []): string {
     $type=(string)($transaction['type'] ?? ''); $meta=is_array($transaction['metadata'] ?? null)?$transaction['metadata']:[];
+    if (($meta['collection_scope'] ?? '') === 'memberships_logbooks' && finance_month_valid((string)($meta['collection_month'] ?? ''))) {
+        return 'Memberships & Logbooks: ' . (new DateTimeImmutable($meta['collection_month'] . '-01'))->format('F Y');
+    }
     if ($type === 'payment_stripe_misc') return 'Miscellaneous';
     $eventIds=[]; if(!empty($meta['event_id']))$eventIds[]=(int)$meta['event_id'];
     if(!empty($meta['event_ids']))foreach(explode(',',(string)$meta['event_ids'])as$id)if((int)$id>0)$eventIds[]=(int)$id;
@@ -489,6 +524,7 @@ admin_layout_start('Finance', 'finance');
         <button class="finance-tab active" data-finance-tab="transactions" type="button" role="tab" aria-selected="true">Transactions</button>
         <button class="finance-tab" data-finance-tab="revenue" type="button" role="tab" aria-selected="false">Revenue report</button>
         <button class="finance-tab" data-finance-tab="events" type="button" role="tab" aria-selected="false">Events</button>
+        <button class="finance-tab" data-finance-tab="memberships" type="button" role="tab" aria-selected="false">Memberships &amp; Logbooks</button>
         <button class="finance-tab" data-finance-tab="credits" type="button" role="tab" aria-selected="false">Credits</button>
         <button class="finance-tab" data-finance-tab="balances" type="button" role="tab" aria-selected="false">Balances</button>
         <?php if ($canCreateMiscPayment): ?><button class="finance-tab" data-finance-tab="requests" type="button" role="tab" aria-selected="false">Payment requests</button><?php endif; ?>
@@ -732,6 +768,15 @@ admin_layout_start('Finance', 'finance');
 </section>
 
 <div class="modal fade" id="collectStripeModal" tabindex="-1" aria-labelledby="collectStripeModalLabel" aria-hidden="true"><div class="modal-dialog"><form method="post" class="modal-content" id="collect-payout-form"><input type="hidden" name="action" value="create_event_payout"><input type="hidden" name="csrf" value="<?php echo h($financePayoutCsrf); ?>"><input type="hidden" name="event_id" id="collect-event-id"><div class="modal-header"><h5 class="modal-title" id="collectStripeModalLabel">Collect from Stripe</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="alert alert-warning mb-3">Stripe test mode — no real money will move.</div><div class="mb-3"><label class="form-label">Ride / event</label><div class="form-control bg-light" id="collect-event-title"></div></div><div class="row g-3 mb-3"><div class="col-6"><div class="small text-muted">Event available</div><div class="fw-semibold" id="collect-event-available">—</div><div class="small text-muted" id="collect-already-paid"></div></div><div class="col-6"><div class="small text-muted">Stripe available balance</div><div class="fw-semibold" id="collect-stripe-balance">Checking…</div></div></div><div class="mb-3"><label class="form-label" for="collect-amount">Amount to collect</label><div class="input-group"><span class="input-group-text">£</span><input class="form-control" id="collect-amount" name="amount" type="number" min="0.01" step="0.01" required></div><div class="form-text" id="collect-maximum"></div></div><div><label class="form-label" for="collect-notes">Notes</label><textarea class="form-control" id="collect-notes" name="notes" rows="3" maxlength="255"></textarea></div></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" id="collect-submit" disabled>Collect</button></div></form></div></div>
+
+<?php
+try {
+    $monthlyReports = finance_month_reports($pdo);
+    require __DIR__ . '/finance_memberships.php';
+} catch (PDOException $e) {
+    echo '<section class="card-soft p-3 mt-3 finance-section" data-finance-section="memberships"><div class="alert alert-danger">Monthly finance records could not be loaded. Please try again.</div></section>';
+}
+?>
 
 <section class="card-soft p-3 mt-3 finance-section" data-finance-section="transactions">
     <div class="d-flex justify-content-between align-items-start mb-3">
