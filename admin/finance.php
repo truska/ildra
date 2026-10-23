@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!$alerts) {
             $signedAmount = $direction === 'debit' ? -1 * $amount : $amount;
-            $type = $direction === 'debit' ? 'manual_debit' : $kind;
+            $type = $direction === 'debit' ? 'manual_debit' : ($kind === 'refund' ? 'refund' : 'manual_credit');
             if (record_finance_transaction($pdo, [
                 'user_id' => $userId,
                 'type' => $type,
@@ -290,9 +290,9 @@ if ($pdo) {
                         WHERE ft.type IN ('entry_refund','entry_stripe_refund','entry_credit')
                         UNION ALL
                         SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.event_id')) AS UNSIGNED) AS event_id,
-                               ABS(ft.amount) AS refund_amount
+                               CASE WHEN ft.type = 'refund' THEN ABS(ft.amount) ELSE ft.amount END AS refund_amount
                         FROM finance_transactions ft
-                        WHERE ft.type IN ('manual_credit','refund')
+                        WHERE ft.type IN ('manual_credit','manual_debit','refund')
                     ) adjustments
                     WHERE event_id > 0
                     GROUP BY event_id

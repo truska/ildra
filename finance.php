@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+/** Revenue reduction for a direct-event adjustment; a credit reversal is negative. */
+function finance_event_adjustment_amount(array $transaction): float
+{
+    $amount = (float)($transaction['amount'] ?? 0);
+    return ($transaction['type'] ?? '') === 'refund' ? abs($amount) : $amount;
+}
+
 /**
  * Ensure the finance tables exist.
  */

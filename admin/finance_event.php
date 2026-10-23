@@ -183,18 +183,19 @@ if ($event && $pdo) {
     }
 
     // Exceptional credits/refunds can be linked directly to a ride without a
-    // particular entry.  They still reduce that ride's revenue and must be
-    // visible in its audit trail.
+    // particular entry. Positive account adjustments reduce ride revenue;
+    // reducing previously issued credit restores it, regardless of the label.
     $stmt = $pdo->prepare("
-        SELECT ft.*, NULL AS person_name
+        SELECT ft.*, COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.email) AS person_name
         FROM finance_transactions ft
-        WHERE ft.type IN ('manual_credit','refund')
+        LEFT JOIN users u ON u.id = ft.user_id
+        WHERE ft.type IN ('manual_credit','manual_debit','refund')
           AND CAST(JSON_UNQUOTE(JSON_EXTRACT(ft.metadata, '$.event_id')) AS UNSIGNED) = :event_id
         ORDER BY ft.created_at DESC, ft.id DESC
     ");
     $stmt->execute([':event_id' => $eventId]);
     foreach ($stmt->fetchAll() ?: [] as $row) {
-        $adjustment = abs((float)($row['amount'] ?? 0));
+        $adjustment = finance_event_adjustment_amount($row);
         $row['amount'] = -$adjustment;
         $row['stripe_fee'] = 0.0;
         $row['entry_ids'] = [];

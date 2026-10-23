@@ -1,5 +1,11 @@
 # Deployment checklist
 
+## Event-linked account adjustments
+
+The event finance detail and summary include both `manual_credit` and `manual_debit` adjustments linked by `metadata.event_id`. The signed amount controls their effect: a positive account credit reduces event revenue; a negative credit reversal restores it. Existing records with contradictory type labels, including T-77 (positive £2, `manual_debit`, event 36), require no database correction. Refund transactions retain their existing absolute-value treatment. New adjustments normalize manual type labels to the selected direction.
+
+Pull the committed source with `git pull --ff-only` using the usual environment backup procedure; no migration or Stripe operation is required. Clear finance page filters and verify T-77 appears under event 36 with a -£2 event movement, zero Stripe fee, and the account holder's name. Confirm the event list and detail agree on refunds/credits and revenue. Run `php scripts/test_finance_event_adjustments.php` on development (requires PDO SQLite).
+
 ## Retire the test-data reset tool at launch
 
 After the final agreed pre-launch cleanup, remove the test-data reset tool from production before accepting real memberships or payments. Remove `admin/testing_reset.php`, its shared `testing_reset.php` implementation, and its admin navigation entry through a source change made and committed on development, then deploy that change. Keep private reset backups outside the web root. Verify that the production reset URL is no longer accessible.
