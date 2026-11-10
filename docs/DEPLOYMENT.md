@@ -161,3 +161,22 @@ The existing `/admin/account_intros.php` page is now labelled **Screen Guidance*
 No schema change or separate SQL migration is required. After backing up and pulling the development source with `git pull --ff-only`, open this signed-in admin page in the destination environment. Missing defaults are inserted without overwriting any existing guidance. This browser route uses the environment's normal web database configuration, avoiding the older CLI/local-database configuration issue.
 
 Check that the existing People/Horses/Shares/My Account and consent popups retain their previous text and visibility. Under **Horses & Logbooks**, edit About logbooks and confirm it appears beside the choice after creating a horse. Check Add/Edit Horse and the full logbook form too. Each expanded item has its own Save button. Saving an item must not change any other item's text or visibility, and should return to the same tab with that item expanded. Turning off About logbooks hides its panel and lets the left-hand content use the full width. Prices, form validation, eligibility and the purchase flow are unchanged. Product descriptions remain managed under Memberships; they are not duplicated in Screen Guidance.
+
+## Purchasing maintenance switch
+
+Deploy the committed development source using the normal database backup and `git pull --ff-only` procedure. No schema migration or upload folders are required. Purchasing remains enabled by default; deploying this change does not activate maintenance.
+
+Under **Settings → Purchasing**, Admin, Superadmin or Developer can enable **Pause Purchasing** and edit its plain-text public announcement. The announcement displays across public pages while paused. Users below Admin (including Manager and Organiser) and guests cannot start basket checkout or follow the website's miscellaneous payment-request links. Credit-only and zero-cost basket checkouts are blocked too. Admin, Superadmin and Developer retain checkout access; impersonation uses the impersonated user's role.
+
+Basket expiry uses an active-time clock which excludes maintenance intervals. Existing saved baskets, new baskets added during a pause and offline baskets retain their remaining active time. Timers pause for administrators too. Refresh an already open basket after maintenance to resume its countdown. Older browser countdowns cannot expire a basket before the server's active-time deadline. Pausing does not restore baskets that expired before maintenance. Basket preservation is not a capacity reservation or a guarantee that event conditions or prices remain unchanged; the existing checkout validations continue to apply.
+
+New and reminder payment-request emails link through `misc_payment.php`, which checks the switch before redirecting to Stripe. Already emailed direct Stripe URLs and Stripe sessions already open remain usable until Stripe expires them. This switch does not revoke hosted Stripe sessions, stop existing payments being recorded, suspend webhooks, freeze automatic opening-balance allocation, or disable administrator finance operations. Before changing Stripe keys/mode, review and expire or wait for outstanding sessions in the original Stripe mode, and reconcile completed payments. Do not use the pause switch as evidence that no payments are in flight.
+
+Check as User, Manager, Organiser and Admin: direct GET/POST checkout, credit/free checkout, payment-request links, announcement escaping, and pause/resume of an existing basket across logout/revisit and repeated pauses. Check that already-paid completion callbacks still record receipts. No automated test sends email or calls Stripe:
+
+```bash
+php scripts/test_purchasing_pause.php
+php scripts/test_purchasing_pause.php --mysql
+```
+
+The MySQL test shadows the settings and basket tables with session-only temporary tables; it changes no persistent settings or baskets. Basket timestamps now exclude the cumulative paused seconds in `site_settings`. If rolling back this implementation after maintenance has been used, first resume purchasing and translate saved basket timestamps back by adding `purchasing_paused_seconds`; otherwise older expiry code may immediately remove them. Do not reset the cumulative setting independently of stored baskets.

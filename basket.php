@@ -21,7 +21,8 @@ $configuredTimeout = isset($siteSettings['basket_timeout_seconds']) ? (int)$site
 $basketExpirySeconds = max(300, $configuredTimeout);
 $expiresAt = null;
 $basketTimerSeconds = null;
-$now = time();
+$now = purchasingBasketClock($siteSettings);
+$purchasingPaused = purchasingPaused($siteSettings);
 
 // Option A policy: basket requires login (and is always scoped to the current user).
 if (!$isLoggedIn) {
@@ -63,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['flash_success'] = 'Coupon removed.';
         header('Location: ' . $basePath . '/basket'); exit;
     }
-    if ($action === 'expire_basket') {
+    if ($action === 'expire_basket' && !$purchasingPaused && !empty($_SESSION['basket_last_added']) && $now >= (int)$_SESSION['basket_last_added'] + $basketExpirySeconds) {
         $_SESSION['basket'] = [];
         unset($_SESSION['basket_last_added']);
         saveBasketForSession($pdo, session_id(), [], $currentUser['id'] ?? null, null);
@@ -88,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $lastAdded = (int)($_SESSION['basket_last_added'] ?? 0);
 if ($basket && $lastAdded > 0) {
     $expiresAt = $lastAdded + $basketExpirySeconds;
-    if ($now >= $expiresAt) {
+    if (!$purchasingPaused && $now >= $expiresAt) {
         $_SESSION['basket'] = [];
         unset($_SESSION['basket_last_added']);
         saveBasketForSession($pdo, session_id(), [], $currentUser['id'] ?? null, null);
@@ -211,7 +212,8 @@ $userBalance = fetch_user_credit_balance($pdo, (int)($currentUser['id'] ?? 0));
     <main class="py-5">
         <div class="container">
             <?php include __DIR__ . '/views/alerts.php'; ?>
-            <?php if ($basket && $basketTimerSeconds !== null): ?>
+            <?php if ($basket && $purchasingPaused): ?><div class="alert alert-info">Your basket timer is paused during purchasing maintenance. Refresh this page after purchasing reopens to resume the countdown.</div><?php endif; ?>
+            <?php if ($basket && !$purchasingPaused && $basketTimerSeconds !== null): ?>
                 <div class="alert d-flex justify-content-between align-items-center flex-wrap gap-2" role="status" id="basket-timer-banner" data-remaining="<?php echo (int)$basketTimerSeconds; ?>" style="background: #fff5e6; border: 1px solid #f7d8b4; color: #4b2c11;">
                     <div class="d-flex align-items-center gap-2">
                         <span aria-hidden="true" style="font-size: 1.4rem;">⏱️</span>

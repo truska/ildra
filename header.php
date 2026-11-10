@@ -228,3 +228,7 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
         });
     })();
 </script>
+
+<?php if (purchasingPaused($siteSettings ?? $siteSettingsBootstrap ?? [])): ?>
+<div class="alert alert-warning rounded-0 mb-0 text-center" role="status"><?php echo h(purchasingMessage($siteSettings ?? $siteSettingsBootstrap)); ?><?php if (!purchasingBlocked($siteSettings ?? $siteSettingsBootstrap, $currentUser ?? null)): ?> <strong>Purchasing remains available to you for administrator testing.</strong><?php endif; ?></div>
+<?php endif; ?>

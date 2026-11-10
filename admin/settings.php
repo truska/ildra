@@ -15,7 +15,20 @@ $companyLogoAssets = array_values(array_filter(fetchAssetLibrary($pdo, true), st
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $settingsSection = (string)($_POST['settings_section'] ?? 'global');
-    if ($settingsSection === 'home') {
+    if ($settingsSection === 'purchasing') {
+        if (!$canManageCampaignEmail) {
+            http_response_code(403);
+            $alerts[] = ['type'=>'danger','message'=>'Only Admin, Superadmin and Developer can change purchasing maintenance.'];
+        } else {
+            try {
+                savePurchasingPause($pdo, !empty($_POST['purchasing_paused']), (string)($_POST['purchasing_pause_message'] ?? ''));
+                $_SESSION['flash_success'] = 'Purchasing maintenance settings saved.';
+                header('Location: settings.php?tab=purchasing'); exit;
+            } catch (Throwable $e) {
+                $alerts[] = ['type'=>'danger','message'=>'Purchasing maintenance settings could not be saved.'];
+            }
+        }
+    } elseif ($settingsSection === 'home') {
         $payload = [
             'hero_title' => trim((string)($_POST['hero_title'] ?? '')),
             'company_short_name' => trim((string)($_POST['company_short_name'] ?? '')),
@@ -200,13 +213,14 @@ $manualDocuments = array_values(array_filter(fetchAssetLibrary($pdo, true), stat
 $authAppLoginEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
 $requestedSettingsTab = (string)($_GET['tab'] ?? ($_POST['settings_section'] ?? 'company'));
 $allowedSettingsTabs = ['footer', 'company', 'home', 'events', 'ride_notes_email', 'marketing', 'global'];
-if ($canManageCampaignEmail) $allowedSettingsTabs[] = 'campaign_email';
+if ($canManageCampaignEmail) { $allowedSettingsTabs[] = 'campaign_email'; $allowedSettingsTabs[] = 'purchasing'; }
 $activeSettingsTab = in_array($requestedSettingsTab, $allowedSettingsTabs, true) ? $requestedSettingsTab : 'company';
 
 admin_layout_start('Settings', 'settings');
 ?>
 <div class="card-soft p-4">
     <ul class="nav nav-tabs admin-tabs mb-4" role="tablist">
+        <?php if ($canManageCampaignEmail): ?><li class="nav-item"><a class="nav-link <?php echo $activeSettingsTab==='purchasing'?'active':''; ?>" href="settings.php?tab=purchasing">Purchasing</a></li><?php endif; ?>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'company' ? 'active' : ''; ?>" id="company-tab" data-bs-toggle="tab" data-bs-target="#company-settings" type="button" role="tab" aria-controls="company-settings" aria-selected="<?php echo $activeSettingsTab === 'company' ? 'true' : 'false'; ?>">Company</button>
         </li>
@@ -229,6 +243,14 @@ admin_layout_start('Settings', 'settings');
         <li class="nav-item" role="presentation"><button class="nav-link <?php echo $activeSettingsTab === 'footer' ? 'active' : ''; ?>" id="footer-tab" data-bs-toggle="tab" data-bs-target="#footer-settings" type="button" role="tab" aria-controls="footer-settings" aria-selected="<?php echo $activeSettingsTab === 'footer' ? 'true' : 'false'; ?>">Footer</button></li>
     </ul>
     <div class="tab-content">
+    <?php if ($canManageCampaignEmail): ?><div class="tab-pane <?php echo $activeSettingsTab==='purchasing'?'show active':''; ?>" id="purchasing-settings">
+        <h3 class="h5">Purchasing Maintenance</h3><p>Pause checkout for all users below Admin. Admin, Superadmin and Developer can continue testing. Basket timers pause for everyone. Payments already started can still complete.</p>
+        <form method="post"><?php echo csrf_input(); ?><input type="hidden" name="settings_section" value="purchasing">
+        <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" name="purchasing_paused" id="purchasing-paused" value="1" <?php echo purchasingPaused($siteSettings)?'checked':''; ?>><label class="form-check-label" for="purchasing-paused">Pause Purchasing</label></div>
+        <label class="form-label" for="purchasing-message">Public Maintenance Announcement</label><textarea class="form-control mb-3" id="purchasing-message" name="purchasing_pause_message" rows="3" maxlength="2000"><?php echo h(purchasingMessage($siteSettings)); ?></textarea>
+        <p class="small text-muted">The announcement appears across the public website while purchasing is paused. Previously emailed direct Stripe links remain usable until Stripe expires them. Check outstanding sessions before changing Stripe keys.</p>
+        <button class="btn btn-success">Save Purchasing Settings</button></form>
+    </div><?php endif; ?>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'home' ? 'show active' : ''; ?>" id="home-settings" role="tabpanel" aria-labelledby="home-tab" tabindex="0">
         <h3 class="h5 fw-bold mb-1">Home page heading</h3>
         <p class="text-muted small mb-3">Controls the site identity and the green heading strip. The welcome copy and its call to action are edited on the Home Page in Pages.</p>

@@ -122,6 +122,7 @@ require_once __DIR__ . '/legacy_balances.php';
 require_once __DIR__ . '/coupons.php';
 require_once __DIR__ . '/misc_payments.php';
 require_once __DIR__ . '/cms.php';
+require_once __DIR__ . '/purchasing.php';
 require_once __DIR__ . '/admin_menu.php';
 require_once __DIR__ . '/admin_actions.php';
 require_once __DIR__ . '/help_support.php';

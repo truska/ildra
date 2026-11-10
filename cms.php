@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . "/purchasing.php";
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/announcements.php';
@@ -90,6 +91,9 @@ function defaultSiteSettings(): array
         'welcome_body' => "The Irish Long Distance Riding Association (1990) runs rides across Ireland for members and newcomers. Distances range from pleasure rides through competitive trail rides for experienced horses and riders.",
         'sponsor_image_url' => 'https://placehold.co/640x140/216c22/ffffff?text=Sponsor+Banner',
         'background_image_url' => 'https://placehold.co/1600x900/eff7ec/216c22?text=Endurance+Riding+Ireland',
+        'purchasing_paused_at' => '0',
+        'purchasing_paused_seconds' => '0',
+        'purchasing_pause_message' => 'Purchasing is temporarily unavailable for maintenance. Please try again later.',
         'basket_timeout_seconds' => 900, // default 15 minutes
         'event_default_start_time' => '09:00',
         'event_default_end_days' => 0,
@@ -289,6 +293,7 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
         ensureSiteSettingsTable($pdo);
         $stmt = $pdo->prepare("REPLACE INTO site_settings (setting_key, setting_value, updated_at) VALUES (:k, :v, NOW())");
         foreach ($settings as $key => $value) {
+            if (in_array($key, ['purchasing_paused_at', 'purchasing_paused_seconds', 'purchasing_pause_message'], true)) continue;
             $stmt->execute([':k' => $key, ':v' => (string)$value]);
         }
         return true;
@@ -4939,15 +4944,18 @@ function tidyExpiredBaskets(?PDO $pdo, int $timeoutSeconds): int
     if (!$pdo || $timeoutSeconds <= 0) {
         return 0;
     }
+    $maintenance = getSiteSettings($pdo);
+    if (purchasingPaused($maintenance)) return 0;
+    $clock = purchasingBasketClock($maintenance);
     // Expire old holds and also drop empty baskets
     $stmt = $pdo->prepare("
         DELETE FROM baskets
         WHERE
             basket_json IS NULL
             OR basket_json = '[]'
-            OR (last_added_at IS NOT NULL AND last_added_at <= (NOW() - INTERVAL :secs SECOND))
+            OR (last_added_at IS NOT NULL AND last_added_at <= FROM_UNIXTIME(:cutoff))
     ");
-    $stmt->execute([':secs' => $timeoutSeconds]);
+    $stmt->execute([':cutoff' => $clock - $timeoutSeconds]);
     return $stmt->rowCount();
 }
 

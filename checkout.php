@@ -7,6 +7,7 @@ $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
 $siteBase = $basePath ?: '';
 
+header('Cache-Control: no-store');
 $basket = $_SESSION['basket'] ?? [];
 $siteSettings = getSiteSettings($pdo);
 $pages = fetchPages($pdo, true);
@@ -27,6 +28,12 @@ if (!$isLoggedIn) {
 
 if (!$basket) {
     $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Add an entry before checking out.']];
+    header('Location: ' . $basePath . '/basket');
+    exit;
+}
+
+if (purchasingBlocked($siteSettings, $currentUser)) {
+    $_SESSION['flash_alerts'] = [['type'=>'warning', 'message'=>purchasingMessage($siteSettings)]];
     header('Location: ' . $basePath . '/basket');
     exit;
 }

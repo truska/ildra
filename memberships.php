@@ -126,7 +126,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             ];
             $basket[] = $entry;
             $_SESSION['basket'] = $basket;
-            $_SESSION['basket_last_added'] = time();
+            $_SESSION['basket_last_added'] = purchasingBasketClock(getSiteSettings($pdo));
             saveBasketForSession($pdo, session_id(), $basket, $currentUser['id'] ?? null, $_SESSION['basket_last_added']);
             $_SESSION['flash_success'] = 'Membership added to basket.';
             header('Location: ' . $basePath . '/basket');
