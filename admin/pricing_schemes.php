@@ -10,6 +10,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if (!$isAdmin) {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage pricing schemes.'];
+    } elseif ($action === 'copy_scheme') {
+        $newId = copyPricingScheme($pdo, (int)($_POST['scheme_id'] ?? 0), $alerts);
+        if ($newId) {
+            $_SESSION['flash_success'] = 'Pricing scheme copied. Rename and edit the new scheme below.';
+            header('Location: pricing_scheme_edit.php?id=' . $newId);
+            exit;
+        }
     } elseif ($action === 'delete_scheme') {
         $schemeId = (int)($_POST['scheme_id'] ?? 0);
         if ($schemeId > 0 && deletePricingScheme($pdo, $schemeId, $alerts)) {
@@ -44,7 +51,7 @@ if ($pdo) {
 
 $appliesOptions = [];
 foreach ($schemes as &$scheme) {
-    $scheme['_row_count'] = $rowCounts[(int)($scheme['id'] ?? 0)] ?? 0;
+    $scheme['_row_count'] = isMasterRideScheme($pdo,(int)$scheme['id']) ? count(fetchMasterSchemeRows($pdo,(int)$scheme['id'])) : ($rowCounts[(int)$scheme['id']]??0);
     $scheme['_event_type_ids'] = [];
     $scheme['_applies_label'] = '';
     $labels = [];
@@ -81,6 +88,7 @@ admin_layout_start('Pricing Schemes', 'pricing_schemes');
         <h5 class="mb-0">Pricing schemes</h5>
     </div>
     <div>
+        <?php if(ridePricingReady($pdo)): ?><a class="btn btn-outline-success" href="ride_classes.php">Master Ride Classes &amp; Prices</a> <a class="btn btn-outline-secondary" href="pricing_scheme_edit.php?mode=custom">Add Other Event Scheme</a><?php endif; ?>
         <a class="btn btn-success" href="pricing_scheme_edit.php">Add New Scheme</a>
     </div>
 </div>
@@ -127,6 +135,12 @@ admin_layout_start('Pricing Schemes', 'pricing_schemes');
                     <td class="text-end">
                         <a class="btn btn-sm btn-outline-success" href="pricing_scheme_edit.php?id=<?php echo $sid; ?>">Edit</a>
                         <?php if ($isAdmin): ?>
+                            <form method="POST" class="d-inline">
+                                <?php echo csrf_input(); ?>
+                                <input type="hidden" name="action" value="copy_scheme">
+                                <input type="hidden" name="scheme_id" value="<?php echo $sid; ?>">
+                                <button class="btn btn-sm btn-outline-primary" type="submit">Copy</button>
+                            </form>
                             <form method="POST" class="d-inline" data-confirm-message="Delete this pricing scheme?" data-confirm-style="danger">
                                 <input type="hidden" name="action" value="delete_scheme">
                                 <input type="hidden" name="scheme_id" value="<?php echo $sid; ?>">

@@ -10,6 +10,7 @@ $siteBase = $basePath ?: '';
 
 $eventId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $event = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
+if ($event && $pdo) eventPricingLocked($pdo,$eventId);
 $eventImageBatch = $event ? mediaBatchFind($pdo, 'event_images', 'event', $eventId) : null;
 $eventImages = $eventImageBatch ? mediaBatchImages($pdo, (int)$eventImageBatch['id']) : [];
 $eventImage = $eventImages[0] ?? null;

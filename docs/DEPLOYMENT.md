@@ -180,3 +180,27 @@ php scripts/test_purchasing_pause.php --mysql
 ```
 
 The MySQL test shadows the settings and basket tables with session-only temporary tables; it changes no persistent settings or baskets. Basket timestamps now exclude the cumulative paused seconds in `site_settings`. If rolling back this implementation after maintenance has been used, first resume purchasing and translate saved basket timestamps back by adding `purchasing_paused_seconds`; otherwise older expiry code may immediately remove them. Do not reset the cumulative setting independently of stored baskets.
+
+## Master ride classes and scheme selections (10 November 2026)
+
+Read [MASTER_RIDE_PRICING.md](MASTER_RIDE_PRICING.md). Back up the destination database and pause purchasing/admin event editing for the rollout. Deploy the tested development commit using `git pull --ff-only`. Do **not** copy development's database or replay its development-only pricing refresh on live. The live scheme rows are the migration input.
+
+Identify the authoritative all-classes Ride scheme (the supplied live export uses ID 1, **Ride Pricing All Classes**). From the destination web root, first run a read-only preview:
+
+```bash
+php scripts/migrate_ride_pricing.php --scheme-id=1
+```
+
+Review the 17 master classes, all mapped schemes, reported price changes and the printed preview SHA. The supplied live configuration gives 2 ride schemes and 21 selections. The PR-only Junior Member price becomes the master £15 instead of £13. Confirm the current live data still has the expected classes and rates; fresh live edits may change the preview. An ambiguous class stops the migration for review rather than creating a guessed mapping. Source-code corrections must be made and committed on development first.
+
+After confirming the backup and preview, apply using **that destination's printed SHA**:
+
+```bash
+php scripts/migrate_ride_pricing.php --scheme-id=1 --apply --expect-sha=PASTE_DESTINATION_PREVIEW_SHA
+```
+
+This creates four new tables, seeds the master and scheme selections atomically, and records locks for events whose entries have already opened or which have booking items. It preserves existing event price rows, event records, bookings and payments. Schema DDL is outside the data transaction; a failed apply may leave empty new tables, but no partial master data is committed. Running only the SQL file does not seed or activate master pricing. Re-running the PHP migration after success does not overwrite later price edits. No upload folders or private source CSVs are needed on the destination for this migration.
+
+Verify **Pricing Schemes → Master Ride Classes & Prices**, both Ride scheme selections, the PR Junior Member standard rate, the **Ride prices** content element, and non-ride schemes. Test a draft's explicit template reapply and an opened event's locked prices and unchanged row IDs. Changes to master prices must not alter any existing event automatically. New and copied rides must use the master rates and eligibility; unmatched historic classes should require a current scheme rather than copy obsolete prices. Resume purchasing only when destination checks are complete. Applying the migration does not itself toggle the purchasing switch.
+
+New served PHP files use mode 664 and must be readable by the destination PHP user. Confirm `ride_pricing.php`, `ride_pricing_migration.php`, `admin/ride_classes.php`, `admin/ride_scheme_form.php`, and the CLI migration/SQL file can be read in their intended contexts. Rollback requires restoring the backed-up pricing configuration and deploying the previous source together; do not remove the activation marker while leaving new master edits in place, because old scheme-local prices are retained as a historical snapshot and may be stale.

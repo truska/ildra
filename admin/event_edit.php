@@ -9,6 +9,7 @@ $eventsReturnUrl = (string)($_SESSION['admin_list_returns']['events'] ?? 'events
 if (!preg_match('/^events\.php(?:\?[^#]*)?$/', $eventsReturnUrl)) $eventsReturnUrl = 'events.php';
 $eventsReturnWithRow = $eventsReturnUrl . ($eventId > 0 ? '#event-' . $eventId : '');
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
+$pricingLocked = $eventId>0 && eventPricingLocked($pdo,$eventId);
 if ($event && isThirdPartyEvent($event)) {
     header('Location: third_party_event_edit.php?id=' . $eventId);
     exit;
@@ -27,6 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? 'save_event');
     if (!$isAdmin) {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage events.'];
+    } elseif (!in_array($action,['save_event','upload_event_images','save_event_gallery'],true)) {
+        $alerts[]=['type'=>'danger','message'=>'Unknown event action.'];
+    } elseif ($action==='save_event' && (int)($_POST['event_id']??0)!==$eventId) {
+        $alerts[]=['type'=>'danger','message'=>'The event ID does not match this editor. Reload the event before saving.'];
     } elseif (in_array($action, ['upload_event_images', 'save_event_gallery'], true)) {
         if (!$eventId || !$event) {
             $alerts[] = ['type' => 'danger', 'message' => 'Save the event before adding images.'];
@@ -61,7 +66,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Without that marker, retain the server-side default fallback for a type change.
         $pricingRows = [];
         $pricingRowsWereReplaced = !empty($_POST['pricing_rows_replaced']);
-        if (!$typeChanged || $pricingRowsWereReplaced) {
+        if ($pricingLocked) {
+            if ($typeChanged || $pricingRowsWereReplaced) $alerts[]=['type'=>'danger','message'=>'Pricing is locked because entries have opened.'];
+            // Disabled pricing controls are deliberately absent from an ordinary edit POST.
+            $pricingRows=fetchEventPricingRows($pdo,$eventId);
+            if (array_key_exists('event_row_class_name',$_POST)) {
+                $postedRows=parseEventPricingRowsFromPost($_POST,$alerts);
+                if(eventPricingComparableRows($postedRows)!==eventPricingComparableRows($pricingRows))$alerts[]=['type'=>'danger','message'=>'Pricing is locked because entries have opened.'];
+            }
+        }
+        if (!$pricingLocked && (!$typeChanged || $pricingRowsWereReplaced)) {
             $pricingRows = parseEventPricingRowsFromPost($_POST, $alerts);
             if (!$pricingRows) {
                 // Don't save the event if the pricing rows are invalid/empty.
@@ -70,7 +84,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if (($typeChanged && !$pricingRowsWereReplaced) || $pricingRows) {
+        if (!$pricingLocked && $pricingRows && ridePricingReady($pdo) && in_array($newEventTypeId,rideTypeIds($pdo),true)) {
+            try {
+                if (!$eventId || $pricingRowsWereReplaced || $typeChanged) {
+                    $appliedId=(int)($_POST['applied_pricing_scheme_id']??0) ?: fetchDefaultPricingSchemeIdForEventType($pdo,$newEventTypeId);
+                    if (!isMasterRideScheme($pdo,$appliedId) || !in_array($newEventTypeId,fetchPricingSchemeEventTypeIds($pdo,$appliedId),true)) throw new RuntimeException('Select a pricing scheme assigned to this ride type.');
+                    $pricingRows=resolveRideSchemeEventRows($pdo,$appliedId,$pricingRows);
+                } else {
+                    $keys=array_keys(array_filter((array)($_POST['event_row_class_name']??[]),static fn($name)=>trim((string)$name)!==''));
+                    $pricingRows=preserveRideEventSnapshotRows(fetchEventPricingRows($pdo,$eventId),$pricingRows,$keys);
+                }
+            } catch(RuntimeException $e) {$alerts[]=['type'=>'danger','message'=>$e->getMessage()];}
+        }
+
+        if (!$pricingLocked && $eventId && $event && ridePricingReady($pdo)) {
+            $candidate=$event;
+            $candidate['status']=(string)($_POST['status']??$event['status']);
+            $candidate['event_date']=(string)($_POST['event_date']??$event['event_date']);
+            foreach(['entry_open','non_member_entry_open'] as $field) {
+                $candidate[$field.'_at']=!empty($_POST[$field.'_date'])?trim($_POST[$field.'_date'].' '.($_POST[$field.'_time']??'00:00')):null;
+            }
+            $opening=eventPricingOpeningTime($candidate);
+            if($opening!==null && $opening<=time() && ($typeChanged || eventPricingComparableRows(fetchEventPricingRows($pdo,$eventId))!==eventPricingComparableRows($pricingRows))) {
+                $alerts[]=['type'=>'danger','message'=>'Save updated pricing before publishing/opening entries. Keep this event as a draft (or set a future opening time), save the new rates, then publish it.'];
+            }
+        }
+
+        if (!$alerts && ($pricingLocked || ($typeChanged && !$pricingRowsWereReplaced) || $pricingRows)) {
             $savedEventId = saveEvent($pdo, $_POST, $alerts);
             if ($savedEventId) {
                 $savedEventId = (int)$savedEventId;
@@ -78,16 +118,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($typeChanged && !$pricingRowsWereReplaced) {
                     $schemeId = fetchDefaultPricingSchemeIdForEventType($pdo, $newEventTypeId);
                     if ($schemeId) {
-                        copyPricingSchemeToEvent($pdo, $schemeId, $savedEventId);
+                        if(!copyPricingSchemeToEvent($pdo, $schemeId, $savedEventId))$alerts[]=['type'=>'danger','message'=>'The pricing scheme could not be applied. Reload the event and check that entries have not opened.'];
                     } else {
                         $alerts[] = ['type' => 'danger', 'message' => 'No default pricing scheme is set for this event type.'];
                     }
-                } else {
-                    replaceEventPricingRows($pdo, $savedEventId, $pricingRows);
+                } elseif (!$pricingLocked) {
+                    if (!replaceEventPricingRows($pdo, $savedEventId, $pricingRows, !$eventId)) {
+                        $alerts[]=['type'=>'danger','message'=>'Pricing could not be saved. Entries may have opened while you were editing. Reload the event.'];
+                    }
                 }
 
                 // Keep legacy classes_offered synced for the existing public entry form.
-                syncEventClassesOfferedFromPricingRows($pdo, $savedEventId);
+                if(!$pricingLocked)syncEventClassesOfferedFromPricingRows($pdo, $savedEventId);
 
                 $entryFormPosted = json_decode($_POST['entry_form_json'] ?? '[]', true);
                 $componentEnabled = [];
@@ -257,7 +299,7 @@ foreach (fetchPricingSchemes($pdo) as $scheme) {
 
 // Pricing rows for this event (persisted copy), or defaults for new events.
 $eventPricingRows = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$pricingLocked) {
     $names = (array)($_POST['event_row_class_name'] ?? []);
     $codes = (array)($_POST['event_row_class_code'] ?? []);
     $groups = (array)($_POST['event_row_class_group'] ?? []);
@@ -269,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $enabled = (array)($_POST['event_row_enabled'] ?? []);
     foreach (array_keys($names) as $key) {
         $eventPricingRows[] = [
-            'id' => 0,
+            'id' => preg_match('/^id(\d+)$/D',(string)$key,$rowIdMatch)?(int)$rowIdMatch[1]:0,
             'sort_order' => (int)($sort[$key] ?? 0),
             'class_code' => (string)($codes[$key] ?? ''),
             'class_group' => (string)($groups[$key] ?? ''),
@@ -288,12 +330,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         migrateEventClassesOfferedToPricingRows($pdo, $eventId);
         $eventPricingRows = fetchEventPricingRows($pdo, $eventId);
     }
-    if (!$eventPricingRows) {
-        $sid = fetchDefaultPricingSchemeIdForEventType($pdo, $eventTypeSelectedId);
-        if ($sid) {
-            copyPricingSchemeToEvent($pdo, (int)$sid, $eventId);
-            syncEventClassesOfferedFromPricingRows($pdo, $eventId);
-            $eventPricingRows = fetchEventPricingRows($pdo, $eventId);
+    if (!$eventPricingRows && $pricingLocked) {
+        // Show historical legacy prices without writing new rows or loading current rates.
+        foreach((array)json_decode((string)($event['classes_offered']??'[]'),true) as $i=>$legacy) {
+            if(!is_array($legacy))continue;
+            $eventPricingRows[]=['id'=>0,'sort_order'=>($i+1)*10,'class_name'=>(string)($legacy['label']??$legacy['code']??'Class'),'class_code'=>(string)($legacy['code']??''),'class_group'=>'','price'=>price_to_number($legacy['price']??0),'foreign_recognition_price'=>null,'is_member_price'=>0,'is_junior_ride'=>0,'rider_eligibility'=>'all','enabled'=>1];
         }
     }
 } else {
@@ -311,6 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'foreign_recognition_price' => $r['foreign_recognition_price'] !== null ? (string)$r['foreign_recognition_price'] : '',
                 'is_member_price' => !empty($r['is_member_price']) ? 1 : 0,
                 'is_junior_ride' => !empty($r['is_junior_ride']) ? 1 : 0,
+                'rider_eligibility' => $r['rider_eligibility'],
                 'enabled' => 1,
             ];
         }
@@ -360,7 +402,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
 <div class="card-soft p-4">
     <form method="POST">
-        <input type="hidden" name="pricing_rows_replaced" id="pricingRowsReplaced" value="0">
+        <input type="hidden" name="pricing_rows_replaced" id="pricingRowsReplaced" value="<?php echo !empty($_POST['pricing_rows_replaced'])?'1':'0'; ?>">
+        <input type="hidden" name="applied_pricing_scheme_id" id="appliedPricingSchemeId" value="<?php echo (int)($_POST['applied_pricing_scheme_id']??(!$eventId?($defaultPricingSchemeIdsByType[$eventTypeSelectedId]??0):0)); ?>">
         <input type="hidden" name="action" value="save_event">
         <input type="hidden" name="event_id" value="<?php echo h((string)$event['id']); ?>">
         <input type="hidden" name="venue" id="venue_name_input" value="<?php echo h($event['venue']); ?>">
@@ -510,7 +553,9 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         <div class="section-card">
             <div class="section-title">Classes &amp; Pricing</div>
-            <div class="section-sub">Choose a pricing template for this event, then make any event-specific adjustments below. Applying a template replaces the current rows; later template edits do not affect this event.</div>
+            <?php if($pricingLocked): ?><div class="alert alert-info">Pricing is locked because entries have opened. These saved prices will not change when master rates change.</div><?php else: ?><p class="small text-muted">Existing events keep their saved rates. Apply a template explicitly to load current prices before entries open.</p><?php endif; ?>
+            <fieldset <?php echo $pricingLocked?'disabled':''; ?>>
+            <div class="section-sub">Choose a pricing template, then enable the classes needed for this event. Ride rates and eligibility come from the master list. Applying a template replaces the current rows; later master edits do not affect this event.</div>
 
             <div class="row g-2 align-items-end mb-3">
                 <div class="col-md-8 col-lg-7">
@@ -596,6 +641,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     </table>
                 </div>
             </div>
+            </fieldset>
         </div>
 
         <div class="section-card">
@@ -974,6 +1020,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 })) return;
                 renderPricingRows(scheme.rows || []);
                 if (pricingRowsReplaced) pricingRowsReplaced.value = '1';
+                document.getElementById('appliedPricingSchemeId').value = scheme.id;
             });
         }
 
@@ -1056,6 +1103,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 renderPricingRows(rows);
                 if (pricingRowsReplaced) pricingRowsReplaced.value = '1';
                 refreshPricingSchemeChoices(defaultPricingSchemeIdsByType[lastEventTypeId] || defaultPricingSchemeIdsByType[Number(lastEventTypeId)] || '');
+                document.getElementById('appliedPricingSchemeId').value=defaultPricingSchemeIdsByType[lastEventTypeId] || 0;
                 pendingEventTypeId = '';
                 getEventTypeChangeModal()?.hide();
             });
@@ -1231,5 +1279,33 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 <script>
 if (window.tinymce) tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));
 </script>
-<?php
-admin_layout_end();
+<?php if($pricingLocked): ?><script>
+(() => {
+    const fee=document.querySelector('input[name="late_entry_fee"]');if(fee)fee.readOnly=true;
+    const type=document.querySelector('select[name="event_type_id"]');
+    if(type){const hidden=document.createElement('input');hidden.type='hidden';hidden.name=type.name;hidden.value=type.value;type.after(hidden);type.disabled=true;}
+})();
+</script><?php endif; ?>
+
+<?php if(ridePricingReady($pdo)): ?><script>
+(() => {
+    const rideTypes=<?php echo json_encode(rideTypeIds($pdo)); ?>.map(String);
+    const table=document.getElementById('pricingRowsTbody');
+    const type=document.querySelector('select[name="event_type_id"]');
+    const protect=()=>{
+        const standard=rideTypes.includes(String(type?.value));
+        table?.querySelectorAll('[data-master-hidden]').forEach(el=>el.remove());
+        table?.querySelectorAll('input,select').forEach(el=>{
+            if(el.type==='hidden' || el.name.startsWith('event_row_enabled['))return;
+            if(el.tagName==='SELECT' || el.type==='checkbox'){
+                el.disabled=standard;
+                if(standard){const hidden=document.createElement('input');hidden.type='hidden';hidden.name=el.name;hidden.value=el.type==='checkbox'?(el.checked?'1':'0'):el.value;hidden.dataset.masterHidden='1';el.after(hidden);}
+            }else{el.readOnly=standard;}
+        });
+        const add=document.getElementById('addPricingRowBtn');if(add)add.hidden=standard;
+    };
+    if(table)new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeName==='TR')))protect();}).observe(table,{childList:true});
+    type?.addEventListener('change',protect);protect();
+})();
+</script><?php endif; ?>
+<?php admin_layout_end();

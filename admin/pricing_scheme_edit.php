@@ -15,6 +15,11 @@ $schemeId = (int)($_GET['id'] ?? 0);
 $scheme = $schemeId > 0 ? fetchPricingSchemeById($pdo, $schemeId) : null;
 $eventTypes = fetchEventTypes($pdo);
 $rideClassOptions = ['PR', 'VPR', 'CTR', 'ER', 'OTHER'];
+if (ridePricingReady($pdo) && (($schemeId && isMasterRideScheme($pdo,$schemeId)) || (!$schemeId && ($_GET['mode']??'ride')!=='custom'))) {
+    require __DIR__.'/ride_scheme_form.php';
+    exit;
+}
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $savedId = savePricingScheme($pdo, $_POST, $alerts, $schemeId > 0 ? $schemeId : null);

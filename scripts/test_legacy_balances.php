@@ -8,16 +8,29 @@ date_default_timezone_set('Europe/London');
 function legacyCheck(bool $ok,string $message): void { if(!$ok)throw new RuntimeException($message); }
 function legacyReject(callable $action,string $message): void { try{$action();}catch(RuntimeException $e){return;}throw new RuntimeException($message); }
 class LegacyTestPDO extends PDO {
+    private array $temporaryTables=[];
     public function exec(string $statement):int|false {
         $statement=preg_replace('/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS/i','CREATE TEMPORARY TABLE IF NOT EXISTS',$statement);
-        return parent::exec($statement);
+        $result=parent::exec($statement);
+        if(preg_match('/CREATE\s+TEMPORARY\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([a-z_]+)/i',$statement,$match))$this->temporaryTables[$match[1]]=true;
+        return $result;
+    }
+    public function query(string $query,?int $fetchMode=null,mixed ...$args):PDOStatement|false {
+        // information_schema excludes session-only temporary tables used by this test.
+        if(str_contains($query,"table_name IN ('legacy_balances', 'legacy_balance_verifications')")) {
+            $count=count(array_intersect(['legacy_balances','legacy_balance_verifications'],array_keys($this->temporaryTables)));
+            $query='SELECT '.$count;
+        }
+        return $fetchMode===null?parent::query($query):parent::query($query,$fetchMode,...$args);
     }
 }
 $config=require dirname(__DIR__).'/config.php';$db=$config['db'];
 $pdo=new LegacyTestPDO('mysql:host='.$db['host'].';port='.($db['port']??3306).';dbname='.$db['name'].';charset=utf8mb4',$db['user'],$db['pass'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $pdo->exec("CREATE TEMPORARY TABLE users(id INT PRIMARY KEY,email VARCHAR(190),is_archived TINYINT DEFAULT 0)");
 $pdo->exec("INSERT INTO users VALUES(1,'credit@example.invalid',0),(2,'debit@example.invalid',0),(3,'other@example.invalid',0),(4,'archived@example.invalid',1),(5,'automatic-debit@example.invalid',0)");
+legacyCheck(!legacyBalancesAvailable($pdo),'Missing legacy schema incorrectly reported available');
 $alerts=[];ensure_finance_tables($pdo,$alerts);legacyBalanceSchema($pdo);
+legacyCheck(legacyBalancesAvailable($pdo),'Temporary legacy schema not detected');
 $path=tempnam(sys_get_temp_dir(),'legacy-csv-');
 $source="\xEF\xBB\xBF\"id\";\"email\";\"name\";\"balance\"\r\n\"1\";\" CREDIT@example.invalid \";\"Credit Person\";\"-25.00\"\r\n\"2\";\"debit@example.invalid\";NULL;\"17.00\"\r\n";
 file_put_contents($path,$source);chmod($path,0600);

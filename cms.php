@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . "/purchasing.php";
+require_once __DIR__ . "/ride_pricing.php";
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/announcements.php';
@@ -1343,6 +1344,7 @@ function fetchPricingSchemeRows(?PDO $pdo, int $schemeId): array
         return [];
     }
     ensurePricingSchemeTables($pdo);
+    if (isMasterRideScheme($pdo, $schemeId)) return fetchMasterSchemeRows($pdo, $schemeId);
     try {
         $stmt = $pdo->prepare("SELECT * FROM pricing_scheme_rows WHERE scheme_id = :sid ORDER BY sort_order ASC, id ASC");
         $stmt->execute([':sid' => $schemeId]);
@@ -1367,6 +1369,13 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
     }
     ensurePricingSchemeTables($pdo);
     $schemeId = $schemeId && $schemeId > 0 ? $schemeId : null;
+
+    if (ridePricingReady($pdo)) {
+        $postedTypes = array_map('intval', (array)($data['event_type_ids'] ?? []));
+        if (($schemeId && isMasterRideScheme($pdo, $schemeId)) || array_intersect($postedTypes, rideTypeIds($pdo))) {
+            return saveMasterRideScheme($pdo, $data, $alerts, $schemeId);
+        }
+    }
 
     $name = trim((string)($data['name'] ?? ''));
     if ($name === '') {
@@ -1557,6 +1566,48 @@ function savePricingScheme(?PDO $pdo, array $data, array &$alerts, ?int $schemeI
     }
 }
 
+function copyPricingScheme(?PDO $pdo, int $sourceId, array &$alerts): ?int
+{
+    if (!$pdo || $sourceId <= 0) {
+        $alerts[] = ['type'=>'danger', 'message'=>'Select an existing pricing scheme to copy.'];
+        return null;
+    }
+    ensurePricingSchemeTables($pdo);
+    try {
+        $pdo->beginTransaction();
+        $source = $pdo->prepare('SELECT name FROM pricing_schemes WHERE id=:id');
+        $source->execute([':id'=>$sourceId]);
+        $name = $source->fetchColumn();
+        if ($name === false) {
+            $pdo->rollBack();
+            $alerts[] = ['type'=>'danger', 'message'=>'The pricing scheme to copy was not found.'];
+            return null;
+        }
+        $insert = $pdo->prepare('INSERT INTO pricing_schemes(name,created_at,updated_at) VALUES(:name,NOW(),NOW())');
+        $insert->execute([':name'=>mb_substr((string)$name, 0, 183).' (Copy)']);
+        $newId = (int)$pdo->lastInsertId();
+        $rows = $pdo->prepare('INSERT INTO pricing_scheme_rows
+            (scheme_id,sort_order,class_name,class_code,class_group,price,foreign_recognition_price,is_member_price,is_junior_ride,rider_eligibility,created_at,updated_at)
+            SELECT :new_id,sort_order,class_name,class_code,class_group,price,foreign_recognition_price,is_member_price,is_junior_ride,rider_eligibility,NOW(),NOW()
+            FROM pricing_scheme_rows WHERE scheme_id=:source_id ORDER BY sort_order,id');
+        $rows->execute([':new_id'=>$newId, ':source_id'=>$sourceId]);
+        $types = $pdo->prepare('INSERT INTO pricing_scheme_event_types(scheme_id,event_type_id)
+            SELECT :new_id,event_type_id FROM pricing_scheme_event_types WHERE scheme_id=:source_id');
+        $types->execute([':new_id'=>$newId, ':source_id'=>$sourceId]);
+        if (ridePricingReady($pdo)) {
+            $copy = $pdo->prepare('INSERT INTO ride_scheme_classes(scheme_id,class_id,sort_order) SELECT :new_id,class_id,sort_order FROM ride_scheme_classes WHERE scheme_id=:source_id');
+            $copy->execute([':new_id'=>$newId, ':source_id'=>$sourceId]);
+        }
+        // Existing event-type defaults and event prices must remain unchanged.
+        $pdo->commit();
+        return $newId;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $alerts[] = ['type'=>'danger', 'message'=>'Could not copy pricing scheme.'];
+        return null;
+    }
+}
+
 function deletePricingScheme(?PDO $pdo, int $schemeId, array &$alerts): bool
 {
     if (!$pdo || $schemeId <= 0) {
@@ -1565,6 +1616,7 @@ function deletePricingScheme(?PDO $pdo, int $schemeId, array &$alerts): bool
     ensurePricingSchemeTables($pdo);
     try {
         $pdo->beginTransaction();
+        if (ridePricingReady($pdo)) $pdo->prepare('DELETE FROM ride_scheme_classes WHERE scheme_id=:id')->execute([':id'=>$schemeId]);
         $pdo->prepare("DELETE FROM pricing_scheme_rows WHERE scheme_id = :sid")->execute([':sid' => $schemeId]);
         $pdo->prepare("DELETE FROM pricing_scheme_event_types WHERE scheme_id = :sid")->execute([':sid' => $schemeId]);
         $pdo->prepare("UPDATE event_types SET default_pricing_scheme_id = NULL WHERE default_pricing_scheme_id = :sid")->execute([':sid' => $schemeId]);
@@ -1595,7 +1647,7 @@ function fetchEventPricingRows(?PDO $pdo, int $eventId): array
     }
 }
 
-function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows): bool
+function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows, bool $initialPricing = false): bool
 {
     if (!$pdo || $eventId <= 0) {
         return false;
@@ -1603,6 +1655,21 @@ function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows): bool
     ensureEventPricingTables($pdo);
     try {
         $pdo->beginTransaction();
+        $eventLock=$pdo->prepare('SELECT id FROM events WHERE id=:id FOR UPDATE');
+        $eventLock->execute([':id'=>$eventId]);
+        if(!$eventLock->fetchColumn()){$pdo->rollBack();return false;}
+        $existing=$pdo->prepare('SELECT * FROM event_pricing_rows WHERE event_id=:id ORDER BY sort_order,id');
+        $existing->execute([':id'=>$eventId]);$existingRows=$existing->fetchAll();
+        if($initialPricing && $existingRows){$pdo->rollBack();return false;}
+        if(!$initialPricing && eventPricingLocked($pdo,$eventId)){
+            // Commit the permanent lock, but never replace rows/IDs on an opened event.
+            $unchanged=eventPricingComparableRows($existingRows)===eventPricingComparableRows($rows);
+            $pdo->commit();return $unchanged;
+        }
+        if($initialPricing && ridePricingReady($pdo)){
+            $locked=$pdo->prepare('SELECT 1 FROM event_pricing_locks WHERE event_id=:id');$locked->execute([':id'=>$eventId]);
+            if($locked->fetchColumn()){$pdo->rollBack();return false;}
+        }
         $pdo->prepare("DELETE FROM event_pricing_rows WHERE event_id = :eid")->execute([':eid' => $eventId]);
         $ins = $pdo->prepare("
             INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, rider_eligibility, enabled, created_at, updated_at)
@@ -1641,10 +1708,10 @@ function copyPricingSchemeToEvent(?PDO $pdo, int $schemeId, int $eventId): bool
     ensurePricingSchemeTables($pdo);
     ensureEventPricingTables($pdo);
     try {
-        $stmt = $pdo->prepare("SELECT sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, rider_eligibility FROM pricing_scheme_rows WHERE scheme_id = :sid ORDER BY sort_order ASC, id ASC");
-        $stmt->execute([':sid' => $schemeId]);
+        $sourceRows = fetchPricingSchemeRows($pdo, $schemeId);
+        if (!$sourceRows) return false;
         $rows = [];
-        foreach ($stmt->fetchAll() as $r) {
+        foreach ($sourceRows as $r) {
             $rows[] = [
                 'sort_order' => (int)($r['sort_order'] ?? 0),
                 'class_name' => (string)($r['class_name'] ?? ''),
@@ -1778,7 +1845,7 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
         return [];
     }
     $rows = [];
-    $hasEnabledNonMember = false;
+    $hasEnabledPrice = false;
 
     // Use row keys rather than positional indexes so the UI can safely add/remove rows
     // and checkbox fields (which are omitted when unchecked) don't shift alignment.
@@ -1808,8 +1875,8 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
         $foreignRecognitionPrice = $foreignPriceRaw === '' ? null : price_to_number($foreignPriceRaw);
         $classGroup = strtoupper(trim((string)($rowGroups[$key] ?? '')));
         if (mb_strlen($classGroup) > 32) $classGroup = mb_substr($classGroup, 0, 32);
-        if ($enabled && !$isMember) {
-            $hasEnabledNonMember = true;
+        if ($enabled) {
+            $hasEnabledPrice = true;
         }
         $rows[] = [
             'sort_order' => $sortOrder,
@@ -1829,8 +1896,8 @@ function parseEventPricingRowsFromPost(array $data, array &$alerts): array
         $alerts[] = ['type' => 'danger', 'message' => 'Add at least one pricing row.'];
         return [];
     }
-    if (!$hasEnabledNonMember) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Enable at least one non-member price so the public entry form can offer a class choice.'];
+    if (!$hasEnabledPrice) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enable at least one class so the public entry form can offer a class choice.'];
         return [];
     }
     return $rows;
@@ -5553,6 +5620,17 @@ function buildDuplicatedEventPricingRows(?PDO $pdo, array $sourceEvent): array
         $schemeRows = fetchPricingSchemeRows($pdo, $schemeId);
     }
 
+    if (ridePricingReady($pdo) && in_array($eventTypeId,rideTypeIds($pdo),true)) {
+        if (!$sourceRows) return array_map(static fn($row)=>array_merge($row,['enabled'=>1]),$schemeRows);
+        $masters=array_values(array_filter(fetchMasterRideClasses($pdo),static fn($row)=>(bool)$row['is_active']));
+        $rows=[];
+        foreach($sourceRows as $row){
+            $master=matchMasterRideClass($row,$masters);
+            $master['sort_order']=$row['sort_order'];$master['enabled']=$row['enabled'];$rows[]=$master;
+        }
+        return $rows;
+    }
+
     $buildKeys = static function (array $row): array {
         $code = mb_strtolower(trim((string)($row['class_code'] ?? '')));
         $name = mb_strtolower(trim((string)($row['class_name'] ?? '')));
@@ -5673,7 +5751,8 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
 
     $eventTypeId = (int)($sourceEvent['event_type_id'] ?? 0);
     $componentRows = fetchEventEntryComponents($pdo, $sourceEventId, $eventTypeId);
-    $pricingRows = buildDuplicatedEventPricingRows($pdo, $sourceEvent);
+    try {$pricingRows = buildDuplicatedEventPricingRows($pdo, $sourceEvent);}
+    catch(RuntimeException $e){$alerts[]=['type'=>'danger','message'=>$e->getMessage()];return false;}
 
     try {
         $pdo->beginTransaction();
@@ -5718,8 +5797,8 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
 
         if ($pricingRows) {
             $insPricing = $pdo->prepare("
-                INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, enabled, created_at, updated_at)
-                VALUES (:event_id, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, :enabled, NOW(), NOW())
+                INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, rider_eligibility, enabled, created_at, updated_at)
+                VALUES (:event_id, :sort_order, :class_name, :class_code, :class_group, :price, :foreign_recognition_price, :is_member_price, :is_junior_ride, :rider_eligibility, :enabled, NOW(), NOW())
             ");
             foreach ($pricingRows as $row) {
                 $insPricing->execute([
@@ -5732,6 +5811,7 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
                     ':foreign_recognition_price' => ($row['foreign_recognition_price'] ?? null) !== null && $row['foreign_recognition_price'] !== '' ? (float)$row['foreign_recognition_price'] : null,
                     ':is_member_price' => !empty($row['is_member_price']) ? 1 : 0,
                     ':is_junior_ride' => !empty($row['is_junior_ride']) ? 1 : 0,
+                    ':rider_eligibility' => $row['rider_eligibility']??(!empty($row['is_junior_ride'])?'junior':'senior'),
                     ':enabled' => !empty($row['enabled']) ? 1 : 0,
                 ]);
             }
@@ -5799,6 +5879,13 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     ensureEventDetailsColumn($pdo);
 
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
+    $lockedEvent = $eventId>0 && eventPricingLocked($pdo,$eventId) ? fetchEventById($pdo,$eventId) : null;
+    if ($lockedEvent) {
+        if ((int)($data['event_type_id']??0)!==(int)$lockedEvent['event_type_id'] || array_key_exists('class_selected',$data) || array_key_exists('class_price',$data)) {
+            $alerts[]=['type'=>'danger','message'=>'Pricing and event type are locked because entries have opened.'];
+            return false;
+        }
+    }
     $title = trim((string)($data['title'] ?? ''));
     $eventDate = trim((string)($data['event_date'] ?? ''));
     $endDate = trim((string)($data['end_date'] ?? ''));
@@ -5935,6 +6022,10 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $nonMemberEntryOpenAt = $nonMemberEntryOpenDate !== '' ? trim($nonMemberEntryOpenDate . ' ' . $nonMemberEntryOpenTime) : null;
     $entryCloseAt = $entryCloseDate !== '' ? trim($entryCloseDate . ' ' . $entryCloseTime) : null;
     $lateEntryCloseAt = $lateEntryCloseDate !== '' ? trim($lateEntryCloseDate . ' ' . $lateEntryCloseTime) : null;
+    if ($lockedEvent) {
+        $lateEntryFee = (float)($lockedEvent['late_entry_fee']??0);
+        $classesOffered = $lockedEvent['classes_offered'];
+    }
     $capacityEnabled = !empty($data['capacity_enabled']) ? 1 : 0;
     $capacityLimit = (int)($data['capacity_limit'] ?? 50);
     if ($capacityLimit < 1) {
@@ -5982,7 +6073,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                 ':venue_id' => $venueId > 0 ? $venueId : null,
                 ':organiser' => $organiser ?: null,
                 ':organiser_user_id' => $organiserUserId > 0 ? $organiserUserId : null,
-                ':classes_offered' => is_string($classesOffered) ? $classesOffered : json_encode($classesOffered, JSON_UNESCAPED_UNICODE),
+                ':classes_offered' => $lockedEvent ? $lockedEvent['classes_offered'] : (is_string($classesOffered) ? $classesOffered : json_encode($classesOffered, JSON_UNESCAPED_UNICODE)),
                 ':entry_open_at' => $entryOpenAt ?: null,
                 ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
                 ':entry_close_at' => $entryCloseAt ?: null,
@@ -6016,7 +6107,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             ':venue_id' => $venueId > 0 ? $venueId : null,
             ':organiser' => $organiser ?: null,
             ':organiser_user_id' => $organiserUserId > 0 ? $organiserUserId : null,
-            ':classes_offered' => is_string($classesOffered) ? $classesOffered : json_encode($classesOffered, JSON_UNESCAPED_UNICODE),
+            ':classes_offered' => $lockedEvent ? $lockedEvent['classes_offered'] : (is_string($classesOffered) ? $classesOffered : json_encode($classesOffered, JSON_UNESCAPED_UNICODE)),
             ':entry_open_at' => $entryOpenAt ?: null,
             ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
             ':entry_close_at' => $entryCloseAt ?: null,

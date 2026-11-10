@@ -10,11 +10,12 @@ event types, without making routine event setup difficult for administrators.
 
 - `event_types` currently provides broad categories such as Ride, Awards and
   Training. There is no Event Type management screen yet.
-- A pricing scheme is a reusable template of pricing rows. It is assigned to
-  one or more Event Types, and one scheme can be the default for each type.
-- New events receive a *copy* of their Event Type's default pricing rows. An
-  event can now also apply any compatible pricing template from its editor.
-  This is intentionally a copy, not a live link to the template.
+- Ride pricing schemes now select shared master classes and rates. Non-ride schemes
+  retain independent pricing rows. See [Master ride pricing](../MASTER_RIDE_PRICING.md).
+  Each scheme applies to Event Types, with one default scheme per type.
+- Events store price snapshots. Existing events never update automatically when
+  master rates change; a pre-opening event needs an explicit template reapply.
+  Pricing locks once entries open and remains locked after unpublishing/rescheduling.
 - Entry Components are reusable form items that can be enabled for an event.
   They can be limited to particular Event Types.
 - The public entry page is still fundamentally ride-shaped: rider, horse and

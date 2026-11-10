@@ -393,26 +393,24 @@ foreach ($pageElements as &$pageElement) {
     if (($pageElement['content_type'] ?? 'rich_text') !== 'ride_prices') {
         continue;
     }
-    $rideSchemes = array_values(array_filter(fetchPricingSchemes($pdo), static function (array $scheme): bool {
-        if (stripos((string)($scheme['name'] ?? ''), 'ride') !== false) {
-            return true;
-        }
-        foreach ((array)($scheme['event_types'] ?? []) as $eventType) {
-            if (stripos((string)($eventType['name'] ?? ''), 'ride') !== false) {
-                return true;
+    $rideRows = fetchMasterRideClasses($pdo, true);
+    if (!ridePricingReady($pdo)) {
+        // Keep the old public content available until the reviewed migration is applied.
+        foreach (fetchPricingSchemes($pdo) as $scheme) {
+            foreach ((array)($scheme['event_types']??[]) as $type) {
+                if (strtolower(trim((string)$type['name']))==='ride') {
+                    $rideRows=array_merge($rideRows,fetchPricingSchemeRows($pdo,(int)$scheme['id']));
+                    break;
+                }
             }
         }
-        return false;
-    }));
+    }
     ob_start();
     ?>
     <div class="ride-prices mt-4">
-        <?php if ($rideSchemes): ?>
-            <?php foreach ($rideSchemes as $rideScheme): ?>
-                <?php $rideRows = fetchPricingSchemeRows($pdo, (int)($rideScheme['id'] ?? 0)); ?>
-                <?php if ($rideRows): ?>
+        <?php if ($rideRows): ?>
                     <div class="mb-4">
-                        <div class="fw-bold mb-2"><?php echo h((string)$rideScheme['name']); ?></div>
+                        <div class="fw-bold mb-2">Standard Ride Prices</div>
                         <div class="table-responsive">
                             <table class="table table-sm table-striped align-middle mb-0">
                                 <thead class="table-light"><tr><th>Class name</th><th>Entry type</th><th>Rider</th><th class="text-end">Price</th></tr></thead>
@@ -421,7 +419,7 @@ foreach ($pageElements as &$pageElement) {
                                         <tr>
                                             <td><?php echo h((string)($rideRow['class_name'] ?? '')); ?></td>
                                             <td><?php echo !empty($rideRow['is_member_price']) ? 'Member' : 'Non-member'; ?></td>
-                                            <td><?php echo !empty($rideRow['is_junior_ride']) ? 'Junior' : 'Senior'; ?></td>
+                                            <td><?php echo h(ucfirst((string)$rideRow['rider_eligibility'])); ?></td>
                                             <td class="text-end fw-semibold"><?php echo h(format_price($rideRow['price'] ?? 0)); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -429,8 +427,6 @@ foreach ($pageElements as &$pageElement) {
                             </table>
                         </div>
                     </div>
-                <?php endif; ?>
-            <?php endforeach; ?>
         <?php else: ?>
             <div class="alert alert-info mb-0">Ride prices will be available soon.</div>
         <?php endif; ?>

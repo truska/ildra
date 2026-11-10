@@ -15,7 +15,13 @@ function legacyBalanceSchema(PDO $pdo): void
 }
 function legacyBalancesAvailable(PDO $pdo): bool
 {
-    try { $pdo->query('SELECT 1 FROM legacy_balances LIMIT 0');$pdo->query('SELECT 1 FROM legacy_balance_verifications LIMIT 0');return true; }
+    try {
+        // An uninstalled optional migration is normal, not a SQL error.
+        $stmt = $pdo->query("SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+              AND table_name IN ('legacy_balances', 'legacy_balance_verifications')");
+        return (int)$stmt->fetchColumn() === 2;
+    }
     catch(PDOException $e){return false;}
 }
 function legacyBalanceParse(string $path): array
