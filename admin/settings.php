@@ -250,7 +250,7 @@ admin_layout_start('Settings', 'settings');
                 <div class="col-12 text-muted small">Each button appears only when both its label and destination are filled in.</div>
                 <div class="col-md-6"><label class="form-label fw-semibold" for="sponsor_image_url">Site logo URL</label><input class="form-control" id="sponsor_image_url" name="sponsor_image_url" value="<?php echo h((string)$siteSettings['sponsor_image_url']); ?>"></div>
                 <div class="col-md-6"><label class="form-label fw-semibold" for="home_carousel_interval_seconds">Banner slide interval</label><div class="input-group"><input type="number" min="2" max="60" class="form-control" id="home_carousel_interval_seconds" name="home_carousel_interval_seconds" value="<?php echo (int)$siteSettings['home_carousel_interval_seconds']; ?>"><span class="input-group-text">seconds</span></div></div>
-                <div class="col-12"><button class="btn btn-success">Save home page settings</button></div>
+                <div class="col-12"><button class="btn btn-success">Save Home Page Settings</button></div>
             </form>
         </div>
     </div>
@@ -344,8 +344,8 @@ admin_layout_start('Settings', 'settings');
                     <input type="number" min="0" step="0.01" class="form-control" id="event_stripe_refund_fee" name="event_stripe_refund_fee" required value="<?php echo h((string)$siteSettings['event_stripe_refund_fee']); ?>">
                 </div>
                 <div class="col-12 d-flex gap-2">
-                    <button class="btn btn-success">Save event settings</button>
-                    <a class="btn btn-outline-secondary" href="index.php">Back to dashboard</a>
+                    <button class="btn btn-success">Save Event Settings</button>
+                    <a class="btn btn-outline-secondary" href="index.php">Back To Dashboard</a>
                 </div>
             </form>
         </div>
@@ -357,10 +357,10 @@ admin_layout_start('Settings', 'settings');
             <div class="col-12"><label class="form-label fw-semibold">Default intro text</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_intro_html"><?php echo h((string)($siteSettings['ride_notes_email_intro_html'] ?? '<p>Important information for your upcoming ride is now available.</p>')); ?></textarea></div>
             <div class="col-12"><label class="form-label fw-semibold">Header image URL</label><input class="form-control" type="url" name="ride_notes_email_header_image_url" value="<?php echo h((string)($siteSettings['ride_notes_email_header_image_url'] ?? '')); ?>" placeholder="https://…"><div class="form-text">Leave blank to use the site email logo.</div></div>
             <div class="col-12"><label class="form-label fw-semibold">Signature block</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_signature_html"><?php echo h((string)($siteSettings['ride_notes_email_signature_html'] ?? '')); ?></textarea><div class="form-text">The normal site email signature and logo are also added automatically.</div></div>
-            <div class="col-12"><button class="btn btn-success">Save Rider Notes email settings</button></div>
+            <div class="col-12"><button class="btn btn-success">Save Rider Notes Email Settings</button></div>
         </form></div>
     </div>
-    <div class="tab-pane fade <?php echo $activeSettingsTab === 'marketing' ? 'show active' : ''; ?>" id="marketing-settings" role="tabpanel" aria-labelledby="marketing-tab" tabindex="0"><h3 class="h5 fw-bold mb-1">Marketing and coupons</h3><p class="text-muted small mb-3">Ride Helper coupons use this fixed value when issued.</p><div class="card-soft p-3"><form method="post" class="row g-3"><input type="hidden" name="settings_section" value="marketing"><div class="col-md-4"><label class="form-label fw-semibold">Ride Helper coupon value (£)</label><input class="form-control" type="number" min="0" step="0.01" name="ride_helper_coupon_value" value="<?php echo h((string)($siteSettings['ride_helper_coupon_value']??'0.00')); ?>"></div><div class="col-12"><label class="form-label fw-semibold">Default coupon terms and conditions</label><textarea class="form-control wysiwyg-field" rows="6" name="coupon_default_terms_html"><?php echo h((string)($siteSettings['coupon_default_terms_html']??'')); ?></textarea><div class="form-text">Used as the starting terms for each new coupon. The terms remain editable on the individual coupon.</div></div><div class="col-12"><button class="btn btn-success">Save marketing settings</button></div></form></div></div>
+    <div class="tab-pane fade <?php echo $activeSettingsTab === 'marketing' ? 'show active' : ''; ?>" id="marketing-settings" role="tabpanel" aria-labelledby="marketing-tab" tabindex="0"><h3 class="h5 fw-bold mb-1">Marketing and coupons</h3><p class="text-muted small mb-3">Ride Helper coupons use this fixed value when issued.</p><div class="card-soft p-3"><form method="post" class="row g-3"><input type="hidden" name="settings_section" value="marketing"><div class="col-md-4"><label class="form-label fw-semibold">Ride Helper coupon value (£)</label><input class="form-control" type="number" min="0" step="0.01" name="ride_helper_coupon_value" value="<?php echo h((string)($siteSettings['ride_helper_coupon_value']??'0.00')); ?>"></div><div class="col-12"><label class="form-label fw-semibold">Default coupon terms and conditions</label><textarea class="form-control wysiwyg-field" rows="6" name="coupon_default_terms_html"><?php echo h((string)($siteSettings['coupon_default_terms_html']??'')); ?></textarea><div class="form-text">Used as the starting terms for each new coupon. The terms remain editable on the individual coupon.</div></div><div class="col-12"><button class="btn btn-success">Save Marketing Settings</button></div></form></div></div>
     <?php if ($canManageCampaignEmail): ?><div class="tab-pane fade <?php echo $activeSettingsTab === 'campaign_email' ? 'show active' : ''; ?>" id="campaign-email-settings" role="tabpanel" aria-labelledby="campaign-email-tab" tabindex="0">
         <h3 class="h5 fw-bold mb-1">Campaign email</h3>
         <p class="text-muted small mb-3">Senior administrator controls for scheduled and bulk campaign delivery.</p>
@@ -371,7 +371,7 @@ admin_layout_start('Settings', 'settings');
             </div>
             <div class="col-12 col-md-3"><label class="form-label fw-semibold" for="campaign_default_batch_size">Default batch size</label><input class="form-control" id="campaign_default_batch_size" name="campaign_default_batch_size" type="number" min="1" max="500" value="<?php echo (int)($siteSettings['campaign_default_batch_size'] ?? 25); ?>"><div class="form-text">Maximum recipients processed per scheduled run.</div></div>
             <div class="col-12 col-md-6"><label class="form-label fw-semibold" for="campaign_public_base_url">Public base URL</label><input class="form-control" id="campaign_public_base_url" name="campaign_public_base_url" type="url" value="<?php echo h((string)($siteSettings['campaign_public_base_url'] ?? '')); ?>" placeholder="https://enduranceridingireland.com"><div class="form-text">Used for tracking, unsubscribe and campaign links generated by cron.</div></div>
-            <div class="col-12"><button class="btn btn-success">Save campaign email settings</button></div>
+            <div class="col-12"><button class="btn btn-success">Save Campaign Email Settings</button></div>
         </form></div>
     </div><?php endif; ?>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'global' ? 'show active' : ''; ?>" id="global-settings" role="tabpanel" aria-labelledby="global-tab" tabindex="0">
@@ -426,8 +426,8 @@ admin_layout_start('Settings', 'settings');
                         </div>
                     </div>
                     <div class="col-12 d-flex gap-2">
-                        <button class="btn btn-success">Save settings</button>
-                        <a class="btn btn-outline-secondary" href="index.php">Back to dashboard</a>
+                        <button class="btn btn-success">Save Settings</button>
+                        <a class="btn btn-outline-secondary" href="index.php">Back To Dashboard</a>
                     </div>
                 </form>
             </div>
@@ -466,7 +466,7 @@ admin_layout_start('Settings', 'settings');
                     <label class="form-label fw-semibold" for="company_postcode">Postcode</label>
                     <input class="form-control" id="company_postcode" name="company_postcode" value="<?php echo h((string)($siteSettings['company_postcode'] ?? '')); ?>" placeholder="Optional">
                 </div>
-                <div class="col-12"><button class="btn btn-success">Save company settings</button></div>
+                <div class="col-12"><button class="btn btn-success">Save Company Settings</button></div>
             </form>
         </div>
     </div>
@@ -486,7 +486,7 @@ admin_layout_start('Settings', 'settings');
                     </div>
                 <?php endforeach; ?>
                 <div class="col-12">
-                    <div class="d-flex justify-content-between align-items-center mb-2"><h4 class="h6 fw-bold mb-0">Column 4 links</h4><button class="btn btn-outline-success btn-sm" type="button" id="add-footer-link">Add link</button></div>
+                    <div class="d-flex justify-content-between align-items-center mb-2"><h4 class="h6 fw-bold mb-0">Column 4 links</h4><button class="btn btn-outline-success btn-sm" type="button" id="add-footer-link">Add Link</button></div>
                     <p class="form-text">Use a site path such as /memberships or a full URL. Links appear in row order; use the arrows to reorder. Icons are optional, e.g. fa-solid fa-user.</p>
                     <div id="footer-links" class="d-grid gap-2">
                         <?php foreach ($footerServiceLinks as $linkIndex => $link): ?>
@@ -507,7 +507,7 @@ admin_layout_start('Settings', 'settings');
                             <h4 class="h6 fw-bold mb-1">Social media links</h4>
                             <p class="text-muted small mb-0">Add any number of pages. Enabled links with a URL appear under Socials in the final footer column. Use a different display label for each page so visitors can tell them apart.</p>
                         </div>
-                        <button class="btn btn-outline-success btn-sm" type="button" id="add-social-link"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add social link</button>
+                        <button class="btn btn-outline-success btn-sm" type="button" id="add-social-link"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Social Link</button>
                     </div>
                     <div id="social-links" class="d-grid gap-2">
                         <?php foreach ($companySocials as $socialIndex => $social): ?>
@@ -549,8 +549,8 @@ admin_layout_start('Settings', 'settings');
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                         <div><h4 class="h6 fw-bold mb-1">Partners</h4><p class="text-muted small mb-0">Partner logo links shown in the final footer column.</p></div>
                         <div class="d-flex flex-wrap gap-2">
-                            <a class="btn btn-outline-secondary btn-sm" href="asset_library.php"><i class="fa-regular fa-images" aria-hidden="true"></i> Upload/manage library images</a>
-                            <button class="btn btn-outline-success btn-sm" type="button" id="add-affiliate"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add affiliate</button>
+                            <a class="btn btn-outline-secondary btn-sm" href="asset_library.php"><i class="fa-regular fa-images" aria-hidden="true"></i> Upload/Manage Library Images</a>
+                            <button class="btn btn-outline-success btn-sm" type="button" id="add-affiliate"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Affiliate</button>
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
@@ -593,8 +593,8 @@ admin_layout_start('Settings', 'settings');
                     </div>
                 </div>
                 <div class="col-12 d-flex gap-2">
-                    <button class="btn btn-success">Save footer settings</button>
-                    <a class="btn btn-outline-secondary" href="index.php">Back to dashboard</a>
+                    <button class="btn btn-success">Save Footer Settings</button>
+                    <a class="btn btn-outline-secondary" href="index.php">Back To Dashboard</a>
                 </div>
             </form>
         </div>

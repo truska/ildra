@@ -80,7 +80,7 @@ admin_layout_start($id ? 'Edit Award' : 'Add Award', 'awards');
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div><div class="small text-muted">Awards</div><h5 class="mb-0"><?php echo $id ? 'Edit award' : 'Add award'; ?></h5></div>
-    <a class="btn btn-outline-secondary" href="awards.php">Back to Awards</a>
+    <a class="btn btn-outline-secondary" href="awards.php">Back To Awards</a>
 </div>
 
 <div class="card-soft p-4">
@@ -92,7 +92,7 @@ admin_layout_start($id ? 'Edit Award' : 'Add Award', 'awards');
         <div class="col-md-4"><label class="form-label">Current uploaded image</label><?php if (!empty($award['legacy_image_filename'])): ?><a class="d-block" href="<?php echo h(image_upload_public_path('awards', 'sm', (string)$award['legacy_image_filename'])); ?>" target="_blank" rel="noopener"><img class="img-fluid border rounded" style="max-height:120px" src="<?php echo h(image_upload_public_path('awards', 'sm', (string)$award['legacy_image_filename'])); ?>" alt="Current award image"></a><?php else: ?><div class="form-control bg-light text-muted">No direct upload yet</div><?php endif; ?></div>
         <div class="col-12"><label class="form-label">Description</label><textarea class="form-control wysiwyg-field" name="description_html" rows="10"><?php echo h($award['description_html']); ?></textarea></div>
         <div class="col-12"><label class="me-3"><input type="checkbox" name="is_published" <?php echo !empty($award['is_published']) ? 'checked' : ''; ?>> Published</label><label><input type="checkbox" name="is_archived" <?php echo !empty($award['is_archived']) ? 'checked' : ''; ?>> Archived</label></div>
-        <div><button class="btn btn-success">Save award</button> <a class="btn btn-outline-secondary" href="awards.php">Cancel</a></div>
+        <div><button class="btn btn-success">Save Award</button> <a class="btn btn-outline-secondary" href="awards.php">Cancel</a></div>
     </form>
 </div>
 <?php render_tinymce_bootstrap(); ?>

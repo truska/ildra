@@ -68,10 +68,10 @@ admin_layout_start('Venues', 'venues');
     </div>
     <div class="d-flex gap-2">
         <?php if ($isListView): ?>
-            <a class="btn btn-success" href="venues.php?edit=new">Add venue</a>
-            <a class="btn btn-outline-secondary" href="events.php">Back to events</a>
+            <a class="btn btn-success" href="venues.php?edit=new">Add Venue</a>
+            <a class="btn btn-outline-secondary" href="events.php">Back To Events</a>
         <?php else: ?>
-            <a class="btn btn-outline-secondary" href="venues.php">Back to list</a>
+            <a class="btn btn-outline-secondary" href="venues.php">Back To List</a>
         <?php endif; ?>
     </div>
 </div>
@@ -159,9 +159,9 @@ admin_layout_start('Venues', 'venues');
                 </div>
             </div>
             <div class="d-flex gap-2 mt-4">
-                <button class="btn btn-success" type="submit">Save venue</button>
+                <button class="btn btn-success" type="submit">Save Venue</button>
                 <a class="btn btn-outline-secondary" href="venues.php">Cancel</a>
-                <?php if (!empty($v['id'])): ?><a class="btn btn-outline-primary" href="venue_images.php?venue_id=<?php echo (int)$v['id']; ?>">Venue images</a><?php endif; ?>
+                <?php if (!empty($v['id'])): ?><a class="btn btn-outline-primary" href="venue_images.php?venue_id=<?php echo (int)$v['id']; ?>">Venue Images</a><?php endif; ?>
             </div>
         </form>
         <?php if (!empty($v['id'])): ?>

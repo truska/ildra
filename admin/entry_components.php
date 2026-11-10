@@ -80,10 +80,10 @@ admin_layout_start('Entry Components', 'entry_components');
     </div>
     <div class="d-flex gap-2">
         <?php if ($isListView): ?>
-            <a class="btn btn-success" href="entry_components.php?edit=new">Add component</a>
-            <a class="btn btn-outline-secondary" href="events.php">Back to events</a>
+            <a class="btn btn-success" href="entry_components.php?edit=new">Add Component</a>
+            <a class="btn btn-outline-secondary" href="events.php">Back To Events</a>
         <?php else: ?>
-            <a class="btn btn-outline-secondary" href="entry_components.php">Back to list</a>
+            <a class="btn btn-outline-secondary" href="entry_components.php">Back To List</a>
         <?php endif; ?>
     </div>
 </div>
@@ -197,7 +197,7 @@ admin_layout_start('Entry Components', 'entry_components');
                         <?php $choiceOptions = (array)($editComponent['options'] ?? []); if (!$choiceOptions) $choiceOptions = [['label'=>'','note'=>'','price_adjustment'=>'0','display_order'=>10]]; ?>
                         <?php foreach ($choiceOptions as $index => $option): ?><div class="row g-2 align-items-end choice-option-row mb-2"><div class="col-md-4"><label class="form-label small">Choice</label><input class="form-control" name="option_label[<?php echo (int)$index; ?>]" value="<?php echo h((string)($option['label'] ?? '')); ?>"></div><div class="col-md-4"><label class="form-label small">Optional note</label><input class="form-control" name="option_note[<?php echo (int)$index; ?>]" value="<?php echo h((string)($option['note'] ?? '')); ?>" placeholder="Allergens or detail"></div><div class="col-md-2"><label class="form-label small">Adjustment (£)</label><input class="form-control" type="number" step="0.01" name="option_price_adjustment[<?php echo (int)$index; ?>]" value="<?php echo h((string)($option['price_adjustment'] ?? '0')); ?>"></div><div class="col-md-1"><label class="form-label small">Order</label><input class="form-control" type="number" name="option_order[<?php echo (int)$index; ?>]" value="<?php echo (int)($option['display_order'] ?? (($index + 1) * 10)); ?>"></div><div class="col-md-1"><button class="btn btn-outline-danger w-100 js-remove-choice" type="button">×</button></div></div><?php endforeach; ?>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" id="add-choice-option">Add choice</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" id="add-choice-option">Add Choice</button>
                 </div>
                 <div class="sub-card" id="pricing-card">
                     <div class="sub-heading d-flex justify-content-between align-items-center">

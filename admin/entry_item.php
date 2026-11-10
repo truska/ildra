@@ -455,9 +455,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($mode === 'edit') && (($_POST['act
     </div>
     <div class="admin-page-actions">
         <?php if ($returnEventId): ?>
-            <a class="btn btn-outline-secondary has-icon" href="event_entries.php?event_id=<?php echo (int)$returnEventId; ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to entries</span></a>
+            <a class="btn btn-outline-secondary has-icon" href="event_entries.php?event_id=<?php echo (int)$returnEventId; ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back To Entries</span></a>
         <?php else: ?>
-            <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
+            <a class="btn btn-outline-secondary has-icon" href="events.php"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back To Events</span></a>
         <?php endif; ?>
         <?php if ($mode === 'view' && !$attendeeDetails): ?>
             <a class="btn btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo (int)$itemId; ?>&mode=edit<?php echo $returnEventId ? '&event_id=' . (int)$returnEventId : ''; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a>
@@ -664,7 +664,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($mode === 'edit') && (($_POST['act
                         <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 w-100 w-md-auto">
                             <div class="text-danger small d-none" id="formErrorSummary"></div>
                             <div class="d-flex gap-2 w-100 w-md-auto flex-column flex-md-row">
-                                <button class="btn btn-success has-icon w-100 w-md-auto" id="submitEntry" type="submit"><i class="fa-solid fa-floppy-disk btn-icon"></i><span class="btn-label">Save changes</span></button>
+                                <button class="btn btn-success has-icon w-100 w-md-auto" id="submitEntry" type="submit"><i class="fa-solid fa-floppy-disk btn-icon"></i><span class="btn-label">Save Changes</span></button>
                                 <a class="btn btn-outline-secondary has-icon w-100 w-md-auto" href="entry_item.php?item_id=<?php echo (int)$itemId; ?><?php echo $returnEventId ? '&event_id=' . (int)$returnEventId : ''; ?>"><i class="fa-solid fa-xmark btn-icon"></i><span class="btn-label">Cancel</span></a>
                             </div>
                         </div>

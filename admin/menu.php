@@ -116,7 +116,7 @@ admin_layout_start('Menu', 'menu');
         <div class="small text-muted">Manage the admin sidebar hierarchy, labels and order.</div>
         <h5 class="mb-0">Admin menu</h5>
     </div>
-    <a class="btn btn-success" href="<?php echo h($menuUrl('new')); ?>">Add menu item</a>
+    <a class="btn btn-success" href="<?php echo h($menuUrl('new')); ?>">Add Menu Item</a>
 </div>
 
 <form method="get" id="<?php echo h($filterForm); ?>">
@@ -242,7 +242,7 @@ admin_layout_start('Menu', 'menu');
                         </div>
                     </div>
                     <div class="col-12 d-flex flex-wrap gap-2">
-                        <button class="btn btn-success" type="submit">Save menu item</button>
+                        <button class="btn btn-success" type="submit">Save Menu Item</button>
                         <a class="btn btn-outline-secondary" href="<?php echo h($listUrl); ?>">Cancel</a>
                     </div>
                 </form>
@@ -251,7 +251,7 @@ admin_layout_start('Menu', 'menu');
                     <form method="post" action="<?php echo h($menuUrl($editParam)); ?>" onsubmit="return confirm('Delete this menu item?');">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$editItem['id']; ?>">
-                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete menu item</button>
+                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete Menu Item</button>
                     </form>
                 <?php endif; ?>
             </div>

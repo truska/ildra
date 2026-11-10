@@ -96,10 +96,10 @@ admin_layout_start('Announcements', 'announcements');
 </ul>
 <?php if ($activeTab === 'automatic'): ?>
 <h3 class="h5 mb-3">Automatic announcements</h3>
-<form method="post" class="card-soft p-3 mb-3"><input type="hidden" name="action" value="save_events"><input type="hidden" name="settings_section" value="automatic"><label class="form-check"><input class="form-check-input" type="checkbox" name="event_announcement_enabled" value="1" <?php echo !empty($siteSettings['event_announcement_enabled']) ? 'checked' : ''; ?>>Show automatic event notices</label><div class="form-text mb-2">Displayed above the manual announcement. Closing notices take priority over opening notices. Existing event notice rules are unchanged.</div><button class="btn btn-sm btn-success">Save event notices</button></form>
+<form method="post" class="card-soft p-3 mb-3"><input type="hidden" name="action" value="save_events"><input type="hidden" name="settings_section" value="automatic"><label class="form-check"><input class="form-check-input" type="checkbox" name="event_announcement_enabled" value="1" <?php echo !empty($siteSettings['event_announcement_enabled']) ? 'checked' : ''; ?>>Show automatic event notices</label><div class="form-text mb-2">Displayed above the manual announcement. Closing notices take priority over opening notices. Existing event notice rules are unchanged.</div><button class="btn btn-sm btn-success">Save Event Notices</button></form>
 
 <?php elseif ($editing): ?>
-<div class="d-flex justify-content-between mb-3"><h3 class="h5"><?php echo $id ? 'Edit' : 'Add'; ?> <?php echo $isSuper ? 'Super' : 'Manual'; ?> announcement</h3><a href="announcements.php?tab=<?php echo $activeTab; ?>" class="btn btn-outline-secondary">Back to list</a></div>
+<div class="d-flex justify-content-between mb-3"><h3 class="h5"><?php echo $id ? 'Edit' : 'Add'; ?> <?php echo $isSuper ? 'Super' : 'Manual'; ?> announcement</h3><a href="announcements.php?tab=<?php echo $activeTab; ?>" class="btn btn-outline-secondary">Back To List</a></div>
 <?php if ($isSuper): ?><p class="text-muted">Close dismisses this notice for the current tab session. Hide for 30 days remembers this notice on the device. Changing dates or resetting hidden notices shows it again.</p><?php endif; ?>
 <div class="card-soft p-4">
             <form method="POST" class="row g-3">
@@ -121,7 +121,7 @@ admin_layout_start('Announcements', 'announcements');
                 <?php endforeach; ?>
                 <?php if ($isSuper): ?><div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="reset_super_dismissals" id="reset_super_dismissals"><label class="form-check-label" for="reset_super_dismissals">Show again to devices that have hidden this notice</label></div></div><?php endif; ?>
                 <div class="col-md-6"><label class="form-label" for="display_order">Display order (lowest first)</label><input class="form-control" type="number" id="display_order" name="display_order" value="<?php echo (int)$record['display_order']; ?>"></div>
-                <div class="col-12"><button class="btn btn-success">Save announcement</button></div>
+                <div class="col-12"><button class="btn btn-success">Save Announcement</button></div>
             </form>
 </div>
 <?php else:

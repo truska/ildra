@@ -81,7 +81,7 @@ admin_layout_start('Pricing Schemes', 'pricing_schemes');
         <h5 class="mb-0">Pricing schemes</h5>
     </div>
     <div>
-        <a class="btn btn-success" href="pricing_scheme_edit.php">Add new scheme</a>
+        <a class="btn btn-success" href="pricing_scheme_edit.php">Add New Scheme</a>
     </div>
 </div>
 

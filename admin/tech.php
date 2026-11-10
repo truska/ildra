@@ -18,35 +18,35 @@ admin_layout_start('Tech', 'tech');
         <div class="card-soft p-4 h-100">
             <h6>Reset test data</h6>
             <p class="small text-muted">Preview and back up a testing reset, keeping logins and optionally the event calendar.</p>
-            <a class="btn btn-outline-danger" href="testing_reset.php">Open test data reset</a>
+            <a class="btn btn-outline-danger" href="testing_reset.php">Open Test Data Reset</a>
         </div>
     </div>
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
             <div class="d-flex align-items-center gap-2 mb-2"><i class="fa-solid fa-server text-success" aria-hidden="true"></i><h6 class="mb-0">Live Email Settings</h6></div>
             <p class="small text-muted">Configure outbound delivery, SMTP, sender details, test redirects and send a controlled test email.</p>
-            <a class="btn btn-outline-success" href="email.php?view=settings">Open email settings</a>
+            <a class="btn btn-outline-success" href="email.php?view=settings">Open Email Settings</a>
         </div>
     </div>
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
             <div class="d-flex align-items-center gap-2 mb-2"><i class="fa-solid fa-folder-tree text-success" aria-hidden="true"></i><h6 class="mb-0">Storage Folders</h6></div>
             <p class="small text-muted">Create image size folders or file-storage folders, apply shared-write permissions and run the CMS write test.</p>
-            <a class="btn btn-outline-success" href="image_folders.php">Open storage folders</a>
+            <a class="btn btn-outline-success" href="image_folders.php">Open Storage Folders</a>
         </div>
     </div>
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
             <div class="d-flex align-items-center gap-2 mb-2"><i class="fa-solid fa-user-shield text-success" aria-hidden="true"></i><h6 class="mb-0">Action Restrictions</h6></div>
             <p class="small text-muted">Apply extra role restrictions to selected actions while all other actions continue to inherit their page access.</p>
-            <a class="btn btn-outline-success" href="action_restrictions.php">Manage action restrictions</a>
+            <a class="btn btn-outline-success" href="action_restrictions.php">Manage Action Restrictions</a>
         </div>
     </div>
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
             <div class="d-flex align-items-center gap-2 mb-2"><i class="fa-solid fa-clipboard-list text-success" aria-hidden="true"></i><h6 class="mb-0">Access Review</h6></div>
             <p class="small text-muted">Print a worksheet of admin menus and meaningful actions for agreeing role access.</p>
-            <a class="btn btn-outline-success" href="access_review.php">Open access review</a>
+            <a class="btn btn-outline-success" href="access_review.php">Open Access Review</a>
         </div>
     </div>
 </div>

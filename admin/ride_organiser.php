@@ -40,7 +40,7 @@ if ($event && !canAccessRideOrganiserEvent($currentUser, $event)) {
 }
 admin_layout_start('Ride Organiser', 'ride_organiser');
 ?>
-<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h4 mb-0">Ride Organiser</h1><?php if ($showVenue): ?><a class="btn btn-outline-secondary" href="<?php echo h($listUrl); ?>">Back to events</a><?php endif; ?></div>
+<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h4 mb-0">Ride Organiser</h1><?php if ($showVenue): ?><a class="btn btn-outline-secondary" href="<?php echo h($listUrl); ?>">Back To Events</a><?php endif; ?></div>
 <?php if ($showVenue): ?>
     <?php $venue = $event && !empty($event['venue_id']) ? fetchVenueById($pdo, (int)$event['venue_id']) : null; ?>
     <?php if (!$venue): ?><div class="alert alert-info">No venue details are available for this event.</div>
@@ -80,7 +80,7 @@ admin_layout_start('Ride Organiser', 'ride_organiser');
     <tr><td><?php echo h(format_display_date($ride['event_date'] ?? null, '—')); ?></td><td class="fw-semibold"><?php echo h($ride['title']); ?></td><td><?php echo h($ride['venue'] ?? '—'); ?></td><td><?php echo h($ride['organiser'] ?? '—'); ?></td><td><div class="d-flex flex-wrap gap-2">
         <a class="btn btn-sm btn-outline-success" href="event_entries.php?event_id=<?php echo $id; ?>&amp;<?php echo h($context); ?>">Entry List</a>
         <a class="btn btn-sm btn-outline-primary" href="../ride_notes.php?event_id=<?php echo $id; ?>&amp;preview=1" target="_blank" rel="noopener">Rider Notes</a>
-        <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($listUrl . '&view=venue&event_id=' . $id); ?>">Venue details</a>
+        <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($listUrl . '&view=venue&event_id=' . $id); ?>">Venue Details</a>
     </div></td></tr>
     <?php endforeach; ?>
     <?php if (!$table['rows']): ?><tr><td colspan="5" class="text-muted">No events match these filters.</td></tr><?php endif; ?>

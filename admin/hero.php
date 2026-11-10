@@ -64,7 +64,7 @@ admin_layout_start('Site Hero & Welcome', 'hero');
         </div>
         <div class="mt-3 d-flex gap-2">
             <button class="btn btn-success">Save</button>
-            <a class="btn btn-outline-secondary" href="index.php">Back to dashboard</a>
+            <a class="btn btn-outline-secondary" href="index.php">Back To Dashboard</a>
         </div>
     </form>
 </div>

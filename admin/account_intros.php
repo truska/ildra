@@ -35,7 +35,7 @@ admin_layout_start('Screen Guidance', 'help_accounts');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div><div class="small text-muted">Information popups and text displayed on screens</div><h5 class="mb-0">Screen Guidance</h5></div>
-    <a class="btn btn-outline-secondary" href="help.php">Help articles</a>
+    <a class="btn btn-outline-secondary" href="help.php">Help Articles</a>
 </div>
 <p class="text-muted small">Each item below has one editing location. Existing information popups and on-page explanations are managed here; normal page content and product descriptions remain in their own editors.</p>
 <ul class="nav nav-tabs admin-tabs mb-3" aria-label="Screen guidance areas">
@@ -56,7 +56,7 @@ admin_layout_start('Screen Guidance', 'help_accounts');
                         <form method="post" class="accordion-body row g-3">
                             <input type="hidden" name="tab" value="<?php echo h($activeGroup); ?>">
                             <input type="hidden" name="guidance_key" value="<?php echo h($viewKey); ?>">
-                            <div class="col-12"><p class="small text-muted mb-2"><?php echo h($definition['location']); ?></p><a class="btn btn-sm btn-outline-secondary" href="<?php echo h(($siteBase ?: '') . $definition['url']); ?>" target="_blank" rel="noopener">Open related page <span class="visually-hidden">(opens in a new tab)</span></a></div>
+                            <div class="col-12"><p class="small text-muted mb-2"><?php echo h($definition['location']); ?></p><a class="btn btn-sm btn-outline-secondary" href="<?php echo h(($siteBase ?: '') . $definition['url']); ?>" target="_blank" rel="noopener">Open Related Page <span class="visually-hidden">(Opens In A New Tab)</span></a></div>
                             <?php if ($showsHeading): ?><div class="col-12"><label class="form-label fw-semibold" for="heading-<?php echo h($viewKey); ?>">Heading</label><input class="form-control" id="heading-<?php echo h($viewKey); ?>" name="intros[<?php echo h($viewKey); ?>][heading]" maxlength="200" required value="<?php echo h((string)$intro['heading']); ?>"></div><?php endif; ?>
                             <div class="col-12"><label class="form-label fw-semibold" for="body-<?php echo h($viewKey); ?>">Text</label><textarea class="form-control wysiwyg-field" id="body-<?php echo h($viewKey); ?>" name="intros[<?php echo h($viewKey); ?>][body_html]" rows="7"><?php echo h((string)$intro['body_html']); ?></textarea></div>
                             <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="active-<?php echo h($viewKey); ?>" name="intros[<?php echo h($viewKey); ?>][is_active]" value="1" <?php echo !empty($intro['is_active']) ? 'checked' : ''; ?>><label class="form-check-label" for="active-<?php echo h($viewKey); ?>">Show this guidance</label></div></div>

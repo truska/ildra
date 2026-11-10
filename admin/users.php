@@ -303,7 +303,7 @@ admin_layout_start('Users', 'users');
                         <label class="form-label fw-semibold" for="user-password-<?php echo (int)$userRow['id']; ?>">Reset password</label>
                         <div class="d-flex flex-wrap gap-2">
                             <input type="password" class="form-control flex-grow-1" style="width:auto" id="user-password-<?php echo (int)$userRow['id']; ?>" name="new_password" form="passwordUserForm<?php echo (int)$userRow['id']; ?>" autocomplete="new-password" minlength="8" required placeholder="New password">
-                            <button class="btn btn-outline-secondary" type="submit" form="passwordUserForm<?php echo (int)$userRow['id']; ?>">Reset password</button>
+                            <button class="btn btn-outline-secondary" type="submit" form="passwordUserForm<?php echo (int)$userRow['id']; ?>">Reset Password</button>
                         </div>
                     </div>
                     <?php endif; ?>
@@ -314,7 +314,7 @@ admin_layout_start('Users', 'users');
                     <button class="btn btn-danger me-auto" type="submit" form="deleteUserForm<?php echo (int)$userRow['id']; ?>" data-bs-dismiss="modal" data-confirm-style="danger" data-confirm-title="Delete user?" data-confirm-button="Delete or archive" data-confirm-message="Delete this user? If transaction history or linked records exist, the account will be archived instead and sign-in disabled.">Delete</button>
                     <?php endif; ?>
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-success">Save changes</button>
+                    <button class="btn btn-success">Save Changes</button>
                 </div>
             </form>
     </div>

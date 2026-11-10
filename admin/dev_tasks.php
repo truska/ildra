@@ -93,7 +93,7 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div><div class="small text-muted">Tester questions, faults and suggestions</div><h5 class="mb-0">Dev Tasks</h5></div>
-    <a class="btn btn-success" href="dev_task.php"><i class="fa-solid fa-plus me-1"></i> New task</a>
+    <a class="btn btn-success" href="dev_task.php"><i class="fa-solid fa-plus me-1"></i> New Task</a>
 </div>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div class="d-flex flex-wrap gap-2">
@@ -104,7 +104,7 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
         <a class="btn btn-sm <?php echo $filter==='closed'?'btn-success':'btn-outline-secondary'; ?>" href="?status=closed">Closed <span class="badge text-bg-light ms-1"><?php echo $counts['closed']; ?></span></a>
         <a class="btn btn-sm <?php echo $filter==='all'?'btn-success':'btn-outline-secondary'; ?>" href="?status=all">All</a>
     </div>
-    <a class="btn btn-sm btn-outline-secondary" href="dev_tasks.php?status=default">Clear filters</a>
+    <a class="btn btn-sm btn-outline-secondary" href="dev_tasks.php?status=default">Clear Filters</a>
 </div>
 <form method="get" id="<?php echo h($filterForm); ?>"><input type="hidden" name="status" value="<?php echo h($filter); ?>"></form>
 <style>

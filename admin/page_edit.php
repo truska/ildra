@@ -56,7 +56,7 @@ admin_layout_start($pageId ? 'Edit Page' : 'Add Page', 'pages');
         <h5 class="mb-0"><?php echo $pageId ? h($page['title']) : 'New Page'; ?></h5>
     </div>
     <div>
-        <a class="btn btn-outline-secondary" href="<?php echo h($pagesReturnWithRow); ?>">Back to list</a>
+        <a class="btn btn-outline-secondary" href="<?php echo h($pagesReturnWithRow); ?>">Back To List</a>
         <?php if ($pageId): ?><a class="btn btn-success" href="banner_images.php?page_id=<?php echo $pageId; ?>">Banner Images</a><?php endif; ?>
         <?php if ($pageId && !$isHomePage): ?><a class="btn btn-success" href="page_images.php?page_id=<?php echo $pageId; ?>">Manage Images</a><?php endif; ?>
         <?php if ($pageId && !$isHomePage): ?><a class="btn btn-success" href="page_elements.php?page_id=<?php echo $pageId; ?>">Content Sections</a><?php endif; ?>

@@ -85,7 +85,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
         <h5 class="mb-0"><?php echo $schemeId > 0 ? 'Edit scheme' : 'New scheme'; ?></h5>
     </div>
     <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="pricing_schemes.php">Back to schemes</a>
+        <a class="btn btn-outline-secondary" href="pricing_schemes.php">Back To Schemes</a>
     </div>
 </div>
 
@@ -135,8 +135,8 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
             </div>
             <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-success d-none d-md-inline-block" type="button" id="pricingReorderStart"><i class="fa-solid fa-arrow-down-up-across-line me-1"></i>Reorder</button>
-                <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="pricingReorderCancel">Cancel reorder</button>
-                <button class="btn btn-sm btn-outline-primary" type="button" id="addRowBtn">Add row</button>
+                <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="pricingReorderCancel">Cancel Reorder</button>
+                <button class="btn btn-sm btn-outline-primary" type="button" id="addRowBtn">Add Row</button>
             </div>
         </div>
 
@@ -202,7 +202,7 @@ admin_layout_start($schemeId > 0 ? 'Edit pricing scheme' : 'New pricing scheme',
     </div>
 
     <div class="d-flex gap-2">
-        <button class="btn btn-success" type="submit">Save scheme</button>
+        <button class="btn btn-success" type="submit">Save Scheme</button>
         <a class="btn btn-outline-secondary" href="pricing_schemes.php">Cancel</a>
     </div>
 </form>

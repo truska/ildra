@@ -182,7 +182,7 @@ if ($view === 'settings') {
             <div class="text-muted">Email settings</div>
         </div>
         <div class="d-flex gap-2">
-            <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php">Back to email log</a>
+            <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php">Back To Email Log</a>
         </div>
     </div>
 
@@ -334,7 +334,7 @@ if ($view === 'settings') {
                         <div class="help-row">If SES is in sandbox mode, the recipient must be verified in SES.</div>
                     </div>
                     <div class="col-12 col-lg-6 d-flex justify-content-lg-end">
-                        <button class="btn btn-outline-secondary" type="submit" name="action" value="send_test">Send test email</button>
+                        <button class="btn btn-outline-secondary" type="submit" name="action" value="send_test">Send Test Email</button>
                     </div>
                 </div>
 
@@ -362,7 +362,7 @@ if ($view === 'settings') {
             </div>
 
             <div class="d-flex gap-2 mt-4">
-                <button class="btn btn-success" type="submit" name="action" value="save_settings">Save settings</button>
+                <button class="btn btn-success" type="submit" name="action" value="save_settings">Save Settings</button>
                 <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php">Cancel</a>
             </div>
         </form>
@@ -461,7 +461,7 @@ $rows = $stmt->fetchAll() ?: [];
         <div class="small text-muted">Showing <?php echo (int)$total; ?><?php echo $hasFilters ? ' of ' . (int)$totalAll : ''; ?></div>
     </div>
     <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php?view=settings">Email settings</a>
+        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php?view=settings">Email Settings</a>
     </div>
 </div>
 

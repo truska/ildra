@@ -101,7 +101,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
 admin_layout_start($isEditor ? (!empty($record['id']) ? 'Edit Library Item' : 'Add Library Item') : 'Document & Image Library', 'asset_library');
 if ($isEditor): ?>
-<div class="d-flex justify-content-between align-items-center mb-3"><div><div class="small text-muted">Document &amp; Image Library</div><h5 class="mb-0"><?php echo !empty($record['id']) ? 'Edit item' : 'Add new item'; ?></h5></div><a class="btn btn-outline-secondary" href="asset_library.php">Back to list</a></div>
+<div class="d-flex justify-content-between align-items-center mb-3"><div><div class="small text-muted">Document &amp; Image Library</div><h5 class="mb-0"><?php echo !empty($record['id']) ? 'Edit item' : 'Add new item'; ?></h5></div><a class="btn btn-outline-secondary" href="asset_library.php">Back To List</a></div>
 <div class="card-soft p-4"><form method="post" enctype="multipart/form-data" class="row g-3">
 <input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?php echo (int)($record['id'] ?? 0); ?>">
 <div class="col-md-6"><label class="form-label fw-semibold">Name</label><input class="form-control" name="name" required value="<?php echo h($record['name'] ?? ''); ?>"></div>
@@ -115,7 +115,7 @@ if ($isEditor): ?>
 <?php if (!empty($record['filename'])): ?><div class="col-12"><label class="form-label fw-semibold">Public URL</label><div class="input-group"><input id="current-url" class="form-control" readonly value="<?php echo h(assetLibraryPublicUrl($record)); ?>"><button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('current-url').value)">Copy URL</button></div></div><?php endif; ?>
 <div class="col-md-3 form-check form-switch ms-2"><input class="form-check-input" type="checkbox" name="show_in_selectors" value="1" id="selectors" <?php echo !empty($record['show_in_selectors']) ? 'checked' : ''; ?>><label class="form-check-label" for="selectors">Show in CMS selectors</label></div>
 <div class="col-md-3 form-check form-switch"><input class="form-check-input" type="checkbox" name="archived" value="1" id="archived" <?php echo !empty($record['archived']) ? 'checked' : ''; ?>><label class="form-check-label" for="archived">Archived</label></div>
-<div class="col-12 d-flex gap-2"><button class="btn btn-success">Save item</button><a class="btn btn-outline-secondary" href="asset_library.php">Cancel</a></div></form></div>
+<div class="col-12 d-flex gap-2"><button class="btn btn-success">Save Item</button><a class="btn btn-outline-secondary" href="asset_library.php">Cancel</a></div></form></div>
 <script>(function(){const type=document.getElementById('asset-type'), widths=document.querySelector('.image-widths'), file=document.getElementById('asset-file'); function sync(){const image=type.value==='image'; widths.style.display=image?'block':'none'; file.accept=image?'image/jpeg,image/png,image/gif,image/webp':'application/pdf,.pdf';} type.addEventListener('change',sync);sync();})();</script>
 <?php else:
 $filters=['name'=>trim((string)($_GET['name']??'')),'category'=>trim((string)($_GET['category']??'')),'type'=>trim((string)($_GET['type']??'')),'status'=>trim((string)($_GET['status']??''))];

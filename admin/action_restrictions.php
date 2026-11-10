@@ -29,7 +29,7 @@ admin_layout_start('Action Restrictions', 'tech');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div><div class="small text-muted">SuperAdmin only</div><h5 class="mb-0">Action restrictions</h5></div>
-    <a class="btn btn-outline-secondary" href="tech.php">Back to Tech</a>
+    <a class="btn btn-outline-secondary" href="tech.php">Back To Tech</a>
 </div>
 <div class="alert alert-info small">An action with its separate restriction off inherits the access of its page. A restriction can only remove access; it cannot give access to a role that cannot open the page. SuperAdmin always retains access.</div>
 <div class="card-soft p-3">

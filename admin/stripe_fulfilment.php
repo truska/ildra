@@ -79,7 +79,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
 $data=finance_fulfilment_data($pdo);$fulfilment=finance_fulfilment_build($data['ledger'],$data['items'],$data['events']);
 admin_layout_start('Stripe Fulfilment','stripe_fulfilment');
 ?>
-<div class="d-flex justify-content-between align-items-start mb-3"><div><h5 class="mb-1">Stripe Fulfilment</h5><div class="text-muted small">Collect Stripe funds, track collections and reconcile receipts.</div></div><a class="btn btn-sm btn-outline-secondary" href="finance.php">Finance transactions</a></div>
+<div class="d-flex justify-content-between align-items-start mb-3"><div><h5 class="mb-1">Stripe Fulfilment</h5><div class="text-muted small">Collect Stripe funds, track collections and reconcile receipts.</div></div><a class="btn btn-sm btn-outline-secondary" href="finance.php">Finance Transactions</a></div>
 <ul class="nav nav-tabs admin-tabs mb-3"><?php foreach($tabs as$key=>$label):?><li class="nav-item"><a class="nav-link <?php echo $key===$tab?'active':''; ?>" <?php echo $key===$tab?'aria-current="page"':''; ?> href="stripe_fulfilment.php?tab=<?php echo h($key); ?>"><?php echo h($label); ?></a></li><?php endforeach;?></ul>
 <?php
 if($tab!=='reconciliation'){

@@ -216,7 +216,7 @@ function event_filter_row(array $filterValues, array $filterOptions): string
         <th class="col-type"><?php echo event_filter_select('type_filter',$filterOptions['type_filter'],$filterValues['type_filter']); ?></th>
         <th class="col-classes"><input class="form-control form-control-sm" form="event-filter-form" name="classes_filter" value="<?php echo h($filterValues['classes_filter']); ?>" placeholder="Search"></th>
         <th><input class="form-control form-control-sm" form="event-filter-form" name="entries_filter" value="<?php echo h($filterValues['entries_filter']); ?>" placeholder="Search"></th>
-        <th class="col-organiser"><?php echo event_filter_select('organiser_filter',$filterOptions['organiser_filter'],$filterValues['organiser_filter']); ?><a class="btn btn-sm btn-outline-secondary mt-1" href="events.php?view=<?php echo h($GLOBALS['activeView']); ?>">Clear all</a></th>
+        <th class="col-organiser"><?php echo event_filter_select('organiser_filter',$filterOptions['organiser_filter'],$filterValues['organiser_filter']); ?><a class="btn btn-sm btn-outline-secondary mt-1" href="events.php?view=<?php echo h($GLOBALS['activeView']); ?>">Clear All</a></th>
     </tr><?php return (string)ob_get_clean();
 }
 
@@ -424,7 +424,7 @@ admin_layout_start('Events', 'events');
                                     <i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span>
                                 </a>
                                 <a class="btn btn-sm btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$event['id']; ?>">
-                                    <i class="fa-solid fa-list-check btn-icon"></i><span class="btn-label">Entry list</span>
+                                    <i class="fa-solid fa-list-check btn-icon"></i><span class="btn-label">Entry List</span>
                                 </a>
                                 <a class="btn btn-sm btn-outline-dark has-icon" href="event_duplicate.php?source_id=<?php echo (int)$event['id']; ?>">
                                     <i class="fa-solid fa-copy btn-icon"></i><span class="btn-label">Copy</span>
@@ -457,7 +457,7 @@ admin_layout_start('Events', 'events');
             </tbody>
         </table>
     </div>
-</div><div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary" type="submit" form="event-filter-form">Apply table filters</button> <a class="btn btn-sm btn-secondary" href="events.php?view=<?php echo h($activeView); ?>">Clear all</a></div>
+</div><div class="mt-2 text-end"><button class="btn btn-sm btn-outline-secondary" type="submit" form="event-filter-form">Apply Table Filters</button> <a class="btn btn-sm btn-secondary" href="events.php?view=<?php echo h($activeView); ?>">Clear All</a></div>
 
     <div class="card-soft p-3 <?php echo $activeView === 'past' ? '' : 'd-none'; ?>" id="past-rides">
         <div class="mb-2">
@@ -519,7 +519,7 @@ admin_layout_start('Events', 'events');
                                         <i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span>
                                     </a>
                                     <a class="btn btn-sm btn-outline-primary has-icon" href="event_entries.php?event_id=<?php echo (int)$event['id']; ?>">
-                                        <i class="fa-solid fa-list-check btn-icon"></i><span class="btn-label">Entry list</span>
+                                        <i class="fa-solid fa-list-check btn-icon"></i><span class="btn-label">Entry List</span>
                                     </a>
                                     <?php if (roleIsDeveloper($currentRole)): ?>
                                     <a class="btn btn-sm btn-outline-success has-icon" href="event_results.php?event_id=<?php echo (int)$event['id']; ?>">
@@ -542,7 +542,7 @@ admin_layout_start('Events', 'events');
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$past): ?>
-                        <tr><td colspan="9" class="text-muted">No past rides match the current filters. <a class="btn btn-sm btn-secondary ms-2" href="events.php?view=past">Clear filters</a></td></tr>
+                        <tr><td colspan="9" class="text-muted">No past rides match the current filters. <a class="btn btn-sm btn-secondary ms-2" href="events.php?view=past">Clear Filters</a></td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

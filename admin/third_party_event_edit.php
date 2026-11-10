@@ -34,7 +34,7 @@ $batch = $eventId ? mediaBatchFind($pdo, 'event_images', 'event', $eventId) : nu
 $images = $batch ? mediaBatchImages($pdo, (int)$batch['id']) : [];
 admin_layout_start($eventId ? 'Edit 3rd Party Event' : 'Add 3rd Party Event', 'events');
 ?>
-<div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0"><?php echo $eventId ? 'Edit' : 'Add'; ?> 3rd Party Event</h5><a class="btn btn-outline-secondary" href="events.php?view=third-party">Back to 3rd Party Events</a></div>
+<div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0"><?php echo $eventId ? 'Edit' : 'Add'; ?> 3rd Party Event</h5><a class="btn btn-outline-secondary" href="events.php?view=third-party">Back To 3rd Party Events</a></div>
 <div class="card-soft p-4">
 <p class="small text-muted">For rides and events run by other organisations. Entries are handled on the linked website.</p>
 <form method="post" action="third_party_event_edit.php<?php echo $eventId ? '?id=' . $eventId : ''; ?>" enctype="multipart/form-data" class="row g-3">

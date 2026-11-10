@@ -490,7 +490,7 @@ if ($event && $printMode) {
     <div class="print-shell">
         <div class="print-actions">
             <button type="button" onclick="window.print()">Print</button>
-            <button type="button" onclick="window.close()">Close window</button>
+            <button type="button" onclick="window.close()">Close Window</button>
         </div>
 
         <div class="header-row">
@@ -615,7 +615,7 @@ admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
         <?php endif; ?>
     </div>
     <div class="admin-page-actions">
-        <a class="btn btn-outline-secondary has-icon" href="<?php echo h($entriesBackUrl); ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to events</span></a>
+        <a class="btn btn-outline-secondary has-icon" href="<?php echo h($entriesBackUrl); ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back To Events</span></a>
         <?php if ($event): ?>
             <?php if ($isAttendeeEvent): ?>
                 <a class="btn btn-outline-primary has-icon" href="attendee_report.php?event_id=<?php echo (int)$eventId; ?>" rel="noopener"><i class="fa-solid fa-print btn-icon"></i><span class="btn-label">Event Organiser List</span></a>
@@ -625,7 +625,7 @@ admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
             <?php endif; ?>
         <?php endif; ?>
         <?php if ($event && !$organiserView): ?>
-            <a class="btn btn-outline-success has-icon" href="event_edit.php?id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit event</span></a>
+            <a class="btn btn-outline-success has-icon" href="event_edit.php?id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit Event</span></a>
         <?php endif; ?>
     </div>
 </div>
@@ -734,7 +734,7 @@ admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
                             ?>
                             <div class="btn-group-mobile" role="group" aria-label="Entry actions">
                                 <a class="btn btn-sm btn-outline-secondary has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span></a>
-                                <?php if (!empty($entry['contact_email'])): ?><a class="btn btn-sm btn-outline-primary has-icon" href="finance.php?tab=requests&amp;payment_event_id=<?php echo (int)$eventId; ?>&amp;payment_entry_id=<?php echo $itemId; ?>&amp;payment_return_event_id=<?php echo (int)$eventId; ?>&amp;payment_email=<?php echo rawurlencode((string)$entry['contact_email']); ?>"><i class="fa-solid fa-sterling-sign btn-icon"></i><span class="btn-label">Request payment</span></a><?php endif; ?>
+                                <?php if (!empty($entry['contact_email'])): ?><a class="btn btn-sm btn-outline-primary has-icon" href="finance.php?tab=requests&amp;payment_event_id=<?php echo (int)$eventId; ?>&amp;payment_entry_id=<?php echo $itemId; ?>&amp;payment_return_event_id=<?php echo (int)$eventId; ?>&amp;payment_email=<?php echo rawurlencode((string)$entry['contact_email']); ?>"><i class="fa-solid fa-sterling-sign btn-icon"></i><span class="btn-label">Request Payment</span></a><?php endif; ?>
                                 <?php if (!$isAttendeeEvent): ?><a class="btn btn-sm btn-outline-success has-icon" href="entry_item.php?item_id=<?php echo $itemId; ?>&mode=edit&event_id=<?php echo (int)$eventId; ?>"><i class="fa-solid fa-pen-to-square btn-icon"></i><span class="btn-label">Edit</span></a><?php endif; ?>
                                 <button type="button" class="btn btn-sm btn-outline-danger has-icon" data-bs-toggle="modal" data-bs-target="#<?php echo h($adminCancelModalId); ?>"><i class="fa-solid fa-ban btn-icon"></i><span class="btn-label">Cancel</span></button>
                             </div>
@@ -761,7 +761,7 @@ admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
                         <div><label class="form-label fw-semibold" for="<?php echo h($modal['id']); ?>-reason">Reason (optional)</label><textarea class="form-control" id="<?php echo h($modal['id']); ?>-reason" name="reason" rows="2" placeholder="Add an internal cancellation note"></textarea></div>
                         <input type="hidden" name="action" value="admin_cancel_entry"><input type="hidden" name="item_id" value="<?php echo (int)$modal['item_id']; ?>"><input type="hidden" name="csrf" value="<?php echo h($adminEntryCancelCsrf); ?>">
                     </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-danger">Cancel entry and apply</button></div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-danger">Cancel Entry And Apply</button></div>
                 </form>
             </div></div>
         </div>

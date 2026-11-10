@@ -31,14 +31,14 @@ admin_layout_start('Duplicate Event', 'events');
         <h5 class="mb-0">Duplicate Event</h5>
     </div>
     <div>
-        <a class="btn btn-outline-secondary" href="events.php">Back to events</a>
+        <a class="btn btn-outline-secondary" href="events.php">Back To Events</a>
     </div>
 </div>
 
 <?php if (!$sourceEvent): ?>
     <div class="card-soft p-4">
         <p class="mb-3 text-muted">The event you tried to copy could not be found.</p>
-        <a class="btn btn-outline-secondary" href="events.php">Back to events</a>
+        <a class="btn btn-outline-secondary" href="events.php">Back To Events</a>
     </div>
 <?php else: ?>
     <div class="card-soft p-4" style="max-width: 760px;">
@@ -80,7 +80,7 @@ admin_layout_start('Duplicate Event', 'events');
             </div>
 
             <div class="d-flex gap-2">
-                <button class="btn btn-success" type="submit">Create draft</button>
+                <button class="btn btn-success" type="submit">Create Draft</button>
                 <a class="btn btn-outline-secondary" href="events.php">Cancel</a>
             </div>
         </form>

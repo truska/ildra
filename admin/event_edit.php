@@ -352,9 +352,9 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
     <div class="admin-page-actions">
         <?php if ($eventId): ?>
             <?php $viewUrl = $siteBase . '/events/' . $eventId . '-' . slugify((string)($event['title'] ?? 'event')); ?>
-            <a class="btn btn-outline-success has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View event</span></a>
+            <a class="btn btn-outline-success has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View Event</span></a>
         <?php endif; ?>
-        <a class="btn btn-outline-secondary has-icon" href="<?php echo h($eventsReturnWithRow); ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back to list</span></a>
+        <a class="btn btn-outline-secondary has-icon" href="<?php echo h($eventsReturnWithRow); ?>"><i class="fa-solid fa-arrow-left btn-icon"></i><span class="btn-label">Back To List</span></a>
     </div>
 </div>
 
@@ -521,7 +521,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                                 <option value="<?php echo (int)$scheme['id']; ?>" data-event-type-ids="<?php echo h(json_encode($scheme['event_type_ids'])); ?>"><?php echo h($scheme['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button class="btn btn-outline-success text-nowrap" type="button" id="applyPricingSchemeBtn"><i class="fa-solid fa-table-list me-1"></i>Apply template</button>
+                        <button class="btn btn-outline-success text-nowrap" type="button" id="applyPricingSchemeBtn"><i class="fa-solid fa-table-list me-1"></i>Apply Template</button>
                     </div>
                     <div class="form-text" id="pricingSchemeHint">Only templates assigned to this event type are available.</div>
                 </div>
@@ -531,7 +531,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 <div class="small text-muted">
                     <span class="fw-bold">Tip:</span> Non-ILDRA Member pricing is optional on member-price rows; blank uses the member rate. Changing the event type loads its default pricing template.
                 </div>
-                <button class="btn btn-sm btn-outline-secondary has-icon" type="button" id="addPricingRowBtn"><i class="fa-solid fa-plus btn-icon"></i><span class="btn-label">Add row</span></button>
+                <button class="btn btn-sm btn-outline-secondary has-icon" type="button" id="addPricingRowBtn"><i class="fa-solid fa-plus btn-icon"></i><span class="btn-label">Add Row</span></button>
             </div>
 
             <div class="border rounded overflow-hidden">
@@ -676,8 +676,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep current type</button>
-                <button type="button" class="btn btn-success" id="confirmEventTypeChange">Apply event type</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep Current Type</button>
+                <button type="button" class="btn btn-success" id="confirmEventTypeChange">Apply Event Type</button>
             </div>
         </div>
     </div>
@@ -1217,13 +1217,13 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         <input type="hidden" name="action" value="upload_event_images">
         <input class="form-control" type="file" name="images[]" accept="image/jpeg,image/png,image/gif,image/webp" multiple required>
         <div class="form-text">Creates xs (150px), sm (300px) and lg (1200px) versions.</div>
-        <button class="btn btn-outline-success mt-3">Upload image</button>
+        <button class="btn btn-outline-success mt-3">Upload Image</button>
     </form>
     <?php if ($eventImages): ?>
     <form method="post"><input type="hidden" name="action" value="save_event_gallery">
         <div class="table-responsive"><table class="table align-middle" data-admin-inline-reorder><thead><tr><th>Preview</th><th>Order</th><th>Title / alternative text / caption</th><th>Archived</th></tr></thead><tbody>
         <?php foreach ($eventImages as $image): ?><tr data-order-id="<?php echo (int)$image['id']; ?>"><td><img class="rounded border" style="width:120px;height:90px;object-fit:cover" src="<?php echo h(mediaBatchImageUrl($eventImageBatch,$image,'xs')); ?>" alt=""></td><td><input class="form-control" style="width:90px" data-display-order type="number" name="image[<?php echo (int)$image['id']; ?>][display_order]" value="<?php echo (int)$image['display_order']; ?>"></td><td><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][title]" value="<?php echo h($image['title']??''); ?>" placeholder="Title"><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][alt_text]" value="<?php echo h($image['alt_text']??''); ?>" placeholder="Alternative text"><textarea class="form-control form-control-sm" rows="2" name="image[<?php echo (int)$image['id']; ?>][caption]" placeholder="Caption"><?php echo h($image['caption']??''); ?></textarea></td><td><input type="checkbox" name="image[<?php echo (int)$image['id']; ?>][archived]" value="1" <?php echo !empty($image['archived'])?'checked':''; ?>></td></tr><?php endforeach; ?>
-        </tbody></table></div><button class="btn btn-success">Save gallery</button>
+        </tbody></table></div><button class="btn btn-success">Save Gallery</button>
     </form><?php endif; ?>
 </div>
 <?php endif; ?>

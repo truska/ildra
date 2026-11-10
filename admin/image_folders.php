@@ -117,7 +117,7 @@ admin_layout_start('Storage Folders', 'image_folders');
                     <code>Files: filestore/files/[folder]</code>
                     <div class="form-text">Every created folder is set to shared-write mode and tested by the CMS before success is reported.</div>
                 </div>
-                <div class="col-12"><button class="btn btn-success" type="submit">Create folders</button></div>
+                <div class="col-12"><button class="btn btn-success" type="submit">Create Folders</button></div>
             </form>
         </div>
     </div>

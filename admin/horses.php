@@ -145,7 +145,7 @@ admin_layout_start('Horses', 'horses');
                 <label class="form-label fw-semibold">Entry selector label</label>
                 <input class="form-control" name="global_horse_name" required value="<?php echo h((string)$globalHorse['name']); ?>">
             </div>
-            <div class="col-md-auto"><button class="btn btn-success">Save label</button></div>
+            <div class="col-md-auto"><button class="btn btn-success">Save Label</button></div>
             <div class="col-12 small text-muted">System record ID <?php echo (int)$globalHorse['id']; ?> · always available globally and excluded from registered-horse lists.</div>
         </form>
     <?php else: ?>

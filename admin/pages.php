@@ -79,7 +79,7 @@ admin_layout_start('Pages', 'pages');
                 <?php $settingKey = 'menu_overview_' . $groupKey; $enabled = !array_key_exists($settingKey, $siteSettings) || !empty($siteSettings[$settingKey]); ?>
                 <label class="form-check mb-0"><input class="form-check-input" type="checkbox" name="menu_overview[<?php echo h($groupKey); ?>]" value="1" <?php echo $enabled ? 'checked' : ''; ?>> <span class="form-check-label"><?php echo h($groupLabel); ?></span></label>
             <?php endforeach; ?>
-            <button class="btn btn-sm btn-success">Save menu settings</button>
+            <button class="btn btn-sm btn-success">Save Menu Settings</button>
         </form>
     <?php endif; ?>
 </div>

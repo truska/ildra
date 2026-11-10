@@ -222,7 +222,7 @@ admin_layout_start('Memberships', 'memberships');
         <div class="notes">Quickly scan offers, adjust sale windows, and publish with confidence.</div>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <a class="btn btn-success px-3" href="memberships.php?panel=create" id="js-add-new">Add new</a>
+        <a class="btn btn-success px-3" href="memberships.php?panel=create" id="js-add-new">Add New</a>
     </div>
 </section>
 
@@ -386,8 +386,8 @@ admin_layout_start('Memberships', 'memberships');
             </div>
 
             <div class="d-flex gap-2 flex-wrap">
-                <button class="btn btn-success px-3" type="submit" data-submit-label><?php echo $panelMode === 'edit' ? 'Update type' : 'Create type'; ?></button>
-                <button class="btn btn-outline-secondary" type="button" data-revert <?php echo $panelMode === 'edit' ? '' : 'style="display:none"'; ?>>Revert changes</button>
+                <button class="btn btn-success px-3" type="submit" data-submit-label><?php echo $panelMode === 'edit' ? 'Update Type' : 'Create Type'; ?></button>
+                <button class="btn btn-outline-secondary" type="button" data-revert <?php echo $panelMode === 'edit' ? '' : 'style="display:none"'; ?>>Revert Changes</button>
                 <button class="btn btn-outline-secondary" type="button" data-close>Cancel</button>
             </div>
         </form>
@@ -404,7 +404,7 @@ admin_layout_start('Memberships', 'memberships');
         <div class="col-md-2"><label class="form-label" for="logbook-cost">Cost (£)</label><input class="form-control" id="logbook-cost" type="number" min="0" step="0.01" name="cost" required value="<?php echo h(number_format((float)$logbookType['cost'],2,'.','')); ?>"></div>
         <div class="col-md-2"><label class="form-label" for="logbook-status">Status</label><select class="form-select" id="logbook-status" name="status"><option value="published" <?php echo $logbookType['status']==='published'?'selected':''; ?>>Published</option><option value="draft" <?php echo $logbookType['status']==='draft'?'selected':''; ?>>Draft</option></select></div>
         <div class="col-md-4"><label class="form-label" for="logbook-description">Description</label><input class="form-control" id="logbook-description" name="description" value="<?php echo h((string)($logbookType['description']??'')); ?>"></div>
-        <div class="col-md-2"><button class="btn btn-success w-100">Save logbook rate</button></div>
+        <div class="col-md-2"><button class="btn btn-success w-100">Save Logbook Rate</button></div>
     </form>
 </section>
 <?php endif; ?>
@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
             revertBtn.style.display = data.mode === 'edit' ? '' : 'none';
         }
         if (submitBtn) {
-            submitBtn.textContent = data.mode === 'edit' ? 'Update type' : 'Create type';
+            submitBtn.textContent = data.mode === 'edit' ? 'Update Type' : 'Create Type';
         }
         updateStatusPill(data.status);
 

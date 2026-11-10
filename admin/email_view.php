@@ -65,7 +65,7 @@ if ($metaJson !== '') {
         <div class="text-muted">Email #<?php echo (int)$id; ?></div>
     </div>
     <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php">Back to email log</a>
+        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php">Back To Email Log</a>
     </div>
 </div>
 

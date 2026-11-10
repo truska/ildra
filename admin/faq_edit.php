@@ -34,7 +34,7 @@ admin_layout_start($faqId ? 'Edit FAQ' : 'Add FAQ', 'faqs');
         <h5 class="mb-0"><?php echo $faqId ? h($faq['question']) : 'New FAQ'; ?></h5>
     </div>
     <div>
-        <a class="btn btn-outline-secondary" href="faqs.php">Back to list</a>
+        <a class="btn btn-outline-secondary" href="faqs.php">Back To List</a>
     </div>
 </div>
 

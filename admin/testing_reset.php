@@ -46,7 +46,7 @@ admin_layout_start('Reset test data', 'testing_reset');
 <label class="d-block mb-3"><input type="checkbox" name="quiet" value="1" required> Testing, scheduled sends and payment processing have stopped.</label>
 <label class="form-label" for="confirmation">Type RESET TEST DATA to confirm</label>
 <input class="form-control mb-3" id="confirmation" name="confirmation" required autocomplete="off" pattern="RESET TEST DATA">
-<button class="btn btn-danger">Back up and reset test data</button>
+<button class="btn btn-danger">Back Up And Reset Test Data</button>
 </form></div>
 <?php endif; ?>
 <form method="post" class="card-soft p-4">
@@ -61,6 +61,6 @@ admin_layout_start('Reset test data', 'testing_reset');
 <?php foreach ($user['people'] as $person): ?><option value="<?= (int)$person['id'] ?>" <?= (string)$selected === (string)$person['id'] ? 'selected' : '' ?>><?= h($person['first_name'] . ' ' . $person['last_name'] . ' (#' . $person['id'] . ')') ?></option><?php endforeach; ?>
 </select>
 <?php endforeach; ?>
-<button class="btn btn-outline-success" <?= !$pdo ? 'disabled' : '' ?>>Preview reset</button>
+<button class="btn btn-outline-success" <?= !$pdo ? 'disabled' : '' ?>>Preview Reset</button>
 </form>
 <?php admin_layout_end(); ?>

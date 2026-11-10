@@ -102,12 +102,12 @@ admin_layout_start('FAQs', 'faqs');
                 <input type="hidden" name="csrf" value="<?php echo h($csrf); ?>">
                 <input type="hidden" name="action" value="reorder_faqs">
                 <span class="small text-muted">Drag the handles, then save.</span>
-                <button class="btn btn-sm btn-success" type="submit">Save order</button>
+                <button class="btn btn-sm btn-success" type="submit">Save Order</button>
                 <button class="btn btn-sm btn-outline-secondary" type="button" id="faq-reorder-cancel">Cancel</button>
             </form>
         </div>
     <?php elseif ($faqs): ?>
-        <div class="d-none d-md-flex mb-3"><a class="btn btn-sm btn-outline-success" href="faqs.php?sort=order&amp;dir=asc&amp;per_page=500"><i class="fa-solid fa-arrow-down-up-across-line me-1" aria-hidden="true"></i>Reorder <span class="fw-normal">(reset before reordering)</span></a></div>
+        <div class="d-none d-md-flex mb-3"><a class="btn btn-sm btn-outline-success" href="faqs.php?sort=order&amp;dir=asc&amp;per_page=500"><i class="fa-solid fa-arrow-down-up-across-line me-1" aria-hidden="true"></i>Reorder <span class="fw-normal">(Reset Before Reordering)</span></a></div>
     <?php endif; ?>
     <div class="table-responsive">
         <table class="table table-sm align-middle" id="faq-order-table">

@@ -41,7 +41,7 @@ admin_layout_start('Edit horse', 'horses');
 ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div><div class="small text-muted">Horses</div><h5 class="mb-0">Edit horse</h5></div>
-    <a class="btn btn-outline-secondary" href="horses.php">Back to horses</a>
+    <a class="btn btn-outline-secondary" href="horses.php">Back To Horses</a>
 </div>
 <div class="card-soft p-4">
     <form method="post" class="row g-3">
@@ -60,7 +60,7 @@ admin_layout_start('Edit horse', 'horses');
         <div class="col-12 col-md-3"><label class="form-label fw-semibold">Passport issuer</label><input class="form-control" name="passport_issuer" value="<?php echo h((string)($horse['passport_issuer'] ?? '')); ?>"></div>
         <div class="col-12 col-md-3"><label class="form-label fw-semibold">Passport number</label><input class="form-control" name="passport_number" value="<?php echo h((string)($horse['passport_number'] ?? '')); ?>"></div>
         <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="horseArchived" name="is_archived" value="1" <?php echo !empty($horse['is_archived']) ? 'checked' : ''; ?>><label class="form-check-label" for="horseArchived">Archived</label></div></div>
-        <div class="col-12"><button class="btn btn-success">Save changes</button> <a class="btn btn-outline-secondary" href="horses.php">Cancel</a></div>
+        <div class="col-12"><button class="btn btn-success">Save Changes</button> <a class="btn btn-outline-secondary" href="horses.php">Cancel</a></div>
     </form>
 </div>
 <?php admin_layout_end();

@@ -100,7 +100,7 @@ if ($isEditor):
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div><div class="small text-muted">Advertising</div><h5 class="mb-0"><?php echo !empty($record['id']) ? 'Edit item' : 'Add new item'; ?></h5></div>
-    <a class="btn btn-outline-secondary" href="advertising.php">Back to list</a>
+    <a class="btn btn-outline-secondary" href="advertising.php">Back To List</a>
 </div>
 <div class="card-soft p-4">
     <form method="post" enctype="multipart/form-data" class="row g-3">
@@ -118,7 +118,7 @@ if ($isEditor):
         <div class="col-md-3 form-check form-switch ms-2"><input class="form-check-input" type="checkbox" name="show_on_web" value="1" id="show-web" <?php echo !empty($record['show_on_web']) ? 'checked' : ''; ?>><label class="form-check-label" for="show-web">Show on web</label></div>
         <div class="col-md-3 form-check form-switch"><input class="form-check-input" type="checkbox" name="archived" value="1" id="archived" <?php echo !empty($record['archived']) ? 'checked' : ''; ?>><label class="form-check-label" for="archived">Archived</label></div>
         <div class="col-12 small text-muted">Created: <?php echo h(format_display_datetime($record['created_at'] ?? null, 'Not saved')); ?> · Modified: <?php echo h(format_display_datetime($record['updated_at'] ?? null, 'Not saved')); ?></div>
-        <div class="col-12 d-flex gap-2"><button class="btn btn-success">Save item</button><a class="btn btn-outline-secondary" href="advertising.php">Cancel</a></div>
+        <div class="col-12 d-flex gap-2"><button class="btn btn-success">Save Item</button><a class="btn btn-outline-secondary" href="advertising.php">Cancel</a></div>
     </form>
 </div>
 <?php else:
@@ -140,7 +140,7 @@ if ($isEditor):
     <a class="btn btn-success" href="advertising.php?edit=new">Add New</a>
 </div>
 <form method="get" id="advertising-filter-form"></form><div class="card-soft p-3"><?php echo admin_table_record_count($table,'item','items'); ?>
-<?php if($items&&$canReorder):?><div class="d-none d-md-flex flex-wrap align-items-center gap-2 mb-3" id="advertising-reorder-toolbar"><button class="btn btn-sm btn-outline-success" type="button" id="advertising-reorder-start"><i class="fa-solid fa-arrow-down-up-across-line me-1"></i>Reorder</button><form method="post" class="d-none align-items-center gap-2 m-0" id="advertising-reorder-form"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="reorder"><span class="small text-muted">Drag the handles, then save.</span><button class="btn btn-sm btn-success">Save order</button><button class="btn btn-sm btn-outline-secondary" type="button" id="advertising-reorder-cancel">Cancel</button></form></div><?php elseif($items):?><div class="d-none d-md-flex mb-3"><a class="btn btn-sm btn-outline-success" href="advertising.php?sort=order&amp;dir=asc&amp;per_page=500"><i class="fa-solid fa-arrow-down-up-across-line me-1"></i>Reorder <span class="fw-normal">(reset before reordering)</span></a></div><?php endif;?>
+<?php if($items&&$canReorder):?><div class="d-none d-md-flex flex-wrap align-items-center gap-2 mb-3" id="advertising-reorder-toolbar"><button class="btn btn-sm btn-outline-success" type="button" id="advertising-reorder-start"><i class="fa-solid fa-arrow-down-up-across-line me-1"></i>Reorder</button><form method="post" class="d-none align-items-center gap-2 m-0" id="advertising-reorder-form"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="reorder"><span class="small text-muted">Drag the handles, then save.</span><button class="btn btn-sm btn-success">Save Order</button><button class="btn btn-sm btn-outline-secondary" type="button" id="advertising-reorder-cancel">Cancel</button></form></div><?php elseif($items):?><div class="d-none d-md-flex mb-3"><a class="btn btn-sm btn-outline-success" href="advertising.php?sort=order&amp;dir=asc&amp;per_page=500"><i class="fa-solid fa-arrow-down-up-across-line me-1"></i>Reorder <span class="fw-normal">(Reset Before Reordering)</span></a></div><?php endif;?>
 <div class="table-responsive"><table class="table table-sm align-middle mb-0" id="advertising-order-table">
     <thead class="table-light">
         <tr><th class="d-none d-md-table-cell advertising-drag-column"></th><?php foreach($tableColumns as$key=>$column): ?><th class="<?php echo $key==='actions'?'text-end':''; ?>"><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th><?php endforeach; ?></tr>

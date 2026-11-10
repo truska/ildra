@@ -290,7 +290,7 @@ admin_layout_start($pageTitle, 'stripe_fulfilment');
             <div class="text-muted small"><?php echo h($event['event_date'] ?: 'Date TBC'); ?> · <?php echo h($event['event_type_name'] ?? ''); ?></div>
         <?php endif; ?>
     </div>
-    <a class="btn btn-outline-secondary" href="stripe_fulfilment.php?tab=events">Back to Stripe Fulfilment</a>
+    <a class="btn btn-outline-secondary" href="stripe_fulfilment.php?tab=events">Back To Stripe Fulfilment</a>
 </div>
 
 <?php if (!$event): ?>
@@ -337,7 +337,7 @@ admin_layout_start($pageTitle, 'stripe_fulfilment');
 
     <div class="finance-detail-grid">
         <section class="card-soft p-3">
-            <div class="d-flex justify-content-between align-items-center mb-2"><div><div class="fw-semibold">Payment requests</div><div class="small text-muted">Outstanding and completed requests linked to this event.</div></div><a class="btn btn-sm btn-success" href="finance.php?tab=requests&amp;payment_event_id=<?php echo $eventId; ?>">New payment request</a></div>
+            <div class="d-flex justify-content-between align-items-center mb-2"><div><div class="fw-semibold">Payment requests</div><div class="small text-muted">Outstanding and completed requests linked to this event.</div></div><a class="btn btn-sm btn-success" href="finance.php?tab=requests&amp;payment_event_id=<?php echo $eventId; ?>">New Payment Request</a></div>
             <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Recipient</th><th>Description</th><th>Entry</th><th class="text-end">Amount</th><th>Status</th><th>Sent</th></tr></thead><tbody><?php foreach($paymentRequests as $request): ?><tr><td><?php echo h((string)$request['recipient_email']); ?></td><td><?php echo h((string)$request['description']); ?></td><td><?php echo !empty($request['booking_item_id'])?'E-'.(int)$request['booking_item_id']:'—'; ?></td><td class="text-end"><?php echo format_price((float)$request['amount']); ?></td><td><?php echo h(ucfirst((string)$request['status'])); ?></td><td class="small text-muted"><?php echo h(format_display_datetime($request['email_sent_at']??null,'')); ?></td></tr><?php endforeach; ?><?php if(!$paymentRequests): ?><tr><td colspan="6" class="text-muted">No payment requests linked to this event.</td></tr><?php endif; ?></tbody></table></div>
         </section>
         <section class="card-soft p-3">
@@ -432,7 +432,7 @@ admin_layout_start($pageTitle, 'stripe_fulfilment');
                 <div class="fw-semibold">Entries</div>
                 <div class="text-muted small">Fees + refunds per entry</div>
             </div>
-            <form method="get" id="entry-column-filter-form" class="mb-2 text-end"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"><button class="btn btn-sm btn-outline-success">Filter entries</button> <a class="btn btn-sm btn-link" href="finance_event.php?event_id=<?php echo $eventId; ?>">Clear</a></form>
+            <form method="get" id="entry-column-filter-form" class="mb-2 text-end"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"><button class="btn btn-sm btn-outline-success">Filter Entries</button> <a class="btn btn-sm btn-link" href="finance_event.php?event_id=<?php echo $eventId; ?>">Clear</a></form>
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
