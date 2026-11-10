@@ -281,6 +281,13 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
 admin_layout_start('Events', 'events');
 ?>
 <style>
+    /* Each event spans a details row and its matching action row. */
+    .event-striped > tbody > tr:nth-child(4n + 1) > *,
+    .event-striped > tbody > tr:nth-child(4n + 2) > * {
+        --bs-table-bg-type: var(--bs-table-striped-bg);
+        --bs-table-accent-bg: var(--bs-table-striped-bg);
+        --bs-table-color-type: var(--bs-table-striped-color);
+    }
     .event-action-row td {
         padding-top: 0;
         border-top: 0;
@@ -347,7 +354,7 @@ admin_layout_start('Events', 'events');
 
 <?php if ($activeView === 'third-party'): ?>
 <div class="card-soft p-3"><p class="small text-muted">Events run by other organisations. Entries are handled on their websites.</p>
-<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Date</th><th>Heading</th><th>Location</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody>
+<div class="table-responsive"><table class="table table-striped table-sm align-middle"><thead><tr><th>Date</th><th>Heading</th><th>Location</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody>
 <?php foreach ($thirdPartyEvents as $thirdPartyEvent): ?>
 <tr id="event-<?php echo (int)$thirdPartyEvent['id']; ?>"><td><?php echo h(format_display_date($thirdPartyEvent['event_date'])); ?></td><td><?php echo h($thirdPartyEvent['title']); ?></td><td><?php echo h($thirdPartyEvent['venue']); ?></td><td><?php echo h($thirdPartyEvent['status']); ?></td><td class="text-end">
 <a class="btn btn-sm btn-outline-success" href="third_party_event_edit.php?id=<?php echo (int)$thirdPartyEvent['id']; ?>">Edit</a>
@@ -369,7 +376,7 @@ admin_layout_start('Events', 'events');
         <div class="small text-muted">Ascending by start date.</div>
     </div>
     <div class="table-responsive">
-	        <table class="table table-sm align-middle">
+	        <table class="table event-striped table-sm align-middle">
 	            <thead class="table-light">
 	                <tr>
 	                    <th><?php echo admin_sort_link('start', 'Start', (string)$sortKey, (string)$sortDir); ?></th>
@@ -465,7 +472,7 @@ admin_layout_start('Events', 'events');
             <div class="small text-muted">Past rides, most recent first. Add or edit each ride report from the action row.</div>
         </div>
         <div class="table-responsive">
-	        <table class="table table-sm align-middle">
+	        <table class="table event-striped table-sm align-middle">
 	            <thead class="table-light">
 	                <tr>
 	                    <th><?php echo admin_sort_link('start', 'Start', (string)$sortKey, (string)$sortDir); ?></th>
