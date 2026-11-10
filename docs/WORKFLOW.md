@@ -141,3 +141,7 @@ If yes, fix the environment first.
 No new site should be considered "ready" until the basic read-only tool checks pass inside the normal sandboxed workspace.
 
 That is the acceptance test for a correct setup.
+
+## 10. Admin tab ordering
+
+Append new admin tabs to the end of the existing tab list unless the user explicitly requests another position. Preserve the order of established tabs.

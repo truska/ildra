@@ -220,7 +220,6 @@ admin_layout_start('Settings', 'settings');
 ?>
 <div class="card-soft p-4">
     <ul class="nav nav-tabs admin-tabs mb-4" role="tablist">
-        <?php if ($canManageCampaignEmail): ?><li class="nav-item"><a class="nav-link <?php echo $activeSettingsTab==='purchasing'?'active':''; ?>" href="settings.php?tab=purchasing">Purchasing</a></li><?php endif; ?>
         <li class="nav-item" role="presentation">
             <button class="nav-link <?php echo $activeSettingsTab === 'company' ? 'active' : ''; ?>" id="company-tab" data-bs-toggle="tab" data-bs-target="#company-settings" type="button" role="tab" aria-controls="company-settings" aria-selected="<?php echo $activeSettingsTab === 'company' ? 'true' : 'false'; ?>">Company</button>
         </li>
@@ -241,6 +240,7 @@ admin_layout_start('Settings', 'settings');
             <button class="nav-link <?php echo $activeSettingsTab === 'global' ? 'active' : ''; ?>" id="global-tab" data-bs-toggle="tab" data-bs-target="#global-settings" type="button" role="tab" aria-controls="global-settings" aria-selected="<?php echo $activeSettingsTab === 'global' ? 'true' : 'false'; ?>">Global</button>
         </li>
         <li class="nav-item" role="presentation"><button class="nav-link <?php echo $activeSettingsTab === 'footer' ? 'active' : ''; ?>" id="footer-tab" data-bs-toggle="tab" data-bs-target="#footer-settings" type="button" role="tab" aria-controls="footer-settings" aria-selected="<?php echo $activeSettingsTab === 'footer' ? 'true' : 'false'; ?>">Footer</button></li>
+        <?php if ($canManageCampaignEmail): ?><li class="nav-item"><a class="nav-link <?php echo $activeSettingsTab==='purchasing'?'active':''; ?>" href="settings.php?tab=purchasing">Purchasing</a></li><?php endif; ?>
     </ul>
     <div class="tab-content">
     <?php if ($canManageCampaignEmail): ?><div class="tab-pane <?php echo $activeSettingsTab==='purchasing'?'show active':''; ?>" id="purchasing-settings">
