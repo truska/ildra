@@ -67,12 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pricingRows = [];
         $pricingRowsWereReplaced = !empty($_POST['pricing_rows_replaced']);
         if ($pricingLocked) {
-            if ($typeChanged || $pricingRowsWereReplaced) $alerts[]=['type'=>'danger','message'=>'Pricing is locked because entries have opened.'];
+            if ($typeChanged || $pricingRowsWereReplaced) $alerts[]=['type'=>'danger','message'=>'Pricing is locked while entries are open or recorded entries exist.'];
             // Disabled pricing controls are deliberately absent from an ordinary edit POST.
             $pricingRows=fetchEventPricingRows($pdo,$eventId);
             if (array_key_exists('event_row_class_name',$_POST)) {
                 $postedRows=parseEventPricingRowsFromPost($_POST,$alerts);
-                if(eventPricingComparableRows($postedRows)!==eventPricingComparableRows($pricingRows))$alerts[]=['type'=>'danger','message'=>'Pricing is locked because entries have opened.'];
+                if(eventPricingComparableRows($postedRows)!==eventPricingComparableRows($pricingRows))$alerts[]=['type'=>'danger','message'=>'Pricing is locked while entries are open or recorded entries exist.'];
             }
         }
         if (!$pricingLocked && (!$typeChanged || $pricingRowsWereReplaced)) {
@@ -104,8 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach(['entry_open','non_member_entry_open'] as $field) {
                 $candidate[$field.'_at']=!empty($_POST[$field.'_date'])?trim($_POST[$field.'_date'].' '.($_POST[$field.'_time']??'00:00')):null;
             }
-            $opening=eventPricingOpeningTime($candidate);
-            if($opening!==null && $opening<=time() && ($typeChanged || eventPricingComparableRows(fetchEventPricingRows($pdo,$eventId))!==eventPricingComparableRows($pricingRows))) {
+            if(eventPricingEntriesOpen($candidate) && ($typeChanged || eventPricingComparableRows(fetchEventPricingRows($pdo,$eventId))!==eventPricingComparableRows($pricingRows))) {
                 $alerts[]=['type'=>'danger','message'=>'Save updated pricing before publishing/opening entries. Keep this event as a draft (or set a future opening time), save the new rates, then publish it.'];
             }
         }
@@ -553,7 +552,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         <div class="section-card">
             <div class="section-title">Classes &amp; Pricing</div>
-            <?php if($pricingLocked): ?><div class="alert alert-info">Pricing is locked because entries have opened. These saved prices will not change when master rates change.</div><?php else: ?><p class="small text-muted">Existing events keep their saved rates. Apply a template explicitly to load current prices before entries open.</p><?php endif; ?>
+            <?php if($pricingLocked): ?><div class="alert alert-info">Pricing is locked while entries are open or recorded entries exist. These saved prices will not change when master rates change.</div><?php else: ?><p class="small text-muted">Existing events keep their saved rates. Apply a template explicitly to load current prices before entries open.</p><?php endif; ?>
             <fieldset <?php echo $pricingLocked?'disabled':''; ?>>
             <div class="section-sub">Choose a pricing template, then enable the classes needed for this event. Ride rates and eligibility come from the master list. Applying a template replaces the current rows; later master edits do not affect this event.</div>
 

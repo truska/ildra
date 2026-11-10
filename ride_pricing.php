@@ -139,20 +139,34 @@ function eventPricingOpeningTime(array $event): ?int
     return $times ? min($times) : null;
 }
 
-// Once recorded, the lock survives unpublishing and changes to opening dates.
+function eventPricingEntriesOpen(array $event, ?int $now = null): bool
+{
+    if (($event['status']??'')!=='published') return false;
+    $now ??= time();
+    $open=eventPricingOpeningTime($event);
+    if ($open!==null && $now<$open) return false;
+    $close=!empty($event['entry_close_at'])?strtotime((string)$event['entry_close_at']):null;
+    if ($close===null && !empty($event['event_date'])) $close=strtotime((string)$event['event_date'].' -1 week 23:59:59');
+    if ($close===null || $now<=$close) return true;
+    $lateClose=!empty($event['late_entry_close_at'])?strtotime((string)$event['late_entry_close_at']):null;
+    return !empty($event['late_entries_enabled']) && $lateClose!==null && $now<=$lateClose;
+}
+
+function eventPricingHasEntries(PDO $pdo, int $eventId): bool
+{
+    // Include withdrawn/cancelled entries: their historical financial records still matter.
+    $stmt=$pdo->prepare('SELECT 1 FROM booking_items WHERE event_id=:id LIMIT 1');
+    $stmt->execute([':id'=>$eventId]);return (bool)$stmt->fetchColumn();
+}
+
 function eventPricingLocked(?PDO $pdo, int $eventId): bool
 {
     if (!$pdo || !ridePricingReady($pdo) || $eventId<=0) return false;
-    $stmt=$pdo->prepare('SELECT locked_at FROM event_pricing_locks WHERE event_id=:id');$stmt->execute([':id'=>$eventId]);
-    if($stmt->fetchColumn())return true;
     $stmt=$pdo->prepare('SELECT * FROM events WHERE id=:id');$stmt->execute([':id'=>$eventId]);$event=$stmt->fetch();
     if(!$event)return false;
-    $open=eventPricingOpeningTime($event);
-    $booking=$pdo->prepare('SELECT 1 FROM booking_items WHERE event_id=:id LIMIT 1');$booking->execute([':id'=>$eventId]);
-    if(($open!==null && $open<=time()) || $booking->fetchColumn()){
-        $pdo->prepare('INSERT IGNORE INTO event_pricing_locks(event_id,locked_at) VALUES(:id,NOW())')->execute([':id'=>$eventId]);return true;
-    }
-    return false;
+    // Old event_pricing_locks records are deliberately ignored; dates can be corrected
+    // while closed and without any received entries.
+    return eventPricingHasEntries($pdo,$eventId) || eventPricingEntriesOpen($event);
 }
 
 function eventPricingComparableRows(array $rows): array

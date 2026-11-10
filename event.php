@@ -10,7 +10,6 @@ $siteBase = $basePath ?: '';
 
 $eventId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $event = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
-if ($event && $pdo) eventPricingLocked($pdo,$eventId);
 $eventImageBatch = $event ? mediaBatchFind($pdo, 'event_images', 'event', $eventId) : null;
 $eventImages = $eventImageBatch ? mediaBatchImages($pdo, (int)$eventImageBatch['id']) : [];
 $eventImage = $eventImages[0] ?? null;
@@ -251,7 +250,7 @@ if ($entryCloseDt && $now > $entryCloseDt) {
     $entryStateMessage = $entryCloseDt ? 'Entries are open until ' . $entryCloseDt->format('jS M Y \a\t H:i') : 'Entries are open';
 }
 $entriesAvailable = ($entriesOpenNow && !$isFull) || $canViewAdmin;
-$lateEntriesOpenNow = !$entriesOpenNow && !empty($event['late_entries_enabled']) && !$isFull && $lateEntryCloseDt && $now <= $lateEntryCloseDt;
+$lateEntriesOpenNow = !$entriesOpenNow && !empty($event['late_entries_enabled']) && !$isFull && $entryCloseDt && $now > $entryCloseDt && $lateEntryCloseDt && $now <= $lateEntryCloseDt && eventPricingEntriesOpen($event);
 $isLateEntry = $lateEntriesOpenNow && $entryCloseDt && $now > $entryCloseDt;
 $entriesAvailable = ($entriesOpenNow || $lateEntriesOpenNow) && !$isFull || $canViewAdmin;
 $eventPricingRows = $event ? fetchEventPricingRows($pdo, (int)($event['id'] ?? 0)) : [];

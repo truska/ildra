@@ -84,13 +84,7 @@ function applyRidePricingMigration(PDO $pdo, int $masterSchemeId, string $expect
         $pdo->prepare("INSERT INTO ride_pricing_state(migration_key,source_sha256) VALUES('master-ride-classes-v1',:sha)")->execute([':sha'=>$expectedSha]);
         $typeMarker=$pdo->prepare('INSERT INTO ride_pricing_state(migration_key,source_sha256) VALUES(:key,:sha)');
         foreach(rideTypeIds($pdo) as $type)$typeMarker->execute([':key'=>'ride-type-id:'.$type,':sha'=>$expectedSha]);
-        // Lock events whose entries have already opened, without changing any event or price row.
-        $events=$pdo->query('SELECT * FROM events ORDER BY id')->fetchAll();
-        $booked=array_flip(array_map('intval',$pdo->query('SELECT DISTINCT event_id FROM booking_items WHERE event_id IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN)));
-        $insLock=$pdo->prepare('INSERT IGNORE INTO event_pricing_locks(event_id,locked_at) VALUES(:id,NOW())');
-        $locked=0;
-        foreach($events as $event){$open=eventPricingOpeningTime($event);if(($open!==null && $open<=time()) || isset($booked[(int)$event['id']])){$insLock->execute([':id'=>$event['id']]);$locked++;}}
-        $pdo->commit();return ['already_applied'=>false,'classes'=>count($ids),'selections'=>count($plan['selections']),'locked_events'=>$locked,'source_sha256'=>$expectedSha];
+        $pdo->commit();return ['already_applied'=>false,'classes'=>count($ids),'selections'=>count($plan['selections']),'source_sha256'=>$expectedSha];
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     finally{$pdo->query("SELECT RELEASE_LOCK('master-ride-classes-v1')");}
 }

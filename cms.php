@@ -1662,14 +1662,11 @@ function replaceEventPricingRows(?PDO $pdo, int $eventId, array $rows, bool $ini
         $existing->execute([':id'=>$eventId]);$existingRows=$existing->fetchAll();
         if($initialPricing && $existingRows){$pdo->rollBack();return false;}
         if(!$initialPricing && eventPricingLocked($pdo,$eventId)){
-            // Commit the permanent lock, but never replace rows/IDs on an opened event.
+            // Never replace price rows/IDs while entries are open or recorded entries exist.
             $unchanged=eventPricingComparableRows($existingRows)===eventPricingComparableRows($rows);
             $pdo->commit();return $unchanged;
         }
-        if($initialPricing && ridePricingReady($pdo)){
-            $locked=$pdo->prepare('SELECT 1 FROM event_pricing_locks WHERE event_id=:id');$locked->execute([':id'=>$eventId]);
-            if($locked->fetchColumn()){$pdo->rollBack();return false;}
-        }
+        if($initialPricing && eventPricingHasEntries($pdo,$eventId)){$pdo->rollBack();return false;}
         $pdo->prepare("DELETE FROM event_pricing_rows WHERE event_id = :eid")->execute([':eid' => $eventId]);
         $ins = $pdo->prepare("
             INSERT INTO event_pricing_rows (event_id, sort_order, class_name, class_code, class_group, price, foreign_recognition_price, is_member_price, is_junior_ride, rider_eligibility, enabled, created_at, updated_at)
@@ -5882,7 +5879,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $lockedEvent = $eventId>0 && eventPricingLocked($pdo,$eventId) ? fetchEventById($pdo,$eventId) : null;
     if ($lockedEvent) {
         if ((int)($data['event_type_id']??0)!==(int)$lockedEvent['event_type_id'] || array_key_exists('class_selected',$data) || array_key_exists('class_price',$data)) {
-            $alerts[]=['type'=>'danger','message'=>'Pricing and event type are locked because entries have opened.'];
+            $alerts[]=['type'=>'danger','message'=>'Pricing and event type are locked while entries are open or recorded entries exist.'];
             return false;
         }
     }

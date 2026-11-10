@@ -15,7 +15,9 @@ event types, without making routine event setup difficult for administrators.
   Each scheme applies to Event Types, with one default scheme per type.
 - Events store price snapshots. Existing events never update automatically when
   master rates change; a pre-opening event needs an explicit template reapply.
-  Pricing locks once entries open and remains locked after unpublishing/rescheduling.
+  Pricing is protected while entries are currently open (including late entries),
+  or after any recorded entry. Closed events without entries can reapply current
+  rates after correcting their schedule/status; former permanent locks are ignored.
 - Entry Components are reusable form items that can be enabled for an event.
   They can be limited to particular Event Types.
 - The public entry page is still fundamentally ride-shaped: rider, horse and

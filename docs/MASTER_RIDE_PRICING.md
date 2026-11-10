@@ -10,7 +10,11 @@ The public **Ride prices (live data)** content element reads the active, publicl
 
 Applying a scheme creates independent event pricing rows. Master or scheme edits never automatically update existing events, including drafts. The event editor permits enabling/removing existing classes before opening, but ride names, prices and eligibility are read-only; use **Apply Template**, then **Save**, to obtain current master rates. Server-side validation resolves applied templates against current master records, and preserves historical snapshot fields on ordinary edits rather than trusting posted prices. A members-only class selection is valid; an event does not need a non-member price row. Price replacement checks the event lock inside its database transaction, and a mismatched editor/posted event ID is rejected.
 
-Pricing locks when the first member or non-member opening time is reached on a published event, or when the event already has a booking item. The usual one-month-before-event fallback applies when the member opening time is absent. The lock is stored separately and survives unpublishing or rescheduling. Locked event pricing rows, enabled classes, event type and late-entry fee cannot be changed through the editor. Ordinary edits preserve price row IDs and legacy class snapshots. Locking applies to non-ride events too.
+Pricing is protected while entries are currently open on a published event (for either members or non-members, including a valid late-entry window), or whenever any booking item has been received. Withdrawn/cancelled entries count too. The usual one-month-before-event opening and one-week-before-event closing fallbacks apply when dates are absent. Capacity limits and purchasing maintenance do not unlock an otherwise open event.
+
+An event with no recorded entries becomes editable when it is no longer open: save both opening dates in the future, close all normal/late entry windows, or return it to Draft, then reload before reapplying the scheme. Date/status changes never update prices automatically. Events with recorded entries remain protected regardless of later dates/status. Protected event pricing rows, class availability, event type and late-entry fee cannot be changed; ordinary edits preserve price row IDs and legacy class snapshots. The rule applies to non-ride events too.
+
+The former permanent `event_pricing_locks` records are ignored. No new lock records are written, and existing installations need no data cleanup or migration to adopt this revised rule. The table remains for compatibility with the earlier schema.
 
 Save rate changes before publishing an event whose opening time has already passed. The editor rejects combining changed rates with immediate opening on an existing event; save as a draft (or with a future opening time), then publish. This avoids publishing one set of rates and attempting to replace it after entries have opened.
 
@@ -22,7 +26,7 @@ The additive schema is in `migrations/2026-11-10-master-ride-classes.sql`:
 
 - `ride_classes`: master definitions, with unique codes and initial-source keys.
 - `ride_scheme_classes`: scheme selections and per-scheme order.
-- `event_pricing_locks`: permanent event pricing locks.
+- `event_pricing_locks`: legacy compatibility table; records are no longer read or written.
 - `ride_pricing_state`: completed migration fingerprint and stable Ride type IDs.
 
 The PHP migration previews the current destination database and maps every ride scheme. It uses the chosen all-classes scheme as the master, exact class codes for matching, and the unique PR membership/age combination for older PR-only rows with no codes. It rejects duplicate codes, ambiguous mappings, empty ride schemes and mixed ride/non-ride schemes. It reports price conflicts. The live PR-only Junior Member row changes from £13 to the authoritative master £15; historical event prices are unaffected.
@@ -40,4 +44,4 @@ php scripts/test_master_ride_pricing.php --render-fixture
 node scripts/tests/master_ride_pricing.cjs
 ```
 
-Database tests use synthetic data in connection-local temporary tables that shadow application tables. No persistent application data, emails or Stripe operations are involved. The browser test uses the generated synthetic scheme form and actual draft/locked event-pricing view fragments. Also verify the signed-in master editor and event editor in the destination environment, especially a pre-opening reapply and an opened event's read-only rates.
+Database tests use synthetic data in connection-local temporary tables that shadow application tables. No persistent application data, emails or Stripe operations are involved. The browser test uses the generated synthetic scheme form and actual draft/locked event-pricing view fragments. Also verify the signed-in master editor and event editor in the destination environment, especially a pre-opening reapply and an open event's read-only rates. Also check rescheduling an unused test event, late-entry windows, and protection after a withdrawn entry.
