@@ -78,18 +78,18 @@ function mediaBatchImageUrl(array $batch, array $image, string $size = 'original
     return image_upload_public_path((string)$batch['section'], $size, (string)$image['filename']);
 }
 
-function mediaBatchUpload(?PDO $pdo, array $batch, array $files, array $sizes, array &$errors): int
+function mediaBatchUpload(?PDO $pdo, array $batch, array $files, array $sizes, array &$errors, array $defaults = []): int
 {
     if (!$pdo) return 0;
     $current = mediaBatchImages($pdo, (int)$batch['id'], true);
     $nextOrder = $current ? max(array_map(static fn(array $row): int => (int)$row['display_order'], $current)) + 10 : 10;
     $results = image_upload_many($files, ['section'=>$batch['section'], 'sizes'=>$sizes], $errors);
     $sourceFiles = array_values(array_filter(image_upload_files($files), static fn(array $file): bool => ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE));
-    $stmt = $pdo->prepare('INSERT INTO media_batch_images (batch_id,filename,original_filename,title,alt_text,available_sizes,display_order) VALUES (:batch,:filename,:original,:title,:alt,:sizes,:ord)');
+    $stmt = $pdo->prepare('INSERT INTO media_batch_images (batch_id,filename,original_filename,title,alt_text,caption,available_sizes,display_order) VALUES (:batch,:filename,:original,:title,:alt,:caption,:sizes,:ord)');
     foreach ($results as $index => $result) {
         $original = (string)($sourceFiles[$index]['name'] ?? $result['filename']);
         $title = trim(str_replace(['-', '_'], ' ', pathinfo($original, PATHINFO_FILENAME)));
-        $stmt->execute([':batch'=>$batch['id'], ':filename'=>$result['filename'], ':original'=>$original, ':title'=>$title ?: null, ':alt'=>$title ?: null, ':sizes'=>implode(',', array_keys($result['sizes'])), ':ord'=>$nextOrder]);
+        $stmt->execute([':batch'=>$batch['id'], ':filename'=>$result['filename'], ':original'=>$original, ':title'=>array_key_exists('title', $defaults) ? ($defaults['title'] ?: null) : ($title ?: null), ':alt'=>array_key_exists('alt_text', $defaults) ? ($defaults['alt_text'] ?: null) : ($title ?: null), ':caption'=>$defaults['caption'] ?? null, ':sizes'=>implode(',', array_keys($result['sizes'])), ':ord'=>$nextOrder]);
         $nextOrder += 10;
     }
     return count($results);
