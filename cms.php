@@ -78,6 +78,9 @@ function defaultMemberships(): array
 function defaultSiteSettings(): array
 {
     return [
+        'campaign_live_sending_enabled' => '0',
+        'campaign_default_batch_size' => '25',
+        'campaign_public_base_url' => '',
         'ride_notes_email_intro_html' => '<p>Important information for your upcoming ride is now available.</p>',
         'ride_notes_email_signature_html' => '',
         'ride_notes_email_header_image_url' => '',
