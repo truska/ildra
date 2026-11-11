@@ -483,7 +483,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         <div class="section-card" id="event-details-section">
             <div class="section-title" id="event-details-title"><?php echo strtolower(trim((string)($selectedEventType['name'] ?? 'Ride'))) === 'ride' ? 'Event Notice' : 'Additional event details'; ?></div>
             <div class="section-sub" id="event-details-help">For rides, a short notice shown on the event list and event page, such as a date change. For other events, additional details shown on the event page.</div>
-            <textarea class="form-control wysiwyg-field" rows="8" name="details_html"><?php echo h((string)($event['details_html'] ?? '')); ?></textarea>
+            <textarea class="form-control wysiwyg-field" rows="3" name="details_html"><?php echo h((string)($event['details_html'] ?? '')); ?></textarea>
         </div>
 
         <div class="section-card">
@@ -1274,7 +1274,20 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 <?php endif; ?>
 <?php render_tinymce_bootstrap(); ?>
 <script>
-if (window.tinymce) tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));
+if (window.tinymce) {
+    tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field:not([name="details_html"])'}));
+    const noticeIsRide = () => (document.querySelector('select[name="event_type_id"]')?.selectedOptions[0]?.textContent || '').trim().toLowerCase() === 'ride';
+    tinymce.init(window.ildraTinyMceConfig({
+        selector:'textarea[name="details_html"]',
+        height: noticeIsRide() ? 190 : 300,
+        min_height: 190,
+        setup: editor => {
+            document.querySelector('select[name="event_type_id"]')?.addEventListener('change', () => {
+                if (editor.getContainer()) editor.getContainer().style.height = (noticeIsRide() ? 190 : 300) + 'px';
+            });
+        }
+    }));
+}
 </script>
 <?php if($pricingLocked): ?><script>
 (() => {

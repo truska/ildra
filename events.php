@@ -380,7 +380,7 @@ $navItemEventsUrl = $basePath . '/events';
                                             $eventNotice = (string)($event[$isRideEvent ? 'details_html' : 'description'] ?? '');
                                         ?>
                                         <?php if (trim($eventNotice) !== ''): ?>
-                                            <div class="event-notes"><?php echo $isRideEvent ? render_wysiwyg($eventNotice) : h(rich_html_plain_text($eventNotice)); ?></div>
+                                            <div class="<?php echo $isRideEvent ? 'small mt-1' : 'event-notes'; ?>"><?php echo $isRideEvent ? render_wysiwyg($eventNotice) : h(rich_html_plain_text($eventNotice)); ?></div>
                                         <?php endif; ?>
 	                                        <?php if ($isFull): ?>
 	                                            <div class="badge-full mt-2">Event full</div>

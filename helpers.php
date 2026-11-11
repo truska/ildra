@@ -113,6 +113,25 @@ function sanitize_rich_html(string $value): string
         $saved = [];
         foreach ($node->attributes ?? [] as $attribute) $saved[strtolower($attribute->name)] = $attribute->value;
         foreach (array_keys($saved) as $attribute) $node->removeAttribute($attribute);
+        // Preserve editor text formatting using a strict CSS value allowlist.
+        $safeStyles = [];
+        foreach (explode(';', $saved['style'] ?? '') as $declaration) {
+            $parts = explode(':', $declaration, 2);
+            if (count($parts) !== 2) continue;
+            [$property, $cssValue] = array_map('trim', $parts);
+            $property = strtolower($property);
+            $valid = match ($property) {
+                'color', 'background-color' => preg_match('/^(#[a-f0-9]{3,8}|[a-z]+|rgba?\([\d.,%\s]+\))$/i', $cssValue),
+                'font-weight' => preg_match('/^(normal|bold|[1-9]00)$/i', $cssValue),
+                'font-style' => preg_match('/^(normal|italic|oblique)$/i', $cssValue),
+                'text-decoration' => preg_match('/^(none|underline|line-through|underline line-through)$/i', $cssValue),
+                'text-align' => preg_match('/^(left|right|center|justify)$/i', $cssValue),
+                'font-size' => preg_match('/^\d+(\.\d+)?(px|pt|em|rem|%)$/i', $cssValue),
+                default => false,
+            };
+            if ($valid) $safeStyles[] = $property . ': ' . $cssValue;
+        }
+        if ($safeStyles) $node->setAttribute('style', implode('; ', $safeStyles));
         if ($tag === 'a' && isset($saved['href']) && rich_html_url_is_allowed($saved['href'])) {
             $node->setAttribute('href', trim(html_entity_decode($saved['href'], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
             if (($saved['target'] ?? '') === '_blank') $node->setAttribute('target', '_blank');
