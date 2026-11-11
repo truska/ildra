@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(403);exit('CLI only.');}
+// ISPConfig's CLI jail has no system PHP session directory.
+session_save_path(sys_get_temp_dir());
 require dirname(__DIR__).'/bootstrap.php';
 if(!$pdo){fwrite(STDERR,"Database unavailable.\n");exit(1);}
 $lock=fopen(sys_get_temp_dir().'/ildra-email-campaigns.lock','c');
