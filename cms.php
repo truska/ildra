@@ -78,6 +78,9 @@ function defaultMemberships(): array
 function defaultSiteSettings(): array
 {
     return [
+        'ride_notes_email_intro_html' => '<p>Important information for your upcoming ride is now available.</p>',
+        'ride_notes_email_signature_html' => '',
+        'ride_notes_email_header_image_url' => '',
         'ride_notes_footer_html' => <<<'HTML'
 <h2>Cancellations, Questions and Amendments</h2>
 <p>If you wish to cancel your entry please email us on <a href="mailto:webmaster@enduranceridingireland.com">webmaster@enduranceridingireland.com</a></p>
