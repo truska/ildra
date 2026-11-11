@@ -5987,11 +5987,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $eventTypeId = (int)($selectedType['id'] ?? 0);
     $eventTypeName = trim((string)($selectedType['name'] ?? $data['event_type'] ?? 'Ride'));
     $detailsHtml = trim((string)($data['details_html'] ?? ''));
-    // Ride information continues to live in Rider Notes.  This field is for
-    // every other event type only.
-    if (strtolower($eventTypeName) === 'ride') {
-        $detailsHtml = '';
-    }
+    $detailsHtml = sanitize_rich_html($detailsHtml);
 
     if ($title === '' || $eventDate === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Event title and start date are required.'];

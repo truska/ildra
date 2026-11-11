@@ -815,10 +815,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     </div>
                     <div class="row g-4 align-items-start event-summary-row">
                         <div class="col-12 col-lg-8 event-summary-copy">
+                            <?php $isRideEvent = strtolower(trim((string)($event['event_type_name'] ?? $event['event_type'] ?? 'Ride'))) === 'ride'; ?>
                             <?php if (trim((string)($event['details_html'] ?? '')) !== ''): ?>
-                                <div class="event-extra-details mb-4"><?php echo (string)$event['details_html']; ?></div>
+                                <div class="event-extra-details mb-4"><?php echo render_wysiwyg((string)$event['details_html']); ?></div>
                             <?php endif; ?>
-                            <?php if (!empty($event['description'])): ?>
+                            <?php if (!$isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
                                 <div class="mb-3"><?php echo render_wysiwyg((string)$event['description']); ?></div>
                             <?php endif; ?>
                             <div class="row g-3">
@@ -865,6 +866,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                 <?php if (!empty($eventImage['caption'])): ?><div class="event-gallery-caption"><?php echo h((string)$eventImage['caption']); ?></div><?php endif; ?>
                             <?php endif; ?>
                         </div>
+                        <?php if ($isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
+                            <div class="col-12 event-summary-copy event-description"><?php echo render_wysiwyg((string)$event['description']); ?></div>
+                        <?php endif; ?>
                     </div>
                 </div>
 

@@ -478,14 +478,11 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <?php endif; ?>
                 </div>
             </div>
-            <div class="mt-2">
-                <a class="small" href="venues.php">Manage venues</a>
-            </div>
         </div>
 
-        <div class="section-card" id="event-details-section" <?php echo strtolower(trim((string)($selectedEventType['name'] ?? 'Ride'))) === 'ride' ? 'hidden' : ''; ?>>
-            <div class="section-title">Additional event details</div>
-            <div class="section-sub">Rich text shown on the public event page above the booking information. <strong>This is not used for Ride events.</strong></div>
+        <div class="section-card" id="event-details-section">
+            <div class="section-title" id="event-details-title"><?php echo strtolower(trim((string)($selectedEventType['name'] ?? 'Ride'))) === 'ride' ? 'Event Notice' : 'Additional event details'; ?></div>
+            <div class="section-sub" id="event-details-help">For rides, a short notice shown on the event list and event page, such as a date change. For other events, additional details shown on the event page.</div>
             <textarea class="form-control wysiwyg-field" rows="8" name="details_html"><?php echo h((string)($event['details_html'] ?? '')); ?></textarea>
         </div>
 
@@ -902,7 +899,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         const eventDetailsSection = document.getElementById('event-details-section');
         const syncEventDetailsVisibility = () => {
             if (!eventTypeSelect || !eventDetailsSection) return;
-            eventDetailsSection.hidden = (eventTypeSelect.selectedOptions[0]?.textContent || '').trim().toLowerCase() === 'ride';
+            const isRide = (eventTypeSelect.selectedOptions[0]?.textContent || '').trim().toLowerCase() === 'ride';
+            document.getElementById('event-details-title').textContent = isRide ? 'Event Notice' : 'Additional event details';
         };
         syncEventDetailsVisibility();
         const pricingTbody = document.getElementById('pricingRowsTbody');
