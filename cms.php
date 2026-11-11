@@ -2584,6 +2584,7 @@ function fetchEvents(?PDO $pdo, bool $upcomingOnly = false): array
 function fetchEventById(?PDO $pdo, int $id): ?array
 {
     ensureThirdPartyEventColumn($pdo);
+    ensureEventEmergencyColumns($pdo);
     if ($id <= 0) {
         return null;
     }
@@ -5906,6 +5907,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     }
     ensureEntryWindowColumns($pdo);
     ensureEventDetailsColumn($pdo);
+    ensureEventEmergencyColumns($pdo);
 
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
     $lockedEvent = $eventId>0 && eventPricingLocked($pdo,$eventId) ? fetchEventById($pdo,$eventId) : null;
@@ -5963,6 +5965,16 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             $organiserUserId = 0;
         }
     }
+    $emergencyUseOrganiser = !empty($data['emergency_use_organiser']) ? 1 : 0;
+    $emergencyPhone = trim((string)($data['emergency_phone'] ?? ''));
+    if (strtolower(trim($eventTypeName)) === 'ride') {
+        $effectiveEmergencyPhone = $emergencyUseOrganiser ? eventOrganiserPhone($pdo, $organiserUserId) : $emergencyPhone;
+        if ($effectiveEmergencyPhone === '' || mb_strlen($effectiveEmergencyPhone) > 60 || !preg_match('/^\+?[0-9 ()-]*[0-9][0-9 ()-]*$/', $effectiveEmergencyPhone)) {
+            $alerts[] = ['type' => 'danger', 'message' => $emergencyUseOrganiser ? 'The organiser has no usable phone number. Untick Use organiser’s number and enter a Ride Emergency Number.' : 'Enter a valid Ride Emergency Number (up to 60 characters).'];
+            return false;
+        }
+    }
+    $emergencyPhone = $emergencyUseOrganiser ? null : ($emergencyPhone ?: null);
     $entryOpenDate = trim((string)($data['entry_open_date'] ?? ''));
     $entryOpenTime = trim((string)($data['entry_open_time'] ?? ''));
     $nonMemberEntryOpenDate = trim((string)($data['non_member_entry_open_date'] ?? ''));
@@ -6070,6 +6082,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                     venue_id = :venue_id,
                     organiser = :organiser,
                     organiser_user_id = :organiser_user_id,
+                    emergency_use_organiser = :emergency_use_organiser, emergency_phone = :emergency_phone,
                     classes_offered = :classes_offered,
                     entry_open_at = :entry_open_at,
                     non_member_entry_open_at = :non_member_entry_open_at,
@@ -6098,6 +6111,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                 ':venue_id' => $venueId > 0 ? $venueId : null,
                 ':organiser' => $organiser ?: null,
                 ':organiser_user_id' => $organiserUserId > 0 ? $organiserUserId : null,
+                ':emergency_use_organiser' => $emergencyUseOrganiser,
+                ':emergency_phone' => $emergencyPhone,
                 ':classes_offered' => $lockedEvent ? $lockedEvent['classes_offered'] : (is_string($classesOffered) ? $classesOffered : json_encode($classesOffered, JSON_UNESCAPED_UNICODE)),
                 ':entry_open_at' => $entryOpenAt ?: null,
                 ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
@@ -6119,8 +6134,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             return $eventId;
         }
         $stmt = $pdo->prepare("
-            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, send_reminder_emails, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, details_html, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
-            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :send_reminder_emails, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :details_html, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
+            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, emergency_use_organiser, emergency_phone, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, send_reminder_emails, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, details_html, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
+            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :emergency_use_organiser, :emergency_phone, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :send_reminder_emails, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :details_html, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
         ");
         $stmt->execute([
             ':title' => $title,
@@ -6132,6 +6147,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             ':venue_id' => $venueId > 0 ? $venueId : null,
             ':organiser' => $organiser ?: null,
             ':organiser_user_id' => $organiserUserId > 0 ? $organiserUserId : null,
+                ':emergency_use_organiser' => $emergencyUseOrganiser,
+                ':emergency_phone' => $emergencyPhone,
             ':classes_offered' => $lockedEvent ? $lockedEvent['classes_offered'] : (is_string($classesOffered) ? $classesOffered : json_encode($classesOffered, JSON_UNESCAPED_UNICODE)),
             ':entry_open_at' => $entryOpenAt ?: null,
             ':non_member_entry_open_at' => $nonMemberEntryOpenAt ?: null,
@@ -6155,6 +6172,36 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
         $alerts[] = ['type' => 'danger', 'message' => 'Could not save event.'];
         return false;
     }
+}
+
+function ensureEventEmergencyColumns(?PDO $pdo): void
+{
+    if (!$pdo) return;
+    if (!table_column_exists($pdo, 'events', 'emergency_use_organiser')) {
+        $pdo->exec("ALTER TABLE events ADD COLUMN emergency_use_organiser TINYINT(1) NOT NULL DEFAULT 1");
+    }
+    if (!table_column_exists($pdo, 'events', 'emergency_phone')) {
+        $pdo->exec("ALTER TABLE events ADD COLUMN emergency_phone VARCHAR(60) NULL DEFAULT NULL");
+    }
+}
+
+function eventOrganiserPhone(?PDO $pdo, int $userId): string
+{
+    if (!$pdo || $userId <= 0) return '';
+    $stmt = $pdo->prepare("SELECT p.phone FROM people p JOIN users u ON u.id = p.owner_user_id
+        WHERE u.id = :id AND COALESCE(p.is_archived, 0) = 0
+        AND LOWER(TRIM(p.first_name)) = LOWER(TRIM(u.first_name))
+        AND LOWER(TRIM(p.last_name)) = LOWER(TRIM(u.last_name))");
+    $stmt->execute([':id' => $userId]);
+    $rows = $stmt->fetchAll();
+    return count($rows) === 1 ? trim((string)($rows[0]['phone'] ?? '')) : '';
+}
+
+function rideEmergencyPhone(?PDO $pdo, array $event): string
+{
+    return !empty($event['emergency_use_organiser'] ?? 1)
+        ? eventOrganiserPhone($pdo, (int)($event['organiser_user_id'] ?? 0))
+        : trim((string)($event['emergency_phone'] ?? ''));
 }
 
 function ensureEventOrganiserUserColumn(?PDO $pdo): void

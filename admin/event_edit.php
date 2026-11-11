@@ -468,7 +468,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                                     $hasSelectedOrganiser = true;
                                 }
                             ?>
-                            <option value="<?php echo $userId; ?>" <?php echo $selected ? 'selected' : ''; ?>>
+                            <option data-phone="<?php echo h(eventOrganiserPhone($pdo, $userId)); ?>" value="<?php echo $userId; ?>" <?php echo $selected ? 'selected' : ''; ?>>
                                 <?php echo h($label . ' (' . $roleLabel . ')'); ?>
                             </option>
                         <?php endforeach; ?>
@@ -476,6 +476,15 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <?php if ($legacyOrganiser !== '' && !$hasSelectedOrganiser): ?>
                         <div class="small text-muted mt-1">Current saved organiser: <?php echo h($legacyOrganiser); ?></div>
                     <?php endif; ?>
+                </div>
+                <div class="col-md-8" id="ride-emergency-controls">
+                    <label class="form-label" for="emergency_phone">Ride Emergency Number</label>
+                    <?php $emergencyUseOrganiser = $_SERVER['REQUEST_METHOD'] === 'POST' ? !empty($_POST['emergency_use_organiser']) : !empty($event['emergency_use_organiser'] ?? 1); ?>
+                    <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 gap-md-3">
+                    <div class="form-check mb-0 flex-shrink-0"><input class="form-check-input" type="checkbox" name="emergency_use_organiser" id="emergency_use_organiser" value="1" <?php echo $emergencyUseOrganiser ? 'checked' : ''; ?>><label class="form-check-label" for="emergency_use_organiser">Use organiser’s number</label></div>
+                    <input type="tel" class="form-control" id="emergency_phone" name="emergency_phone" maxlength="60" value="<?php echo h((string)($_POST['emergency_phone'] ?? $event['emergency_phone'] ?? '')); ?>">
+                    </div>
+                    <div class="form-text" id="emergency-phone-help">Shown prominently on Rider Notes.</div>
                 </div>
             </div>
         </div>
@@ -727,6 +736,33 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
 <script>
     (function() {
+        const organiserSelect = document.querySelector('select[name="organiser_user_id"]');
+        const emergencyCheck = document.getElementById('emergency_use_organiser');
+        const emergencyInput = document.getElementById('emergency_phone');
+        const emergencyType = document.querySelector('select[name="event_type_id"]');
+        let manualEmergencyPhone = emergencyInput.value;
+        const syncEmergencyPhone = () => {
+            const isRide = (emergencyType?.selectedOptions[0]?.textContent || '').trim().toLowerCase() === 'ride';
+            const phone = organiserSelect?.selectedOptions[0]?.dataset.phone || '';
+            const usable = /^\+?[0-9 ()-]*[0-9][0-9 ()-]*$/.test(phone) && phone.length <= 60;
+            document.getElementById('ride-emergency-controls').hidden = !isRide;
+            emergencyCheck.disabled = !isRide || !usable;
+            if (!usable) emergencyCheck.checked = false;
+            emergencyInput.disabled = !isRide || emergencyCheck.checked;
+            emergencyInput.required = isRide && !emergencyCheck.checked;
+            emergencyInput.value = emergencyCheck.checked ? phone : manualEmergencyPhone;
+            document.getElementById('emergency-phone-help').textContent = usable
+                ? 'Shown prominently on Rider Notes. Organiser’s number: ' + phone
+                : 'The organiser has no usable number listed. Enter a Ride Emergency Number.';
+        };
+        emergencyInput.addEventListener('input', () => { manualEmergencyPhone = emergencyInput.value; });
+        emergencyCheck.addEventListener('change', syncEmergencyPhone);
+        organiserSelect.addEventListener('change', () => {
+            if (manualEmergencyPhone.trim() === '') emergencyCheck.checked = true;
+            syncEmergencyPhone();
+        });
+        emergencyType.addEventListener('change', syncEmergencyPhone);
+        syncEmergencyPhone();
         const startDate = document.querySelector('input[name="event_date"]');
         const openDate = document.querySelector('input[name="entry_open_date"]');
         const nonMemberOpenDate = document.querySelector('input[name="non_member_entry_open_date"]');
