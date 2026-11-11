@@ -134,14 +134,19 @@ admin_layout_start('Venues', 'venues');
                     <label class="form-label">Postcode</label>
                     <input type="text" name="postcode" class="form-control" value="<?php echo h((string)($v['postcode'] ?? '')); ?>">
                 </div>
-                <div class="col-md-8">
+                <div class="col-12">
                     <label class="form-label">Address</label>
-                    <input type="text" name="address" class="form-control" value="<?php echo h((string)($v['address'] ?? '')); ?>">
-                    <div class="small text-muted mt-1">Optional. Shown for admins.</div>
+                    <textarea name="address" class="form-control" rows="3" maxlength="500"><?php echo h((string)($v['address'] ?? '')); ?></textarea>
+                    <div class="small text-muted mt-1">Optional. Up to 500 characters. Shown on Rider Notes.</div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label class="form-label">Google Maps URL</label>
                     <input type="url" name="google_url" class="form-control" value="<?php echo h((string)($v['google_url'] ?? '')); ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="what3words">What3Words</label>
+                    <input type="text" id="what3words" name="what3words" class="form-control" value="<?php echo h((string)($v['what3words'] ?? '')); ?>" placeholder="///word.word.word">
+                    <div class="form-text">Enter the three words or their what3words.com link. Shown as a clickable link on Rider Notes.</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Directions</label>

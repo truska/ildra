@@ -78,6 +78,16 @@ function defaultMemberships(): array
 function defaultSiteSettings(): array
 {
     return [
+        'ride_notes_footer_html' => <<<'HTML'
+<h2>Cancellations, Questions and Amendments</h2>
+<p>If you wish to cancel your entry please email us on <a href="mailto:webmaster@enduranceridingireland.com">webmaster@enduranceridingireland.com</a></p>
+<p>For any questions or other information relating to the ride please also email on the above address.</p>
+<h4>Cancellation Policy</h4>
+<p>All entries, Pleasure and Competitive, must be pre-paid, using the on-line system.</p>
+<p>Ride entries withdrawn prior to ride closing date (usually 5 days before ride unless otherwise stated) will be refunded less administrative charge or can be credited to a future ride.</p>
+<p>Notice of withdrawal must be made to <a href="mailto:webmaster@enduranceridingireland.com">webmaster@enduranceridingireland.com</a>. No refunds/credits after this time.</p>
+<p>Memberships and entries are non-transferable.</p>
+HTML,
         'hero_title' => 'Endurance Riding Ireland LTD',
         'hero_subtitle' => 'Recognised by Horse Sport Ireland',
         'hero_tagline' => 'Home for Endurance Riding in Ireland',
@@ -2246,9 +2256,10 @@ function ensureVenuesTable(?PDO $pdo): void
             CREATE TABLE IF NOT EXISTS venues (
                 id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(64) NOT NULL,
-                address VARCHAR(64) DEFAULT NULL,
+                address VARCHAR(500) DEFAULT NULL,
                 postcode VARCHAR(8) DEFAULT NULL,
                 google_url VARCHAR(128) DEFAULT NULL,
+                what3words VARCHAR(255) DEFAULT NULL,
                 directions LONGTEXT NULL,
                 notes LONGTEXT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -2256,6 +2267,13 @@ function ensureVenuesTable(?PDO $pdo): void
                 UNIQUE KEY uniq_venues_name (name)
             )
         ");
+        $addressColumn = $pdo->query("SHOW COLUMNS FROM venues LIKE 'address'")->fetch();
+        if ($addressColumn && preg_match('/^varchar\((\d+)\)$/i', (string)$addressColumn['Type'], $addressLength) && (int)$addressLength[1] < 500) {
+            $pdo->exec("ALTER TABLE venues MODIFY COLUMN address VARCHAR(500) DEFAULT NULL");
+        }
+        if (!table_column_exists($pdo, 'venues', 'what3words')) {
+            $pdo->exec("ALTER TABLE venues ADD COLUMN what3words VARCHAR(255) DEFAULT NULL AFTER google_url");
+        }
         if (!table_column_exists($pdo, 'venues', 'google_url')) {
             $pdo->exec("ALTER TABLE venues ADD COLUMN google_url VARCHAR(128) DEFAULT NULL");
         }
@@ -2281,7 +2299,7 @@ function fetchVenues(?PDO $pdo): array
     ensureVenuesTable($pdo);
     try {
         $stmt = $pdo->query("
-            SELECT id, name, address, postcode, google_url, directions, notes, created_at, updated_at
+            SELECT id, name, address, postcode, google_url, what3words, directions, notes, created_at, updated_at
             FROM venues
             ORDER BY name ASC
         ");
@@ -2323,6 +2341,18 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
     $address = trim((string)($data['address'] ?? ''));
     $postcode = trim((string)($data['postcode'] ?? ''));
     $googleUrl = trim((string)($data['google_url'] ?? ''));
+    $what3words = trim((string)($data['what3words'] ?? ''));
+    $what3words = preg_replace('~^https?://(?:www\.)?what3words\.com/~i', '', $what3words) ?? $what3words;
+    $what3words = trim($what3words, '/');
+    if ($what3words !== '' && (!preg_match('/^[\p{L}\p{M}-]+\.[\p{L}\p{M}-]+\.[\p{L}\p{M}-]+$/u', $what3words) || mb_strlen($what3words) > 255)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter a What3Words address as word.word.word, ///word.word.word or its what3words.com link.'];
+        return false;
+    }
+    if (mb_strlen($address) > 500) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Venue address must be 500 characters or fewer.'];
+        return false;
+    }
+
     $directions = trim((string)($data['directions'] ?? ''));
     $notes = trim((string)($data['notes'] ?? ''));
     $internalNotes = trim((string)($data['internal_notes_html'] ?? ''));
@@ -2334,7 +2364,7 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
 
     // Soft length guards to avoid truncation errors if a DB already exists with shorter limits.
     $name = mb_substr($name, 0, 64);
-    $address = $address !== '' ? mb_substr($address, 0, 64) : null;
+    $address = $address !== '' ? mb_substr($address, 0, 500) : null;
     $postcode = $postcode !== '' ? mb_substr($postcode, 0, 8) : null;
     $googleUrl = $googleUrl !== '' ? mb_substr($googleUrl, 0, 128) : null;
     $directions = $directions !== '' ? $directions : null;
@@ -2345,7 +2375,7 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
         if ($id > 0) {
             $stmt = $pdo->prepare("
                 UPDATE venues
-                SET name = :name, address = :address, postcode = :postcode, google_url = :google_url,
+                SET name = :name, address = :address, postcode = :postcode, google_url = :google_url, what3words = :what3words,
                     directions = :directions, notes = :notes, internal_notes_html = :internal_notes, updated_at = NOW()
                 WHERE id = :id
             ");
@@ -2354,6 +2384,7 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
                 ':address' => $address,
                 ':postcode' => $postcode,
                 ':google_url' => $googleUrl,
+                ':what3words' => $what3words !== '' ? $what3words : null,
                 ':directions' => $directions,
                 ':notes' => $notes,
                 ':internal_notes' => $internalNotes,
@@ -2363,14 +2394,15 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO venues (name, address, postcode, google_url, directions, notes, internal_notes_html, created_at, updated_at)
-            VALUES (:name, :address, :postcode, :google_url, :directions, :notes, :internal_notes, NOW(), NOW())
+            INSERT INTO venues (name, address, postcode, google_url, what3words, directions, notes, internal_notes_html, created_at, updated_at)
+            VALUES (:name, :address, :postcode, :google_url, :what3words, :directions, :notes, :internal_notes, NOW(), NOW())
         ");
         $stmt->execute([
             ':name' => $name,
             ':address' => $address,
             ':postcode' => $postcode,
             ':google_url' => $googleUrl,
+                ':what3words' => $what3words !== '' ? $what3words : null,
             ':directions' => $directions,
             ':notes' => $notes,
             ':internal_notes' => $internalNotes,

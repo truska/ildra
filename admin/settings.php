@@ -139,12 +139,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $siteSettings=array_merge($siteSettings,$payload);
     } elseif ($settingsSection === 'ride_notes_email') {
         $payload = [
+            'ride_notes_footer_html' => sanitize_rich_html((string)($_POST['ride_notes_footer_html'] ?? '')),
             'ride_notes_email_intro_html' => trim((string)($_POST['ride_notes_email_intro_html'] ?? '')),
             'ride_notes_email_signature_html' => trim((string)($_POST['ride_notes_email_signature_html'] ?? '')),
             'ride_notes_email_header_image_url' => trim((string)($_POST['ride_notes_email_header_image_url'] ?? '')),
         ];
         if (saveSiteSettings($pdo, $payload, $alerts)) {
-            $_SESSION['flash_success'] = 'Rider Notes email settings saved.';
+            $_SESSION['flash_success'] = 'Rider Notes settings saved.';
             header('Location: settings.php?tab=ride_notes_email');
             exit;
         }
@@ -230,7 +231,7 @@ admin_layout_start('Settings', 'settings');
             <button class="nav-link <?php echo $activeSettingsTab === 'events' ? 'active' : ''; ?>" id="events-tab" data-bs-toggle="tab" data-bs-target="#event-settings" type="button" role="tab" aria-controls="event-settings" aria-selected="<?php echo $activeSettingsTab === 'events' ? 'true' : 'false'; ?>">Events</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link <?php echo $activeSettingsTab === 'ride_notes_email' ? 'active' : ''; ?>" id="ride-notes-email-tab" data-bs-toggle="tab" data-bs-target="#ride-notes-email-settings" type="button" role="tab" aria-controls="ride-notes-email-settings" aria-selected="<?php echo $activeSettingsTab === 'ride_notes_email' ? 'true' : 'false'; ?>">Rider Notes Email</button>
+            <button class="nav-link <?php echo $activeSettingsTab === 'ride_notes_email' ? 'active' : ''; ?>" id="ride-notes-email-tab" data-bs-toggle="tab" data-bs-target="#ride-notes-email-settings" type="button" role="tab" aria-controls="ride-notes-email-settings" aria-selected="<?php echo $activeSettingsTab === 'ride_notes_email' ? 'true' : 'false'; ?>">Rider Notes</button>
         </li>
         <li class="nav-item" role="presentation"><button class="nav-link <?php echo $activeSettingsTab === 'marketing' ? 'active' : ''; ?>" id="marketing-tab" data-bs-toggle="tab" data-bs-target="#marketing-settings" type="button" role="tab">Marketing</button></li>
         <?php if ($canManageCampaignEmail): ?><li class="nav-item" role="presentation">
@@ -373,13 +374,14 @@ admin_layout_start('Settings', 'settings');
         </div>
     </div>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'ride_notes_email' ? 'show active' : ''; ?>" id="ride-notes-email-settings" role="tabpanel" aria-labelledby="ride-notes-email-tab" tabindex="0">
-        <h3 class="h5 fw-bold mb-1">Rider Notes email</h3>
+        <h3 class="h5 fw-bold mb-1">Rider Notes</h3>
         <p class="text-muted small mb-3">These defaults are used for new Rider Notes emails. Each event can override the intro text.</p>
         <div class="card-soft p-3"><form method="post" class="row g-3"><input type="hidden" name="settings_section" value="ride_notes_email">
+            <div class="col-12"><label class="form-label fw-semibold" for="ride_notes_footer_html">Rider Notes Footer Text</label><textarea id="ride_notes_footer_html" class="form-control wysiwyg-field" rows="12" name="ride_notes_footer_html"><?php echo h((string)($siteSettings['ride_notes_footer_html'] ?? '')); ?></textarea><div class="form-text">Shared text displayed below Venue notes on every Rider Notes page.</div></div>
             <div class="col-12"><label class="form-label fw-semibold">Default intro text</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_intro_html"><?php echo h((string)($siteSettings['ride_notes_email_intro_html'] ?? '<p>Important information for your upcoming ride is now available.</p>')); ?></textarea></div>
             <div class="col-12"><label class="form-label fw-semibold">Header image URL</label><input class="form-control" type="url" name="ride_notes_email_header_image_url" value="<?php echo h((string)($siteSettings['ride_notes_email_header_image_url'] ?? '')); ?>" placeholder="https://…"><div class="form-text">Leave blank to use the site email logo.</div></div>
             <div class="col-12"><label class="form-label fw-semibold">Signature block</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_signature_html"><?php echo h((string)($siteSettings['ride_notes_email_signature_html'] ?? '')); ?></textarea><div class="form-text">The normal site email signature and logo are also added automatically.</div></div>
-            <div class="col-12"><button class="btn btn-success">Save Rider Notes Email Settings</button></div>
+            <div class="col-12"><button class="btn btn-success">Save Rider Notes Settings</button></div>
         </form></div>
     </div>
     <div class="tab-pane fade <?php echo $activeSettingsTab === 'marketing' ? 'show active' : ''; ?>" id="marketing-settings" role="tabpanel" aria-labelledby="marketing-tab" tabindex="0"><h3 class="h5 fw-bold mb-1">Marketing and coupons</h3><p class="text-muted small mb-3">Ride Helper coupons use this fixed value when issued.</p><div class="card-soft p-3"><form method="post" class="row g-3"><input type="hidden" name="settings_section" value="marketing"><div class="col-md-4"><label class="form-label fw-semibold">Ride Helper coupon value (£)</label><input class="form-control" type="number" min="0" step="0.01" name="ride_helper_coupon_value" value="<?php echo h((string)($siteSettings['ride_helper_coupon_value']??'0.00')); ?>"></div><div class="col-12"><label class="form-label fw-semibold">Default coupon terms and conditions</label><textarea class="form-control wysiwyg-field" rows="6" name="coupon_default_terms_html"><?php echo h((string)($siteSettings['coupon_default_terms_html']??'')); ?></textarea><div class="form-text">Used as the starting terms for each new coupon. The terms remain editable on the individual coupon.</div></div><div class="col-12"><button class="btn btn-success">Save Marketing Settings</button></div></form></div></div>
