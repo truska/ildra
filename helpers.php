@@ -97,7 +97,8 @@ function sanitize_rich_html(string $value): string
     $removeWithContents = ['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math', 'template', 'base', 'meta', 'link', 'form', 'input', 'button'];
     $previous = libxml_use_internal_errors(true);
     $document = new DOMDocument('1.0', 'UTF-8');
-    $document->loadHTML('<div id="rich-html-root">' . $value . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
+    // loadHTML otherwise assumes a legacy encoding, even with a UTF-8 DOMDocument.
+    $document->loadHTML('<?xml encoding="UTF-8"><div id="rich-html-root">' . $value . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
     libxml_clear_errors(); libxml_use_internal_errors($previous);
     $root = $document->getElementById('rich-html-root');
     if (!$root) return h($value);
