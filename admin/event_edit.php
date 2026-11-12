@@ -233,6 +233,8 @@ $displayNonMemberOpenTime = $nonMemberEntryOpenTime ?: (string)$eventSettings['e
 $displayCloseTime = $entryCloseTime ?: (string)$eventSettings['event_entry_close_time'];
 $displayLateEntryCloseDate = $lateEntryCloseDate ?: $lateEntryCloseDefaultDate;
 $displayLateEntryCloseTime = $lateEntryCloseTime ?: (string)$eventSettings['event_late_entry_close_time'];
+$lateOpenTimestamp = !empty($event['late_entry_open_at']) ? eventLateEntryOpeningTime($event) : ($displayCloseDate ? app_local_datetime($displayCloseDate.' '.$displayCloseTime)->getTimestamp() + (int)$eventSettings['event_late_entry_reopen_hours']*3600 : null);
+$displayLateEntryOpen = $lateOpenTimestamp ? (new DateTimeImmutable('@'.$lateOpenTimestamp))->setTimezone(new DateTimeZone('Europe/London')) : null;
 $weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Pricing schemes + per-event pricing rows (Option A: classes live inside schemes, events get a copy)
@@ -498,14 +500,14 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         <div class="section-card">
             <div class="section-title">Date &amp; Time</div>
             <div class="section-sub">Schedule for the event</div>
-            <div class="row g-3">
+            <div class="row g-3 align-items-start">
                 <div class="col-md-3">
                     <label class="form-label">Start date</label>
                     <input type="date" name="event_date" class="form-control" required value="<?php echo h($event['event_date']); ?>">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Start time</label>
-                    <input type="time" name="start_time" class="form-control" value="<?php echo h($event['start_time']); ?>">
+                    <input type="time" step="300" min="00:00" name="start_time" class="form-control" value="<?php echo h($event['start_time']); ?>">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">End date</label>
@@ -513,10 +515,10 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">End time</label>
-                    <input type="time" name="end_time" class="form-control" value="<?php echo h($event['end_time']); ?>">
+                    <input type="time" step="300" min="00:00" name="end_time" class="form-control" value="<?php echo h($event['end_time']); ?>">
                 </div>
             </div>
-            <div class="row g-3 mt-2">
+            <div class="row g-3 mt-2 align-items-start">
                 <div class="col-md-3">
                     <label class="form-label">Members open date</label>
                     <input type="date" name="entry_open_date" class="form-control" value="<?php echo h($displayOpenDate); ?>">
@@ -524,7 +526,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Members open time</label>
-                    <input type="time" name="entry_open_time" class="form-control" value="<?php echo h($displayOpenTime); ?>">
+                    <input type="time" step="300" min="00:00" name="entry_open_time" class="form-control" value="<?php echo h($displayOpenTime); ?>">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Non-members open date</label>
@@ -533,10 +535,10 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Non-members open time</label>
-                    <input type="time" name="non_member_entry_open_time" class="form-control" value="<?php echo h($displayNonMemberOpenTime); ?>">
+                    <input type="time" step="300" min="00:00" name="non_member_entry_open_time" class="form-control" value="<?php echo h($displayNonMemberOpenTime); ?>">
                 </div>
             </div>
-            <div class="row g-3 mt-2">
+            <div class="row g-3 mt-2 align-items-start">
                 <div class="col-md-3">
                     <label class="form-label">Entries close date</label>
                     <input type="date" name="entry_close_date" class="form-control" value="<?php echo h($displayCloseDate); ?>">
@@ -544,15 +546,17 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Entries close time</label>
-                    <input type="time" name="entry_close_time" class="form-control" value="<?php echo h($displayCloseTime); ?>">
+                    <input type="time" step="300" min="00:00" name="entry_close_time" class="form-control" value="<?php echo h($displayCloseTime); ?>">
                 </div>
-                <div class="col-md-6 d-flex align-items-end pb-2"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="send_reminder_emails" id="send_reminder_emails" value="1" <?php echo !empty($event['send_reminder_emails']) ? 'checked' : ''; ?>><label class="form-check-label" for="send_reminder_emails">Send entry reminder emails</label><div class="form-text">Schedules emails when member entries open, non-member entries open, and 48 hours before entries close.</div></div></div>
+                <div class="col-md-6 d-flex align-items-start"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="send_reminder_emails" id="send_reminder_emails" value="1" <?php echo !empty($event['send_reminder_emails']) ? 'checked' : ''; ?>><label class="form-check-label" for="send_reminder_emails">Send entry reminder emails</label><div class="form-text">Schedules emails when member entries open, non-member entries open, and 48 hours before entries close.</div></div></div>
             </div>
-            <div class="row g-3 mt-2 align-items-end">
+            <div class="row g-3 mt-2 align-items-start">
+                <div class="col-md-3"><label class="form-label">Reopen late entries date</label><input type="date" name="late_entry_open_date" class="form-control" value="<?php echo $displayLateEntryOpen ? h($displayLateEntryOpen->format('Y-m-d')) : ''; ?>"></div>
+                <div class="col-md-3"><label class="form-label">Reopen late entries time</label><input type="time" step="300" min="00:00" name="late_entry_open_time" class="form-control" value="<?php echo $displayLateEntryOpen ? h($displayLateEntryOpen->format('H:i')) : ''; ?>"><div class="form-text">Defaults to <?php echo (int)$eventSettings['event_late_entry_reopen_hours']; ?> hours after normal closing. Late entries must be enabled and places available.</div></div>
                 <div class="col-md-3"><label class="form-label">Late entries close date</label><input type="date" name="late_entry_close_date" class="form-control" value="<?php echo h($displayLateEntryCloseDate); ?>"></div>
-                <div class="col-md-3"><label class="form-label">Late close time</label><input type="time" name="late_entry_close_time" class="form-control" value="<?php echo h($displayLateEntryCloseTime); ?>"></div>
+                <div class="col-md-3"><label class="form-label">Late close time</label><input type="time" step="300" min="00:00" name="late_entry_close_time" class="form-control" value="<?php echo h($displayLateEntryCloseTime); ?>"></div>
                 <div class="col-md-3"><label class="form-label">Late entry fee (£)</label><input type="number" min="0" step="0.01" name="late_entry_fee" class="form-control" value="<?php echo h((string)($event['late_entry_fee'] ?? $eventSettings['event_late_entry_fee'])); ?>"></div>
-                <div class="col-md-3 pb-2"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="late_entries_enabled" id="late_entries_enabled" value="1" <?php echo !empty($event['late_entries_enabled']) ? 'checked' : ''; ?>><label class="form-check-label" for="late_entries_enabled">Allow late entries</label></div></div>
+                <div class="col-md-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="late_entries_enabled" id="late_entries_enabled" value="1" <?php echo !empty($event['late_entries_enabled']) ? 'checked' : ''; ?>><label class="form-check-label" for="late_entries_enabled">Allow late entries</label></div></div>
             </div>
         </div>
 
@@ -782,6 +786,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         const openTime = document.querySelector('input[name="entry_open_time"]');
         const nonMemberOpenTime = document.querySelector('input[name="non_member_entry_open_time"]');
         const closeTime = document.querySelector('input[name="entry_close_time"]');
+        const lateCloseDate = document.querySelector('input[name="late_entry_close_date"]');
+        const lateCloseTime = document.querySelector('input[name="late_entry_close_time"]');
         const eventDefaults = <?php echo json_encode([
             'startTime' => (string)$eventSettings['event_default_start_time'],
             'endDays' => (int)$eventSettings['event_default_end_days'],
@@ -795,6 +801,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             'closeWeeks' => (int)$eventSettings['event_entry_close_weeks'],
             'closeWeekday' => (int)$eventSettings['event_entry_close_weekday'],
             'closeTime' => (string)$eventSettings['event_entry_close_time'],
+            'lateCloseDays' => (int)$eventSettings['event_late_entry_close_days'],
+            'lateCloseTime' => (string)$eventSettings['event_late_entry_close_time'],
         ], JSON_UNESCAPED_SLASHES); ?>;
         if (venueSelect && venueNameInput) {
             let lastAutoTitle = '';
@@ -865,6 +873,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             if (nonMemberOpenTime && (!nonMemberOpenTime.value || nonMemberOpenTime.value === '00:00')) {
                 nonMemberOpenTime.value = eventDefaults.nonMemberOpenTime;
             }
+            setDefaultDate(lateCloseDate, plusDays(startDate.value, -eventDefaults.lateCloseDays));
+            if (lateCloseTime && !lateCloseTime.value) lateCloseTime.value = eventDefaults.lateCloseTime;
             setDefaultDate(closeDate, previousWeekday(startDate.value, eventDefaults.closeWeekday, eventDefaults.closeWeeks));
             if (closeTime && !closeTime.value) {
                 closeTime.value = eventDefaults.closeTime;
@@ -1361,4 +1371,6 @@ if (window.tinymce) {
     type?.addEventListener('change',protect);protect();
 })();
 </script><?php endif; ?>
+<script src="five_minute_times.js?v=<?php echo (int)filemtime(__DIR__ . '/five_minute_times.js'); ?>"></script>
+<script src="event_late_entries.js?v=<?php echo (int)filemtime(__DIR__.'/event_late_entries.js'); ?>" data-reopen-hours="<?php echo (int)$eventSettings['event_late_entry_reopen_hours']; ?>" data-stored="<?php echo !empty($event['late_entry_open_at']) ? '1' : '0'; ?>"></script>
 <?php admin_layout_end();

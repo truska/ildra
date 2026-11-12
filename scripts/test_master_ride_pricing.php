@@ -25,7 +25,7 @@ $future=$window;$future['entry_open_at']='2030-06-15 13:00:00';
 rideCheck(!eventPricingEntriesOpen($future,$now),'Late setting opened pricing protection before normal opening');
 $closed=$window;$closed['entry_close_at']='2030-06-15 11:30:00';$closed['late_entries_enabled']=0;
 rideCheck(!eventPricingEntriesOpen($closed,$now),'Closed window still open');
-$closed['late_entries_enabled']=1;
+$closed['late_entries_enabled']=1;$closed['late_entry_open_at']='2030-06-15 11:45:00';
 rideCheck(eventPricingEntriesOpen($closed,$now),'Late window not open');
 $closed['late_entry_close_at']='2030-06-15 11:59:59';
 rideCheck(!eventPricingEntriesOpen($closed,$now),'Expired late window still open');
@@ -40,7 +40,7 @@ $publicLate=static function(array $event)use($lateAssignment):bool {
 };
 $publicFuture=$future;foreach(['entry_open_at'=>3600,'non_member_entry_open_at'=>7200,'entry_close_at'=>10800,'late_entry_close_at'=>14400] as $key=>$offset)$publicFuture[$key]=date('Y-m-d H:i:s',time()+$offset);
 rideCheck(!$publicLate($publicFuture),'Public route offered late entry before normal opening');
-$late=$publicFuture;$late['entry_open_at']=date('Y-m-d H:i:s',time()-7200);$late['entry_close_at']=date('Y-m-d H:i:s',time()-1800);
+$late=$publicFuture;$late['entry_open_at']=date('Y-m-d H:i:s',time()-7200);$late['entry_close_at']=date('Y-m-d H:i:s',time()-1800);$late['late_entry_open_at']=date('Y-m-d H:i:s',time()-900);
 rideCheck($publicLate($late),'Public route refused a valid late-entry window');
 
 $config=require dirname(__DIR__).'/config.php';$db=$config['db'];
@@ -50,6 +50,7 @@ foreach(['pricing_schemes','pricing_scheme_rows','pricing_scheme_event_types','e
     $pdo->exec(preg_replace('/^CREATE TABLE/','CREATE TEMPORARY TABLE',$definition));
 }
 $pdo->exec("CREATE TEMPORARY TABLE booking_items(id INT PRIMARY KEY,event_id INT,status VARCHAR(20) DEFAULT 'active')");
+ensureEntryWindowColumns($pdo);
 ridePricingSchema($pdo);
 $pdo->exec("INSERT INTO event_types(id,name,default_pricing_scheme_id,form_profile) VALUES(7,'Ride',11,'ride'),(8,'Dinner',33,'attendees')");
 $pdo->exec("INSERT INTO pricing_schemes(id,name) VALUES(11,'Synthetic Master'),(22,'Synthetic PR Selection'),(33,'Synthetic Dinner')");
@@ -117,7 +118,7 @@ rideCheck(copyPricingSchemeToEvent($pdo,11,900),'Rescheduled unused event reject
 $protectedRows=fetchEventPricingRows($pdo,900);
 $pdo->exec("UPDATE events SET entry_open_at=NOW()-INTERVAL 2 DAY,non_member_entry_open_at=NOW()-INTERVAL 1 DAY,entry_close_at=NOW()-INTERVAL 1 HOUR,late_entries_enabled=0 WHERE id=900");
 rideCheck(!eventPricingLocked($pdo,900),'Closed event without entries stayed locked');
-$pdo->exec('UPDATE events SET late_entries_enabled=1,late_entry_close_at=NOW()+INTERVAL 1 HOUR WHERE id=900');
+$pdo->exec('UPDATE events SET late_entries_enabled=1,late_entry_open_at=NOW()-INTERVAL 30 MINUTE,late_entry_close_at=NOW()+INTERVAL 1 HOUR WHERE id=900');
 rideCheck(eventPricingLocked($pdo,900),'Late-entry window did not block pricing changes');
 $pdo->exec('UPDATE events SET late_entry_close_at=NOW()-INTERVAL 1 MINUTE WHERE id=900');
 rideCheck(!eventPricingLocked($pdo,900),'Expired late-entry window stayed locked without entries');
@@ -174,3 +175,39 @@ if(in_array('--render-fixture',$argv,true)) {
     }
 
 }
+
+// Exercise actual event INSERT/UPDATE parameter binding and reopening validation.
+$eventData=['title'=>'Reopen fixture','event_date'=>'2030-07-15','event_type_id'=>8,'status'=>'draft','entry_close_date'=>'2030-07-12','entry_close_time'=>'18:00','late_entries_enabled'=>1,'late_entry_open_date'=>'2030-07-13','late_entry_open_time'=>'00:00','late_entry_close_date'=>'2030-07-14','late_entry_close_time'=>'18:00'];
+$eventAlerts=[];$savedId=saveEvent($pdo,$eventData,$eventAlerts);
+rideCheck($savedId!==false,'Saving reopening fixture failed: '.json_encode($eventAlerts));
+$stored=$pdo->query('SELECT * FROM events WHERE id='.(int)$savedId)->fetch();
+rideCheck($stored['late_entry_open_at']==='2030-07-13 00:00:00','Reopen timestamp not stored on INSERT');
+$eventData['event_id']=$savedId;$eventData['late_entry_open_time']='01:00';
+$eventAlerts=[];rideCheck(saveEvent($pdo,$eventData,$eventAlerts)!==false,'Updating stored reopening failed');
+rideCheck($pdo->query('SELECT late_entry_open_at FROM events WHERE id='.(int)$savedId)->fetchColumn()==='2030-07-13 01:00:00','Reopen override not saved on UPDATE');
+$eventData['late_entry_open_date']='2030-07-12';$eventData['late_entry_open_time']='17:00';
+$eventAlerts=[];rideCheck(saveEvent($pdo,$eventData,$eventAlerts)===false,'Reopening before closing accepted');
+$eventData['late_entry_open_date']='2030-07-15';
+$eventAlerts=[];rideCheck(saveEvent($pdo,$eventData,$eventAlerts)===false,'Reopening after late close accepted');
+$eventData['late_entry_open_date']='2030-02-30';
+$eventAlerts=[];rideCheck(saveEvent($pdo,$eventData,$eventAlerts)===false,'Invalid reopening date accepted');
+echo "Event reopening timestamp persistence and invalid-window validation passed. Temporary tables only.\n";
+
+$pdo->exec('CREATE TEMPORARY TABLE IF NOT EXISTS site_settings (setting_key VARCHAR(191) PRIMARY KEY,setting_value TEXT,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+$pdo->exec("INSERT INTO site_settings(setting_key,setting_value) VALUES('event_late_entry_reopen_hours','9') ON DUPLICATE KEY UPDATE setting_value='9'");
+unset($eventData['event_id'],$eventData['late_entry_open_date'],$eventData['late_entry_open_time']);
+$eventData['title']='Reopening default fixture';$eventAlerts=[];
+$defaultId=saveEvent($pdo,$eventData,$eventAlerts);
+rideCheck($defaultId!==false,'Generating stored reopening default failed: '.json_encode($eventAlerts));
+rideCheck($pdo->query('SELECT late_entry_open_at FROM events WHERE id='.(int)$defaultId)->fetchColumn()==='2030-07-13 03:00:00','Default not calculated from actual normal close plus nine hours');
+$pdo->exec("UPDATE site_settings SET setting_value='12' WHERE setting_key='event_late_entry_reopen_hours'");
+$eventData['event_id']=$defaultId;$eventAlerts=[];
+rideCheck(saveEvent($pdo,$eventData,$eventAlerts)!==false,'Saving existing snapshot without new fields failed');
+rideCheck($pdo->query('SELECT late_entry_open_at FROM events WHERE id='.(int)$defaultId)->fetchColumn()==='2030-07-13 03:00:00','Later setting change recalculated existing stored reopening');
+echo "Global reopening default and existing-event snapshot preservation passed. Temporary tables only.\n";
+$copyAlerts=[];$copyId=duplicateEventAsDraft($pdo,(int)$defaultId,'2031-08-18',$copyAlerts);
+rideCheck($copyId!==false,'Copying event with reopening snapshot failed: '.json_encode($copyAlerts));
+$copy=$pdo->query('SELECT * FROM events WHERE id='.(int)$copyId)->fetch();
+rideCheck(strtotime($copy['late_entry_open_at'])-strtotime($copy['entry_close_at'])===12*3600,'Copied event did not generate reopening from current twelve-hour default');
+rideCheck($copy['status']==='draft','Copied event not a draft');
+echo "Copied event reopening default passed. Temporary tables only.\n";

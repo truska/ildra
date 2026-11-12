@@ -221,7 +221,7 @@ $nonMemberEntriesOpenNow = !$nonMemberEntryOpenDt || $now >= $nonMemberEntryOpen
 $entryOpenDt = $hasAnyActiveMembership ? $memberEntryOpenDt : $nonMemberEntryOpenDt;
 $entriesOpenNow = true;
 $entryStateMessage = '';
-if ($entryCloseDt && $now > $entryCloseDt) {
+if ($entryCloseDt && $now >= $entryCloseDt) {
     $entriesOpenNow = false;
     $entryStateMessage = 'Entries closed on ' . $entryCloseDt->format('jS M Y \a\t H:i');
 } elseif ($hasAnyActiveMembership) {
@@ -250,8 +250,13 @@ if ($entryCloseDt && $now > $entryCloseDt) {
     $entryStateMessage = $entryCloseDt ? 'Entries are open until ' . $entryCloseDt->format('jS M Y \a\t H:i') : 'Entries are open';
 }
 $entriesAvailable = ($entriesOpenNow && !$isFull) || $canViewAdmin;
-$lateEntriesOpenNow = !$entriesOpenNow && !empty($event['late_entries_enabled']) && !$isFull && $entryCloseDt && $now > $entryCloseDt && $lateEntryCloseDt && $now <= $lateEntryCloseDt && eventPricingEntriesOpen($event);
-$isLateEntry = $lateEntriesOpenNow && $entryCloseDt && $now > $entryCloseDt;
+$lateEntriesOpenNow = !$entriesOpenNow && !$isFull && eventLateEntryWindowOpen($event, $now->getTimestamp());
+$reopenTimestamp = eventLateEntryOpeningTime($event);
+if (!$entriesOpenNow && !$isFull && !empty($event['late_entries_enabled']) && $reopenTimestamp && $now->getTimestamp() < $reopenTimestamp && $entryCloseDt && $now >= $entryCloseDt && $lateEntryCloseDt && $reopenTimestamp < $lateEntryCloseDt->getTimestamp()) {
+    $entryStateMessage .= '. Late entries reopen on ' . (new DateTimeImmutable('@'.$reopenTimestamp))->setTimezone(new DateTimeZone('Europe/London'))->format('jS M Y \a\t H:i');
+}
+if ($lateEntriesOpenNow) $entryStateMessage = 'Late entries are open until ' . $lateEntryCloseDt->format('jS M Y \a\t H:i');
+$isLateEntry = $lateEntriesOpenNow && $entryCloseDt && $now >= $entryCloseDt;
 $entriesAvailable = ($entriesOpenNow || $lateEntriesOpenNow) && !$isFull || $canViewAdmin;
 $eventPricingRows = $event ? fetchEventPricingRows($pdo, (int)($event['id'] ?? 0)) : [];
 if ($eventPricingRows) {
@@ -888,10 +893,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                 $entryCardClass = 'entry-state-opening';
                                 $entryCardHeading = ($hasAnyActiveMembership ? 'Member' : 'Non-member') . ' entries open on ' . $entryOpenDt->format('jS M Y');
                                 $entryCardDetail = $entryStateMessage;
-                            } elseif ($entryCloseDt && $now > $entryCloseDt) {
+                            } elseif ($entryCloseDt && $now >= $entryCloseDt) {
                                 $entryCardClass = 'entry-state-closed';
                                 $entryCardHeading = 'Entries have closed';
-                                $entryCardDetail = 'Closed on ' . $entryCloseDt->format('jS M Y') . ' at ' . $entryCloseDt->format('H:i') . '.';
+                                $entryCardDetail = $entryStateMessage;
                             }
                         ?>
                         <div class="entry-state <?php echo h($entryCardClass); ?> mb-2"><?php echo h($entryCardHeading); ?></div>
@@ -903,7 +908,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                 <?php if ($isFull): ?>
                                     <div class="alert alert-danger mt-2 py-2 mb-0">Event full. No further entries can be accepted.</div>
                                     <br/>
-                                <?php elseif ($canViewAdmin && !$entriesOpenNow): ?>
+                                <?php elseif ($canViewAdmin && !$entriesOpenNow && !$lateEntriesOpenNow): ?>
                                     <div class="alert alert-warning mt-2 py-2 mb-0">Admin preview: <?php echo h($entryStateMessage); ?> (visitors cannot enter)</div>
                                     <br/>
                                 <?php elseif ($canViewAdmin): ?>

@@ -48,7 +48,10 @@ if (!function_exists('footer_entry_status')) {
         if ($openDate && $now < $openDate) {
             return ['label' => 'Entries Not Open', 'date' => footer_short_date($openDate->format('Y-m-d')), 'class' => 'not-open'];
         }
-        if ($closeDate && $now > $closeDate) {
+        if (eventLateEntryWindowOpen($event, $now->getTimestamp()) && (empty($event['capacity_enabled']) || (int)($event['entry_count'] ?? 0) < (int)($event['capacity_limit'] ?? 0))) {
+            return ['label'=>'Late Entries Open','date'=>'','class'=>'open'];
+        }
+        if ($closeDate && $now >= $closeDate) {
             return ['label' => 'Entries Closed', 'date' => '', 'class' => 'closed'];
         }
         if ($closeDate && $closeDate->getTimestamp() - $now->getTimestamp() < 3 * 86400) {

@@ -169,6 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'event_entry_close_weekday' => max(0, min(6, (int)($_POST['event_entry_close_weekday'] ?? 4))),
             'event_entry_close_time' => trim((string)($_POST['event_entry_close_time'] ?? '')),
             'event_late_entries_enabled' => !empty($_POST['event_late_entries_enabled']) ? '1' : '0',
+            'event_late_entry_reopen_hours' => max(1,min(8760,(int)($_POST['event_late_entry_reopen_hours'] ?? 6))),
             'event_late_entry_close_days' => max(0, min(365, (int)($_POST['event_late_entry_close_days'] ?? 1))),
             'event_late_entry_close_time' => trim((string)($_POST['event_late_entry_close_time'] ?? '18:00')),
             'event_late_entry_fee' => number_format(max(0, price_to_number($_POST['event_late_entry_fee'] ?? '0')), 2, '.', ''),
@@ -298,7 +299,7 @@ admin_layout_start('Settings', 'settings');
                 <div class="col-12"><hr class="my-1"><h4 class="h6 fw-bold mb-1">Date and time defaults</h4><p class="form-text mb-0">Weeks select the numbered previous occurrence of the weekday: 2 / Friday is the second previous Friday. Use 0 for the immediately previous weekday.</p></div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_default_start_time">Event start time</label>
-                    <input type="time" class="form-control" id="event_default_start_time" name="event_default_start_time" required value="<?php echo h((string)$siteSettings['event_default_start_time']); ?>">
+                    <input type="time" step="300" min="00:00" class="form-control" id="event_default_start_time" name="event_default_start_time" required value="<?php echo h((string)$siteSettings['event_default_start_time']); ?>">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_default_end_days">Event end date</label>
@@ -307,7 +308,7 @@ admin_layout_start('Settings', 'settings');
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_default_end_time">Event end time</label>
-                    <input type="time" class="form-control" id="event_default_end_time" name="event_default_end_time" required value="<?php echo h((string)$siteSettings['event_default_end_time']); ?>">
+                    <input type="time" step="300" min="00:00" class="form-control" id="event_default_end_time" name="event_default_end_time" required value="<?php echo h((string)$siteSettings['event_default_end_time']); ?>">
                 </div>
                 <?php $weekdayOptions = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']; ?>
                 <div class="col-md-4">
@@ -320,7 +321,7 @@ admin_layout_start('Settings', 'settings');
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_member_open_time">Time</label>
-                    <input type="time" class="form-control" id="event_member_open_time" name="event_member_open_time" required value="<?php echo h((string)$siteSettings['event_member_open_time']); ?>">
+                    <input type="time" step="300" min="00:00" class="form-control" id="event_member_open_time" name="event_member_open_time" required value="<?php echo h((string)$siteSettings['event_member_open_time']); ?>">
                 </div>
                 <div class="w-100"></div>
                 <div class="col-md-4">
@@ -333,7 +334,7 @@ admin_layout_start('Settings', 'settings');
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_non_member_open_time">Time</label>
-                    <input type="time" class="form-control" id="event_non_member_open_time" name="event_non_member_open_time" required value="<?php echo h((string)$siteSettings['event_non_member_open_time']); ?>">
+                    <input type="time" step="300" min="00:00" class="form-control" id="event_non_member_open_time" name="event_non_member_open_time" required value="<?php echo h((string)$siteSettings['event_non_member_open_time']); ?>">
                 </div>
                 <div class="w-100"></div>
                 <div class="col-md-4">
@@ -346,16 +347,17 @@ admin_layout_start('Settings', 'settings');
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_entry_close_time">Time</label>
-                    <input type="time" class="form-control" id="event_entry_close_time" name="event_entry_close_time" required value="<?php echo h((string)$siteSettings['event_entry_close_time']); ?>">
+                    <input type="time" step="300" min="00:00" class="form-control" id="event_entry_close_time" name="event_entry_close_time" required value="<?php echo h((string)$siteSettings['event_entry_close_time']); ?>">
                 </div>
                 <div class="w-100"></div>
+                <div class="col-md-4"><label class="form-label fw-semibold" for="event_late_entry_reopen_hours">Reopen late entries after</label><div class="input-group"><input type="number" min="1" max="8760" required class="form-control" id="event_late_entry_reopen_hours" name="event_late_entry_reopen_hours" value="<?php echo (int)$siteSettings['event_late_entry_reopen_hours']; ?>"><span class="input-group-text">hours</span></div><div class="form-text">After normal entries close. Sets each new event's reopening date and time.</div></div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_late_entry_close_days">Late entries close</label>
                     <div class="input-group"><input type="number" min="0" max="365" class="form-control" id="event_late_entry_close_days" name="event_late_entry_close_days" required value="<?php echo (int)$siteSettings['event_late_entry_close_days']; ?>"><span class="input-group-text">days before ride</span></div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold" for="event_late_entry_close_time">Late close time</label>
-                    <input type="time" class="form-control" id="event_late_entry_close_time" name="event_late_entry_close_time" required value="<?php echo h((string)$siteSettings['event_late_entry_close_time']); ?>">
+                    <input type="time" step="300" min="00:00" class="form-control" id="event_late_entry_close_time" name="event_late_entry_close_time" required value="<?php echo h((string)$siteSettings['event_late_entry_close_time']); ?>">
                 </div>
                 <div class="col-md-4 pt-4">
                     <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="event_late_entries_enabled" name="event_late_entries_enabled" value="1" <?php echo !empty($siteSettings['event_late_entries_enabled']) ? 'checked' : ''; ?>><label class="form-check-label fw-semibold" for="event_late_entries_enabled">Allow late entries by default</label></div>
@@ -737,5 +739,5 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <?php render_tinymce_bootstrap(); ?>
 <script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script>
-<?php
-admin_layout_end();
+<script src="five_minute_times.js?v=<?php echo (int)filemtime(__DIR__ . '/five_minute_times.js'); ?>"></script>
+<?php admin_layout_end();

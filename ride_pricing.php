@@ -139,6 +139,34 @@ function eventPricingOpeningTime(array $event): ?int
     return $times ? min($times) : null;
 }
 
+/** Stored per-event reopening time; older events use a fixed six-hour gap until saved. */
+function eventLateEntryOpeningTime(array $event): ?int
+{
+    $zone = new DateTimeZone('Europe/London');
+    try {
+        if (!empty($event['late_entry_open_at'])) return (new DateTimeImmutable((string)$event['late_entry_open_at'], $zone))->getTimestamp();
+        $close = $event['entry_close_at'] ?? null;
+        if (!$close && !empty($event['event_date'])) $close = $event['event_date'] . ' -1 week 23:59:59';
+        return $close ? (new DateTimeImmutable((string)$close, $zone))->getTimestamp() + 6 * 3600 : null;
+    } catch (Exception $e) { return null; }
+}
+
+function eventLateEntryWindowOpen(array $event, ?int $now = null): bool
+{
+    if (($event['status'] ?? '') !== 'published' || empty($event['late_entries_enabled'])) return false;
+    $now ??= time();
+    $open = eventPricingOpeningTime($event);
+    if ($open !== null && $now < $open) return false;
+    $zone = new DateTimeZone('Europe/London');
+    try {
+        $close = !empty($event['entry_close_at']) ? (new DateTimeImmutable((string)$event['entry_close_at'], $zone))->getTimestamp() : null;
+        if ($close === null && !empty($event['event_date'])) $close = (new DateTimeImmutable((string)$event['event_date'].' -1 week 23:59:59', $zone))->getTimestamp();
+        $lateClose = !empty($event['late_entry_close_at']) ? (new DateTimeImmutable((string)$event['late_entry_close_at'], $zone))->getTimestamp() : null;
+        $reopen = eventLateEntryOpeningTime($event);
+        return $close !== null && $reopen !== null && $lateClose !== null && $reopen > $close && $now >= $reopen && $now < $lateClose;
+    } catch (Exception $e) { return false; }
+}
+
 function eventPricingEntriesOpen(array $event, ?int $now = null): bool
 {
     if (($event['status']??'')!=='published') return false;
@@ -147,9 +175,8 @@ function eventPricingEntriesOpen(array $event, ?int $now = null): bool
     if ($open!==null && $now<$open) return false;
     $close=!empty($event['entry_close_at'])?strtotime((string)$event['entry_close_at']):null;
     if ($close===null && !empty($event['event_date'])) $close=strtotime((string)$event['event_date'].' -1 week 23:59:59');
-    if ($close===null || $now<=$close) return true;
-    $lateClose=!empty($event['late_entry_close_at'])?strtotime((string)$event['late_entry_close_at']):null;
-    return !empty($event['late_entries_enabled']) && $lateClose!==null && $now<=$lateClose;
+    if ($close===null || $now<$close) return true;
+    return eventLateEntryWindowOpen($event, $now);
 }
 
 function eventPricingHasEntries(PDO $pdo, int $eventId): bool

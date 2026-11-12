@@ -337,7 +337,9 @@ $navItemEventsUrl = $basePath . '/events';
 	                                        'label' => 'Non-members ' . $nonMemberEntryOpenDt->format('jS M H:i'),
 	                                        'title' => 'Non-member entries will open on ' . $nonMemberEntryOpenDt->format('jS M Y \a\t H:i'),
 	                                    ];
-	                                } elseif ($entryCloseDt && $now > $entryCloseDt) {
+                                } elseif (!$isFull && eventLateEntryWindowOpen($event, $now->getTimestamp())) {
+                                    $entryPills[] = ['class'=>'pill-open','label'=>'Late entries open','title'=>'Late entries are open until '.app_local_datetime((string)$event['late_entry_close_at'])->format('jS M Y \a\t H:i')];
+	                                } elseif ($entryCloseDt && $now >= $entryCloseDt) {
 	                                    $entryPills[] = [
 	                                        'class' => 'pill-closed',
 	                                        'label' => 'Closed ' . $entryCloseDt->format('jS M H:i'),
@@ -351,7 +353,7 @@ $navItemEventsUrl = $basePath . '/events';
 	                                    ];
 	                                }
 	                                if ($entryCloseDt) {
-	                                    $isClosed = $now > $entryCloseDt;
+	                                    $isClosed = $now >= $entryCloseDt;
 	                                    $entryPills[] = [
 	                                        'class' => $isClosed ? 'pill-closed' : 'pill',
 	                                        'label' => ($isClosed ? 'Closed ' : 'Closes ') . $entryCloseDt->format('jS M H:i'),

@@ -124,6 +124,7 @@ HTML,
         'event_entry_close_weeks' => 0,
         'event_entry_close_weekday' => 4,
         'event_entry_close_time' => '23:59',
+        'event_late_entry_reopen_hours' => 6,
         'event_late_entries_enabled' => '0',
         'event_late_entry_close_days' => 1,
         'event_late_entry_close_time' => '18:00',
@@ -308,6 +309,7 @@ function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
             $settings[$timeKey] = (string)defaultSiteSettings()[$timeKey];
         }
     }
+    $settings['event_late_entry_reopen_hours'] = max(1, min(8760, (int)($settings['event_late_entry_reopen_hours'] ?? 6)));
     $settings['event_late_entries_enabled'] = !empty($settings['event_late_entries_enabled']) && (string)$settings['event_late_entries_enabled'] !== '0' ? '1' : '0';
     $settings['event_late_entry_fee'] = number_format(max(0, price_to_number($settings['event_late_entry_fee'] ?? 0)), 2, '.', '');
 
@@ -5602,6 +5604,9 @@ function ensureEntryWindowColumns(?PDO $pdo): void
     if (!table_column_exists($pdo, 'events', 'late_entries_enabled')) {
         try { $pdo->exec("ALTER TABLE events ADD COLUMN late_entries_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER entry_close_at"); } catch (PDOException $e) { }
     }
+    if (!table_column_exists($pdo, 'events', 'late_entry_open_at')) {
+        $pdo->exec("ALTER TABLE events ADD COLUMN late_entry_open_at DATETIME NULL DEFAULT NULL AFTER late_entries_enabled");
+    }
     if (!table_column_exists($pdo, 'events', 'late_entry_close_at')) {
         try { $pdo->exec("ALTER TABLE events ADD COLUMN late_entry_close_at DATETIME NULL DEFAULT NULL AFTER late_entries_enabled"); } catch (PDOException $e) { }
     }
@@ -5655,6 +5660,8 @@ function event_date_defaults(string $eventDate, array $settings): ?array
     $open = $previousWeekday($start, (int)$defaults['event_member_open_weekday'], (int)$defaults['event_member_open_weeks']);
     $nonMemberOpen = $previousWeekday($start, (int)$defaults['event_non_member_open_weekday'], (int)$defaults['event_non_member_open_weeks']);
     $close = $previousWeekday($start, (int)$defaults['event_entry_close_weekday'], (int)$defaults['event_entry_close_weeks']);
+    $lateOpen = $close->setTime((int)substr((string)$defaults['event_entry_close_time'],0,2), (int)substr((string)$defaults['event_entry_close_time'],3,2));
+    $lateOpen = $lateOpen->setTimestamp($lateOpen->getTimestamp() + max(1,min(8760,(int)$defaults['event_late_entry_reopen_hours'])) * 3600);
     $lateClose = $start->modify('-' . max(0, (int)$defaults['event_late_entry_close_days']) . ' days');
 
     return [
@@ -5668,6 +5675,8 @@ function event_date_defaults(string $eventDate, array $settings): ?array
         'non_member_entry_open_time' => (string)$defaults['event_non_member_open_time'],
         'entry_close_date' => $close->format('Y-m-d'),
         'entry_close_time' => (string)$defaults['event_entry_close_time'],
+        'late_entry_open_date' => $lateOpen->format('Y-m-d'),
+        'late_entry_open_time' => $lateOpen->format('H:i'),
         'late_entry_close_date' => $lateClose->format('Y-m-d'),
         'late_entry_close_time' => (string)$defaults['event_late_entry_close_time'],
     ];
@@ -5778,6 +5787,7 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
         return false;
     }
 
+    ensureEntryWindowColumns($pdo);
     $sourceEvent = fetchEventById($pdo, $sourceEventId);
     if (!$sourceEvent) {
         $alerts[] = ['type' => 'danger', 'message' => 'The source event could not be found.'];
@@ -5832,12 +5842,12 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
         $insertEvent = $pdo->prepare("
             INSERT INTO events (
                 title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id,
-                classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, entry_form, status, description, event_type_id,
+                classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, late_entry_open_at, entry_form, status, description, event_type_id,
                 capacity_enabled, capacity_limit, created_at, updated_at
             )
             VALUES (
                 :title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id,
-                :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :entry_form, :status, :description, :event_type_id,
+                :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :late_entry_open_at, :entry_form, :status, :description, :event_type_id,
                 :capacity_enabled, :capacity_limit, NOW(), NOW()
             )
         ");
@@ -5855,6 +5865,7 @@ function duplicateEventAsDraft(?PDO $pdo, int $sourceEventId, string $rideDate, 
             ':entry_open_at' => $entryOpenAt !== '' ? $entryOpenAt : null,
             ':non_member_entry_open_at' => $nonMemberEntryOpenAt !== '' ? $nonMemberEntryOpenAt : null,
             ':entry_close_at' => $entryCloseAt !== '' ? $entryCloseAt : null,
+            ':late_entry_open_at' => $dateDefaults['late_entry_open_date'].' '.$dateDefaults['late_entry_open_time'],
             ':entry_form' => $newEventData['entry_form_json'] !== '' ? $newEventData['entry_form_json'] : null,
             ':status' => 'draft',
             ':description' => $newEventData['description'],
@@ -6022,6 +6033,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $entryCloseTime = trim((string)($data['entry_close_time'] ?? ''));
     $sendReminderEmails = !empty($data['send_reminder_emails']) ? 1 : 0;
     $lateEntriesEnabled = !empty($data['late_entries_enabled']) ? 1 : 0;
+    $lateEntryOpenDate = trim((string)($data['late_entry_open_date'] ?? ''));
+    $lateEntryOpenTime = trim((string)($data['late_entry_open_time'] ?? ''));
     $lateEntryCloseDate = trim((string)($data['late_entry_close_date'] ?? ''));
     $lateEntryCloseTime = trim((string)($data['late_entry_close_time'] ?? ''));
     $lateEntryFee = max(0, price_to_number($data['late_entry_fee'] ?? 0));
@@ -6098,6 +6111,29 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $nonMemberEntryOpenAt = $nonMemberEntryOpenDate !== '' ? trim($nonMemberEntryOpenDate . ' ' . $nonMemberEntryOpenTime) : null;
     $entryCloseAt = $entryCloseDate !== '' ? trim($entryCloseDate . ' ' . $entryCloseTime) : null;
     $lateEntryCloseAt = $lateEntryCloseDate !== '' ? trim($lateEntryCloseDate . ' ' . $lateEntryCloseTime) : null;
+    try {
+        $zone = new DateTimeZone('Europe/London');
+        $normalClose = new DateTimeImmutable((string)$entryCloseAt, $zone);
+        if ($lateEntryOpenDate === '' && $lateEntryOpenTime === '') {
+            // Preserve an existing event's snapshot when an older editor omits these inputs.
+            $existingOpen = $eventId > 0 ? ($pdo->query('SELECT late_entry_open_at FROM events WHERE id='.(int)$eventId)->fetchColumn() ?: null) : null;
+            $hours = max(1,min(8760,(int)(getSiteSettings($pdo)['event_late_entry_reopen_hours'] ?? 6)));
+            $lateEntryOpenAt = $existingOpen ?: $normalClose->setTimestamp($normalClose->getTimestamp()+$hours*3600)->format('Y-m-d H:i:s');
+        } else {
+            $input = $lateEntryOpenDate . ' ' . $lateEntryOpenTime;
+            $parsed = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $input, $zone);
+            if (!$parsed || $parsed->format('Y-m-d H:i') !== $input) throw new RuntimeException('Enter a valid late-entry reopening date and time.');
+            $lateEntryOpenAt = $parsed->format('Y-m-d H:i:s');
+        }
+        $reopen = new DateTimeImmutable($lateEntryOpenAt,$zone);
+        if ($lateEntriesEnabled && ($reopen <= $normalClose || !$lateEntryCloseAt || $reopen >= new DateTimeImmutable($lateEntryCloseAt,$zone))) {
+            throw new RuntimeException('Late entries must reopen after normal entries close and before late entries close.');
+        }
+    } catch (Exception $e) {
+        $alerts[] = ['type'=>'danger','message'=>$e instanceof RuntimeException ? $e->getMessage() : 'Enter valid entry closing and reopening dates.'];
+        return false;
+    }
+
     if ($lockedEvent) {
         $lateEntryFee = (float)($lockedEvent['late_entry_fee']??0);
         $classesOffered = $lockedEvent['classes_offered'];
@@ -6128,6 +6164,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                     entry_close_at = :entry_close_at,
                     send_reminder_emails = :send_reminder_emails,
                     late_entries_enabled = :late_entries_enabled,
+                    late_entry_open_at = :late_entry_open_at,
                     late_entry_close_at = :late_entry_close_at,
                     late_entry_fee = :late_entry_fee,
                     entry_form = :entry_form,
@@ -6158,6 +6195,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
                 ':entry_close_at' => $entryCloseAt ?: null,
                 ':send_reminder_emails' => $sendReminderEmails,
                 ':late_entries_enabled' => $lateEntriesEnabled,
+                ':late_entry_open_at' => $lateEntryOpenAt,
                 ':late_entry_close_at' => $lateEntryCloseAt ?: null,
                 ':late_entry_fee' => $lateEntryFee,
                 ':entry_form' => $entryFormValue,
@@ -6173,8 +6211,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             return $eventId;
         }
         $stmt = $pdo->prepare("
-            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, emergency_use_organiser, emergency_phone, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, send_reminder_emails, late_entries_enabled, late_entry_close_at, late_entry_fee, entry_form, status, description, details_html, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
-            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :emergency_use_organiser, :emergency_phone, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :send_reminder_emails, :late_entries_enabled, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :details_html, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
+            INSERT INTO events (title, event_date, end_date, start_time, end_time, venue, venue_id, organiser, organiser_user_id, emergency_use_organiser, emergency_phone, classes_offered, entry_open_at, non_member_entry_open_at, entry_close_at, send_reminder_emails, late_entries_enabled, late_entry_open_at, late_entry_close_at, late_entry_fee, entry_form, status, description, details_html, event_type_id, capacity_enabled, capacity_limit, created_at, updated_at)
+            VALUES (:title, :event_date, :end_date, :start_time, :end_time, :venue, :venue_id, :organiser, :organiser_user_id, :emergency_use_organiser, :emergency_phone, :classes_offered, :entry_open_at, :non_member_entry_open_at, :entry_close_at, :send_reminder_emails, :late_entries_enabled, :late_entry_open_at, :late_entry_close_at, :late_entry_fee, :entry_form, :status, :description, :details_html, :event_type_id, :capacity_enabled, :capacity_limit, NOW(), NOW())
         ");
         $stmt->execute([
             ':title' => $title,
@@ -6194,6 +6232,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             ':entry_close_at' => $entryCloseAt ?: null,
             ':send_reminder_emails' => $sendReminderEmails,
             ':late_entries_enabled' => $lateEntriesEnabled,
+            ':late_entry_open_at' => $lateEntryOpenAt,
             ':late_entry_close_at' => $lateEntryCloseAt ?: null,
             ':late_entry_fee' => $lateEntryFee,
             ':entry_form' => $entryFormValue,

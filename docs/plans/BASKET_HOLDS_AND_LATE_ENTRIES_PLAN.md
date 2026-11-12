@@ -116,3 +116,9 @@ A likely sequence is:
 5. Add configurable late-entry windows, fees, labels and reporting after the policy questions are answered.
 6. Add stricter transactional capacity allocation later if the accepted small over-capacity tolerance becomes a practical issue.
 
+
+## Implemented late-entry reopening gap (12 November 2026)
+
+Settings → Events now provides Reopen late entries after (initial default 6 elapsed hours). New events store an editable `late_entry_open_at` calculated from their actual normal closing timestamp. Normal entries close at that timestamp; late entries start at the stored reopening timestamp only if enabled and capacity remains. Late entries stop at their own closing timestamp. The event editor calculates defaults in Europe/London, including DST, preserves manual overrides and stored dates, and rejects enabled late windows that reopen before normal closing or at/after late closing. Changing the global default does not change stored event dates. Older events without a stored reopening timestamp use a six-hour runtime fallback until edited/saved. No real events are rewritten in bulk.
+
+The public entry POST gate uses the same late window as its UI. Event list/footer status and pricing protection recognise the closed gap; recorded entries continue protecting prices throughout. Existing administrator preview/manual entry privileges and handling of entries already in baskets are unchanged. This change does not implement the broader hold/resumption/payment-completion proposals above.
