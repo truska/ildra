@@ -833,6 +833,15 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             dt.setDate(dt.getDate() - daysBack);
             return formatDate(dt);
         };
+        // Native date pickers can report input before change (including on iPad).
+        // Keep generated dates in step while leaving manual overrides alone.
+        const generatedDates = new Map();
+        const setDefaultDate = (field, value) => {
+            if (field && (!field.value || field.value === generatedDates.get(field))) {
+                field.value = value;
+                generatedDates.set(field, value);
+            }
+        };
         const applyNewEventDefaults = () => {
             if (!isNewEvent || !startDate || !startDate.value) {
                 return;
@@ -841,36 +850,33 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             if (Number.isNaN(start.getTime())) {
                 return;
             }
-            if (endDate && !endDate.value) {
-                endDate.value = plusDays(startDate.value, eventDefaults.endDays);
-            }
+            setDefaultDate(endDate, plusDays(startDate.value, eventDefaults.endDays));
             if (startTime && !startTime.value) {
                 startTime.value = eventDefaults.startTime;
             }
             if (endTime && !endTime.value) {
                 endTime.value = eventDefaults.endTime;
             }
-            if (openDate && !openDate.value) {
-                openDate.value = previousWeekday(startDate.value, eventDefaults.memberOpenWeekday, eventDefaults.memberOpenWeeks);
-            }
+            setDefaultDate(openDate, previousWeekday(startDate.value, eventDefaults.memberOpenWeekday, eventDefaults.memberOpenWeeks));
             if (openTime && (!openTime.value || openTime.value === '00:00')) {
                 openTime.value = eventDefaults.memberOpenTime;
             }
-            if (nonMemberOpenDate && !nonMemberOpenDate.value) {
-                nonMemberOpenDate.value = previousWeekday(startDate.value, eventDefaults.nonMemberOpenWeekday, eventDefaults.nonMemberOpenWeeks);
-            }
+            setDefaultDate(nonMemberOpenDate, previousWeekday(startDate.value, eventDefaults.nonMemberOpenWeekday, eventDefaults.nonMemberOpenWeeks));
             if (nonMemberOpenTime && (!nonMemberOpenTime.value || nonMemberOpenTime.value === '00:00')) {
                 nonMemberOpenTime.value = eventDefaults.nonMemberOpenTime;
             }
-            if (closeDate && !closeDate.value) {
-                closeDate.value = previousWeekday(startDate.value, eventDefaults.closeWeekday, eventDefaults.closeWeeks);
-            }
+            setDefaultDate(closeDate, previousWeekday(startDate.value, eventDefaults.closeWeekday, eventDefaults.closeWeeks));
             if (closeTime && !closeTime.value) {
                 closeTime.value = eventDefaults.closeTime;
             }
         };
         if (startDate) {
+            startDate.addEventListener('input', applyNewEventDefaults);
             startDate.addEventListener('change', applyNewEventDefaults);
+            startDate.addEventListener('blur', () => {
+                applyNewEventDefaults();
+                updateHints();
+            });
         }
 
         const describeDiff = (targetDateStr, refDateStr, defaultLabel) => {
@@ -916,6 +922,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             el?.addEventListener('input', updateHints);
             el?.addEventListener('change', updateHints);
         });
+        applyNewEventDefaults();
         updateHints();
 
         // Capacity toggle
