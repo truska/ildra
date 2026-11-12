@@ -40,6 +40,7 @@ function defaultAdminMenuItems(): array
         ['tech_email', 'Live Email Settings', 'email.php?view=settings', 'fa-solid fa-server'],
         ['testing_reset', 'Reset test data', 'testing_reset.php', 'fa-solid fa-eraser'],
         ['image_folders', 'Storage Folders', 'image_folders.php', 'fa-solid fa-folder-tree'],
+        ['archives', 'Archives', 'archives.php', 'fa-solid fa-box-archive'],
     ];
     $out = [];
     foreach ($rows as $index => $row) {
@@ -62,7 +63,7 @@ function defaultAdminMenuItems(): array
 function adminMenuFixedRoles(string $key): array
 {
     if ($key === 'menu') return ['developer', 'superadmin'];
-    if (in_array($key, ['finance', 'stripe_fulfilment', 'legacy_balances'], true)) return ['superadmin', 'admin'];
+    if (in_array($key, ['finance', 'stripe_fulfilment', 'legacy_balances', 'archives'], true)) return ['superadmin', 'admin'];
     if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons'], true)) {
         return ['superadmin'];
     }
@@ -159,6 +160,7 @@ function adminMenuRoleAllowed(array $item, string $role): bool
     $key = (string)($item['menu_key'] ?? '');
     // Menu permissions cannot grant access to their own editor below Superadmin.
     if ($key === 'menu' && $role !== 'superadmin') return false;
+    if ($key === 'archives' && !in_array($role, ['superadmin', 'admin'], true)) return false;
     $allowed = array_values(array_filter(array_map('trim', explode(',', strtolower((string)($item['required_roles'] ?? implode(',', adminMenuFixedRoles($key))))))));
     return in_array($role, $allowed ?: ['superadmin', 'admin', 'manager', 'organiser'], true);
 }

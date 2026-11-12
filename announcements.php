@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS announcements (
     display_order INT NOT NULL DEFAULT 0,
     enabled TINYINT(1) NOT NULL DEFAULT 0,
     allow_hide TINYINT(1) NOT NULL DEFAULT 0,
+    is_archived TINYINT(1) NOT NULL DEFAULT 0,
     show_from DATE NULL,
     show_to DATE NULL,
     title VARCHAR(255) NOT NULL DEFAULT '',
@@ -125,9 +126,15 @@ SQL
         // Preserve the existing Super announcement's visitor dismissal behaviour.
         $pdo->exec("UPDATE announcements SET allow_hide=1 WHERE announcement_type='super'");
     }
+    if (!$pdo->query("SHOW COLUMNS FROM announcements LIKE 'is_archived'")->fetch()) {
+        $pdo->exec("ALTER TABLE announcements ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0");
+    }
     $fields = ['allow_hide', 'enabled', 'title', 'heading', 'subheading', 'body_html', 'asset_id', 'image_side', 'bg_colour', 'text_colour', 'revision'];
     foreach (['manual' => 'announcement_', 'super' => 'super_announcement_'] as $type => $prefix) {
         if (trim((string)($settings[$prefix . 'title'] ?? '')) === '') continue;
+        $purged = $pdo->prepare('SELECT setting_value FROM site_settings WHERE setting_key=?');
+        $purged->execute(['announcement_legacy_purged_' . $type]);
+        if ($purged->fetchColumn() === '1') continue;
         $row = ['announcement_type' => $type, 'legacy_key' => $type];
         foreach ($fields as $field) $row[$field] = $settings[$prefix . $field] ?? ($field === 'revision' ? '1' : ($field === 'allow_hide' ? ($type === 'super' ? '1' : '0') : ''));
         foreach (['from', 'to'] as $field) $row['show_' . $field] = announcement_date((string)($settings[$prefix . $field] ?? '')) ? $settings[$prefix . $field] : null;
@@ -142,7 +149,7 @@ SQL
 function select_announcement(array $rows, string $type, ?DateTimeImmutable $now = null): ?array
 {
     $eligible = array_values(array_filter($rows, static function (array $row) use ($type, $now): bool {
-        return ($row['announcement_type'] ?? '') === $type && manual_announcement_visible([
+        return empty($row['is_archived']) && ($row['announcement_type'] ?? '') === $type && manual_announcement_visible([
             'announcement_enabled' => $row['enabled'], 'announcement_title' => $row['title'],
             'announcement_from' => $row['show_from'] ?? '', 'announcement_to' => $row['show_to'] ?? '',
         ], $now);
@@ -172,4 +179,20 @@ function announcement_public_settings(?PDO $pdo, array $settings): array
         if (empty($row['legacy_key'])) $settings[$prefix . 'revision'] = $row['id'] . ':' . $row['revision'];
     }
     return $settings;
+}
+
+/** Archive is distinct from disabled, expired or hidden on a visitor's device. */
+function archiveAnnouncement(PDO $pdo, int $id, string $type, array &$alerts): bool
+{
+    if ($id <= 0 || !in_array($type, ['manual','super'], true)) {
+        $alerts[] = ['type'=>'danger', 'message'=>'Invalid announcement.'];
+        return false;
+    }
+    $stmt = $pdo->prepare('UPDATE announcements SET is_archived=1,updated_at=NOW() WHERE id=? AND announcement_type=? AND is_archived=0');
+    $stmt->execute([$id,$type]);
+    if ($stmt->rowCount() !== 1) {
+        $alerts[] = ['type'=>'danger', 'message'=>'Announcement not found or already archived.'];
+        return false;
+    }
+    return true;
 }

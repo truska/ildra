@@ -12,7 +12,7 @@ $id = $activeTab === 'automatic' ? 0 : max(0, (int)($_POST['id'] ?? $_GET['id'] 
 $editing = $activeTab !== 'automatic' && (isset($_GET['new']) || $id > 0);
 $record = ['id' => 0, 'display_order' => 0];
 if ($id) {
-    $stmt = $pdo->prepare('SELECT * FROM announcements WHERE id=? AND announcement_type=?');
+    $stmt = $pdo->prepare('SELECT * FROM announcements WHERE id=? AND announcement_type=? AND is_archived=0');
     $stmt->execute([$id, $activeTab]);
     $record = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$record) { http_response_code(404); exit('Announcement not found.'); }
@@ -25,7 +25,12 @@ if ($id) {
     $siteSettings[$prefix . 'asset_id'] = '0';
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (($_POST['action'] ?? '') === 'save_events') {
+    if (($_POST['action'] ?? '') === 'archive' && $activeTab !== 'automatic') {
+        if (archiveAnnouncement($pdo, $id, $activeTab, $alerts)) {
+            $_SESSION['flash_success'] = 'Announcement archived.';
+            header('Location: announcements.php?tab=' . $activeTab); exit;
+        }
+    } elseif (($_POST['action'] ?? '') === 'save_events') {
         if (saveSiteSettings($pdo, ['event_announcement_enabled' => isset($_POST['event_announcement_enabled']) ? '1' : '0'], $alerts)) {
             $_SESSION['flash_success'] = 'Automatic event notices updated.';
             header('Location: announcements.php?tab=automatic'); exit;
@@ -73,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($id) {
                 $assignments = implode(',', array_map(static fn($field) => "$field=?", array_keys($data)));
-                $stmt = $pdo->prepare("UPDATE announcements SET $assignments WHERE id=? AND announcement_type=?");
+                $stmt = $pdo->prepare("UPDATE announcements SET $assignments WHERE id=? AND announcement_type=? AND is_archived=0");
                 $stmt->execute([...array_values($data), $id, $activeTab]);
             } else {
                 $data['announcement_type'] = $activeTab;
@@ -127,7 +132,7 @@ admin_layout_start('Announcements', 'announcements');
             </form>
 </div>
 <?php else:
-$stmt = $pdo->prepare('SELECT * FROM announcements WHERE announcement_type=?');
+$stmt = $pdo->prepare('SELECT * FROM announcements WHERE announcement_type=? AND is_archived=0');
 $stmt->execute([$activeTab]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $selected = select_announcement($rows, $activeTab);
@@ -157,7 +162,9 @@ $table = admin_table_prepare($rows, $columns, 'display_order');
 <?php foreach ($columns as $key=>$column): ?><th><?php echo admin_table_heading($key,$column,$table['sort_key'],$table['sort_dir']); ?></th><?php endforeach; ?><th>Actions</th></tr>
 <tr class="admin-table-filter-row"><?php foreach ($columns as $key=>$column): ?><th><?php echo admin_table_filter($key,$column,$table['filters']); ?></th><?php endforeach; ?><th></th></tr></thead><tbody>
 <?php foreach ($table['rows'] as $row): ?><tr>
-<td><?php echo h($row['title']); ?></td><td><?php echo $row['allow_hide'] ? 'Allow Hide' : 'Force Show'; ?></td><td><?php echo h($row['show_from'] ?? '—'); ?></td><td><?php echo h($row['show_to'] ?? '—'); ?></td><td><?php echo (int)$row['display_order']; ?></td><td><?php echo $row['showing'] ? 'Yes' : 'No'; ?></td><td><a class="btn btn-sm btn-outline-success" href="announcements.php?tab=<?php echo $activeTab; ?>&amp;id=<?php echo (int)$row['id']; ?>">Edit</a></td></tr><?php endforeach; ?>
+<td><?php echo h($row['title']); ?></td><td><?php echo $row['allow_hide'] ? 'Allow Hide' : 'Force Show'; ?></td><td><?php echo h($row['show_from'] ?? '—'); ?></td><td><?php echo h($row['show_to'] ?? '—'); ?></td><td><?php echo (int)$row['display_order']; ?></td><td><?php echo $row['showing'] ? 'Yes' : 'No'; ?></td><td><a class="btn btn-sm btn-outline-success" href="announcements.php?tab=<?php echo $activeTab; ?>&amp;id=<?php echo (int)$row['id']; ?>">Edit</a>
+<form method="post" class="d-inline" data-confirm-title="Archive announcement?" data-confirm-message="<?php echo h('Archive “'.$row['title'].'”? It will disappear from Announcements and public display.'); ?>" data-confirm-button="Archive"><?php echo csrf_input(); ?><input type="hidden" name="action" value="archive"><input type="hidden" name="settings_section" value="<?php echo $activeTab; ?>"><input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>"><button class="btn btn-sm btn-outline-danger">Archive</button></form>
+</td></tr><?php endforeach; ?>
 <?php if (!$table['rows']): ?><tr><td colspan="7" class="text-muted">No announcements match the current filters.</td></tr><?php endif; ?>
 </tbody></table></div><?php echo admin_table_pagination($table); ?></div>
 <?php endif; ?>
