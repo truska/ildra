@@ -313,3 +313,23 @@ php scripts/test_auth_throttle.php
 ```
 
 The first test executes the real request-handler bodies in an isolated offline namespace with token/transport/throttle doubles and no production mail subsystem; it checks all three approved domains in HTML/plain-text links, forced HTTPS, encoded tokens, unknown/deceptive/missing hosts, forwarded-header isolation, privacy and throttled requests. No email can be sent by this fixture. The second uses the existing uniquely named disposable limiter table plus connection-local temporary users/roles/token tables to verify actual token expiry/single-use and all persistent throttle boundaries. No real users, login tokens or messages are changed. After deployment verify both approved destination hostnames resolve to their own fixed origins through the helper; do not send deliberate reset/link requests to real accounts for testing.
+
+## Password replacement revokes sessions and remembered logins (security priority 1)
+
+After the usual destination backup, deploy committed development source with `git pull --ff-only`. No database migration or new column is required. Deploy `auth_sessions.php` alongside `auth.php` and `bootstrap.php`; the new served PHP helper uses mode 664 and must be readable by PHP. This implementation binds each authenticated session privately to a SHA-256 fingerprint of the password hash it actually authenticated against. It does not expose password hashes in the public/session user array. Bootstrap validates the binding against the database before authenticated page handlers or automatic cookie restoration; failed database validation fails closed.
+
+**One-time rollout effect:** existing authenticated sessions do not have a binding and must log in again. Do not silently stamp old sessions using the current database password, as that would preserve potentially compromised sessions. No real account credential/token is changed merely by deploying the code. Once a password is replaced, other sessions are rejected on their next request, including protected POSTs. Requests already executing before the replacement cannot be recalled.
+
+Self-service change, password recovery and administrative password reset all update the password and delete that user's remembered-login tokens, outstanding magic links and password-reset tokens in one transaction. Wrong current passwords and failed token revocation do not partially change the password; recovery-token consumption is also rolled back on failure. The browser completing a self-service change/recovery receives a fresh session ID and credential binding and keeps its signed-in state; other accounts' sessions and tokens remain intact. An administrative reset invalidates the target's sessions without silently preserving a target session.
+
+Password, authenticator, registration, magic-link and remembered-login authentication establish bindings. Remembered token issuance checks the verified credential under a user-row lock, preventing an old verification from minting a remembered login after a reset. Remember/magic token consumption locks the token and credential together and binds the resulting session to that exact credential snapshot. While acting-as, validation follows the original administrator's binding; resetting that administrator's password invalidates the impersonation too. Pending authenticator setup state and stale remembered cookies are cleared when sessions are invalidated. Authenticator fresh-authentication/replay checks and the remaining security findings are separate work.
+
+Checks (no real emails/accounts/tokens changed):
+
+```bash
+php scripts/test_session_revocation.php
+php scripts/test_auth_throttle.php
+php scripts/test_auth_email_origins.php
+```
+
+The revocation test checks that its account/token tables are connection-local temporary tables before running. It covers current/other/unrelated browsers, self-service change, recovery, admin reset, old remembered/magic/reset links, missing bindings, impersonation, storage failure, transaction rollback, stale remembered-token issuance and fresh magic/remember login. Also verify with a disposable account in two signed-in browsers after deployment: change/recover the password in one; a refresh/protected action in the other must require a fresh login, and its old remembered cookie must not restore access.

@@ -154,6 +154,8 @@ if ($pdo) ensureUserArchiveColumn($pdo);
 if ($pdo) {
     ensureEmailCampaignTables($pdo);
 }
+// Enforce credential revocation before any authenticated route or remember-cookie restoration.
+authValidateSession($pdo, $alerts);
 $currentUser = $_SESSION['user'] ?? null;
 $allUsers = [];
 
@@ -174,6 +176,7 @@ if (!$currentUser && $pdo) {
     $remembered = attemptRememberMeLogin($pdo, $siteSettingsBootstrap, $alerts);
     if ($remembered) {
         $currentUser = $_SESSION['user'] ?? $remembered;
+        if (!authValidateSession($pdo, $alerts)) $currentUser = null;
     }
 }
 

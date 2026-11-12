@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/auth_throttle.php';
+require_once __DIR__ . '/auth_sessions.php';
 
 /** Exact approved authorities and fixed email-link origins. Remove staging here when retired. */
 function authEmailOrigins(): array
@@ -258,34 +259,21 @@ function clear_remember_me_cookie(): void
     ]);
 }
 
-function issueRememberMeToken(PDO $pdo, int $userId, int $ttlSeconds): void
+function issueRememberMeToken(PDO $pdo, int $userId, int $ttlSeconds, string $verifiedHash): void
 {
     ensureAuthTables($pdo);
-
-    // Clamp to sensible range: 1 hour to 1 year.
-    $ttlSeconds = max(3600, min(31536000, $ttlSeconds));
-
-    $selector = base64url_encode(random_bytes(9));
-    $validator = base64url_encode(random_bytes(24));
-    $tokenHash = hash('sha256', $validator);
-    $expiresAt = auth_future_string($ttlSeconds);
-    $ua = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
-    $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
-
-    $stmt = $pdo->prepare("
-        INSERT INTO auth_remember_tokens (user_id, selector, token_hash, expires_at, user_agent, ip_address)
-        VALUES (:uid, :sel, :hash, :exp, :ua, :ip)
-    ");
-    $stmt->execute([
-        ':uid' => $userId,
-        ':sel' => $selector,
-        ':hash' => $tokenHash,
-        ':exp' => $expiresAt,
-        ':ua' => $ua ?: null,
-        ':ip' => $ip ?: null,
-    ]);
-
-    set_remember_me_cookie($selector . ':' . $validator, $ttlSeconds);
+    $ttlSeconds=max(3600,min(31536000,$ttlSeconds));
+    $selector=base64url_encode(random_bytes(9));$validator=base64url_encode(random_bytes(24));
+    $pdo->beginTransaction();
+    try {
+        $stmt=$pdo->prepare('SELECT password_hash FROM users WHERE id=? AND is_archived=0 FOR UPDATE');
+        $stmt->execute([$userId]);$hash=$stmt->fetchColumn();
+        if ($hash===false || !hash_equals($verifiedHash,(string)$hash)) throw new RuntimeException('Credential changed during login.');
+        $stmt=$pdo->prepare('INSERT INTO auth_remember_tokens(user_id,selector,token_hash,expires_at,user_agent,ip_address) VALUES(?,?,?,?,?,?)');
+        $stmt->execute([$userId,$selector,hash('sha256',$validator),auth_future_string($ttlSeconds),substr((string)($_SERVER['HTTP_USER_AGENT']??''),0,255),substr((string)($_SERVER['REMOTE_ADDR']??''),0,64)]);
+        $pdo->commit();
+    } catch (Throwable $e) { if($pdo->inTransaction())$pdo->rollBack();throw $e; }
+    set_remember_me_cookie($selector.':'.$validator,$ttlSeconds);
 }
 
 function rotateRememberMeToken(PDO $pdo, int $tokenId, string $selector, int $ttlSeconds): void
@@ -315,88 +303,34 @@ function rotateRememberMeToken(PDO $pdo, int $tokenId, string $selector, int $tt
 
 function attemptRememberMeLogin(PDO $pdo, array $siteSettings, array &$alerts): ?array
 {
-    $cookie = (string)($_COOKIE['ildra_remember'] ?? '');
-    if ($cookie === '' || strpos($cookie, ':') === false) {
-        return null;
-    }
-
-    [$selector, $validator] = explode(':', $cookie, 2);
-    $selector = trim($selector);
-    $validator = trim($validator);
-    if ($selector === '' || $validator === '') {
-        clear_remember_me_cookie();
-        return null;
-    }
-
-    ensureAuthTables($pdo);
-    tidyAuthTokens($pdo);
-
+    $cookie=(string)($_COOKIE['ildra_remember']??'');
+    if ($cookie==='' || strpos($cookie,':')===false) return null;
+    [$selector,$validator]=explode(':',$cookie,2);
+    $selector=trim($selector);$validator=trim($validator);
+    if ($selector==='' || $validator==='') { clear_remember_me_cookie();return null; }
+    ensureAuthTables($pdo);tidyAuthTokens($pdo);
     try {
-        $stmt = $pdo->prepare("
-            SELECT id, user_id, token_hash, expires_at
-            FROM auth_remember_tokens
-            WHERE selector = :sel
-            LIMIT 1
-        ");
-        $stmt->execute([':sel' => $selector]);
-        $row = $stmt->fetch();
-        if (!$row) {
-            clear_remember_me_cookie();
-            return null;
+        $pdo->beginTransaction();
+        // Lock token and credential together so password replacement cannot be bypassed by restoration.
+        $stmt=$pdo->prepare('SELECT t.id,t.user_id,t.token_hash,t.expires_at,u.password_hash AS credential_hash FROM auth_remember_tokens t JOIN users u ON u.id=t.user_id AND u.is_archived=0 WHERE t.selector=? LIMIT 1 FOR UPDATE');
+        $stmt->execute([$selector]);$row=$stmt->fetch();
+        if (!$row || auth_is_expired((string)$row['expires_at']) || !hash_equals((string)$row['token_hash'],hash('sha256',$validator))) {
+            $pdo->prepare('DELETE FROM auth_remember_tokens WHERE selector=?')->execute([$selector]);
+            $pdo->commit();clear_remember_me_cookie();return null;
         }
-
-        if (auth_is_expired((string)($row['expires_at'] ?? null))) {
-            $del = $pdo->prepare("DELETE FROM auth_remember_tokens WHERE id = :id");
-            $del->execute([':id' => (int)$row['id']]);
-            clear_remember_me_cookie();
-            return null;
-        }
-
-        $expectedHash = (string)($row['token_hash'] ?? '');
-        $actualHash = hash('sha256', $validator);
-        if (!hash_equals($expectedHash, $actualHash)) {
-            // Potential token theft/guess: remove this token and clear cookie.
-            $del = $pdo->prepare("DELETE FROM auth_remember_tokens WHERE id = :id");
-            $del->execute([':id' => (int)$row['id']]);
-            clear_remember_me_cookie();
-            return null;
-        }
-
-        $userId = (int)($row['user_id'] ?? 0);
-        if ($userId <= 0) {
-            clear_remember_me_cookie();
-            return null;
-        }
-
-        $userStmt = $pdo->prepare("
-            SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at
-            FROM users u
-            JOIN roles r ON r.id = u.role_id
-            WHERE u.id = :id AND u.is_archived = 0
-            LIMIT 1
-        ");
-        $userStmt->execute([':id' => $userId]);
-        $user = $userStmt->fetch();
-        if (!$user) {
-            $del = $pdo->prepare("DELETE FROM auth_remember_tokens WHERE id = :id");
-            $del->execute([':id' => (int)$row['id']]);
-            clear_remember_me_cookie();
-            return null;
-        }
-
-        $user['level'] = (int)($user['level'] ?? 0);
+        $stmt=$pdo->prepare('SELECT u.id,u.email,r.name AS role,r.level AS level,u.first_name,u.last_name,u.last_login_at FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.is_archived=0');
+        $stmt->execute([(int)$row['user_id']]);$user=$stmt->fetch();
+        if (!$user) { $pdo->rollBack();clear_remember_me_cookie();return null; }
+        rotateRememberMeToken($pdo,(int)$row['id'],$selector,(int)($siteSettings['remember_me_ttl_seconds']??2592000));
+        $pdo->commit();
         session_regenerate_id(true);
-        $_SESSION['user'] = $user;
-        $_SESSION['legacy_balance_login_check'] = true;
-
-        $ttlSeconds = (int)($siteSettings['remember_me_ttl_seconds'] ?? (30 * 86400));
-        rotateRememberMeToken($pdo, (int)$row['id'], $selector, $ttlSeconds);
+        authBindCredentialSession((int)$user['id'],(string)$row['credential_hash']);
+        $user['level']=(int)$user['level'];$_SESSION['user']=$user;$_SESSION['legacy_balance_login_check']=true;
         return $user;
-    } catch (PDOException $e) {
-        // Fail closed: don't log the user in from cookie.
-        $alerts[] = ['type' => 'danger', 'message' => 'Could not validate remembered login.'];
-        clear_remember_me_cookie();
-        return null;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $alerts[]=['type'=>'danger','message'=>'Could not validate remembered login.'];
+        clear_remember_me_cookie();return null;
     }
 }
 
@@ -449,7 +383,7 @@ function consumePasswordResetToken(PDO $pdo, string $token): ?int
             FROM auth_password_resets
             WHERE selector = :sel
             LIMIT 1
-        ");
+        " . ($pdo->inTransaction() ? " FOR UPDATE" : ""));
         $stmt->execute([':sel' => $selector]);
         $row = $stmt->fetch();
         if (!$row) {
@@ -596,15 +530,17 @@ function handlePasswordReset(?PDO $pdo, array &$alerts, ?string &$successMessage
         $alerts[] = ['type' => 'danger', 'message' => 'Password confirmation does not match.'];
         return null;
     }
-    $userId = consumePasswordResetToken($pdo, $token);
-    if (!$userId) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Reset link is invalid or expired. Request a new one.'];
-        return null;
-    }
+    ensureAuthTables($pdo);ensurePasswordResetTable($pdo);
     try {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("UPDATE users SET password_hash = :ph, updated_at = NOW() WHERE id = :id LIMIT 1");
-        $stmt->execute([':ph' => $hash, ':id' => $userId]);
+        $pdo->beginTransaction();
+        $userId=consumePasswordResetToken($pdo,$token);
+        if (!$userId) {
+            $pdo->rollBack();
+            $alerts[]=['type'=>'danger','message'=>'Reset link is invalid or expired. Request a new one.'];
+            return null;
+        }
+        $hash=password_hash($password,PASSWORD_DEFAULT);
+        authReplacePassword($pdo,$userId,$hash);
         // Log the user in
         $userStmt = $pdo->prepare("
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name
@@ -615,20 +551,16 @@ function handlePasswordReset(?PDO $pdo, array &$alerts, ?string &$successMessage
         ");
         $userStmt->execute([':id' => $userId]);
         $user = $userStmt->fetch();
-        if ($user) {
-            session_regenerate_id(true);
-            $_SESSION['user'] = [
-                'id' => (int)$user['id'],
-                'email' => $user['email'],
-                'role' => $user['role'],
-                'level' => (int)$user['level'],
-                'first_name' => $user['first_name'] ?? '',
-                'last_name' => $user['last_name'] ?? '',
-            ];
-        }
-        $successMessage = 'Password updated. You are now signed in.';
-        return $_SESSION['user'] ?? null;
-    } catch (PDOException $e) {
+        if (!$user) throw new RuntimeException('Account unavailable.');
+        $pdo->commit();
+        $user['password_hash']=$hash; // Bind to the credential this recovery actually set.
+        unset($_COOKIE['ildra_remember']);
+        $signedIn=finishUserLogin($pdo,$user,[],false,$successMessage);
+        $successMessage='Password updated. You are now signed in.';
+        return $signedIn;
+
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
         $alerts[] = ['type' => 'danger', 'message' => 'Could not reset password. Please try again.'];
         return null;
     }
@@ -662,80 +594,31 @@ function createMagicLoginToken(PDO $pdo, int $userId, int $ttlSeconds = 900): st
 
 function consumeMagicLoginToken(PDO $pdo, string $token, array &$alerts): ?array
 {
-    if (strpos($token, ':') === false) {
-        $alerts[] = ['type' => 'danger', 'message' => 'That sign-in link is not valid.'];
-        return null;
-    }
-    [$selector, $validator] = explode(':', $token, 2);
-    $selector = trim($selector);
-    $validator = trim($validator);
-    if ($selector === '' || $validator === '') {
-        $alerts[] = ['type' => 'danger', 'message' => 'That sign-in link is not valid.'];
-        return null;
-    }
-
-    ensureAuthTables($pdo);
-    tidyAuthTokens($pdo);
-
+    if (strpos($token,':')===false) { $alerts[]=['type'=>'danger','message'=>'That sign-in link is not valid.'];return null; }
+    [$selector,$validator]=explode(':',$token,2);
+    $selector=trim($selector);$validator=trim($validator);
+    if ($selector==='' || $validator==='') { $alerts[]=['type'=>'danger','message'=>'That sign-in link is not valid.'];return null; }
+    ensureAuthTables($pdo);tidyAuthTokens($pdo);
     try {
-        $stmt = $pdo->prepare("
-            SELECT id, user_id, token_hash, expires_at, used_at
-            FROM auth_magic_tokens
-            WHERE selector = :sel
-            LIMIT 1
-        ");
-        $stmt->execute([':sel' => $selector]);
-        $row = $stmt->fetch();
-        if (!$row) {
-            $alerts[] = ['type' => 'danger', 'message' => 'That sign-in link has expired.'];
-            return null;
+        $pdo->beginTransaction();
+        $stmt=$pdo->prepare('SELECT t.id,t.user_id,t.token_hash,t.expires_at,t.used_at,u.password_hash AS credential_hash FROM auth_magic_tokens t JOIN users u ON u.id=t.user_id AND u.is_archived=0 WHERE t.selector=? LIMIT 1 FOR UPDATE');
+        $stmt->execute([$selector]);$row=$stmt->fetch();
+        if (!$row || !empty($row['used_at']) || auth_is_expired((string)$row['expires_at']) || !hash_equals((string)$row['token_hash'],hash('sha256',$validator))) {
+            $pdo->prepare('DELETE FROM auth_magic_tokens WHERE selector=?')->execute([$selector]);
+            $pdo->commit();$alerts[]=['type'=>'danger','message'=>'That sign-in link is invalid or expired.'];return null;
         }
-        if (!empty($row['used_at']) || auth_is_expired((string)($row['expires_at'] ?? null))) {
-            $del = $pdo->prepare("DELETE FROM auth_magic_tokens WHERE id = :id");
-            $del->execute([':id' => (int)$row['id']]);
-            $alerts[] = ['type' => 'danger', 'message' => 'That sign-in link has expired.'];
-            return null;
-        }
-
-        $expectedHash = (string)($row['token_hash'] ?? '');
-        $actualHash = hash('sha256', $validator);
-        if (!hash_equals($expectedHash, $actualHash)) {
-            $del = $pdo->prepare("DELETE FROM auth_magic_tokens WHERE id = :id");
-            $del->execute([':id' => (int)$row['id']]);
-            $alerts[] = ['type' => 'danger', 'message' => 'That sign-in link is not valid.'];
-            return null;
-        }
-
-        // Mark used (one-time).
-        $upd = $pdo->prepare("UPDATE auth_magic_tokens SET used_at = :used_at WHERE id = :id");
-        $upd->execute([
-            ':used_at' => auth_now_string(),
-            ':id' => (int)$row['id'],
-        ]);
-
-        $userId = (int)($row['user_id'] ?? 0);
-        $userStmt = $pdo->prepare("
-            SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at
-            FROM users u
-            JOIN roles r ON r.id = u.role_id
-            WHERE u.id = :id AND u.is_archived = 0
-            LIMIT 1
-        ");
-        $userStmt->execute([':id' => $userId]);
-        $user = $userStmt->fetch();
-        if (!$user) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Could not sign you in.'];
-            return null;
-        }
-
-        $user['level'] = (int)($user['level'] ?? 0);
+        $pdo->prepare('UPDATE auth_magic_tokens SET used_at=? WHERE id=?')->execute([auth_now_string(),(int)$row['id']]);
+        $stmt=$pdo->prepare('SELECT u.id,u.email,r.name AS role,r.level AS level,u.first_name,u.last_name,u.last_login_at FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.is_archived=0');
+        $stmt->execute([(int)$row['user_id']]);$user=$stmt->fetch();
+        if (!$user) { $pdo->rollBack();$alerts[]=['type'=>'danger','message'=>'Could not sign you in.'];return null; }
+        $pdo->commit();
         session_regenerate_id(true);
-        $_SESSION['user'] = $user;
-        $_SESSION['legacy_balance_login_check'] = true;
+        authBindCredentialSession((int)$user['id'],(string)$row['credential_hash']);
+        $user['level']=(int)$user['level'];$_SESSION['user']=$user;$_SESSION['legacy_balance_login_check']=true;
         return $user;
-    } catch (PDOException $e) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Could not sign you in right now.'];
-        return null;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $alerts[]=['type'=>'danger','message'=>'Could not sign you in right now.'];return null;
     }
 }
 
@@ -903,6 +786,7 @@ function finishUserLogin(PDO $pdo, array $user, array $siteSettings, bool $remem
 {
     session_regenerate_id(true);
     $_SESSION['legacy_balance_login_check'] = true;
+    authBindCredentialSession((int)$user['id'], (string)$user['password_hash']);
     $_SESSION['user'] = [
         'id' => (int)$user['id'],
         'email' => $user['email'],
@@ -916,7 +800,7 @@ function finishUserLogin(PDO $pdo, array $user, array $siteSettings, bool $remem
     $updateStmt->execute([':id' => $_SESSION['user']['id']]);
     if ($rememberMe) {
         $ttlSeconds = (int)($siteSettings['remember_me_ttl_seconds'] ?? (30 * 86400));
-        issueRememberMeToken($pdo, (int)$_SESSION['user']['id'], $ttlSeconds);
+        issueRememberMeToken($pdo, (int)$_SESSION['user']['id'], $ttlSeconds, (string)$user['password_hash']);
     } else {
         clear_remember_me_cookie();
     }
@@ -1181,6 +1065,7 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
         }
 
         session_regenerate_id(true);
+        authBindCredentialSession($userId, $passwordHash);
         $_SESSION['user'] = [
             'id' => $userId,
             'email' => $email,
@@ -1353,10 +1238,9 @@ function resetUserPassword(?PDO $pdo, int $userId, string $password, array &$ale
     }
     try {
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("UPDATE users SET password_hash = :hash, updated_at = NOW() WHERE id = :id");
-        $stmt->execute([':hash' => $hash, ':id' => $userId]);
+        authReplacePassword($pdo, $userId, $hash);
         return true;
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not reset password.'];
         return false;
     }
@@ -1438,10 +1322,15 @@ function changeOwnPassword(?PDO $pdo, int $userId, array $data, array &$alerts):
             $alerts[] = ['type' => 'danger', 'message' => 'Your current password is incorrect.'];
             return false;
         }
-        $update = $pdo->prepare('UPDATE users SET password_hash = :hash, updated_at = NOW() WHERE id = :id');
-        $update->execute([':hash' => password_hash($password, PASSWORD_DEFAULT), ':id' => $userId]);
+        $newHash=password_hash($password,PASSWORD_DEFAULT);
+        authReplacePassword($pdo,$userId,$newHash,$hash);
+        if ((int)($_SESSION['user']['id']??0)===$userId && empty($_SESSION['act_as_original_user'])) {
+            session_regenerate_id(true);
+            authBindCredentialSession($userId,$newHash);
+            unset($_COOKIE['ildra_remember']);clear_remember_me_cookie();
+        }
         return true;
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not change your password.'];
         return false;
     }
