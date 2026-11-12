@@ -286,3 +286,30 @@ php scripts/test_auth_throttle.php
 This test creates a uniquely named `auth_throttle_test_<random>` fixture table so independent connections/workers share real persistent state, plus connection-local temporary user/role tables. The fixture table is dropped in `finally`; it sends no emails and changes no real users or tokens. Tests cover failed fifth and successful fifth attempts, fixed cooldown and exact expiry, successful password/TOTP login, mixed login methods, normalized emails, different sessions/connections/IPs, separate reset/magic budgets, anonymous feedback, spoofed forwarding headers, storage failure and ten parallel workers. If the test process is forcibly killed, remove only its identified `auth_throttle_test_*` fixture table after confirming no test is still running; never truncate the production limiter as routine cleanup.
 
 After deployment, verify the sign-in chooser offers the same methods for known/unknown emails, a disposable account signs in correctly using password and authenticator, and repeat anonymous email requests show temporary retry guidance. Do not use a real administrator account to generate deliberate failures. Recovery is automatic after cooldown; an environment rollback may leave the additive table in place. Reference: [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html).
+
+## Approved password-reset and magic-login email origins
+
+Deploy the development commit normally with `git pull --ff-only` after the destination backup. This change needs **no additional database migration or per-environment origin configuration**; the persistent authentication-throttle migration remains required if that earlier release has not yet been deployed.
+
+The central `authEmailOrigins()` map in `auth.php` ships with these exact host/origin pairs:
+
+| Incoming hostname | Fixed email origin |
+| --- | --- |
+| `ildra.witecanvas.com` | `https://ildra.witecanvas.com` |
+| `enduranceridingireland.com` | `https://enduranceridingireland.com` |
+| `dev-ildra.witecanvas.com` | `https://dev-ildra.witecanvas.com` |
+
+Both password-reset and magic-login request handlers call the shared `authEmailOrigin()` helper **before** throttling, account lookup, token generation or sending. The incoming Host value is used only for an exact, case-insensitive allowlist lookup; generated email URLs use the map's fixed HTTPS origin and fixed `/account` route. Missing/unknown Host values, suffix lookalikes, userinfo, ports (including `:443`), trailing dots, whitespace, schemes, paths and encoded/deceptive hostnames are rejected. There is no fallback to `SERVER_NAME`, the supplied hostname or any forwarded-host header. An approved Host remains safe even when forwarded-host/protocol headers contain hostile values. Host rejection gives the same website-related error regardless of account existence and issues no token/email.
+
+Staging and live origins are approved together in the same source. When the live domain points to this server at launch, authentication email links automatically use its already-approved HTTPS origin: **no launch-day application code or origin configuration change is needed**. Remove the staging pair from the single map later when staging is retired; do not introduce a raw-header fallback. These installations are rooted at `/`, so email routes intentionally do not inherit an incoming script path.
+
+Existing reset expiry (one hour), magic-link expiry (15 minutes), token validation/single-use semantics, per-flow throttling and generic account-privacy responses are preserved. There are no new upload directories or runtime dependencies. The new CLI test uses mode 664.
+
+Verification:
+
+```bash
+php scripts/test_auth_email_origins.php
+php scripts/test_auth_throttle.php
+```
+
+The first test executes the real request-handler bodies in an isolated offline namespace with token/transport/throttle doubles and no production mail subsystem; it checks all three approved domains in HTML/plain-text links, forced HTTPS, encoded tokens, unknown/deceptive/missing hosts, forwarded-header isolation, privacy and throttled requests. No email can be sent by this fixture. The second uses the existing uniquely named disposable limiter table plus connection-local temporary users/roles/token tables to verify actual token expiry/single-use and all persistent throttle boundaries. No real users, login tokens or messages are changed. After deployment verify both approved destination hostnames resolve to their own fixed origins through the helper; do not send deliberate reset/link requests to real accounts for testing.

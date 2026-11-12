@@ -4,6 +4,24 @@ declare(strict_types=1);
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/auth_throttle.php';
 
+/** Exact approved authorities and fixed email-link origins. Remove staging here when retired. */
+function authEmailOrigins(): array
+{
+    return [
+        'ildra.witecanvas.com' => 'https://ildra.witecanvas.com',
+        'enduranceridingireland.com' => 'https://enduranceridingireland.com',
+        'dev-ildra.witecanvas.com' => 'https://dev-ildra.witecanvas.com',
+    ];
+}
+
+function authEmailOrigin(array $server): ?string
+{
+    // Host is a lookup key only: never interpolate it, trim malformed input, or trust forwarded hosts.
+    $host=$server['HTTP_HOST'] ?? null;
+    if (!is_string($host)) return null;
+    return authEmailOrigins()[strtolower($host)] ?? null;
+}
+
 function ensureUserArchiveColumn(PDO $pdo): void
 {
     static $checked = false;
@@ -504,6 +522,12 @@ function inspectPasswordResetToken(PDO $pdo, string $token): ?array
 
 function handlePasswordResetRequest(?PDO $pdo, array &$alerts, ?string &$successMessage): void
 {
+    $origin=authEmailOrigin($_SERVER);
+    if ($origin === null) {
+        $successMessage=null;
+        $alerts[]=['type'=>'danger','message'=>'This request cannot be processed from this website. Please use an approved ILDRA website to request a sign-in or password-reset link.'];
+        return;
+    }
     if (!$pdo) {
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return;
@@ -528,10 +552,7 @@ function handlePasswordResetRequest(?PDO $pdo, array &$alerts, ?string &$success
         require_once __DIR__ . '/email.php';
         $token = createPasswordResetToken($pdo, (int)$user['id'], 3600);
 
-        $basePath = rtrim(auth_base_path(), '/');
-        $scheme = auth_cookie_secure() ? 'https' : 'http';
-        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
-        $url = $scheme . '://' . $host . ($basePath !== '' ? $basePath : '') . '/account?reset=' . rawurlencode($token);
+        $url = $origin . '/account?reset=' . rawurlencode($token);
         $siteSettings = getSiteSettings($pdo);
         $emailSettings = getEmailSettings($pdo);
         $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));
@@ -1214,6 +1235,12 @@ function handleLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$s
 
 function handleMagicLinkRequest(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$successMessage): void
 {
+    $origin=authEmailOrigin($_SERVER);
+    if ($origin === null) {
+        $successMessage=null;
+        $alerts[]=['type'=>'danger','message'=>'This request cannot be processed from this website. Please use an approved ILDRA website to request a sign-in or password-reset link.'];
+        return;
+    }
     if (!$pdo) {
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return;
@@ -1240,17 +1267,7 @@ function handleMagicLinkRequest(?PDO $pdo, array $siteSettings, array &$alerts, 
         require_once __DIR__ . '/email.php';
         $token = createMagicLoginToken($pdo, (int)$user['id'], 15 * 60);
 
-        $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
-        if ($basePath === '/') {
-            $basePath = '';
-        }
-        if (substr($basePath, -6) === '/admin') {
-            $basePath = rtrim(substr($basePath, 0, -6), '/');
-        }
-        $scheme = auth_cookie_secure() ? 'https' : 'http';
-        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
-        $url = $scheme . '://' . $host . ($basePath ?: '') . '/account?magic=' . rawurlencode($token);
-        $url = preg_replace('/^(https?)\s+:\/\//i', '$1://', $url) ?: $url;
+        $url = $origin . '/account?magic=' . rawurlencode($token);
         $siteSettings = getSiteSettings($pdo);
         $emailSettings = getEmailSettings($pdo);
         $brandName = trim((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title']));

@@ -5,6 +5,7 @@ Read this index and [WORKFLOW.md](WORKFLOW.md) at the start of each session, as 
 - [WORKFLOW.md](WORKFLOW.md): server, workspace, permissions and development setup standards.
 - [DEPLOYMENT.md](DEPLOYMENT.md): required deployment and migration checks; read before deploying.
 - [MASTER_RIDE_PRICING.md](MASTER_RIDE_PRICING.md): master ride classes, scheme selections, event price snapshots and migration.
+- Authentication email links: see the [approved origins and launch behaviour](DEPLOYMENT.md#approved-password-reset-and-magic-login-email-origins); the shared allowlist is in `auth.php`.
 - Authentication throttling: see the [deployment instructions](DEPLOYMENT.md#persistent-authentication-and-email-request-throttling-12-november-2026); thresholds are in `auth_throttle.php`.
 - [DEPENDENCY_REVIEW.md](DEPENDENCY_REVIEW.md): external services, dependencies and review checklist; read before changing integrations or dependencies.
 - [SOURCE_DATA.md](SOURCE_DATA.md): where to upload source data and how to prepare future imports.

@@ -14,7 +14,10 @@ class ThrottleTestPDO extends PDO {
         if ($this->failStorage && preg_match('/\bauth_throttle\b/',$sql)) throw new PDOException('Synthetic storage failure');
         return preg_replace('/\bauth_throttle\b/',$this->fixtureTable,$sql);
     }
-    public function exec(string $statement): int|false { return parent::exec($this->fixtureSql($statement)); }
+    public function exec(string $statement): int|false {
+        $statement=preg_replace('/CREATE TABLE IF NOT EXISTS (auth_(?:remember_tokens|magic_tokens|password_resets))\b/i','CREATE TEMPORARY TABLE IF NOT EXISTS $1',$statement);
+        return parent::exec($this->fixtureSql($statement));
+    }
     public function prepare(string $query,array $options=[]): PDOStatement|false { return parent::prepare($this->fixtureSql($query),$options); }
     public function query(string $query,?int $fetchMode=null,mixed ...$args): PDOStatement|false { return $fetchMode===null ? parent::query($this->fixtureSql($query)) : parent::query($this->fixtureSql($query),$fetchMode,...$args); }
 }
@@ -78,6 +81,7 @@ try {
         $connection->prepare('INSERT INTO users(id,email,password_hash,role_id,first_name,last_name,auth_app_secret) VALUES(1,?,?,1,?,?,?)')->execute(['known@example.invalid',$hash,'Test','User',$secret]);
     }
     $settings=['auth_app_login_enabled'=>1,'remember_me_ttl_seconds'=>0];
+    $_SERVER['HTTP_HOST']='dev-ildra.witecanvas.com';
     $pdo->exec('DELETE FROM auth_throttle');
     $_SERVER['REMOTE_ADDR']='192.0.2.20';$_SERVER['HTTP_X_FORWARDED_FOR']='192.0.2.99';
     throttleCheck(authThrottleIp()==='192.0.2.20','Untrusted forwarding header accepted');
@@ -147,7 +151,26 @@ try {
         $result=json_decode($output,true,512,JSON_THROW_ON_ERROR);$allowed+=(int)$result['allowed'];
     }
     throttleCheck($allowed===5,'Concurrent fifth-attempt boundary bypassed: '.$allowed.' verifications');
-    echo "Authentication throttling passed: five-failure/fifth-success boundaries, fixed cooldown/expiry, email+IP limits, independent connections/sessions, password/TOTP handlers, separate email budgets, generic responses, fail-closed storage and ten parallel workers. No emails sent.\n";
+    // Original token functions run against temporary token/user tables; no transport is loaded.
+    ensureAuthTables($pdo);ensurePasswordResetTable($pdo);
+    foreach(['auth_remember_tokens','auth_magic_tokens','auth_password_resets'] as $temporaryTokenTable) {
+        $definition=$pdo->query('SHOW CREATE TABLE '.$temporaryTokenTable)->fetch(PDO::FETCH_NUM)[1];
+        throttleCheck(str_contains(strtoupper($definition),'CREATE TEMPORARY TABLE'),'Token fixture is not temporary; refusing token tests');
+    }
+    $before=auth_now_ts();$reset=createPasswordResetToken($pdo,1,3600);
+    $resetExpiry=$pdo->query('SELECT expires_at FROM auth_password_resets')->fetchColumn();
+    throttleCheck(abs(strtotime($resetExpiry)-$before-3600)<=2,'Reset token lifetime changed');
+    throttleCheck(consumePasswordResetToken($pdo,$reset)===1 && consumePasswordResetToken($pdo,$reset)===null,'Reset token single-use protection changed');
+    $reset=createPasswordResetToken($pdo,1,3600);$pdo->exec("UPDATE auth_password_resets SET expires_at='2000-01-01 00:00:00'");
+    throttleCheck(consumePasswordResetToken($pdo,$reset)===null,'Expired reset token accepted');
+    $before=auth_now_ts();$magic=createMagicLoginToken($pdo,1,900);
+    $magicExpiry=$pdo->query('SELECT expires_at FROM auth_magic_tokens')->fetchColumn();
+    throttleCheck(abs(strtotime($magicExpiry)-$before-900)<=2,'Magic token lifetime changed');
+    $tokenAlerts=[];throttleCheck(consumeMagicLoginToken($pdo,$magic,$tokenAlerts)['id']===1,'Valid magic token refused');
+    throttleCheck(consumeMagicLoginToken($pdo,$magic,$tokenAlerts)===null,'Magic token reuse accepted');
+    $magic=createMagicLoginToken($pdo,1,900);$pdo->exec("UPDATE auth_magic_tokens SET expires_at='2000-01-01 00:00:00'");
+    throttleCheck(consumeMagicLoginToken($pdo,$magic,$tokenAlerts)===null,'Expired magic token accepted');
+    echo "Authentication throttling passed: five-failure/fifth-success boundaries, fixed cooldown/expiry, email+IP limits, independent connections/sessions, password/TOTP handlers, separate email budgets, generic responses, fail-closed storage ten parallel workers, and token expiry/single-use. No emails sent.\n";
 } finally {
     $pdo->failStorage=false;
     if($pdo->inTransaction())$pdo->rollBack();
