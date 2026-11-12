@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/auth_throttle.php';
 require_once __DIR__ . '/auth_sessions.php';
+require_once __DIR__ . '/auth_app_security.php';
 
 /** Exact approved authorities and fixed email-link origins. Remove staging here when retired. */
 function authEmailOrigins(): array
@@ -869,74 +870,6 @@ function currentUserAuthAppStatus(?PDO $pdo, int $userId): array
         ];
     } catch (PDOException $e) {
         return ['enabled' => false, 'confirmed_at' => null];
-    }
-}
-
-function beginAuthAppSetup(array $currentUser, array $siteSettings): array
-{
-    $secret = auth_app_generate_secret();
-    $_SESSION['pending_auth_app_secret'] = $secret;
-    return pendingAuthAppSetup($currentUser, $siteSettings) ?: [];
-}
-
-function pendingAuthAppSetup(array $currentUser, array $siteSettings): ?array
-{
-    $secret = (string)($_SESSION['pending_auth_app_secret'] ?? '');
-    if ($secret === '') {
-        return null;
-    }
-    $uri = auth_app_otpauth_uri($currentUser, $secret, $siteSettings);
-    return [
-        'secret' => $secret,
-        'formatted_secret' => auth_app_format_secret($secret),
-        'otpauth_uri' => $uri,
-        'qr_data_uri' => auth_app_qr_data_uri($uri),
-    ];
-}
-
-function confirmAuthAppSetup(?PDO $pdo, int $userId, array &$alerts): bool
-{
-    if (!$pdo || $userId <= 0) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
-        return false;
-    }
-    $secret = (string)($_SESSION['pending_auth_app_secret'] ?? '');
-    $code = (string)($_POST['code'] ?? '');
-    if ($secret === '') {
-        $alerts[] = ['type' => 'danger', 'message' => 'Start authenticator setup again.'];
-        return false;
-    }
-    if (!auth_app_verify_code($secret, $code)) {
-        $alerts[] = ['type' => 'danger', 'message' => 'That authenticator code is not valid.'];
-        return false;
-    }
-    try {
-        ensureAuthAppColumns($pdo);
-        $stmt = $pdo->prepare("UPDATE users SET auth_app_secret = :secret, auth_app_enabled = 1, auth_app_confirmed_at = NOW(), updated_at = NOW() WHERE id = :id LIMIT 1");
-        $stmt->execute([':secret' => $secret, ':id' => $userId]);
-        unset($_SESSION['pending_auth_app_secret']);
-        return true;
-    } catch (PDOException $e) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Could not enable authenticator app login.'];
-        return false;
-    }
-}
-
-function disableAuthApp(?PDO $pdo, int $userId, array &$alerts): bool
-{
-    if (!$pdo || $userId <= 0) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
-        return false;
-    }
-    try {
-        ensureAuthAppColumns($pdo);
-        $stmt = $pdo->prepare("UPDATE users SET auth_app_secret = NULL, auth_app_enabled = 0, auth_app_confirmed_at = NULL, updated_at = NOW() WHERE id = :id LIMIT 1");
-        $stmt->execute([':id' => $userId]);
-        unset($_SESSION['pending_auth_app_secret']);
-        return true;
-    } catch (PDOException $e) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Could not disable authenticator app login.'];
-        return false;
     }
 }
 

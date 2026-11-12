@@ -5,7 +5,7 @@ declare(strict_types=1);
 function authBindCredentialSession(int $userId, string $passwordHash): void
 {
     $_SESSION['auth_credential']=['user_id'=>$userId,'stamp'=>hash('sha256','password-v1:'.$passwordHash)];
-    unset($_SESSION['act_as_original_user'],$_SESSION['act_as_started_at'],$_SESSION['pending_auth_app_secret']);
+    unset($_SESSION['act_as_original_user'],$_SESSION['act_as_started_at'],$_SESSION['pending_auth_app_secret'],$_SESSION['auth_app_setup_verification']);
 }
 
 function authInvalidateSession(): void

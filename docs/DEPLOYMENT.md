@@ -333,3 +333,23 @@ php scripts/test_auth_email_origins.php
 ```
 
 The revocation test checks that its account/token tables are connection-local temporary tables before running. It covers current/other/unrelated browsers, self-service change, recovery, admin reset, old remembered/magic/reset links, missing bindings, impersonation, storage failure, transaction rollback, stale remembered-token issuance and fresh magic/remember login. Also verify with a disposable account in two signed-in browsers after deployment: change/recover the password in one; a refresh/protected action in the other must require a fresh login, and its old remembered cookie must not restore access.
+
+## Fresh authentication for authenticator changes (security priority 2)
+
+After the normal destination backup, deploy the committed development source using `git pull --ff-only`. No database migration is required. Deploy `auth_app_security.php` with `auth.php`, `auth_sessions.php` and `account.php`; the new helper is mode 664 and must be readable by PHP. Account → My Account → Authenticator app now asks for the current password, or a code from an existing enabled authenticator, before starting setup/replacement or disabling authenticator access. A session alone, an unconfirmed new code alone, a previous setup, and impersonation do not authorize these changes. If neither current credential is available, recover the account through Forgot Password, then use the newly set password for fresh verification.
+
+Successful setup verification rotates the session ID and grants only a pending setup approval, bound to the user, current session ID, password credential and existing authenticator state. Its lifetime is centrally defined by `authAppSecurityPolicy()` (initially ten minutes). Setup still requires a code from the new authenticator before enabling. Replacement keeps the old authenticator enabled until successful confirmation, and an intervening password/authenticator change invalidates the old approval. Expired/missing/mismatched approvals clear pending setup and require fresh verification again. Successful confirmation consumes the approval. Disable requires newly supplied proof on each action, rather than reusing a general recent-login grant.
+
+Fresh proof and new-code guesses use the existing persistent email/IP login throttle (five failures followed by a temporary cooldown). Identity, credential state and changes are checked under database row locks in the limiter transaction; storage/mutation failures fail closed and roll back. Password change/recovery and fresh sign-ins clear pending authenticator approvals. The existing shared CSRF boundary remains in force. This change does not yet implement the separate authenticator time-step replay finding (priority 5).
+
+Regression checks:
+
+```bash
+php scripts/test_auth_app_security.php
+node scripts/tests/auth_app_security.cjs
+php scripts/test_session_revocation.php
+php scripts/test_auth_throttle.php
+php scripts/test_auth_email_origins.php
+```
+
+The PHP authenticator test explicitly checks its tables are temporary and tests missing/wrong proofs, password/current-code paths, confirmation of the new secret, ten-minute/session/account/state binding, protected replacement/removal, failure rollback, throttling, password-change invalidation and impersonation rejection. The browser fixture renders the actual account controls and verifies proof fields, setup/replace/remove action parameters, confirmation guidance and CSRF preservation. No real account or authenticator is modified and no emails are sent. After deployment use only a disposable account to verify initial setup, replacement with the old app staying active until confirmation, removal, and expiry/restart of pending setup. A setup already pending before this release must restart with fresh verification.

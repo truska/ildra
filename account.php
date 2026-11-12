@@ -290,7 +290,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 exit;
             }
         } elseif ($action === 'auth_app_begin_setup') {
-            $authAppSetup = beginAuthAppSetup($currentUser ?: [], $siteSettings);
+            $authAppSetup = beginAuthAppSetup($pdo, $currentUser ?: [], $siteSettings, $alerts);
             $accountView = 'my-account';
         } elseif ($action === 'auth_app_confirm_setup') {
             $accountView = 'my-account';
@@ -1099,19 +1099,17 @@ $accountIntroAutoOpen = false;
                                     <?php if (empty($siteSettings['auth_app_login_enabled']) || (string)$siteSettings['auth_app_login_enabled'] === '0'): ?>
                                         <div class="alert alert-warning mb-3">Authenticator app login is currently disabled at site level. Users can set it up, but it will not appear as a login option until the site setting is enabled.</div>
                                     <?php endif; ?>
-                                    <?php if (!empty($authAppStatus['enabled'])): ?>
-                                        <p class="text-muted small mb-3">Confirmed <?php echo h(format_display_date($authAppStatus['confirmed_at'] ?? null, 'recently')); ?>.</p>
-                                        <form method="POST" onsubmit="return confirm('Disable authenticator app login for this account?');">
-                                            <input type="hidden" name="action" value="auth_app_disable">
-                                            <button class="btn btn-outline-danger">Disable Authenticator App</button>
+                                    <?php if (!empty($authAppStatus['enabled'])): ?><p class="text-muted small mb-3">Confirmed <?php echo h(format_display_date($authAppStatus['confirmed_at'] ?? null, 'recently')); ?>.</p><?php endif; ?>
+                                    <?php if (!$authAppSetup): ?>
+                                        <form method="POST" class="row g-3">
+                                            <div class="col-12"><p class="text-muted small mb-0">For your security, enter your current password<?php echo !empty($authAppStatus['enabled']) ? ' or a code from your existing authenticator app' : ''; ?> before changing authenticator access. If you cannot provide this, log out and use Forgot Password to recover your account.</p></div>
+                                            <div class="col-md-6"><label class="form-label" for="auth-security-password">Current password</label><input type="password" name="auth_password" id="auth-security-password" class="form-control" autocomplete="current-password"></div>
+                                            <?php if (!empty($authAppStatus['enabled'])): ?><div class="col-md-6"><label class="form-label" for="auth-existing-code">Existing authenticator code (instead of password)</label><input type="text" name="auth_existing_code" id="auth-existing-code" class="form-control" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"></div><?php endif; ?>
+                                            <div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-success" name="action" value="auth_app_begin_setup"><?php echo !empty($authAppStatus['enabled']) ? 'Replace Authenticator App' : 'Verify and Set Up Authenticator App'; ?></button>
+                                            <?php if (!empty($authAppStatus['enabled'])): ?><button class="btn btn-outline-danger" name="action" value="auth_app_disable" onclick="return confirm('Disable authenticator app login for this account?');">Verify and Disable Authenticator App</button><?php endif; ?></div>
                                         </form>
                                     <?php else: ?>
-                                        <?php if (!$authAppSetup): ?>
-                                            <form method="POST">
-                                                <input type="hidden" name="action" value="auth_app_begin_setup">
-                                                <button class="btn btn-success">Set Up Authenticator App</button>
-                                            </form>
-                                        <?php else: ?>
+                                        <p class="text-muted small">Complete setup within <?php echo (int)(authAppSecurityPolicy()['setup_verification_seconds']/60); ?> minutes of verification.<?php if (!empty($authAppStatus['enabled'])): ?> Your existing authenticator stays active until the replacement is confirmed.<?php endif; ?></p>
                                             <div class="row g-4 align-items-start">
                                                 <div class="col-md-auto">
                                                     <?php if (!empty($authAppSetup['qr_data_uri'])): ?>
@@ -1136,7 +1134,6 @@ $accountIntroAutoOpen = false;
                                                     </form>
                                                 </div>
                                             </div>
-                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
 
