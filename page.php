@@ -37,9 +37,7 @@ if ($pathSlug === '') {
 $page = null;
 if ($pathSlug !== '') {
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM pages WHERE slug = :slug AND is_published = 1 LIMIT 1");
-        $stmt->execute([':slug' => $pathSlug]);
-        $page = $stmt->fetch() ?: null;
+        $page = fetchPageBySlug($pdo, $pathSlug);
     } else {
         foreach (defaultPages() as $candidate) {
             if (strcasecmp((string)($candidate['slug'] ?? ''), $pathSlug) === 0) {
@@ -50,14 +48,12 @@ if ($pathSlug !== '') {
     }
 }
 if ($page && $pathSlug !== '' && strcasecmp((string)($page['slug'] ?? ''), $pathSlug) !== 0 && $pdo) {
-    $stmt = $pdo->prepare("SELECT * FROM pages WHERE slug = :slug LIMIT 1");
-    $stmt->execute([':slug' => $pathSlug]);
-    $page = $stmt->fetch() ?: null;
+    $page = fetchPageBySlug($pdo, $pathSlug);
 }
 
 $siteSettings = getSiteSettings($pdo);
 $pages = fetchPages($pdo, true);
-if (!$pages) {
+if (!$pages && !$pdo) {
     $pages = defaultPages();
 }
 $navTree = buildNavTree($pages);
@@ -99,9 +95,7 @@ if ($overviewGroupFromPath !== null) {
 if (!$page && $pathSlug && $pdo) {
     // Allow admins to preview unpublished if logged in
     if ($canViewAdmin) {
-        $stmt = $pdo->prepare("SELECT * FROM pages WHERE slug = :slug LIMIT 1");
-        $stmt->execute([':slug' => $pathSlug]);
-        $page = $stmt->fetch() ?: null;
+        $page = fetchPageBySlug($pdo, $pathSlug, false);
     }
 }
 

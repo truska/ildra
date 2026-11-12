@@ -188,6 +188,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $payload = [
             'remember_me_ttl_seconds' => $rememberTtlSeconds,
+            'announcement_hide_days' => announcement_hide_days($_POST, 'announcement_'),
+            'super_announcement_hide_days' => announcement_hide_days($_POST, 'super_announcement_'),
             'admin_manual_asset_id' => (string)$manualAssetId,
             'auth_app_login_enabled' => $authAppLoginEnabled,
             'membership_next_year_from' => trim((string)($_POST['membership_next_year_from'] ?? '11-01')),
@@ -406,6 +408,9 @@ admin_layout_start('Settings', 'settings');
             <div class="card-soft p-3">
                 <form method="POST" class="row g-3 align-items-end">
                     <input type="hidden" name="settings_section" value="global">
+                    <?php foreach (['announcement_' => 'Announcement', 'super_announcement_' => 'Super Announcement'] as $noticePrefix => $noticeLabel): ?>
+                    <div class="col-md-6"><label class="form-label" for="<?php echo $noticePrefix; ?>hide_days"><?php echo $noticeLabel; ?> — Allow Hide duration (days)</label><input class="form-control" type="number" min="1" max="365" required id="<?php echo $noticePrefix; ?>hide_days" name="<?php echo $noticePrefix; ?>hide_days" value="<?php echo announcement_hide_days($siteSettings, $noticePrefix); ?>"><div class="form-text">Allow Hide remembers the visitor's choice on this browser and device. Force Show ignores it.</div></div>
+                    <?php endforeach; ?>
                     <div class="col-12">
                         <label class="form-label fw-semibold mb-2">Remember me</label>
                         <div class="d-flex flex-wrap align-items-center gap-2">

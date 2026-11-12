@@ -263,7 +263,7 @@ function event_url(array $event): string
         <div class="event-announcement event-announcement--<?php echo h($eventAnnouncement['kind']); ?>"><a class="container d-block py-2 text-center fw-bold" href="<?php echo h(event_url($eventAnnouncement['event'])); ?>"><?php echo h($eventAnnouncement['text']); ?></a></div>
     <?php endif; ?>
     <?php if ($manualAnnouncementVisible): ?>
-    <section class="announcement-bar" aria-labelledby="home-announcement-title" style="--announcement-bg: <?php echo h(announcement_colour((string)$siteSettings['announcement_bg_colour'], '#0c4522')); ?>; --announcement-text: <?php echo h(announcement_colour((string)$siteSettings['announcement_text_colour'], '#ffffff')); ?>;">
+    <section id="manualAnnouncement" class="announcement-bar" aria-labelledby="home-announcement-title" style="--announcement-bg: <?php echo h(announcement_colour((string)$siteSettings['announcement_bg_colour'], '#0c4522')); ?>; --announcement-text: <?php echo h(announcement_colour((string)$siteSettings['announcement_text_colour'], '#ffffff')); ?>;">
         <div class="container">
             <button class="announcement-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#homeAnnouncement" aria-expanded="false" aria-controls="homeAnnouncement">
                 <span id="home-announcement-title"><?php echo h((string)$siteSettings['announcement_title']); ?></span>
@@ -277,6 +277,7 @@ function event_url(array $event): string
                         <?php if (trim((string)$siteSettings['announcement_subheading']) !== ''): ?><h3 class="h5"><?php echo h((string)$siteSettings['announcement_subheading']); ?></h3><?php endif; ?>
                         <?php echo render_wysiwyg((string)$siteSettings['announcement_body_html']); ?>
                         <div class="d-flex justify-content-end mt-3">
+                            <?php if (!empty($siteSettings['announcement_allow_hide'])): ?><button class="btn announcement-collapse me-2" type="button" id="hideManualAnnouncement">Hide for <?php echo announcement_hide_days($siteSettings, 'announcement_'); ?> days</button><?php endif; ?>
                             <button class="btn announcement-collapse" type="button" data-bs-toggle="collapse" data-bs-target="#homeAnnouncement" aria-expanded="true" aria-controls="homeAnnouncement">Collapse <i class="fa-solid fa-chevron-up ms-1" aria-hidden="true"></i></button>
                         </div>
                     </div>
@@ -284,6 +285,30 @@ function event_url(array $event): string
             </div>
         </div>
     </section>
+    <script>
+    (() => {
+        const notice = document.getElementById('manualAnnouncement');
+        const button = document.getElementById('hideManualAnnouncement');
+        if (!button) return; // Force Show ignores saved device dismissals.
+        const token = <?php echo json_encode(announcement_token($siteSettings)); ?>;
+        const key = 'ildra_manual_announcement_hidden_' + token;
+        const days = <?php echo announcement_hide_days($siteSettings, 'announcement_'); ?>;
+        const isHidden = value => {
+            try {
+                const saved = JSON.parse(value);
+                return saved && saved.token === token && Number.isFinite(saved.expires) && saved.expires > Date.now();
+            } catch (error) { return false; }
+        };
+        try { notice.hidden = !!isHidden(localStorage.getItem(key)); } catch (error) {}
+        button.addEventListener('click', () => {
+            try { localStorage.setItem(key, JSON.stringify({token, expires: Date.now() + days * 86400000})); } catch (error) {}
+            notice.hidden = true;
+        });
+        window.addEventListener('storage', event => {
+            if (event.key === key) notice.hidden = !!isHidden(event.newValue);
+        });
+    })();
+    </script>
     <?php endif; ?>
 
     <main class="py-5">

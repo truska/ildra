@@ -63,3 +63,12 @@ $newId = array_replace($baseNotice, ['id'=>6]);
 check(select_announcement([$baseNotice,$newId], 'manual', at('2026-10-24'))['id'] === 6, 'Newest ID tie-break failed');
 check(select_announcement([$baseNotice,$higherPriority], 'manual', at('2026-10-25 23:59:59'))['id'] === 2, 'Stored end date not inclusive');
 echo "Multiple announcement selection, type isolation and tie-break checks passed.\n";
+
+check(announcement_hide_days([], 'announcement_') === 7, 'Manual default hide duration');
+check(announcement_hide_days([], 'super_announcement_') === 14, 'Super default hide duration');
+check(announcement_hide_days(['announcement_hide_days'=>21], 'announcement_') === 21, 'Custom hide duration');
+check(announcement_hide_days(['announcement_hide_days'=>0], 'announcement_') === 1, 'Hide duration minimum');
+check(announcement_hide_days(['super_announcement_hide_days'=>999], 'super_announcement_') === 365, 'Hide duration maximum');
+check(announcement_token($manual) !== announcement_token(array_replace($manual, ['announcement_revision'=>'reset'])), 'Manual dismissal reset');
+check(select_announcement([array_replace($baseNotice, ['allow_hide'=>1])], 'manual', at('2026-10-24')) !== null, 'Allow Hide must not disable public eligibility');
+echo "Both announcement hide duration and eligibility checks passed.\n";

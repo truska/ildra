@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS announcements (
     legacy_key VARCHAR(10) NULL UNIQUE,
     display_order INT NOT NULL DEFAULT 0,
     enabled TINYINT(1) NOT NULL DEFAULT 0,
+    allow_hide TINYINT(1) NOT NULL DEFAULT 0,
     show_from DATE NULL,
     show_to DATE NULL,
     title VARCHAR(255) NOT NULL DEFAULT '',

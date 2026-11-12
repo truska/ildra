@@ -16,7 +16,7 @@ if ($id) {
     $stmt->execute([$id, $activeTab]);
     $record = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$record) { http_response_code(404); exit('Announcement not found.'); }
-    foreach (['enabled','title','heading','subheading','body_html','asset_id','image_side','bg_colour','text_colour','revision'] as $field) $siteSettings[$prefix . $field] = $record[$field];
+    foreach (['allow_hide','enabled','title','heading','subheading','body_html','asset_id','image_side','bg_colour','text_colour','revision'] as $field) $siteSettings[$prefix . $field] = $record[$field];
     $siteSettings[$prefix . 'from'] = $record['show_from'] ?? '';
     $siteSettings[$prefix . 'to'] = $record['show_to'] ?? '';
 } elseif ($editing) {
@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (($_POST['action'] ?? '') === 'save' && $activeTab !== 'automatic') {
         $editing = true;
         $payload = [
+            $prefix . 'allow_hide' => ($_POST[$prefix . 'allow_hide'] ?? '0') === '1' ? '1' : '0',
             $prefix . 'enabled' => isset($_POST[$prefix . 'enabled']) ? '1' : '0',
             $prefix . 'asset_id' => (string)max(0, (int)($_POST[$prefix . 'asset_id'] ?? 0)),
             $prefix . 'image_side' => ($_POST[$prefix . 'image_side'] ?? '') === 'right' ? 'right' : 'left',
@@ -44,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (['bg_colour' => '#0c4522', 'text_colour' => '#ffffff'] as $field => $fallback) {
             $payload[$prefix . $field] = announcement_colour((string)($_POST[$prefix . $field] ?? ''), $fallback);
         }
-        if ($activeTab === 'super' && isset($_POST['reset_super_dismissals'])) $payload['super_announcement_revision'] = bin2hex(random_bytes(16));
+        if (isset($_POST['reset_dismissals'])) $payload[$prefix . 'revision'] = bin2hex(random_bytes(16));
         $from = announcement_date($payload[$prefix . 'from']);
         $to = announcement_date($payload[$prefix . 'to']);
         if ($payload[$prefix . 'enabled'] === '1' && ($payload[$prefix . 'title'] === '' || !$from || !$to)) {
@@ -100,12 +101,13 @@ admin_layout_start('Announcements', 'announcements');
 
 <?php elseif ($editing): ?>
 <div class="d-flex justify-content-between mb-3"><h3 class="h5"><?php echo $id ? 'Edit' : 'Add'; ?> <?php echo $isSuper ? 'Super' : 'Manual'; ?> announcement</h3><a href="announcements.php?tab=<?php echo $activeTab; ?>" class="btn btn-outline-secondary">Back To List</a></div>
-<?php if ($isSuper): ?><p class="text-muted">Close dismisses this notice for the current tab session. Hide for 30 days remembers this notice on the device. Changing dates or resetting hidden notices shows it again.</p><?php endif; ?>
+<p class="text-muted">Force Show ignores device hiding. Allow Hide offers a device-only hide button for the duration in Settings → Global. Changing dates or resetting hidden notices shows it again.</p>
 <div class="card-soft p-4">
             <form method="POST" class="row g-3">
                 <input type="hidden" name="id" value="<?php echo $id; ?>"><input type="hidden" name="action" value="save"><input type="hidden" name="settings_section" value="<?php echo $activeTab; ?>">
 
                 <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="<?php echo h($formPrefix); ?>enabled" id="<?php echo h($formPrefix); ?>enabled" value="1" <?php echo !empty($siteSettings[$formPrefix . 'enabled']) ? 'checked' : ''; ?>><label class="form-check-label" for="<?php echo h($formPrefix); ?>enabled">Enable <?php echo $isSuper ? 'Super Announcement' : 'manual announcement'; ?></label></div></div>
+                <div class="col-12"><label class="form-label d-block">Display behaviour</label><?php foreach (['0' => 'Force Show', '1' => 'Allow Hide'] as $value => $label): ?><label class="btn btn-outline-success me-2"><input type="radio" name="<?php echo h($prefix); ?>allow_hide" value="<?php echo $value; ?>" <?php echo (string)($siteSettings[$prefix . 'allow_hide'] ?? '0') === (string)$value ? 'checked' : ''; ?>> <?php echo $label; ?></label><?php endforeach; ?></div>
                 <?php foreach (['from' => 'Show from', 'to' => 'Show to'] as $field => $label): ?>
                     <div class="col-md-6"><label class="form-label" for="<?php echo h($formPrefix); ?><?php echo h($field); ?>"><?php echo h($label); ?></label><input type="date" class="form-control" name="<?php echo h($formPrefix); ?><?php echo h($field); ?>" id="<?php echo h($formPrefix); ?><?php echo h($field); ?>" value="<?php echo h((string)$siteSettings[$formPrefix . $field]); ?>"></div>
                 <?php endforeach; ?>
@@ -119,7 +121,7 @@ admin_layout_start('Announcements', 'announcements');
                 <?php foreach (['bg_colour' => 'Background colour', 'text_colour' => 'Text colour'] as $field => $label): ?>
                     <div class="col-md-6"><label class="form-label" for="<?php echo h($formPrefix); ?><?php echo h($field); ?>"><?php echo h($label); ?></label><input type="color" class="form-control form-control-color" name="<?php echo h($formPrefix); ?><?php echo h($field); ?>" id="<?php echo h($formPrefix); ?><?php echo h($field); ?>" value="<?php echo h((string)$siteSettings[$formPrefix . $field]); ?>"></div>
                 <?php endforeach; ?>
-                <?php if ($isSuper): ?><div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="reset_super_dismissals" id="reset_super_dismissals"><label class="form-check-label" for="reset_super_dismissals">Show again to devices that have hidden this notice</label></div></div><?php endif; ?>
+                <div class="col-12"><label class="form-check"><input class="form-check-input" type="checkbox" name="reset_dismissals">Show again to devices that have hidden this notice</label></div>
                 <div class="col-md-6"><label class="form-label" for="display_order">Display order (lowest first)</label><input class="form-control" type="number" id="display_order" name="display_order" value="<?php echo (int)$record['display_order']; ?>"></div>
                 <div class="col-12"><button class="btn btn-success">Save Announcement</button></div>
             </form>
@@ -135,7 +137,7 @@ foreach ($rows as &$row) {
 unset($row);
 $columns = [
     'title' => ['label'=>'Title','filter'=>'text','sortable'=>true],
-    'enabled' => ['label'=>'Show / hide','filter'=>'select','options'=>['1'=>'Show','0'=>'Hide'],'sortable'=>true],
+    'allow_hide' => ['label'=>'Display behaviour','filter'=>'select','options'=>['0'=>'Force Show','1'=>'Allow Hide'],'sortable'=>true],
     'show_from' => ['label'=>'Show from','filter'=>'date','sortable'=>true],
     'show_to' => ['label'=>'Show to','filter'=>'date','sortable'=>true],
     'display_order' => ['label'=>'Order','filter'=>'text','sortable'=>true,'compare'=>'number'],
@@ -155,7 +157,7 @@ $table = admin_table_prepare($rows, $columns, 'display_order');
 <?php foreach ($columns as $key=>$column): ?><th><?php echo admin_table_heading($key,$column,$table['sort_key'],$table['sort_dir']); ?></th><?php endforeach; ?><th>Actions</th></tr>
 <tr class="admin-table-filter-row"><?php foreach ($columns as $key=>$column): ?><th><?php echo admin_table_filter($key,$column,$table['filters']); ?></th><?php endforeach; ?><th></th></tr></thead><tbody>
 <?php foreach ($table['rows'] as $row): ?><tr>
-<td><?php echo h($row['title']); ?></td><td><?php echo $row['enabled'] ? 'Show' : 'Hide'; ?></td><td><?php echo h($row['show_from'] ?? '—'); ?></td><td><?php echo h($row['show_to'] ?? '—'); ?></td><td><?php echo (int)$row['display_order']; ?></td><td><?php echo $row['showing'] ? 'Yes' : 'No'; ?></td><td><a class="btn btn-sm btn-outline-success" href="announcements.php?tab=<?php echo $activeTab; ?>&amp;id=<?php echo (int)$row['id']; ?>">Edit</a></td></tr><?php endforeach; ?>
+<td><?php echo h($row['title']); ?></td><td><?php echo $row['allow_hide'] ? 'Allow Hide' : 'Force Show'; ?></td><td><?php echo h($row['show_from'] ?? '—'); ?></td><td><?php echo h($row['show_to'] ?? '—'); ?></td><td><?php echo (int)$row['display_order']; ?></td><td><?php echo $row['showing'] ? 'Yes' : 'No'; ?></td><td><a class="btn btn-sm btn-outline-success" href="announcements.php?tab=<?php echo $activeTab; ?>&amp;id=<?php echo (int)$row['id']; ?>">Edit</a></td></tr><?php endforeach; ?>
 <?php if (!$table['rows']): ?><tr><td colspan="7" class="text-muted">No announcements match the current filters.</td></tr><?php endif; ?>
 </tbody></table></div><?php echo admin_table_pagination($table); ?></div>
 <?php endif; ?>

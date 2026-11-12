@@ -71,13 +71,23 @@ function super_announcement_visible(array $settings, ?DateTimeImmutable $now = n
     return manual_announcement_visible($normal, $now);
 }
 
-function super_announcement_token(array $settings): string
+function announcement_token(array $settings, string $prefix = 'announcement_'): string
 {
     return hash('sha256', implode('|', [
-        $settings['super_announcement_from'] ?? '',
-        $settings['super_announcement_to'] ?? '',
-        $settings['super_announcement_revision'] ?? '1',
+        $settings[$prefix . 'from'] ?? '',
+        $settings[$prefix . 'to'] ?? '',
+        $settings[$prefix . 'revision'] ?? '1',
     ]));
+}
+
+function super_announcement_token(array $settings): string
+{
+    return announcement_token($settings, 'super_announcement_');
+}
+
+function announcement_hide_days(array $settings, string $prefix): int
+{
+    return max(1, min(365, (int)($settings[$prefix . 'hide_days'] ?? ($prefix === 'announcement_' ? 7 : 14))));
 }
 
 /** Run on the management screen (or deployment CLI), preserving legacy notices. */
@@ -91,6 +101,7 @@ CREATE TABLE IF NOT EXISTS announcements (
     legacy_key VARCHAR(10) NULL UNIQUE,
     display_order INT NOT NULL DEFAULT 0,
     enabled TINYINT(1) NOT NULL DEFAULT 0,
+    allow_hide TINYINT(1) NOT NULL DEFAULT 0,
     show_from DATE NULL,
     show_to DATE NULL,
     title VARCHAR(255) NOT NULL DEFAULT '',
@@ -108,11 +119,17 @@ CREATE TABLE IF NOT EXISTS announcements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL
     );
-    $fields = ['enabled', 'title', 'heading', 'subheading', 'body_html', 'asset_id', 'image_side', 'bg_colour', 'text_colour', 'revision'];
+    $column = $pdo->query("SHOW COLUMNS FROM announcements LIKE 'allow_hide'")->fetch();
+    if (!$column) {
+        $pdo->exec("ALTER TABLE announcements ADD allow_hide TINYINT(1) NOT NULL DEFAULT 0 AFTER enabled");
+        // Preserve the existing Super announcement's visitor dismissal behaviour.
+        $pdo->exec("UPDATE announcements SET allow_hide=1 WHERE announcement_type='super'");
+    }
+    $fields = ['allow_hide', 'enabled', 'title', 'heading', 'subheading', 'body_html', 'asset_id', 'image_side', 'bg_colour', 'text_colour', 'revision'];
     foreach (['manual' => 'announcement_', 'super' => 'super_announcement_'] as $type => $prefix) {
         if (trim((string)($settings[$prefix . 'title'] ?? '')) === '') continue;
         $row = ['announcement_type' => $type, 'legacy_key' => $type];
-        foreach ($fields as $field) $row[$field] = $settings[$prefix . $field] ?? ($field === 'revision' ? '1' : '');
+        foreach ($fields as $field) $row[$field] = $settings[$prefix . $field] ?? ($field === 'revision' ? '1' : ($field === 'allow_hide' ? ($type === 'super' ? '1' : '0') : ''));
         foreach (['from', 'to'] as $field) $row['show_' . $field] = announcement_date((string)($settings[$prefix . $field] ?? '')) ? $settings[$prefix . $field] : null;
         $columns = implode(',', array_keys($row));
         $params = implode(',', array_fill(0, count($row), '?'));
@@ -148,7 +165,7 @@ function announcement_public_settings(?PDO $pdo, array $settings): array
         $row = select_announcement($rows, $type);
         $settings[$prefix . 'enabled'] = $row ? '1' : '0';
         if (!$row) continue;
-        foreach (['title', 'heading', 'subheading', 'body_html', 'asset_id', 'image_side', 'bg_colour', 'text_colour', 'revision'] as $field) $settings[$prefix . $field] = $row[$field];
+        foreach (['allow_hide', 'title', 'heading', 'subheading', 'body_html', 'asset_id', 'image_side', 'bg_colour', 'text_colour', 'revision'] as $field) $settings[$prefix . $field] = $row[$field] ?? ($field === 'allow_hide' ? ($type === 'super' ? '1' : '0') : '');
         $settings[$prefix . 'from'] = $row['show_from'];
         $settings[$prefix . 'to'] = $row['show_to'];
         // Separate records must not share a dismissal token, even with matching dates.

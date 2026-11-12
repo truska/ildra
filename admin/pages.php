@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'delete_page') {
         $pageId = (int)($_POST['page_id'] ?? 0);
         if ($pageId > 0 && deletePage($pdo, $pageId, $alerts)) {
-            $successMessage = 'Page deleted.';
+            $successMessage = 'Page archived.';
         }
     }
     if ($alerts) {
@@ -117,10 +117,10 @@ admin_layout_start('Pages', 'pages');
                             <a class="btn btn-sm btn-outline-success" href="page_edit.php?id=<?php echo (int)$page['id']; ?>">Edit</a>
                             <a class="btn btn-sm btn-outline-primary" href="<?php echo h($siteBase); ?><?php echo (string)$page['slug'] === 'home' ? '/' : '/pages/' . h(page_destination_slug($page)); ?>" target="_blank">View</a>
                             <?php if ($isAdmin && (string)$page['slug'] !== 'home'): ?>
-                                <form method="POST" class="d-inline" data-confirm-message="Delete this page?" data-confirm-style="danger">
+                                <form method="POST" class="d-inline" data-confirm-message="Archive this page? It will be removed from the website and admin screens." data-confirm-button="Archive" data-confirm-style="danger">
                                     <input type="hidden" name="action" value="delete_page">
                                     <input type="hidden" name="page_id" value="<?php echo (int)$page['id']; ?>">
-                                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                    <button class="btn btn-sm btn-outline-danger">Archive</button>
                                 </form>
                             <?php endif; ?>
                         </td>

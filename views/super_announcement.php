@@ -51,14 +51,15 @@ $superImageRight = $superSettings['super_announcement_image_side'] === 'right';
             <?php echo render_wysiwyg((string)$superSettings['super_announcement_body_html']); ?>
         </div>
     </div>
-    <div class="super-actions"><button type="button" class="super-hide super-close" autofocus>Close</button><button type="button" class="super-hide super-hide-30">Hide for 30 days</button></div>
+    <div class="super-actions"><button type="button" class="super-hide super-close" autofocus>Close</button><?php if (!empty($superSettings['super_announcement_allow_hide'])): ?><button type="button" class="super-hide super-hide-device">Hide for <?php echo announcement_hide_days($superSettings, 'super_announcement_'); ?> days</button><?php endif; ?></div>
 </dialog>
 <script>
 (() => {
     const notice = document.getElementById('superAnnouncement');
-    const storageKey = 'ildra_super_announcement_hidden';
+    const allowHide = <?php echo !empty($superSettings['super_announcement_allow_hide']) ? 'true' : 'false'; ?>;
+    const days = <?php echo announcement_hide_days($superSettings, 'super_announcement_'); ?>;
+    const storageKey = 'ildra_super_announcement_hidden_' + notice.dataset.noticeToken;
     const token = notice.dataset.noticeToken;
-    const sessionKey = storageKey + '_session';
     const isHidden = value => {
         try {
             const saved = JSON.parse(value);
@@ -66,25 +67,25 @@ $superImageRight = $superSettings['super_announcement_image_side'] === 'right';
         } catch (error) { return false; }
     };
     let hidden = false;
-    try { hidden = isHidden(localStorage.getItem(storageKey)); } catch (error) {}
-    try { hidden = hidden || sessionStorage.getItem(sessionKey) === token; } catch (error) {}
+    try { hidden = allowHide && isHidden(localStorage.getItem(storageKey)); } catch (error) {}
+
     if (hidden) return;
     const close = () => {
-        try { sessionStorage.setItem(sessionKey, token); } catch (error) {}
+
         notice.close();
     };
     const hide = () => {
         try {
-            localStorage.setItem(storageKey, JSON.stringify({token, expires: Date.now() + 30 * 24 * 60 * 60 * 1000}));
+            localStorage.setItem(storageKey, JSON.stringify({token, expires: Date.now() + days * 24 * 60 * 60 * 1000}));
         } catch (error) {}
         notice.close();
     };
     notice.querySelector('.super-close').addEventListener('click', close);
-    notice.querySelector('.super-hide-30').addEventListener('click', hide);
+    notice.querySelector('.super-hide-device')?.addEventListener('click', hide);
     notice.addEventListener('cancel', event => { event.preventDefault(); close(); });
-    // Other open tabs on this device follow the 30-day hide choice.
+    // Other open tabs on this device follow the hide choice.
     window.addEventListener('storage', event => {
-        if (event.key === storageKey && isHidden(event.newValue) && notice.open) notice.close();
+        if (allowHide && event.key === storageKey && isHidden(event.newValue) && notice.open) notice.close();
     });
     const show = () => { if (typeof notice.showModal === 'function') notice.showModal(); };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show, {once: true});

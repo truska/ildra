@@ -9,6 +9,7 @@ $pagesReturnUrl = (string)($_SESSION['admin_list_returns']['pages'] ?? 'pages.ph
 if (!preg_match('/^pages\.php(?:\?[^#]*)?$/', $pagesReturnUrl)) $pagesReturnUrl = 'pages.php';
 $pagesReturnWithRow = $pagesReturnUrl . ($pageId > 0 ? '#page-' . $pageId : '');
 $page = $pageId ? fetchPageById($pdo, $pageId) : null;
+if ($pageId > 0 && !$page) { http_response_code(404); exit('Page not found.'); }
 $isHomePage = $page && (string)($page['slug'] ?? '') === 'home';
 $destinationPages = array_values(array_filter(fetchPages($pdo, true), static fn(array $candidate): bool =>
     (int)($candidate['id'] ?? 0) !== $pageId && empty($candidate['destination_page_id'])

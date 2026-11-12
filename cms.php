@@ -139,6 +139,9 @@ HTML,
         'auth_app_login_enabled' => '0',
         'company_name' => 'Irish Long Distance Riding Association Ltd.',
         'company_short_name' => 'ILDRA',
+        'announcement_allow_hide' => '0',
+        'announcement_hide_days' => '7',
+        'announcement_revision' => '1',
         'announcement_enabled' => '0',
         'announcement_from' => '',
         'announcement_to' => '',
@@ -150,13 +153,15 @@ HTML,
         'announcement_image_side' => 'left',
         'announcement_bg_colour' => '#0c4522',
         'announcement_text_colour' => '#ffffff',
+        'super_announcement_allow_hide' => '1',
+        'super_announcement_hide_days' => '14',
         'super_announcement_enabled' => '0',
         'super_announcement_from' => '',
         'super_announcement_to' => '',
         'super_announcement_title' => 'Welcome to our New Website and Entry System',
         'super_announcement_heading' => '',
         'super_announcement_subheading' => 'A fresh start for ILDRA online',
-        'super_announcement_body_html' => '<p>Welcome to our new website and entry system. Here you can explore upcoming rides, manage your account and enter events.</p><p>We will add instructions and helpful notes here before launch. Please take a moment to check your account details and familiarise yourself with the new system.</p><p>Choose Close to dismiss this notice for the current tab session, or Hide for 30 days to remember your choice on this browser and device.</p>',
+        'super_announcement_body_html' => '<p>Welcome to our new website and entry system. Here you can explore upcoming rides, manage your account and enter events.</p><p>We will add instructions and helpful notes here before launch. Please take a moment to check your account details and familiarise yourself with the new system.</p><p>Choose Close to dismiss this notice, or use the Hide button when available to remember your choice on this browser and device.</p>',
         'super_announcement_asset_id' => '0',
         'super_announcement_image_side' => 'left',
         'super_announcement_bg_colour' => '#0c4522',
@@ -572,6 +577,14 @@ function ensurePageButtonColumns(PDO $pdo): void
     }
 }
 
+/** Deleted pages stay intact for a future recovery/purge tool. */
+function ensurePageArchiveColumn(PDO $pdo): void
+{
+    if (!table_column_exists($pdo, 'pages', 'is_archived')) {
+        $pdo->exec("ALTER TABLE pages ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0");
+    }
+}
+
 function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
 {
     if (!$pdo) {
@@ -595,21 +608,25 @@ function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
         ");
         ensurePageButtonColumns($pdo);
         ensurePageDestinationColumn($pdo);
+        ensurePageArchiveColumn($pdo);
         $sql = "SELECT pages.*, destination.slug AS destination_slug
                 FROM pages
                 LEFT JOIN pages AS destination
                   ON destination.id = pages.destination_page_id
-                 AND destination.is_published = 1";
+                 AND destination.is_published = 1
+                 AND destination.is_archived = 0
+                WHERE pages.is_archived = 0";
         $params = [];
         if ($publishedOnly) {
-            $sql .= " WHERE pages.is_published = 1";
+            $sql .= " AND pages.is_published = 1";
         }
         $sql .= " ORDER BY pages.nav_group, pages.display_order, pages.title";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $pages = $stmt->fetchAll();
 
-        if (!$pages) {
+        // Seed only a genuinely empty table, never an empty filtered result.
+        if (!$pages && (int)$pdo->query("SELECT COUNT(*) FROM pages")->fetchColumn() === 0) {
             $defaults = defaultPages();
             $insert = $pdo->prepare("
                 INSERT INTO pages (title, slug, nav_group, excerpt, body_html, is_published, display_order, created_at, updated_at)
@@ -644,7 +661,8 @@ function fetchPages(?PDO $pdo, bool $publishedOnly = false): array
 
         return $pages;
     } catch (PDOException $e) {
-        return defaultPages();
+        // Never substitute deleted/default content for database-backed pages.
+        return [];
     }
 }
 
@@ -670,7 +688,8 @@ function fetchPageById(?PDO $pdo, int $id): ?array
         return null;
     }
     try {
-        $stmt = $pdo->prepare("SELECT * FROM pages WHERE id = :id LIMIT 1");
+        ensurePageArchiveColumn($pdo);
+        $stmt = $pdo->prepare("SELECT * FROM pages WHERE id = :id AND is_archived = 0 LIMIT 1");
         $stmt->execute([':id' => $id]);
         return $stmt->fetch() ?: null;
     } catch (PDOException $e) {
@@ -708,7 +727,8 @@ function fetchPageBySlug(?PDO $pdo, string $slug, bool $publishedOnly = true): ?
     }
 
     try {
-        $sql = "SELECT * FROM pages WHERE slug = :slug";
+        ensurePageArchiveColumn($pdo);
+        $sql = "SELECT * FROM pages WHERE slug = :slug AND is_archived = 0";
         $params = [':slug' => $slug];
         if ($publishedOnly) {
             $sql .= " AND is_published = 1";
@@ -730,6 +750,10 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
     }
 
     $pageId = isset($data['page_id']) ? (int)$data['page_id'] : 0;
+    if ($pageId > 0 && !fetchPageById($pdo, $pageId)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Page not found.'];
+        return false;
+    }
     $title = trim((string)($data['title'] ?? ''));
     $slug = strtolower(trim((string)($data['slug'] ?? '')));
     $navGroup = $data['nav_group'] ?? 'home';
@@ -806,6 +830,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
         ");
         ensurePageButtonColumns($pdo);
         ensurePageDestinationColumn($pdo);
+        ensurePageArchiveColumn($pdo);
 
         if ($pageId > 0) {
             $stmt = $pdo->prepare("
@@ -826,7 +851,7 @@ function savePage(?PDO $pdo, array $data, array &$alerts): bool
                     menu_divider_below = :menu_divider_below,
                     display_order = :display_order,
                     updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND is_archived = 0
             ");
             $stmt->execute([
                 ':title' => $title,
@@ -884,11 +909,19 @@ function deletePage(?PDO $pdo, int $id, array &$alerts): bool
     }
 
     try {
-        ensurePageDestinationColumn($pdo);
-        $clearDestinations = $pdo->prepare("UPDATE pages SET destination_page_id = NULL WHERE destination_page_id = :id");
-        $clearDestinations->execute([':id' => $id]);
-        $stmt = $pdo->prepare("DELETE FROM pages WHERE id = :id");
+        ensurePageArchiveColumn($pdo);
+        $page = fetchPageById($pdo, $id);
+        if (!$page || (string)$page['slug'] === 'home') {
+            $alerts[] = ['type' => 'danger', 'message' => $page ? 'The home page cannot be deleted.' : 'Page not found.'];
+            return false;
+        }
+        // Preserve the page, its content and references for later recovery.
+        $stmt = $pdo->prepare("UPDATE pages SET is_archived = 1, updated_at = NOW() WHERE id = :id AND is_archived = 0 AND slug <> 'home'");
         $stmt->execute([':id' => $id]);
+        if ($stmt->rowCount() !== 1) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Page not found.'];
+            return false;
+        }
         return true;
     } catch (PDOException $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not delete page.'];
