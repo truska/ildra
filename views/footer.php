@@ -73,7 +73,7 @@ $footerPolicyPages = array_values(array_filter($footerPages, static function (ar
 }));
 $footerNavTree = isset($navTree) && is_array($navTree) ? $navTree : buildNavTree($footerPages);
 $footerEvents = isset($eventsByDate) && is_array($eventsByDate) ? $eventsByDate : fetchEvents($pdo ?? null, true);
-$footerEvents = array_slice(array_values($footerEvents), 0, 3);
+$footerEvents = array_slice(array_values(array_filter($footerEvents, static fn(array $event): bool => !isThirdPartyEvent($event))), 0, 3);
 $footerIsLoggedIn = isset($isLoggedIn) ? (bool)$isLoggedIn : !empty($currentUser);
 $footerCanViewAdmin = isset($canViewAdmin) ? (bool)$canViewAdmin : false;
 $footerCompanyName = trim((string)($footerSettings['company_name'] ?? ''));
@@ -239,7 +239,7 @@ $footerSocialIcons = [
 
         <div class="site-footer-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-4 pt-3 small">
             <div class="site-footer-copyright">
-                <span><?php echo h((string)($footerSettings['company_short_name'] ?? $footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></span>
+                <span>&copy; <?php echo h((string)($footerSettings['company_short_name'] ?? $footerSettings['hero_title'] ?? 'ILDRA')); ?> &middot; <?php echo date('Y'); ?></span>
                 <?php if ($footerPolicyPages): ?>
                     <span class="site-footer-policy-links">
                         <?php foreach ($footerPolicyPages as $footerPolicyPage): ?>
