@@ -18,6 +18,8 @@ $showRideNotesLink = ($publishedRideNotes['status'] ?? '') === 'published';
 $basket = $_SESSION['basket'] ?? [];
 
 $siteSettings = getSiteSettings($pdo);
+$eventContactEmail = trim((string)($siteSettings['company_webmaster_email'] ?? ''));
+if (!filter_var($eventContactEmail, FILTER_VALIDATE_EMAIL)) $eventContactEmail = '';
 $pages = fetchPages($pdo, true);
 if (!$pages) {
     $pages = defaultPages();
@@ -798,9 +800,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 if (!empty($event['event_type_name'] ?? '')) {
                     $metaParts[] = $event['event_type_name'];
                 }
-                if (!empty($event['organiser'])) {
-                    $metaParts[] = 'Organiser: ' . $event['organiser'];
-                }
                 $classesList = class_names_from_pricing_rows($eventPricingRows);
                 if (!$classesList) {
                     $classesList = class_names_from_classes_offered($event['classes_offered'] ?? '');
@@ -843,8 +842,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                         ?>
                                         <li><strong class="text-dark">Dates:</strong> <?php echo h($eventDateText); ?><?php echo $endDateText !== '' ? ' to ' . h($endDateText) : ''; ?></li>
                                         <li><strong class="text-dark">Venue:</strong> <?php echo h($event['venue'] ?: 'Venue TBC'); ?></li>
-                                        <?php if (!empty($event['organiser'])): ?>
-                                            <li><strong class="text-dark">Organiser:</strong> <?php echo h($event['organiser']); ?></li>
+                                        <?php if ($eventContactEmail !== ''): ?>
+                                            <li><strong class="text-dark">Contact:</strong> <a href="mailto:<?php echo h($eventContactEmail); ?>"><?php echo h($eventContactEmail); ?></a></li>
                                         <?php endif; ?>
                                     </ul>
                                 </div>
