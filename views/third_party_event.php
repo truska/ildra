@@ -27,8 +27,8 @@ if (!$thirdPartyVisible) { http_response_code(404); $event = null; }
 <p class="text-muted small">This event is run by another organisation. Please use their website for entries and enquiries.</p>
 <a class="btn button1" href="<?php echo h($event['external_entry_url']); ?>" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Enter on organiser’s website<span class="visually-hidden"> (opens in a new tab)</span></a>
 </div>
-<div class="col-12 col-lg-4<?php echo $eventImage ? '' : ' d-none d-lg-block'; ?>">
-<?php if ($eventImage): ?><img class="third-party-image" src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" alt="<?php echo h($eventImage['alt_text'] ?: $event['title']); ?>"><?php endif; ?>
+<div class="col-12 col-lg-4">
+<?php if ($eventImage): ?><img class="third-party-image" src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" alt="<?php echo h($eventImage['alt_text'] ?: $event['title']); ?>"><?php else: echo mediaPlaceholderHtml($basePath); endif; ?>
 </div></div>
 <?php else: ?><div class="alert alert-info">We could not find that event.</div><?php endif; ?>
 </div></main><?php include __DIR__ . '/footer.php'; ?>

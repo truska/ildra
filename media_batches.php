@@ -144,3 +144,10 @@ function mediaBatchReplaceImage(?PDO $pdo, array $batch, int $imageId, array $fi
     mediaBatchDeleteFiles($batch, $oldImage);
     return true;
 }
+
+/** Decorative fallback for image slots, using a packaged logo rather than environment uploads. */
+function mediaPlaceholderHtml(string $basePath = '', bool $card = false): string
+{
+    $class = 'media-placeholder' . ($card ? ' media-placeholder--card' : '');
+    return '<div class="' . $class . '" aria-hidden="true"><img src="' . h(rtrim($basePath, '/') . '/assets/ildra-placeholder-logo.png') . '" alt="" width="200" height="200" loading="lazy"></div>';
+}

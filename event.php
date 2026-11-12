@@ -863,16 +863,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <?php if ($isRideEvent && $eventImage && $eventImageBatch && trim((string)($event['description'] ?? '')) !== ''): ?>
+                            <?php if ($isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
                                 <div class="event-description mt-4"><?php echo render_wysiwyg((string)$event['description']); ?></div>
                             <?php endif; ?>
                         </div>
-                        <div class="col-12 col-lg-4 event-summary-image<?php echo ($eventImage && $eventImageBatch) || ($isRideEvent && trim((string)($event['description'] ?? '')) !== '') ? '' : ' d-none d-lg-block'; ?>">
+                        <div class="col-12 col-lg-4 event-summary-image">
                             <?php if ($eventImage && $eventImageBatch): ?>
                                 <button type="button" class="event-gallery-main" data-event-gallery data-lightbox-src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" aria-label="Enlarge event image"><img src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" alt="<?php echo h((string)($eventImage['alt_text'] ?: $eventImage['title'] ?: $event['title'])); ?>"></button>
                                 <?php if (!empty($eventImage['caption'])): ?><div class="event-gallery-caption"><?php echo h((string)$eventImage['caption']); ?></div><?php endif; ?>
-                            <?php elseif ($isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
-                                <div class="event-summary-copy event-description"><?php echo render_wysiwyg((string)$event['description']); ?></div>
+                            <?php else: ?>
+                                <?php echo mediaPlaceholderHtml($basePath); ?>
                             <?php endif; ?>
                         </div>
                     </div>

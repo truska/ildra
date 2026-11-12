@@ -314,6 +314,12 @@ php scripts/test_auth_throttle.php
 
 The first test executes the real request-handler bodies in an isolated offline namespace with token/transport/throttle doubles and no production mail subsystem; it checks all three approved domains in HTML/plain-text links, forced HTTPS, encoded tokens, unknown/deceptive/missing hosts, forwarded-header isolation, privacy and throttled requests. No email can be sent by this fixture. The second uses the existing uniquely named disposable limiter table plus connection-local temporary users/roles/token tables to verify actual token expiry/single-use and all persistent throttle boundaries. No real users, login tokens or messages are changed. After deployment verify both approved destination hostnames resolve to their own fixed origins through the helper; do not send deliberate reset/link requests to real accounts for testing.
 
+## Event and news holding images
+
+Event detail pages (including third-party events), news article lead images and news listing cards now use a shared pale-grey ILDRA logo placeholder when no active image is available. Uploaded images retain their existing rendering/lightbox behaviour. Event descriptions stay in the text column when a placeholder occupies the image column. Text-only news sections remain text-only.
+
+No database migration or upload folders are required. Deploy the packaged `assets/ildra-placeholder-logo.png` with the source; it does not depend on an environment's uploaded logo. The public `assets` directory must allow PHP/web traversal (normally 755/775), and the new image uses mode 664. Verify both photo/no-photo examples on desktop/mobile. The decorative logo is greyscale, low-opacity, uncropped, and omitted from the accessibility tree; list cards keep their 210px image height.
+
 ## Password replacement revokes sessions and remembered logins (security priority 1)
 
 After the usual destination backup, deploy committed development source with `git pull --ff-only`. No database migration or new column is required. Deploy `auth_sessions.php` alongside `auth.php` and `bootstrap.php`; the new served PHP helper uses mode 664 and must be readable by PHP. This implementation binds each authenticated session privately to a SHA-256 fingerprint of the password hash it actually authenticated against. It does not expose password hashes in the public/session user array. Bootstrap validates the binding against the database before authenticated page handlers or automatic cookie restoration; failed database validation fails closed.
