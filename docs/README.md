@@ -5,6 +5,7 @@ Read this index and [WORKFLOW.md](WORKFLOW.md) at the start of each session, as 
 - [WORKFLOW.md](WORKFLOW.md): server, workspace, permissions and development setup standards.
 - [DEPLOYMENT.md](DEPLOYMENT.md): required deployment and migration checks; read before deploying.
 - [MASTER_RIDE_PRICING.md](MASTER_RIDE_PRICING.md): master ride classes, scheme selections, event price snapshots and migration.
+- Operational scripts: see [CLI-only access and HTTP denial](DEPLOYMENT.md#cli-only-operationaltest-scripts-security-priority-3); `scripts/` is not a public endpoint.
 - Authenticator changes: see [fresh authentication and setup verification](DEPLOYMENT.md#fresh-authentication-for-authenticator-changes-security-priority-2); implementation is in `auth_app_security.php`.
 - Password/session revocation: see [security priority 1 and rollout behaviour](DEPLOYMENT.md#password-replacement-revokes-sessions-and-remembered-logins-security-priority-1); implementation is in `auth_sessions.php`.
 - Authentication email links: see the [approved origins and launch behaviour](DEPLOYMENT.md#approved-password-reset-and-magic-login-email-origins); the shared allowlist is in `auth.php`.

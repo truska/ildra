@@ -1,4 +1,6 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+
 require dirname(__DIR__, 2) . '/db.php';
 require dirname(__DIR__, 2) . '/testing_reset.php';
 $c=require dirname(__DIR__, 3) . '/private/config.php';$a=[];$p=createPdo($c,$a);

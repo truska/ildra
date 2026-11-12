@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+
 require dirname(__DIR__, 2) . '/db.php';
 require dirname(__DIR__, 2) . '/cms.php';
 function check(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }

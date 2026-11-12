@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+
 require __DIR__.'/test_finance_monthly.php';
 require dirname(__DIR__).'/helpers.php';
 require dirname(__DIR__).'/finance_fulfilment.php';

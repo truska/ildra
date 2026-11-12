@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+
 require dirname(__DIR__) . '/announcements.php';
 function check(bool $condition, string $message): void {
     if (!$condition) throw new RuntimeException($message);

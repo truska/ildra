@@ -1,0 +1,2 @@
+# All operational scripts and test fixtures are private to CLI/cron.
+Require all denied

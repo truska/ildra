@@ -359,3 +359,21 @@ php scripts/test_auth_email_origins.php
 ```
 
 The PHP authenticator test explicitly checks its tables are temporary and tests missing/wrong proofs, password/current-code paths, confirmation of the new secret, ten-minute/session/account/state binding, protected replacement/removal, failure rollback, throttling, password-change invalidation and impersonation rejection. The browser fixture renders the actual account controls and verifies proof fields, setup/replace/remove action parameters, confirmation guidance and CSRF preservation. No real account or authenticator is modified and no emails are sent. After deployment use only a disposable account to verify initial setup, replacement with the old app staying active until confirmation, removal, and expiry/restart of pending setup. A setup already pending before this release must restart with fresh verification.
+
+## CLI-only operational/test scripts (security priority 3)
+
+A repository reference audit found no public application links, callbacks or browser assets requiring HTTP access to `scripts/`. The documented bounce processor is invoked by PHP from cron, not by a web URL. Keep its CLI/cron access: `php scripts/process_bounces.php` remains supported, as do the existing CLI migration/test commands. The executable shebang/mode of the bounce processor is preserved. Its mailbox/TLS behaviour is unchanged in this priority; certificate validation is separate priority 6 work.
+
+After the normal destination backup, deploy the development commit with `git pull --ff-only`. No database migration is required. Deploy **both** the root `.htaccess` change and the new `scripts/.htaccess` (mode 664): the root rewrite denies `/scripts` before the existing-file pass-through, and the directory authorization denies HTTP access to all descendant files, including static test fixtures. Ensure Apache permits these existing-style `.htaccess` overrides. If a front proxy/static server serves this path without passing through Apache, configure the equivalent deny there as well; verify the public URL rather than assuming Apache controls that path.
+
+Every PHP file in `scripts/`, including nested tests, now checks `PHP_SAPI === 'cli'` before dependencies or work; non-CLI execution returns 404. This is independent of the Apache deny and prevents web execution even if rewrite/directory rules are unavailable. All newly added scripts must keep this early guard. HTTP denial does not prevent filesystem includes or command-line execution.
+
+Regression check:
+
+```bash
+php scripts/test_scripts_access.php
+```
+
+The test audits every PHP guard, runs each guard prefix in CLI without executing operational bodies, and invokes the actual guarded files through PHP-CGI with configuration/extensions disabled to check rejection before output/dependencies. It also starts an isolated loopback Apache instance with the actual `.htaccess` files and **inert canary files**, checking directory, PHP/static, nested, path-info, encoded/case variants and GET/HEAD/POST denials, plus an ordinary public-file control. It does not connect to the mailbox, run migrations, send mail or change database data. It requires local PHP-CGI and Apache binaries/modules; they are already available on development, not runtime application dependencies.
+
+After deployment, GET/HEAD/POST requests to `/scripts/`, `/scripts/process_bounces.php`, a migration script and a static file under `/scripts/tests/` must return 403/404 without script output. Normal public/account/event pages must still load. Confirm the existing cron command still points to the PHP CLI executable and script file; do not invoke mailbox processing merely to verify the HTTP guard.

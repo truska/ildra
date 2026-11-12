@@ -3,6 +3,9 @@ DirectoryIndex site.php index.php
 <IfModule mod_rewrite.c>
 RewriteEngine On
 
+# Operational and test scripts are command-line only, including existing files.
+RewriteRule ^scripts(?:/|$) - [F,L,NC]
+
 # Serve existing files and directories as-is
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

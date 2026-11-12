@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+
 require dirname(__DIR__) . '/stripe.php';
 foreach (['dev-ildra.witecanvas.com', 'ildra.witecanvas.com', 'enduranceridingireland.com'] as $host) {
     foreach ([$host, $host . ':28085'] as $authority) {
