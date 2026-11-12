@@ -43,7 +43,7 @@
             <div class="d-flex justify-content-between align-items-start gap-3">
                 <div>
                     <h4 class="fw-semibold mb-1"><?php echo h($loginEmailValue); ?></h4>
-                    <div class="text-muted small">Use any available sign-in method for this account.</div>
+                    <div class="text-muted small">Choose a sign-in method. Use Email Sign In if you have not set a password.</div>
                 </div>
                 <a class="btn btn-outline-secondary btn-sm auth-link-btn" href="<?php echo h($basePath); ?>/account">Back</a>
             </div>

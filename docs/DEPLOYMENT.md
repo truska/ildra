@@ -254,3 +254,35 @@ Verify a disposable event before closing, exactly at closing, during the gap, at
 ### Five-minute event time controls
 
 Settings → Events and Event Edit time inputs now use hour/minute selectors, with minute choices 00,05,…55. `admin/five_minute_times.js` retains the original named inputs for saving and synchronises generated schedule values and manual reopening overrides. Existing non-five-minute values are preserved as an explicitly labelled existing option until edited, rather than silently rounded. Without JavaScript the native inputs retain a five-minute step. No schema change is needed. Verify new script readability (mode 664). Browser fixture check: `node scripts/tests/five_minute_times.cjs` covers posted values, blank optional fields, historic values and reopening calculation/override integration. A saved reopening override applies during the closed gap, subject to the existing enabled/capacity/date-window checks.
+
+## Persistent authentication and email-request throttling (12 November 2026)
+
+Deploy the development commit after the destination database backup using `git pull --ff-only`; do not amend reusable source on staging/live. Run from that environment's web root:
+
+```bash
+php scripts/migrate_auth_throttle.php
+```
+
+Equivalent additive SQL: `migrations/2026-11-12-auth-throttle.sql`. It creates only the InnoDB `auth_throttle` table, with an expiry index and a composite scope/subject key. No existing user, password, authenticator secret or login token is changed. The login/request handlers also perform idempotent table setup before transactions, but running the CLI first confirms permissions and makes deployment predictable. New served PHP source `auth_throttle.php` and the CLI script use mode 664 and must be readable in their intended contexts. The unused `scripts/backfill_non_member_entry_open.php` has been removed after a repository reference search; deployment must remove the tracked file, not leave an obsolete copy in the web root.
+
+Limits are defined centrally in `authThrottlePolicy()` in `auth_throttle.php`, ready for a future Settings adapter:
+
+| Operation | Email/identity budget | IP budget | Recovery |
+| --- | --- | --- | --- |
+| Password and authenticator-code login, combined | 5 failures in 15 minutes | 5 failures in 15 minutes | 15-minute cooldown after the fifth failure |
+| Password-reset email requests | 1 request per minute | 5 requests in 15 minutes | 1-minute recipient cooldown; 15-minute IP cooldown |
+| Magic-link email requests | 1 request per minute | 5 requests in 15 minutes | Independent from reset requests, with the same durations |
+
+The fifth login attempt is checked normally: a correct credential can succeed, while the fifth failure immediately starts cooldown and displays retry guidance. Blocked attempts cannot verify credentials or extend the cooldown. A successful credential resets the email counter but does not erase that IP's failures against other identities. Successful authentication remains blocked during an active cooldown; normal login resumes automatically at expiry. No permanent account lock or user-status change is introduced. Password and authenticator login share one failure budget, so switching methods, sessions, browsers or IPs cannot bypass the email limit; rotating emails cannot bypass the IP limit. Database row locks cover credential verification and counter updates; email budgets are reserved atomically before account lookup, token creation or sending, including unknown/archived identities. A storage failure rejects the operation with generic temporary-unavailability guidance.
+
+Only normalized email/IP SHA-256 identifiers, counters and Unix timestamps are stored in this table; no passwords, codes or tokens. Expired rows are removed in bounded batches during throttle requests. IP identification uses canonical `REMOTE_ADDR`, never untrusted forwarding headers. If the destination is behind a reverse proxy, verify the web server's trusted-proxy/real-IP configuration supplies the genuine client address in `REMOTE_ADDR`; do not enable arbitrary client-controlled `X-Forwarded-For` processing in PHP. All email-request feedback and public sign-in method choices are independent of account existence/enrolment. Account lookup no longer advertises whether an email is registered. Existing signups, remember-me and one-time-token consumption retain their established policies.
+
+Regression command:
+
+```bash
+php scripts/test_auth_throttle.php
+```
+
+This test creates a uniquely named `auth_throttle_test_<random>` fixture table so independent connections/workers share real persistent state, plus connection-local temporary user/role tables. The fixture table is dropped in `finally`; it sends no emails and changes no real users or tokens. Tests cover failed fifth and successful fifth attempts, fixed cooldown and exact expiry, successful password/TOTP login, mixed login methods, normalized emails, different sessions/connections/IPs, separate reset/magic budgets, anonymous feedback, spoofed forwarding headers, storage failure and ten parallel workers. If the test process is forcibly killed, remove only its identified `auth_throttle_test_*` fixture table after confirming no test is still running; never truncate the production limiter as routine cleanup.
+
+After deployment, verify the sign-in chooser offers the same methods for known/unknown emails, a disposable account signs in correctly using password and authenticator, and repeat anonymous email requests show temporary retry guidance. Do not use a real administrator account to generate deliberate failures. Recovery is automatic after cooldown; an environment rollback may leave the additive table in place. Reference: [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html).

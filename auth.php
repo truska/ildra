@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/auth_throttle.php';
 
 function ensureUserArchiveColumn(PDO $pdo): void
 {
@@ -507,11 +508,13 @@ function handlePasswordResetRequest(?PDO $pdo, array &$alerts, ?string &$success
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return;
     }
-    $email = trim((string)($_POST['email'] ?? ''));
+    $email = authThrottleEmail((string)($_POST['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $alerts[] = ['type' => 'danger', 'message' => 'Please provide a valid email address.'];
         return;
     }
+
+    if (!authThrottleEmailRequest($pdo, 'password_reset', $email, $alerts)) return;
 
     $successMessage = 'If that email is registered, we’ve sent password reset instructions.';
 
@@ -856,14 +859,12 @@ function fetchLoginUserByEmail(?PDO $pdo, string $email): ?array
 
 function loginMethodState(?PDO $pdo, string $email, array $siteSettings): array
 {
-    $user = fetchLoginUserByEmail($pdo, $email);
-    $authAppSiteEnabled = !empty($siteSettings['auth_app_login_enabled']) && (string)$siteSettings['auth_app_login_enabled'] !== '0';
+    // Public choices must not disclose registration, password or authenticator-enrolment state.
     return [
-        'email' => $email,
-        'user_exists' => (bool)$user,
-        'password' => $user && (string)($user['password_hash'] ?? '') !== '',
-        'auth_app' => $authAppSiteEnabled && $user && !empty($user['auth_app_enabled']) && (string)($user['auth_app_secret'] ?? '') !== '',
-        'email_link' => (bool)$user,
+        'email'=>authThrottleEmail($email),
+        'password'=>true,
+        'auth_app'=>!empty($siteSettings['auth_app_login_enabled']),
+        'email_link'=>true,
     ];
 }
 
@@ -911,53 +912,40 @@ function handleLoginLookup(?PDO $pdo, array $siteSettings, array &$alerts): ?arr
     }
     rememberLoginEmail($email);
     $methods = loginMethodState($pdo, $email, $siteSettings);
-    if (!$methods['user_exists']) {
-        $alerts[] = ['type' => 'danger', 'message' => 'No account was found for that email address.'];
-        return null;
-    }
     return $methods;
 }
 
 function handleAuthAppLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$successMessage): ?array
 {
     if (!$pdo) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        $alerts[]=['type'=>'danger','message'=>'Sign-in is temporarily unavailable. Please try again in a few minutes.'];
         return null;
     }
-    if (empty($siteSettings['auth_app_login_enabled']) || (string)$siteSettings['auth_app_login_enabled'] === '0') {
-        $alerts[] = ['type' => 'danger', 'message' => 'Authenticator app login is not enabled for this site.'];
+    if (empty($siteSettings['auth_app_login_enabled'])) {
+        $alerts[]=['type'=>'danger','message'=>'Authenticator app login is not enabled for this site.'];
         return null;
     }
-    $email = currentLoginEmail();
-    $code = (string)($_POST['code'] ?? '');
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Please start again with your email address.'];
+    $email=authThrottleEmail(currentLoginEmail());
+    $code=is_string($_POST['code'] ?? null) ? $_POST['code'] : '';
+    if (!filter_var($email,FILTER_VALIDATE_EMAIL)) {
+        $alerts[]=['type'=>'danger','message'=>'Invalid email or sign-in details.'];
         return null;
     }
     try {
-        ensureAuthAppColumns($pdo);
-        $stmt = $pdo->prepare("
-            SELECT u.id, u.email, u.password_hash, u.auth_app_secret, u.auth_app_enabled, r.name AS role, r.level AS level, u.first_name, u.last_name
-            FROM users u
-            JOIN roles r ON r.id = u.role_id
-            WHERE u.email = :email AND u.is_archived = 0
-            LIMIT 1
-        ");
-        $stmt->execute([':email' => $email]);
-        $user = $stmt->fetch();
-        if (!$user || empty($user['auth_app_enabled']) || (string)($user['auth_app_secret'] ?? '') === '') {
-            $alerts[] = ['type' => 'danger', 'message' => 'Authenticator app login is not available for this account.'];
-            return null;
-        }
-        if (!auth_app_verify_code((string)$user['auth_app_secret'], $code)) {
-            $alerts[] = ['type' => 'danger', 'message' => 'That authenticator code is not valid.'];
-            return null;
-        }
-        return finishUserLogin($pdo, $user, $siteSettings, !empty($_POST['remember_me']), $successMessage);
-    } catch (PDOException $e) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Could not sign you in right now.'];
-        return null;
+        ensureAuthAppColumns($pdo); // DDL must run outside the limiter transaction.
+        $result=authThrottleRun($pdo,'login',$email,authThrottleIp(),static function() use($pdo,$email,$code) {
+            $stmt=$pdo->prepare('SELECT u.id,u.email,u.password_hash,u.auth_app_secret,u.auth_app_enabled,r.name AS role,r.level AS level,u.first_name,u.last_name FROM users u JOIN roles r ON r.id=u.role_id WHERE u.email=:email AND u.is_archived=0 LIMIT 1');
+            $stmt->execute([':email'=>$email]);$user=$stmt->fetch();
+            $available=$user && !empty($user['auth_app_enabled']) && !empty($user['auth_app_secret']);
+            $valid=auth_app_verify_code($available ? (string)$user['auth_app_secret'] : 'JBSWY3DPEHPK3PXP',$code);
+            return $available && $valid ? $user : null;
+        });
+        if ($result['allowed'] && $result['value']) return finishUserLogin($pdo,$result['value'],$siteSettings,!empty($_POST['remember_me']),$successMessage);
+        $alerts[]=['type'=>'danger','message'=>$result['retry_after']>0 ? authThrottleRetryMessage($result['retry_after']) : 'Invalid email or sign-in details.'];
+    } catch (Throwable $e) {
+        $alerts[]=['type'=>'danger','message'=>'Sign-in is temporarily unavailable. Please try again in a few minutes.'];
     }
+    return null;
 }
 
 function currentUserAuthAppStatus(?PDO $pdo, int $userId): array
@@ -1198,33 +1186,29 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
 function handleLogin(?PDO $pdo, array $siteSettings, array &$alerts, ?string &$successMessage): ?array
 {
     if (!$pdo) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
+        $alerts[]=['type'=>'danger','message'=>'Sign-in is temporarily unavailable. Please try again in a few minutes.'];
         return null;
     }
-
-    $email = currentLoginEmail();
-    $password = $_POST['password'] ?? '';
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
-        $alerts[] = ['type' => 'danger', 'message' => 'Invalid credentials.'];
+    $email=authThrottleEmail(currentLoginEmail());
+    $password=is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
+    if (!filter_var($email,FILTER_VALIDATE_EMAIL)) {
+        $alerts[]=['type'=>'danger','message'=>'Invalid email or sign-in details.'];
         return null;
     }
-
-    $stmt = $pdo->prepare("
-        SELECT u.id, u.email, u.password_hash, r.name AS role, r.level AS level, u.first_name, u.last_name
-        FROM users u
-        JOIN roles r ON r.id = u.role_id
-        WHERE u.email = :email AND u.is_archived = 0
-        LIMIT 1
-    ");
-    $stmt->execute([':email' => $email]);
-    $user = $stmt->fetch();
-
-    if ($user && (string)($user['password_hash'] ?? '') !== '' && password_verify($password, $user['password_hash'])) {
-        return finishUserLogin($pdo, $user, $siteSettings, !empty($_POST['remember_me']), $successMessage);
+    try {
+        $result=authThrottleRun($pdo,'login',$email,authThrottleIp(),static function() use($pdo,$email,$password) {
+            $stmt=$pdo->prepare('SELECT u.id,u.email,u.password_hash,r.name AS role,r.level AS level,u.first_name,u.last_name FROM users u JOIN roles r ON r.id=u.role_id WHERE u.email=:email AND u.is_archived=0 LIMIT 1');
+            $stmt->execute([':email'=>$email]);$user=$stmt->fetch();
+            // Verify a fixed dummy hash as well for missing/disabled/passwordless identities.
+            $hash=$user && !empty($user['password_hash']) ? $user['password_hash'] : '$2y$12$O.rqCFEI7d0PEcIFx0T3VOp2G6PApwkcFtgOqPhw9NWCKwtFEGDDi';
+            $valid=password_verify($password,(string)$hash);
+            return $valid && $user && !empty($user['password_hash']) ? $user : null;
+        });
+        if ($result['allowed'] && $result['value']) return finishUserLogin($pdo,$result['value'],$siteSettings,!empty($_POST['remember_me']),$successMessage);
+        $alerts[]=['type'=>'danger','message'=>$result['retry_after']>0 ? authThrottleRetryMessage($result['retry_after']) : 'Invalid email or sign-in details.'];
+    } catch (Throwable $e) {
+        $alerts[]=['type'=>'danger','message'=>'Sign-in is temporarily unavailable. Please try again in a few minutes.'];
     }
-
-    $alerts[] = ['type' => 'danger', 'message' => 'Invalid credentials.'];
     return null;
 }
 
@@ -1234,17 +1218,19 @@ function handleMagicLinkRequest(?PDO $pdo, array $siteSettings, array &$alerts, 
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return;
     }
-    $email = trim((string)($_POST['email'] ?? ''));
+    $email = authThrottleEmail((string)($_POST['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $alerts[] = ['type' => 'danger', 'message' => 'Please provide a valid email address.'];
         return;
     }
 
     // Do not reveal whether an account exists.
+    if (!authThrottleEmailRequest($pdo, 'magic_link', $email, $alerts)) return;
+
     $successMessage = 'If that email is registered, we’ve sent a sign-in link.';
 
     try {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email AND is_archived=0 LIMIT 1");
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch();
         if (!$user) {
