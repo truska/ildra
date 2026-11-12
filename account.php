@@ -2247,6 +2247,8 @@ $accountIntroAutoOpen = false;
                 btn.classList.add('active');
                 const target = btn.getAttribute('data-target');
                 document.getElementById(target)?.classList.remove('d-none');
+                const title = document.getElementById('auth-form-title');
+                if (title) title.textContent = target === 'register' ? 'Create Account' : 'Log In';
             });
         });
 

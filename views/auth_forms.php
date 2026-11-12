@@ -159,7 +159,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
                 <div class="text-uppercase small text-secondary">Access Portal</div>
-                <h4 class="fw-semibold mb-0">Sign in or Create Account</h4>
+                <h4 class="fw-semibold mb-0" id="auth-form-title"><?php echo $activeTab === 'register' ? 'Create Account' : 'Log In'; ?></h4>
             </div>
             <div class="d-flex gap-2">
                 <button class="btn btn-toggle <?php echo $activeTab === 'login' ? 'active' : ''; ?>" data-target="login">Login</button>
@@ -174,7 +174,7 @@
                     <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h($loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
                 </div>
                 <div class="d-grid">
-                    <button class="btn btn-success btn-lg">Verify Email Address</button>
+                    <button class="btn btn-success btn-lg">Continue</button>
                 </div>
             </form>
         </div>
