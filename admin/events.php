@@ -289,10 +289,13 @@ admin_layout_start('Events', 'events');
         --bs-table-color-type: var(--bs-table-striped-color);
     }
     .event-action-row td {
-        padding-top: 0;
+        padding-top: .5rem;
+        padding-bottom: 1rem;
         border-top: 0;
     }
     .event-summary-row td {
+        padding-top: 1rem;
+        padding-bottom: .25rem;
         border-bottom: 0;
     }
     .action-buttons {
