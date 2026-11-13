@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/event_archives.php';
 require_once __DIR__ . '/venue_archives.php';
+require_once __DIR__ . '/entry_hub_access.php';
 require_once __DIR__ . "/purchasing.php";
 require_once __DIR__ . "/ride_pricing.php";
 
@@ -80,6 +81,7 @@ function defaultMemberships(): array
 function defaultSiteSettings(): array
 {
     return [
+        'entry_hub_enabled' => '0',
         'campaign_live_sending_enabled' => '0',
         'campaign_default_batch_size' => '25',
         'campaign_public_base_url' => '',

@@ -120,6 +120,14 @@ function ensureAdminMenuTable(?PDO $pdo): void
             ':display_order' => $item['display_order'],
             ':required_roles' => $item['required_roles'],
         ]);
+        // Set the initial location only when this built-in item is first created.
+        // Later Menu edits (including moving it to the top level) must persist.
+        if ($item['menu_key'] === 'tech_email' && $stmt->rowCount() > 0) {
+            $pdo->exec("UPDATE admin_menu_items child
+                JOIN admin_menu_items tech ON tech.menu_key = 'tech'
+                SET child.parent_id = tech.id
+                WHERE child.menu_key = 'tech_email'");
+        }
         $iconUpdate = $pdo->prepare("UPDATE admin_menu_items SET icon_class=:icon WHERE menu_key=:menu_key AND (icon_class='' OR icon_class='fa-solid fa-circle')");
         $iconUpdate->execute([':icon'=>$item['icon_class'], ':menu_key'=>$item['menu_key']]);
     }
@@ -129,7 +137,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
         UPDATE admin_menu_items child
         JOIN admin_menu_items tech ON tech.menu_key = 'tech'
         SET child.parent_id = tech.id
-        WHERE child.menu_key IN ('tech_email', 'testing_reset', 'image_folders')
+        WHERE child.menu_key IN ('testing_reset', 'image_folders')
     ");
 }
 

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
+requireEntryHubEnabled(getSiteSettings($pdo));
+
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
 $siteBase = $basePath ?: '';

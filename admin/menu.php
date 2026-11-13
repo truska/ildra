@@ -61,9 +61,14 @@ $editItem = $editId > 0 ? ($itemsById[$editId] ?? null) : ($isCreate ? [
     'required_roles' => 'superadmin,admin,manager,organiser',
     'is_system' => 0,
 ] : null);
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && $alerts) {
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && $alerts && ($_POST['action'] ?? 'save') !== 'delete') {
     $editItem = array_merge($editItem ?: [], $_POST);
+    $editItem['is_active'] = !empty($_POST['is_active']) ? 1 : 0;
 }
+if ($editId > 0 && $editItem === null) {
+    $alerts[] = ['type'=>'warning', 'message'=>'Menu item not found.'];
+}
+$isEditor = $editItem !== null;
 
 $topLevelItems = array_values(array_filter($items, static fn(array $item): bool => (int)($item['parent_id'] ?? 0) === 0));
 $childCounts = [];
@@ -116,17 +121,18 @@ admin_layout_start('Menu', 'menu');
         <div class="small text-muted">Manage the admin sidebar hierarchy, labels and order.</div>
         <h5 class="mb-0">Admin menu</h5>
     </div>
-    <a class="btn btn-success" href="<?php echo h($menuUrl('new')); ?>">Add Menu Item</a>
+    <?php if (!$isEditor): ?><a class="btn btn-success" href="<?php echo h($menuUrl('new')); ?>">Add Menu Item</a><?php endif; ?>
 </div>
 
+<?php if (!$isEditor): ?>
 <form method="get" id="<?php echo h($filterForm); ?>">
     <input type="hidden" name="sort" value="<?php echo h($table['sort_key']); ?>">
     <input type="hidden" name="dir" value="<?php echo h($table['sort_dir']); ?>">
     <input type="hidden" name="per_page" value="<?php echo (int)$table['pagination']['per_page']; ?>">
     <?php if ($editParam !== ''): ?><input type="hidden" name="edit" value="<?php echo h($editParam); ?>"><?php endif; ?>
 </form>
-<div class="row g-3">
-    <div class="<?php echo $editItem !== null ? 'col-xl-7' : 'col-12'; ?>">
+<div>
+    <div>
         <div class="card-soft p-3">
             <?php echo admin_table_record_count($table, 'menu item', 'menu items'); ?>
             <div class="table-responsive">
@@ -173,12 +179,19 @@ admin_layout_start('Menu', 'menu');
         </div>
     </div>
 
-    <?php if ($editItem !== null): ?>
-        <?php
-        $editRoles = array_values(array_filter(array_map('trim', explode(',', (string)($editItem['required_roles'] ?? '')))));
-        $editKind = trim((string)($editItem['href'] ?? '')) === '' ? 'section' : 'link';
-        ?>
-        <div class="col-xl-5">
+</div>
+<?php else: ?>
+    <?php include __DIR__ . '/../views/header_styles.php'; ?>
+    <?php echo render_back_navigation($listUrl, 'Back To Menu', 'Menu navigation'); ?>
+    <?php
+        $rawEditRoles = $editItem['required_roles'] ?? '';
+        $editRoles = is_array($rawEditRoles) ? $rawEditRoles : array_values(array_filter(array_map('trim', explode(',', (string)$rawEditRoles))));
+        $editKind = ($_POST['action'] ?? '') === 'save' && isset($_POST['kind'])
+            ? (string)$_POST['kind']
+            : (trim((string)($editItem['href'] ?? '')) === '' ? 'section' : 'link');
+    ?>
+    <?php if ($isEditor): ?>
+        <div>
             <div class="card-soft p-4">
                 <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
                     <div>
@@ -188,6 +201,7 @@ admin_layout_start('Menu', 'menu');
                     <a class="btn-close" aria-label="Close" href="<?php echo h($listUrl); ?>"></a>
                 </div>
                 <form method="post" action="<?php echo h($menuUrl($editParam)); ?>" class="row g-3">
+                    <?php echo csrf_input(); ?>
                     <input type="hidden" name="action" value="save">
                     <input type="hidden" name="id" value="<?php echo (int)($editItem['id'] ?? 0); ?>">
                     <div class="col-12">
@@ -249,6 +263,7 @@ admin_layout_start('Menu', 'menu');
                 <?php if (!empty($editItem['id']) && roleIsDeveloper($roleKey)): ?>
                     <hr>
                     <form method="post" action="<?php echo h($menuUrl($editParam)); ?>" onsubmit="return confirm('Delete this menu item?');">
+                        <?php echo csrf_input(); ?>
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$editItem['id']; ?>">
                         <button class="btn btn-sm btn-outline-danger" type="submit">Delete Menu Item</button>
@@ -257,7 +272,7 @@ admin_layout_start('Menu', 'menu');
             </div>
         </div>
     <?php endif; ?>
-</div>
+<?php endif; ?>
 
 <script>
     (() => {

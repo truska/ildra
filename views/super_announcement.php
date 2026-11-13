@@ -60,6 +60,7 @@ $superImageRight = $superSettings['super_announcement_image_side'] === 'right';
     const days = <?php echo announcement_hide_days($superSettings, 'super_announcement_'); ?>;
     const storageKey = 'ildra_super_announcement_hidden_' + notice.dataset.noticeToken;
     const token = notice.dataset.noticeToken;
+    const sessionKey = 'ildra_super_announcement_closed_' + token;
     const isHidden = value => {
         try {
             const saved = JSON.parse(value);
@@ -67,11 +68,12 @@ $superImageRight = $superSettings['super_announcement_image_side'] === 'right';
         } catch (error) { return false; }
     };
     let hidden = false;
-    try { hidden = allowHide && isHidden(localStorage.getItem(storageKey)); } catch (error) {}
+    try { hidden = sessionStorage.getItem(sessionKey) === '1'; } catch (error) {}
+    try { hidden = hidden || (allowHide && isHidden(localStorage.getItem(storageKey))); } catch (error) {}
 
     if (hidden) return;
     const close = () => {
-
+        try { sessionStorage.setItem(sessionKey, '1'); } catch (error) {}
         notice.close();
     };
     const hide = () => {

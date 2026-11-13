@@ -1,20 +1,20 @@
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('node:assert/strict');
-function run(type, allow, saved, days = type === 'manual' ? 7 : 14) {
+function run(type, allow, saved, days = type === 'manual' ? 7 : 14, session = new Map(), token = 'token') {
     const file = type === 'manual' ? 'site.php' : 'views/super_announcement.php';
     const source = fs.readFileSync(file, 'utf8');
     const marker = type === 'manual' ? "const notice = document.getElementById('manualAnnouncement')" : "const notice = document.getElementById('superAnnouncement')";
     const start = source.lastIndexOf('<script>', source.indexOf(marker));
     let script = source.slice(start + 8, source.indexOf('</script>', start));
-    script = script.replace(/<\?php[\s\S]*?\?>/g, php => php.includes('json_encode') ? '"token"' : php.includes('hide_days') ? String(days) : String(allow));
+    script = script.replace(/<\?php[\s\S]*?\?>/g, php => php.includes('json_encode') ? JSON.stringify(token) : php.includes('hide_days') ? String(days) : String(allow));
     const clicks = {}, events = {}, store = new Map();
     const key = `ildra_${type}_announcement_hidden_token`;
     if (saved) store.set(key, JSON.stringify(saved));
-    const notice = {dataset: {noticeToken:'token'}, hidden:false, open:false, close(){this.open=false;}, showModal(){this.open=true;}, querySelector(selector){return selector === '.super-hide-device' && !allow ? null : {addEventListener(name, fn){clicks[selector]=fn;}};}, addEventListener(name,fn){events[name]=fn;}};
-    const context = {document:{getElementById(id){return id === 'hideManualAnnouncement' ? (allow ? {addEventListener(name,fn){clicks.hide=fn;}} : null) : notice;},readyState:'complete'},localStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,v)},window:{addEventListener:(name,fn)=>events[name]=fn},Date,JSON,Number};
+    const notice = {dataset: {noticeToken:token}, hidden:false, open:false, close(){this.open=false;}, showModal(){this.open=true;}, querySelector(selector){return selector === '.super-hide-device' && !allow ? null : {addEventListener(name, fn){clicks[selector]=fn;}};}, addEventListener(name,fn){events[name]=fn;}};
+    const context = {document:{getElementById(id){if(id === 'closeManualAnnouncement') return {addEventListener(name,fn){clicks.close=fn;}};return id === 'hideManualAnnouncement' ? (allow ? {addEventListener(name,fn){clicks.hide=fn;}} : null) : notice;},readyState:'complete'},sessionStorage:{getItem:k=>session.get(k)??null,setItem:(k,v)=>session.set(k,v)},localStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,v)},window:{addEventListener:(name,fn)=>events[name]=fn},Date,JSON,Number};
     vm.runInNewContext(script,context);
-    return {notice, clicks, store, key, events};
+    return {notice, clicks, store, key, events, session};
 }
 for (const type of ['manual','super']) {
     const hidden = {token:'token', expires:Date.now()+86400000};
@@ -33,9 +33,46 @@ for (const type of ['manual','super']) {
     const r=run(type,true);
     r.events.storage({key:r.key,newValue:JSON.stringify(hidden)});
     assert.ok(!isVisible(r), `${type}: other tabs follow hide`);
+    for (const allow of [true,false]) {
+        const r=run(type,allow);
+        (r.clicks.close || r.clicks['.super-close'])();
+        assert.ok(!isVisible(r), type+': Close dismisses');
+        assert.equal(r.store.size,0, type+': Close does not create a days-based preference');
+        assert.ok(!isVisible(run(type,allow,null,14,r.session)), type+': Close survives navigation/reload');
+        assert.ok(isVisible(run(type,allow,null,14,new Map())), type+': New session shows notice');
+        assert.ok(isVisible(run(type,allow,null,14,r.session,'new-token')), type+': Other notice remains visible');
+        if(type==='manual' && allow) {
+            r.events.storage({key:r.key,newValue:null});
+            assert.ok(!isVisible(r), 'Device preference changes cannot undo session Close');
+        }
+    }
     if (type === 'super') {
         const r=run(type,false);r.clicks['.super-close']();assert.equal(r.notice.open,false);
-        assert.ok(isVisible(run(type,false)), 'Force Show returns on next page');
+        assert.ok(isVisible(run(type,false)), 'New session shows the notice again');
     }
 }
-console.log('Both announcement types: Force Show, Allow Hide, expiry, durations, independent notices and tab synchronisation passed.');
+console.log('Session Close, independent notices and new sessions passed. Both announcement types: Force Show, Allow Hide, expiry, durations, independent notices and tab synchronisation passed.');
+
+// Automatic event notices use the same session-only Close behaviour.
+{
+    const source=fs.readFileSync('site.php','utf8');
+    const marker=source.indexOf("const notice = document.getElementById('eventAnnouncement')");
+    const start=source.lastIndexOf('<script>',marker);
+    const script=source.slice(start+8,source.indexOf('</script>',start));
+    const session=new Map();
+    function render(token, store=session) {
+        let close;
+        const notice={hidden:false,dataset:{noticeToken:token}};
+        vm.runInNewContext(script,{
+            document:{getElementById:id=>id==='eventAnnouncement'?notice:{addEventListener:(name,fn)=>close=fn}},
+            sessionStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>store.set(k,v)}
+        });
+        return {notice,close};
+    }
+    const first=render('opening');first.close();
+    assert.equal(first.notice.hidden,true);
+    assert.equal(render('opening').notice.hidden,true);
+    assert.equal(render('closing').notice.hidden,false);
+    assert.equal(render('opening',new Map()).notice.hidden,false);
+    console.log('Automatic event announcements: Close, navigation, independent notices and new sessions passed.');
+}

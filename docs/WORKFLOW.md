@@ -224,3 +224,52 @@ future work. Verification: `php scripts/tests/venue_archives.php` and
 Client sign-off is pending for the page, announcement, event and venue
 archive/delete flows. Pause further lifecycle changes until that review.
 Venue Current/Hidden tab badges show totals before table filters.
+
+## 15. Entry Hub availability
+
+Admin → Settings → Global → Entry Hub controls the shared-link entry view.
+The entry_hub_enabled setting defaults to 0. Both entry_hub.php (code links)
+and booking_entry.php (legacy numeric redirects) return a generic 404 before
+entry lookup while disabled, for all visitors including administrators.
+Bookings hides View Details and does not generate hub GUIDs while disabled.
+
+Enabling the setting restores the existing link-based access, including
+contact information; it does not add owner authentication to the hub.
+Disabled responses carry no-store/private cache and noindex headers.
+Verification: python3 scripts/tests/entry_hub_access.py exercises both
+endpoint guards with synthetic settings and no database or customer data.
+
+## 16. Announcement Close behaviour
+
+Close dismisses normal, Super and automatic event announcements for the
+current browser tab session using sessionStorage. It survives navigation and
+reloads, including Force Show notices, and is separate from Allow Hide.
+Super announcement Escape uses the same Close behaviour. Normal notices
+retain Collapse as a separate action and now also provide Close; automatic
+event notices also provide Close.
+
+Session dismissal is keyed to the individual announcement token, so a new
+or revised notice can appear. Hide for N days continues to use localStorage,
+the configured duration and existing cross-tab synchronisation. No days-based
+preference is created by Close. A fresh tab session can show the notice again.
+
+Verification: node scripts/tests/announcement_hiding.cjs and
+php scripts/test_announcements.php.
+
+## 17. Menu editor and admin placeholders
+
+Menu uses separate full-width list and create/edit views. Back, Cancel and
+successful saves preserve list filters. Storage Folders remains a technical
+utility with its existing side-by-side layout by agreement.
+
+Live Email Settings starts under Tech when first created, but subsequent
+Parent section changes in Menu persist; setup no longer moves it back.
+Its endpoint's existing Superadmin/Developer access restriction remains.
+
+Admin placeholders match public forms: lighter text, invisible while focused,
+and visible again when the empty field loses focus. Saved values are retained.
+
+The account migration plan in docs/plans records the agreed three-column
+Event-Pal export and proposed guided setup. No importer, activation workflow,
+data import or invitation send has been performed. Membership numbers will
+be newly allocated when people join for 2027.

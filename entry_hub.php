@@ -8,6 +8,7 @@ $basePath = $basePath === '' ? '' : $basePath;
 $siteBase = $basePath ?: '';
 
 $siteSettings = getSiteSettings($pdo);
+requireEntryHubEnabled($siteSettings);
 $pages = fetchPages($pdo, true);
 if (!$pages) {
     $pages = defaultPages();

@@ -358,7 +358,7 @@ if ($pdo) {
                                 <div class="list-group list-group-flush">
                                     <?php foreach ($items as $idx => $item): ?>
                                         <?php
-                                        $hubGuid = ($pdo && !empty($item['id'])) ? ensure_booking_item_guid($pdo, (int)$item['id']) : '';
+                                        $hubGuid = (entryHubEnabled($siteSettings) && $pdo && !empty($item['id'])) ? ensure_booking_item_guid($pdo, (int)$item['id']) : '';
                                         $returnTo = $basePath . '/bookings?page=' . $page . '#' . $detailsId;
                                         $entryLink = $hubGuid !== '' ? ($basePath . '/entry_hub.php?code=' . urlencode((string)$hubGuid) . '&return_to=' . rawurlencode($returnTo)) : '#';
                                         $bookingType = $item['booking_type'] ?? 'ride';

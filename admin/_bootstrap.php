@@ -74,6 +74,18 @@ function admin_layout_start(string $title, string $activeKey): void
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <script src="https://kit.fontawesome.com/3e4371248d.js" crossorigin="anonymous"></script>
 	    <style>
+        /* Match the shared public form placeholder behaviour. */
+        input[placeholder]::placeholder,
+        textarea[placeholder]::placeholder {
+            color: #8a9299;
+            opacity: 1;
+        }
+        input[placeholder]:focus::placeholder,
+        textarea[placeholder]:focus::placeholder {
+            color: transparent;
+            opacity: 0;
+        }
+
         :root {
             --nav-bg: #0f2d17;
             --nav-active: #1f7c24;

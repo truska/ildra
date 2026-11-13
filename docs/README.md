@@ -12,6 +12,7 @@ Read this index and [WORKFLOW.md](WORKFLOW.md) at the start of each session, as 
 - Authentication throttling: see the [deployment instructions](DEPLOYMENT.md#persistent-authentication-and-email-request-throttling-12-november-2026); thresholds are in `auth_throttle.php`.
 - [DEPENDENCY_REVIEW.md](DEPENDENCY_REVIEW.md): external services, dependencies and review checklist; read before changing integrations or dependencies.
 - [SOURCE_DATA.md](SOURCE_DATA.md): where to upload source data and how to prepare future imports.
+- [Account migration and first login plan](plans/ACCOUNT_MIGRATION_AND_FIRST_LOGIN_PLAN.md): proposed exports, sharing, activation and guided setup.
 - [SESSION_CHANGELOG_2026-08-05.md](SESSION_CHANGELOG_2026-08-05.md): historical implementation notes.
 - [plans/](plans/): implementation plans for admin permissions, audit logging, basket holds and late entries, and dynamic event entry forms. Read the matching plan before work in these areas.
 

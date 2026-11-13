@@ -193,6 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'super_announcement_hide_days' => announcement_hide_days($_POST, 'super_announcement_'),
             'admin_manual_asset_id' => (string)$manualAssetId,
             'auth_app_login_enabled' => $authAppLoginEnabled,
+            'entry_hub_enabled' => !empty($_POST['entry_hub_enabled']) ? '1' : '0',
             'membership_next_year_from' => trim((string)($_POST['membership_next_year_from'] ?? '11-01')),
         ];
         if (saveSiteSettings($pdo, $payload, $alerts)) {
@@ -202,6 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $siteSettings['remember_me_ttl_seconds'] = $rememberTtlSeconds;
         $siteSettings['auth_app_login_enabled'] = $authAppLoginEnabled;
+        $siteSettings['entry_hub_enabled'] = $payload['entry_hub_enabled'];
     }
 }
 
@@ -428,6 +430,14 @@ admin_layout_start('Settings', 'settings');
                             <input class="form-check-input" type="checkbox" role="switch" id="authAppLoginEnabled" name="auth_app_login_enabled" value="1" <?php echo $authAppLoginEnabled ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="authAppLoginEnabled">Offer authenticator app codes as a login option when users have set them up.</label>
                         </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold mb-2">Entry Hub</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="entryHubEnabled" name="entry_hub_enabled" value="1" <?php echo entryHubEnabled($siteSettings) ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="entryHubEnabled">Enable Entry Hub links</label>
+                        </div>
+                        <div class="form-text">Disabled by default. When disabled, existing direct Entry Hub URLs are unavailable and View Details links are hidden. When enabled, anyone holding a code-based link can view its entry details, including contact information.</div>
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-semibold" for="membership_next_year_from">Membership rollover date</label>
