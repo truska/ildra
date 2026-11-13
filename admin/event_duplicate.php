@@ -46,7 +46,7 @@ admin_layout_start('Duplicate Event', 'events');
             <div class="small text-muted">Copying from</div>
             <div class="fw-semibold"><?php echo h($sourceEvent['title'] ?? 'Untitled event'); ?></div>
             <div class="text-muted small">
-                <?php echo h(format_display_date($sourceEvent['event_date'] ?? null, 'Date TBC')); ?>
+                <?php echo h(admin_display_date($sourceEvent['event_date'] ?? null, 'Date TBC')); ?>
                 <?php if (!empty($sourceEvent['event_type_name'] ?? '')): ?>
                     · <?php echo h($sourceEvent['event_type_name']); ?>
                 <?php endif; ?>

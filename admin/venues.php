@@ -53,7 +53,7 @@ $tableColumns=[
     'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name','form'=>$filterForm],
     'address'=>['label'=>'Address','sortable'=>true,'filter'=>'text','placeholder'=>'Search address','form'=>$filterForm],
     'postcode'=>['label'=>'Postcode','sortable'=>true,'filter'=>'text','placeholder'=>'Search postcode','form'=>$filterForm,'data_type'=>'postcode_map'],
-    'updated'=>['label'=>'Updated','sortable'=>true,'filter'=>'text','placeholder'=>'Search updated','form'=>$filterForm,'value'=>static fn(array $r):string=>format_display_datetime($r['updated_at']??$r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['updated_at']??$r['created_at']??'')],
+    'updated'=>['label'=>'Updated','sortable'=>true,'filter'=>'text','placeholder'=>'Search updated','form'=>$filterForm,'value'=>static fn(array $r):string=>admin_display_datetime($r['updated_at']??$r['created_at']??null,''),'sort_value'=>static fn(array $r):string=>(string)($r['updated_at']??$r['created_at']??'')],
     'actions'=>['label'=>'Actions'],
 ];
 $table=admin_table_prepare($venues,$tableColumns,'name');$venues=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
@@ -99,7 +99,7 @@ admin_layout_start('Venues', 'venues');
                             <td class="text-muted small"><?php echo h((string)($venue['address'] ?? '—')); ?></td>
                             <td class="text-muted small"><?php echo admin_table_value($venue['postcode'] ?? '', 'postcode_map'); ?></td>
                             <td class="text-muted small">
-                                <?php echo h(format_display_datetime($venue['updated_at'] ?? $venue['created_at'] ?? '', '—')); ?>
+                                <?php echo h(admin_display_datetime($venue['updated_at'] ?? $venue['created_at'] ?? '', '—')); ?>
                             </td>
                             <td class="text-end">
                                 <a class="btn btn-sm btn-outline-secondary" href="venues.php?edit=<?php echo (int)($venue['id'] ?? 0); ?>">Edit</a>

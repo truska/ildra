@@ -514,7 +514,7 @@ function admin_layout_start(string $title, string $activeKey): void
                     }
                     ?>
                     <?php if ($children): ?>
-                        <details class="admin-nav-section" <?php echo $sectionActive ? 'open' : ''; ?>>
+                        <details class="admin-nav-section" name="admin-navigation" <?php echo $sectionActive ? 'open' : ''; ?>>
                             <summary class="nav-link <?php echo $sectionActive ? 'active' : ''; ?>" title="<?php echo h((string)($item['label'] ?? 'Section')); ?>"><i class="<?php echo h((string)($item['icon_class'] ?? 'fa-solid fa-circle')); ?> admin-nav-icon" aria-hidden="true"></i><span class="admin-nav-label"><?php echo h((string)($item['label'] ?? 'Section')); ?></span></summary>
                             <div class="admin-nav-children">
                                 <?php foreach ($children as $child): ?>
@@ -661,6 +661,13 @@ function admin_layout_end(): void
                     if (window.innerWidth >= 992 && body.classList.contains('admin-nav-collapsed')) {
                         event.preventDefault();
                         toggleCollapsed();
+                        return;
+                    }
+                    const section = summary.parentElement;
+                    if (!section.open) {
+                        sidebar.querySelectorAll('.admin-nav-section[open]').forEach(other => {
+                            if (other !== section) other.open = false;
+                        });
                     }
                 });
             });

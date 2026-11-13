@@ -22,6 +22,16 @@ function h($value): string
 }
 
 /**
+ * Shared navigation above a content panel. Load views/header_styles.php.
+ */
+function render_back_navigation(string $url, string $label, string $ariaLabel = 'Page navigation'): string
+{
+    return '<nav class="page-back-navigation" aria-label="' . h($ariaLabel) . '">'
+        . '<a class="btn page-back-link" href="' . h($url) . '">'
+        . '<span aria-hidden="true">&laquo;</span> ' . h($label) . '</a></nav>';
+}
+
+/**
  * Return the per-session token used to protect browser form submissions.
  */
 function csrf_token(): string
@@ -548,10 +558,10 @@ function attendee_booking_details(array $metadata): array
     return $details;
 }
 
-function format_display_date($value, string $fallback = '—'): string
+function format_display_date($value, string $fallback = '—', string $format = 'd M Y'): string
 {
     if ($value instanceof DateTimeInterface) {
-        return $value->format('d M Y');
+        return $value->format($format);
     }
     if ($value === null) {
         return $fallback;
@@ -561,7 +571,7 @@ function format_display_date($value, string $fallback = '—'): string
         if ($ts <= 0) {
             return $fallback;
         }
-        return date('d M Y', $ts);
+        return date($format, $ts);
     }
     $raw = trim((string)$value);
     if ($raw === '') {
@@ -571,13 +581,38 @@ function format_display_date($value, string $fallback = '—'): string
     // UX: date display must be consistent across the app.
     $dt = DateTimeImmutable::createFromFormat('Y-m-d', $raw);
     if ($dt instanceof DateTimeImmutable) {
-        return $dt->format('d M Y');
+        return $dt->format($format);
     }
     $ts = strtotime($raw);
     if ($ts === false) {
         return $fallback;
     }
-    return date('d M Y', $ts);
+    return date($format, $ts);
+}
+
+/** UK numeric dates for admin displays; keep storage and input values in ISO format. */
+function admin_display_date($value, string $fallback = '—'): string
+{
+    return format_display_date($value, $fallback, 'd/m/Y');
+}
+
+function admin_display_datetime($value, string $fallback = '—'): string
+{
+    if ($value === null || (is_string($value) && trim($value) === '')) return $fallback;
+    try {
+        if ($value instanceof DateTimeInterface) {
+            $date = DateTimeImmutable::createFromInterface($value);
+        } elseif (is_int($value) || (is_string($value) && ctype_digit($value))) {
+            if ((int)$value <= 0) return $fallback;
+            $date = new DateTimeImmutable('@' . $value);
+        } else {
+            // Application database datetimes are UK-local unless an offset is supplied.
+            $date = new DateTimeImmutable((string)$value, app_local_timezone());
+        }
+        return $date->setTimezone(app_local_timezone())->format('d/m/Y H:i:s T');
+    } catch (Exception $e) {
+        return $fallback;
+    }
 }
 
 function app_local_timezone(): DateTimeZone
@@ -594,10 +629,10 @@ function app_local_datetime(string $value = 'now'): DateTimeImmutable
     return new DateTimeImmutable($value, app_local_timezone());
 }
 
-function format_display_datetime($value, string $fallback = '—'): string
+function format_display_datetime($value, string $fallback = '—', string $format = 'd M Y H:i:s'): string
 {
     if ($value instanceof DateTimeInterface) {
-        return $value->format('d M Y H:i:s');
+        return $value->format($format);
     }
     if ($value === null) {
         return $fallback;
@@ -607,7 +642,7 @@ function format_display_datetime($value, string $fallback = '—'): string
         if ($ts <= 0) {
             return $fallback;
         }
-        return date('d M Y H:i:s', $ts);
+        return date($format, $ts);
     }
     $raw = trim((string)$value);
     if ($raw === '') {
@@ -616,13 +651,13 @@ function format_display_datetime($value, string $fallback = '—'): string
     // Common DB datetime format.
     $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $raw);
     if ($dt instanceof DateTimeImmutable) {
-        return $dt->format('d M Y H:i:s');
+        return $dt->format($format);
     }
     $ts = strtotime($raw);
     if ($ts === false) {
         return $fallback;
     }
-    return date('d M Y H:i:s', $ts);
+    return date($format, $ts);
 }
 
 function table_column_exists(PDO $pdo, string $table, string $column): bool

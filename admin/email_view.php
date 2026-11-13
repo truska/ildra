@@ -77,9 +77,9 @@ if ($metaJson !== '') {
         </div>
         <div class="col-12 col-lg-6">
             <div class="text-muted small">Sent</div>
-            <div class="fw-semibold"><?php echo h(format_display_datetime($sentAt, '')); ?></div>
+            <div class="fw-semibold"><?php echo h(admin_display_datetime($sentAt, '')); ?></div>
             <?php if (!$sentAt): ?>
-                <div class="small text-muted">Created: <?php echo h(format_display_datetime($createdAt, '')); ?></div>
+                <div class="small text-muted">Created: <?php echo h(admin_display_datetime($createdAt, '')); ?></div>
             <?php endif; ?>
         </div>
 

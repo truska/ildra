@@ -11,7 +11,7 @@ $includeCollectedMonths = !empty($_GET['include_collected']);
 $selectedMonth = (string)($_GET['month'] ?? '');
 $selectedReport = $monthlyReports[$selectedMonth] ?? null;
 $money = static fn(int $pence): string => ($pence < 0 ? '-' : '') . format_price(abs($pence) / 100);
-$txDate = static fn(array $tx, string $key): string => isset($tx[$key]) ? (new DateTimeImmutable('@' . (int)$tx[$key]))->setTimezone(new DateTimeZone('Europe/London'))->format('d M Y H:i:s') : format_display_datetime($tx['created_at'], '');
+$txDate = static fn(array $tx, string $key): string => isset($tx[$key]) ? (new DateTimeImmutable('@' . (int)$tx[$key]))->setTimezone(new DateTimeZone('Europe/London'))->format('d/m/Y H:i:s T') : admin_display_datetime($tx['created_at'], '');
 $monthLabel = static fn(string $month): string => $isEventCollection ? (string)($monthlyReports[$month]['label'] ?? ('Event #' . $month)) : (new DateTimeImmutable($month . '-01', new DateTimeZone('Europe/London')))->format('F Y');
 ?>
 <section class="card-soft p-3 mt-3 finance-section" data-finance-section="<?php echo h($collectionTab); ?>">

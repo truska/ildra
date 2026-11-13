@@ -114,7 +114,7 @@ admin_layout_start('People', 'people');
                 $name = trim((string)($row['first_name'] ?? '') . ' ' . (string)($row['last_name'] ?? ''));
                 $name = $name !== '' ? $name : '—';
                 $memberNumber = $row['member_number'] !== null ? (string)$row['member_number'] : '—';
-                $dob = $row['dob'] ? format_display_date((string)$row['dob'], '—') : '—';
+                $dob = $row['dob'] ? admin_display_date((string)$row['dob'], '—') : '—';
                 $status = !empty($row['is_archived']) ? 'Archived' : 'Active';
                 ?>
                 <tr id="person-<?php echo (int)$row['id']; ?>">

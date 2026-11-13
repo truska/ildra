@@ -83,7 +83,7 @@ $tableColumns = [
     'raised_by' => ['label'=>'Raised by','sortable'=>true,'filter'=>'select','options'=>$raisedByOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['created_by'],'sort_value'=>static fn(array $row):string=>trim(($row['first_name']??'').' '.($row['last_name']??'')) ?: ($row['email']??'Unknown')],
     'updated_by' => ['label'=>'Last edited by','sortable'=>true,'filter'=>'select','options'=>$updatedByOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['updated_by']??0),'sort_value'=>static fn(array $row):string=>trim(($row['updated_first_name']??'').' '.($row['updated_last_name']??'')) ?: ($row['updated_email']??'')],
     'conversation' => ['label'=>'Conversation','sortable'=>true,'filter'=>'text','placeholder'=>'Search conversation','form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['conversation_search']??''),'sort_value'=>static fn(array $row):int=>(int)$row['message_count'],'compare'=>'number'],
-    'updated' => ['label'=>'Updated','sortable'=>true,'filter'=>'text','placeholder'=>'Search updated','form'=>$filterForm,'value'=>static fn(array $row):string=>date('j M Y, H:i',(int)$row['updated_at_ts']),'sort_value'=>static fn(array $row):int=>(int)$row['updated_at_ts'],'compare'=>'number'],
+    'updated' => ['label'=>'Updated','sortable'=>true,'filter'=>'text','placeholder'=>'Search updated','form'=>$filterForm,'value'=>static fn(array $row):string=>admin_display_datetime((int)$row['updated_at_ts']),'sort_value'=>static fn(array $row):int=>(int)$row['updated_at_ts'],'compare'=>'number'],
     'task_status' => ['label'=>'Status','sortable'=>true,'filter'=>'select','options'=>$statusOptions,'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)$row['status']],
 ];
 $table = admin_table_prepare($tasks, $tableColumns, 'next_action');
@@ -135,10 +135,10 @@ admin_layout_start('Dev Tasks', 'dev_tasks');
 <tr class="dev-task-details-row">
     <td class="small text-muted"><?php echo (int)$task['id']; ?></td>
     <td><span class="badge <?php echo (int)$task['priority']<=2?'text-bg-danger':((int)$task['priority']===3?'text-bg-warning':'text-bg-secondary'); ?>"><?php echo (int)$task['priority'] === 6 ? 'N/A-Done' : 'P' . (int)$task['priority']; ?></span></td>
-    <td class="small text-muted"><?php echo h(date('j M Y, H:i', (int)$task['created_at_ts'])); ?></td>
+    <td class="small text-muted"><?php echo h(admin_display_datetime((int)$task['created_at_ts'])); ?></td>
     <td><?php echo h($assigneeName); ?></td><td><?php echo h($name); ?></td><td><?php echo h($updatedBy); ?></td>
     <td><?php echo (int)$task['message_count']; ?> message<?php echo (int)$task['message_count']===1?'':'s'; ?></td>
-    <td><?php echo h(date('j M Y, H:i', (int)$task['updated_at_ts'])); ?></td>
+    <td><?php echo h(admin_display_datetime((int)$task['updated_at_ts'])); ?></td>
     <td><span class="badge <?php echo $task['status']==='open'?'text-bg-success':($task['status']==='completed'?'text-bg-primary':($task['status']==='future'?'text-bg-warning':'text-bg-secondary')); ?>"><?php echo h($statusOptions[$task['status']] ?? ucfirst($task['status'])); ?></span></td>
 </tr></tbody>
 <?php endforeach; ?>

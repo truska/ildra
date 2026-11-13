@@ -219,6 +219,34 @@ foreach ($pageElements as &$pageElement) {
     ob_start(); ?>
     <style>
         .current-events-calendar .calendar-event-details { overflow-wrap: anywhere; }
+        .current-events-calendar .calendar-entry-cta {
+            margin-top: 1.5rem;
+            padding: .65rem 1rem;
+            font-size: 1rem;
+            font-weight: 700;
+            text-align: center;
+            box-shadow: 0 3px 8px rgba(25, 135, 84, .25);
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .current-events-calendar .calendar-entry-card:hover .calendar-entry-cta,
+        .current-events-calendar .calendar-entry-card:focus-visible .calendar-entry-cta {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(25, 135, 84, .4);
+            animation: calendar-cta-shake .35s ease-in-out;
+        }
+        @keyframes calendar-cta-shake {
+            0%, 100% { transform: translateY(-2px) rotate(0); }
+            30% { transform: translateY(-2px) rotate(-2deg); }
+            70% { transform: translateY(-2px) rotate(2deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .current-events-calendar .calendar-entry-cta { transition: none; }
+            .current-events-calendar .calendar-entry-card:hover .calendar-entry-cta,
+            .current-events-calendar .calendar-entry-card:focus-visible .calendar-entry-cta {
+                animation: none;
+                transform: none;
+            }
+        }
         .current-events-calendar .calendar-event-actions .badge,
         .current-events-calendar .calendar-event-actions .btn { white-space: normal; text-align: inherit; }
     </style>
@@ -235,13 +263,13 @@ foreach ($pageElements as &$pageElement) {
             $eventUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title']));
             if (isThirdPartyEvent($event)) {
                 ?>
-                <a class="d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
-                    <div class="row g-3 align-items-start"><div class="col-12 col-lg-9 calendar-event-details">
+                <a class="calendar-entry-card d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
+                    <div class="row g-3 align-items-stretch"><div class="col-12 col-lg-9 calendar-event-details">
                         <div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div>
                         <div class="fs-5 fw-bold"><?php echo h($event['title']); ?></div>
                         <div class="text-muted small"><?php echo h($event['venue']); ?></div>
                         <div class="text-muted small mt-1 fst-italic"><?php echo h(rich_html_plain_text((string)$event['description'])); ?></div>
-                    </div><div class="col-12 col-lg-3 calendar-event-actions d-flex flex-column align-items-start align-items-lg-end gap-2"><span class="badge text-bg-secondary">3rd Party Event</span><span class="btn btn-sm btn-outline-success">View Event &amp; Entry Link</span></div></div>
+                    </div><div class="col-12 col-lg-3 calendar-event-actions d-flex flex-column align-items-start align-items-lg-end text-lg-end gap-2"><span class="badge text-bg-secondary mb-auto">3rd Party Event</span><span class="btn btn-success calendar-entry-cta">View Event &amp; Entry Link</span></div></div>
                 </a>
                 <?php
                 continue;
@@ -265,8 +293,8 @@ foreach ($pageElements as &$pageElement) {
             $entriesClosed = $entryCloseDt && $now > $entryCloseDt;
             $closingSoon = $entryCloseDt && !$entriesClosed && $entryCloseDt <= $now->modify('+4 days');
             ?>
-            <a class="d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
-                <div class="row g-3 align-items-start"><div class="col-12 col-lg-9 calendar-event-details"><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div><?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?><?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?><?php if (trim($calendarNotice) !== ''): ?><div class="small mt-1<?php echo $isRideEvent ? '' : ' text-muted fst-italic'; ?>"><?php echo $isRideEvent ? render_wysiwyg($calendarNotice) : h(rich_html_plain_text($calendarNotice)); ?></div><?php endif; ?></div><div class="col-12 col-lg-3 calendar-event-actions d-flex flex-column align-items-start align-items-lg-end text-lg-end gap-2"><span class="btn btn-sm btn-outline-success">View Ride &amp; Enter</span><div class="d-flex flex-column align-items-start align-items-lg-end gap-2"><?php if ($entryOpenDt): ?><span class="badge <?php echo $now < $entryOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Members <?php echo h($now < $entryOpenDt ? 'open ' . $entryOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($nonMemberOpenDt): ?><span class="badge <?php echo $now < $nonMemberOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Non-members <?php echo h($now < $nonMemberOpenDt ? 'open ' . $nonMemberOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($entriesClosed): ?><span class="badge text-bg-secondary">Entries closed</span><?php elseif ($entryCloseDt): ?><span class="badge text-bg-light border">Closes <?php echo h($entryCloseDt->format('j M H:i')); ?></span><?php endif; ?><?php if ($closingSoon): ?><span class="fw-bold text-danger small">CLOSING SOON</span><?php endif; ?><?php if ($isLimited): ?><span class="badge <?php echo $isFull ? 'text-bg-danger' : 'text-bg-light border'; ?>"><?php echo $isFull ? 'Event full' : $entryCount . '/' . $capacity . ' places'; ?></span><?php endif; ?></div></div></div>
+            <a class="calendar-entry-card d-block border rounded-3 p-3 mb-2 text-decoration-none text-reset shadow-sm" href="<?php echo h($eventUrl); ?>">
+                <div class="row g-3 align-items-stretch"><div class="col-12 col-lg-9 calendar-event-details"><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div><?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?><?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?><?php if (trim($calendarNotice) !== ''): ?><div class="small mt-1<?php echo $isRideEvent ? '' : ' text-muted fst-italic'; ?>"><?php echo $isRideEvent ? render_wysiwyg($calendarNotice) : h(rich_html_plain_text($calendarNotice)); ?></div><?php endif; ?></div><div class="col-12 col-lg-3 calendar-event-actions d-flex flex-column align-items-start align-items-lg-end text-lg-end gap-2"><div class="mb-auto d-flex flex-column align-items-start align-items-lg-end gap-2"><?php if ($entryOpenDt): ?><span class="badge <?php echo $now < $entryOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Members <?php echo h($now < $entryOpenDt ? 'open ' . $entryOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($nonMemberOpenDt): ?><span class="badge <?php echo $now < $nonMemberOpenDt ? 'text-bg-secondary' : 'text-bg-success'; ?>">Non-members <?php echo h($now < $nonMemberOpenDt ? 'open ' . $nonMemberOpenDt->format('j M H:i') : 'open'); ?></span><?php endif; ?><?php if ($entriesClosed): ?><span class="badge text-bg-secondary">Entries closed</span><?php elseif ($entryCloseDt): ?><span class="badge text-bg-light border">Closes <?php echo h($entryCloseDt->format('j M H:i')); ?></span><?php endif; ?><?php if ($closingSoon): ?><span class="fw-bold text-danger small">CLOSING SOON</span><?php endif; ?><?php if ($isLimited): ?><span class="badge <?php echo $isFull ? 'text-bg-danger' : 'text-bg-light border'; ?>"><?php echo $isFull ? 'Event full' : $entryCount . '/' . $capacity . ' places'; ?></span><?php endif; ?></div><span class="btn btn-success calendar-entry-cta">View Ride &amp; Enter</span></div></div>
             </a>
         <?php endforeach; ?><?php else: ?><div class="alert alert-info mb-0">No current events are published.</div><?php endif; ?>
     </div><?php $pageElement['body_html']=(string)($pageElement['body_html']??'').(string)ob_get_clean();

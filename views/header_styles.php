@@ -9,6 +9,18 @@
 <meta name="apple-mobile-web-app-title" content="ILDRA">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
+/* Shared placeholder behaviour for all form fields. */
+input[placeholder]::placeholder,
+textarea[placeholder]::placeholder {
+    color: #8a9299;
+    opacity: 1;
+}
+input[placeholder]:focus::placeholder,
+textarea[placeholder]:focus::placeholder {
+    color: transparent;
+    opacity: 0;
+}
+
 .media-placeholder { display:grid; place-items:center; width:100%; aspect-ratio:4 / 3; overflow:hidden; border-radius:12px; background:#e9ebea; }
 .media-placeholder img { display:block; width:52%; max-width:220px; height:auto; max-height:70%; object-fit:contain; filter:grayscale(1); opacity:.2; mix-blend-mode:multiply; }
 .media-placeholder--card { height:210px; aspect-ratio:auto; border-radius:0; }
@@ -712,4 +724,29 @@ body.show-page-hero .page-hero {
     .site-header-inner #mainNav { grid-column: 1 / -1; }
     .site-header-inner .inside-mobile-purchases { display:flex; align-items:center; gap:.375rem; }
 }
+
+/* Shared back navigation: use render_back_navigation() from helpers.php. */
+.page-back-navigation {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+.page-back-navigation .page-back-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    background: transparent;
+    border: 1px solid #6c757d;
+    color: #6c757d;
+}
+.page-back-navigation .page-back-link:hover,
+.page-back-navigation .page-back-link:focus-visible {
+    background: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+}
+
 </style>

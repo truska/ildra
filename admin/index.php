@@ -80,7 +80,7 @@ if ($pdo && $nextRide) {
 
     $nextRideSummary = [
         'title' => trim((string)($nextRide['title'] ?? 'Next Ride')),
-        'date' => format_display_date($nextRide['event_date'] ?? null, ''),
+        'date' => admin_display_date($nextRide['event_date'] ?? null, ''),
         'entries' => (int)($nextRide['entry_count'] ?? 0),
         'basket' => $basketCount,
         'waitlist' => $waitlistCount,

@@ -94,7 +94,7 @@ $pageTitle = $eventTitle;
 
 $bookingRef = (string)($item['booking_ref'] ?? '');
 $bookingPlaced = $item['booking_created_at'] ?? null;
-$bookingPlacedText = format_display_datetime($bookingPlaced, '—');
+$bookingPlacedText = admin_display_datetime($bookingPlaced, '—');
 $contactName = (string)($item['contact_name'] ?? '');
 $contactEmail = (string)($item['contact_email'] ?? '');
 $contactPhone = (string)($item['contact_phone'] ?? '');

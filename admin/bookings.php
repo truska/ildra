@@ -154,7 +154,7 @@ natcasesort($transactionTypeOptions);
 $filterForm = 'booking-filter-form';
 $tableColumns = [
     'id' => ['label'=>'Ref','sortable'=>true,'filter'=>'text','placeholder'=>'Search ref','form'=>$filterForm,'value'=>static fn(array $r):string=>(string)($r['booking_ref']??$r['id']??'')],
-    'placed' => ['label'=>'Ordered','sortable'=>true,'filter'=>'text','placeholder'=>'Search ordered','form'=>$filterForm,'value'=>static fn(array $r):string=>format_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):int=>!empty($r['created_at'])?(int)strtotime((string)$r['created_at']):0,'compare'=>'number'],
+    'placed' => ['label'=>'Ordered','sortable'=>true,'filter'=>'text','placeholder'=>'Search ordered','form'=>$filterForm,'value'=>static fn(array $r):string=>admin_display_datetime($r['created_at']??null,''),'sort_value'=>static fn(array $r):int=>!empty($r['created_at'])?(int)strtotime((string)$r['created_at']):0,'compare'=>'number'],
     'contact' => ['label'=>'Contact','sortable'=>true,'filter'=>'text','placeholder'=>'Search contact','form'=>$filterForm,'value'=>static fn(array $r):string=>(string)($r['contact_name']??'')],
     'event_name' => ['label'=>'Type','sortable'=>false,'filter'=>'select','form'=>$filterForm,'options'=>$transactionTypeOptions,'value'=>static fn(array $r):string=>booking_event_names($r)],
     'description' => ['label'=>'Description','sortable'=>false,'filter'=>'text','placeholder'=>'Search description','form'=>$filterForm,'value'=>static fn(array $r):string=>booking_description($r)],
@@ -297,7 +297,7 @@ admin_layout_start('Bookings', 'bookings');
                     ?>
                     <tr class="booking-row">
                         <td class="small fw-semibold text-muted text-dark col-ref"><?php echo h($bookingRef); ?></td>
-                        <td class="small"><?php echo h(format_display_datetime($booking['created_at'] ?? null, '')); ?></td>
+                        <td class="small"><?php echo h(admin_display_datetime($booking['created_at'] ?? null, '')); ?></td>
                         <td class="small col-contact">
                             <div><?php echo h((string)($contactParts[0] ?? '')); ?><?php if (!empty($contactParts[1])): ?><br><?php echo h((string)$contactParts[1]); ?><?php endif; ?></div>
                         </td>

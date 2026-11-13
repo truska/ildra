@@ -243,10 +243,11 @@ if ($entryCloseDt && $now >= $entryCloseDt) {
     if ($memberEntryOpenDt && $now >= $memberEntryOpenDt) {
         $entryStateMessage = 'Member entries are open now. Non-member entries open on ' . $nonMemberEntryOpenDt->format('jS M Y \a\t H:i');
     } else {
-        $entryStateMessage = 'Non-member entries open on ' . $nonMemberEntryOpenDt->format('jS M Y \a\t H:i');
+        $entryStateMessage = '';
         if ($memberEntryOpenDt) {
-            $entryStateMessage .= '. Member entries open on ' . $memberEntryOpenDt->format('jS M Y \a\t H:i');
+            $entryStateMessage = 'Member entries open on ' . $memberEntryOpenDt->format('jS M Y \a\t H:i') . '. ';
         }
+        $entryStateMessage .= 'Non-member entries open on ' . $nonMemberEntryOpenDt->format('jS M Y \a\t H:i');
     }
 } else {
     $entryStateMessage = $entryCloseDt ? 'Entries are open until ' . $entryCloseDt->format('jS M Y \a\t H:i') : 'Entries are open';
@@ -608,6 +609,30 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             background: #fff;
         }
 
+        .rider-notes-cta {
+            padding: .65rem 1.1rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            box-shadow: 0 3px 8px rgba(25, 135, 84, .25);
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .rider-notes-cta:hover,
+        .rider-notes-cta:focus-visible {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(25, 135, 84, .4);
+            animation: rider-notes-wobble .35s ease-in-out;
+        }
+        @keyframes rider-notes-wobble {
+            0%, 100% { transform: translateY(-2px) rotate(0); }
+            30% { transform: translateY(-2px) rotate(-2deg); }
+            70% { transform: translateY(-2px) rotate(2deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .rider-notes-cta { transition: none; }
+            .rider-notes-cta:hover,
+            .rider-notes-cta:focus-visible { animation: none; transform: none; }
+        }
+
         .card-strong {
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
         }
@@ -806,6 +831,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 }
                 ?>
 
+                <?php echo render_back_navigation($navItemEventsUrl, 'Back to Events', 'Event navigation'); ?>
                 <div class="card-soft p-4 mb-4">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                         <div class="d-flex align-items-center gap-2">
@@ -813,8 +839,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <?php if ($canEditPublicEvent): ?><a class="event-editor-tool" href="<?php echo h($basePath); ?>/admin/event_edit.php?id=<?php echo (int)$event['id']; ?>" target="_blank" rel="noopener" title="Edit event" aria-label="Edit event"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a><?php endif; ?>
                         </div>
                         <div class="d-flex flex-column align-items-end gap-2">
-                            <a title="ILDRA Events Calendar" class="btn btn-outline-success btn-sm" href="<?php echo h($navItemEventsUrl); ?>">Back to Events</a>
-                            <?php if ($showRideNotesLink): ?><a class="btn btn-outline-success btn-sm" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Rider Notes</a><?php endif; ?>
+                            <?php if ($showRideNotesLink): ?><a class="btn btn-success rider-notes-cta" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Rider Notes</a><?php endif; ?>
                         </div>
                     </div>
                     <div class="row g-4 align-items-start event-summary-row">
@@ -880,6 +905,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
                 <?php if (!$entriesAvailable): ?>
                     <div class="card-soft card-strong p-4 mb-4">
+                        <h2 class="mb-3">Entry Form</h2>
                         <?php
                             $entryCardClass = 'entry-state-open';
                             $entryCardHeading = 'Entries open';
@@ -890,7 +916,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                 $entryCardDetail = 'No further entries can be accepted.';
                             } elseif ($entryOpenDt && $now < $entryOpenDt) {
                                 $entryCardClass = 'entry-state-opening';
-                                $entryCardHeading = ($hasAnyActiveMembership ? 'Member' : 'Non-member') . ' entries open on ' . $entryOpenDt->format('jS M Y');
+                                $entryCardHeading = 'Entries Not Open Yet';
                                 $entryCardDetail = $entryStateMessage;
                             } elseif ($entryCloseDt && $now >= $entryCloseDt) {
                                 $entryCardClass = 'entry-state-closed';
@@ -899,19 +925,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             }
                         ?>
                         <div class="entry-state <?php echo h($entryCardClass); ?> mb-2"><?php echo h($entryCardHeading); ?></div>
-                        <div class="text-muted mb-0"><?php echo h($entryCardDetail); ?></div>
+                        <div class="text-muted mb-0"><?php echo nl2br(h(str_replace(". Non-member", ".\nNon-member", $entryCardDetail))); ?></div>
                     </div>
                 <?php else: ?>
                     <div class="card-soft card-strong p-4 mb-4">
+                        <h2 class="mb-3">Entry Form</h2>
                         <div class="mb-3">
                                 <?php if ($isFull): ?>
                                     <div class="alert alert-danger mt-2 py-2 mb-0">Event full. No further entries can be accepted.</div>
                                     <br/>
                                 <?php elseif ($canViewAdmin && !$entriesOpenNow && !$lateEntriesOpenNow): ?>
-                                    <div class="alert alert-warning mt-2 py-2 mb-0">Admin preview: <?php echo h($entryStateMessage); ?> (visitors cannot enter)</div>
+                                    <div class="alert alert-warning mt-2 py-2 mb-0">Admin preview: <?php echo nl2br(h(str_replace(". Non-member", ".\nNon-member", $entryStateMessage))); ?> (visitors cannot enter)</div>
                                     <br/>
                                 <?php elseif ($canViewAdmin): ?>
-                                    <div class="alert alert-info mt-2 py-2 mb-0">Admin note: <?php echo h($entryStateMessage); ?></div>
+                                    <div class="alert alert-info mt-2 py-2 mb-0">Admin note: <?php echo nl2br(h(str_replace(". Non-member", ".\nNon-member", $entryStateMessage))); ?></div>
                                     <br/>
                             <?php endif; ?>
 

@@ -255,7 +255,7 @@ if ($txSearch !== '' || $txTypeFilter !== '' || array_filter($txFilters,static f
         if ($txTypeFilter !== '' && (string)($tx['type'] ?? '') !== $txTypeFilter) return false;
         $entryIds=implode(' ',array_map(static fn($id):string=>'E-'.(int)$id,$tx['entry_ids']??[]));
         $fee=(float)($tx['stripe_fee']??0);$amount=(float)($tx['amount']??0);
-        $values=['id'=>'T-'.(int)($tx['id']??0),'date'=>format_display_datetime($tx['created_at']??null,''),'reference'=>(string)($tx['reference']??''),'entry'=>$entryIds,'person'=>(string)($tx['person_name']??''),'amount'=>number_format($amount,2,'.',''),'fee'=>number_format($fee,2,'.',''),'net'=>number_format($amount-$fee,2,'.','')];
+        $values=['id'=>'T-'.(int)($tx['id']??0),'date'=>admin_display_datetime($tx['created_at']??null,''),'reference'=>(string)($tx['reference']??''),'entry'=>$entryIds,'person'=>(string)($tx['person_name']??''),'amount'=>number_format($amount,2,'.',''),'fee'=>number_format($fee,2,'.',''),'net'=>number_format($amount-$fee,2,'.','')];
         foreach($txFilters as $key=>$filter)if($filter!==''&&stripos($values[$key]??'',$filter)===false)return false;
         if ($txSearch === '') return true;
         $haystack = implode(' ', ['T-'.(int)($tx['id']??0),(string)($tx['created_at'] ?? ''),(string)($tx['type'] ?? ''),(string)($tx['reference'] ?? ''),$entryIds,(string)($tx['person_name'] ?? ''),(string)($tx['notes'] ?? ''),(string)($tx['amount'] ?? '')]);
@@ -268,7 +268,7 @@ $totalEntryCount=count($entries);
 $entryFilters=[];foreach(['id','booking_ref','placed','person','fee','refund','net'] as $key)$entryFilters[$key]=trim((string)($_GET['entry_'.$key]??''));
 $linkedEntryIds=array_values(array_filter(array_map('intval',explode(',',(string)($_GET['entry_ids']??'')))));
 $entryClassFilter=trim((string)($_GET['entry_class']??''));$entryClassOptions=[];foreach($entries as $entry){$class=(string)($entry['class_label']??'');if($class!=='')$entryClassOptions[$class]=$class;}natcasesort($entryClassOptions);
-if($linkedEntryIds||$entryClassFilter!==''||array_filter($entryFilters,static fn(string $value):bool=>$value!==''))$entries=array_values(array_filter($entries,static function(array $entry)use($linkedEntryIds,$entryClassFilter,$entryFilters,$refundByItemId):bool{$id=(int)($entry['id']??0);$fee=(float)($entry['price']??0);$refund=(float)($refundByItemId[$id]??0);if($linkedEntryIds&&!in_array($id,$linkedEntryIds,true))return false;if($entryClassFilter!==''&&(string)($entry['class_label']??'')!==$entryClassFilter)return false;$values=['id'=>'E-'.$id,'booking_ref'=>(string)($entry['booking_ref']??''),'placed'=>format_display_datetime($entry['booking_created_at']??null,''),'person'=>(string)($entry['person_name']??''),'fee'=>number_format($fee,2,'.',''),'refund'=>number_format($refund,2,'.',''),'net'=>number_format($fee-$refund,2,'.','')];foreach($entryFilters as$key=>$filter)if($filter!==''&&stripos($values[$key]??'',$filter)===false)return false;return true;}));
+if($linkedEntryIds||$entryClassFilter!==''||array_filter($entryFilters,static fn(string $value):bool=>$value!==''))$entries=array_values(array_filter($entries,static function(array $entry)use($linkedEntryIds,$entryClassFilter,$entryFilters,$refundByItemId):bool{$id=(int)($entry['id']??0);$fee=(float)($entry['price']??0);$refund=(float)($refundByItemId[$id]??0);if($linkedEntryIds&&!in_array($id,$linkedEntryIds,true))return false;if($entryClassFilter!==''&&(string)($entry['class_label']??'')!==$entryClassFilter)return false;$values=['id'=>'E-'.$id,'booking_ref'=>(string)($entry['booking_ref']??''),'placed'=>admin_display_datetime($entry['booking_created_at']??null,''),'person'=>(string)($entry['person_name']??''),'fee'=>number_format($fee,2,'.',''),'refund'=>number_format($refund,2,'.',''),'net'=>number_format($fee-$refund,2,'.','')];foreach($entryFilters as$key=>$filter)if($filter!==''&&stripos($values[$key]??'',$filter)===false)return false;return true;}));
 $displayedEntryGross = array_sum(array_map(static fn(array $entry): float => (float)($entry['price'] ?? 0), $entries));
 $displayedEntryRefunds = array_sum(array_map(static fn(array $entry): float => (float)($refundByItemId[(int)($entry['id'] ?? 0)] ?? 0), $entries));
 $acceptedCount = max(0, $totalEntryCount - $withdrawnCount);
@@ -287,7 +287,7 @@ admin_layout_start($pageTitle, 'stripe_fulfilment');
         <div class="small text-muted">Event finance</div>
         <h5 class="mb-0"><?php echo h($event['title'] ?? 'Event'); ?></h5>
         <?php if ($event): ?>
-            <div class="text-muted small"><?php echo h($event['event_date'] ?: 'Date TBC'); ?> · <?php echo h($event['event_type_name'] ?? ''); ?></div>
+            <div class="text-muted small"><?php echo h(admin_display_date($event['event_date'], 'Date TBC')); ?> · <?php echo h($event['event_type_name'] ?? ''); ?></div>
         <?php endif; ?>
     </div>
     <a class="btn btn-outline-secondary" href="stripe_fulfilment.php?tab=events">Back To Stripe Fulfilment</a>
@@ -338,7 +338,7 @@ admin_layout_start($pageTitle, 'stripe_fulfilment');
     <div class="finance-detail-grid">
         <section class="card-soft p-3">
             <div class="d-flex justify-content-between align-items-center mb-2"><div><div class="fw-semibold">Payment requests</div><div class="small text-muted">Outstanding and completed requests linked to this event.</div></div><a class="btn btn-sm btn-success" href="finance.php?tab=requests&amp;payment_event_id=<?php echo $eventId; ?>">New Payment Request</a></div>
-            <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Recipient</th><th>Description</th><th>Entry</th><th class="text-end">Amount</th><th>Status</th><th>Sent</th></tr></thead><tbody><?php foreach($paymentRequests as $request): ?><tr><td><?php echo h((string)$request['recipient_email']); ?></td><td><?php echo h((string)$request['description']); ?></td><td><?php echo !empty($request['booking_item_id'])?'E-'.(int)$request['booking_item_id']:'—'; ?></td><td class="text-end"><?php echo format_price((float)$request['amount']); ?></td><td><?php echo h(ucfirst((string)$request['status'])); ?></td><td class="small text-muted"><?php echo h(format_display_datetime($request['email_sent_at']??null,'')); ?></td></tr><?php endforeach; ?><?php if(!$paymentRequests): ?><tr><td colspan="6" class="text-muted">No payment requests linked to this event.</td></tr><?php endif; ?></tbody></table></div>
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="table-light"><tr><th>Recipient</th><th>Description</th><th>Entry</th><th class="text-end">Amount</th><th>Status</th><th>Sent</th></tr></thead><tbody><?php foreach($paymentRequests as $request): ?><tr><td><?php echo h((string)$request['recipient_email']); ?></td><td><?php echo h((string)$request['description']); ?></td><td><?php echo !empty($request['booking_item_id'])?'E-'.(int)$request['booking_item_id']:'—'; ?></td><td class="text-end"><?php echo format_price((float)$request['amount']); ?></td><td><?php echo h(ucfirst((string)$request['status'])); ?></td><td class="small text-muted"><?php echo h(admin_display_datetime($request['email_sent_at']??null,'')); ?></td></tr><?php endforeach; ?><?php if(!$paymentRequests): ?><tr><td colspan="6" class="text-muted">No payment requests linked to this event.</td></tr><?php endif; ?></tbody></table></div>
         </section>
         <section class="card-soft p-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -411,7 +411,7 @@ admin_layout_start($pageTitle, 'stripe_fulfilment');
                             ?>
                             <tr>
                                 <td class="fw-semibold"><a class="text-decoration-none" href="?event_id=<?php echo $eventId; ?>&amp;tx_id=T-<?php echo (int)($tx['id']??0); ?>&amp;entry_ids=<?php echo h(implode(',',array_map('intval',$tx['entry_ids']??[]))); ?>#entries-table" title="Show entries for this transaction">T-<?php echo (int)($tx['id']??0); ?></a></td>
-                                <td class="text-muted small"><?php echo h(format_display_datetime($tx['created_at'] ?? null, '')); ?></td>
+                                <td class="text-muted small"><?php echo h(admin_display_datetime($tx['created_at'] ?? null, '')); ?></td>
                                 <td class="text-capitalize"><?php echo h($typeLabel); ?></td>
                                 <td><?php echo h($tx['reference'] ?? ''); ?></td>
                                 <td><?php $rowEntryIds=array_values(array_filter($tx['entry_ids']??[]));if($rowEntryIds):foreach($rowEntryIds as $rowEntryId):?><a class="badge text-bg-light text-decoration-none me-1" href="?event_id=<?php echo $eventId; ?>&amp;tx_entry=E-<?php echo (int)$rowEntryId; ?>&amp;entry_id=E-<?php echo (int)$rowEntryId; ?>">E-<?php echo (int)$rowEntryId; ?></a><?php endforeach;else:?><span class="text-muted">—</span><?php endif;?></td>
@@ -503,7 +503,7 @@ admin_layout_start($pageTitle, 'stripe_fulfilment');
                             <tr>
                                 <td class="fw-semibold"><a class="text-decoration-none" href="?event_id=<?php echo $eventId; ?>&amp;tx_entry=E-<?php echo $itemId; ?>&amp;entry_id=E-<?php echo $itemId; ?>" title="Show this entry and its transactions">E-<?php echo $itemId; ?></a></td>
                                 <td><?php echo h($entry['booking_ref'] ?? ''); ?></td>
-                                <td class="text-muted small"><?php echo h(format_display_datetime($entry['booking_created_at'] ?? null, '')); ?></td>
+                                <td class="text-muted small"><?php echo h(admin_display_datetime($entry['booking_created_at'] ?? null, '')); ?></td>
                                 <td><?php echo h($entry['person_name'] ?? '—'); ?></td>
                                 <td><?php echo h($entry['class_label'] ?? ''); ?></td>
                                 <td class="text-end"><?php echo format_price($fee); ?></td>

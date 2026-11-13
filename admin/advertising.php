@@ -117,7 +117,7 @@ if ($isEditor):
         <div class="col-md-4"><label class="form-label fw-semibold">Order</label><input class="form-control" type="number" name="display_order" value="<?php echo (int)($record['display_order'] ?? 100); ?>"></div>
         <div class="col-md-3 form-check form-switch ms-2"><input class="form-check-input" type="checkbox" name="show_on_web" value="1" id="show-web" <?php echo !empty($record['show_on_web']) ? 'checked' : ''; ?>><label class="form-check-label" for="show-web">Show on web</label></div>
         <div class="col-md-3 form-check form-switch"><input class="form-check-input" type="checkbox" name="archived" value="1" id="archived" <?php echo !empty($record['archived']) ? 'checked' : ''; ?>><label class="form-check-label" for="archived">Archived</label></div>
-        <div class="col-12 small text-muted">Created: <?php echo h(format_display_datetime($record['created_at'] ?? null, 'Not saved')); ?> · Modified: <?php echo h(format_display_datetime($record['updated_at'] ?? null, 'Not saved')); ?></div>
+        <div class="col-12 small text-muted">Created: <?php echo h(admin_display_datetime($record['created_at'] ?? null, 'Not saved')); ?> · Modified: <?php echo h(admin_display_datetime($record['updated_at'] ?? null, 'Not saved')); ?></div>
         <div class="col-12 d-flex gap-2"><button class="btn btn-success">Save Item</button><a class="btn btn-outline-secondary" href="advertising.php">Cancel</a></div>
     </form>
 </div>
@@ -128,7 +128,7 @@ if ($isEditor):
         'name'=>['label'=>'Name','sortable'=>true,'filter'=>'text','placeholder'=>'Search name','form'=>$filterForm],
         'title'=>['label'=>'Title','sortable'=>true,'filter'=>'text','placeholder'=>'Search title','form'=>$filterForm],
         'target'=>['label'=>'Target','filter'=>'select','options'=>['_self'=>'Same window','_blank'=>'New tab'],'form'=>$filterForm,'value'=>static fn(array $row):string=>(string)($row['link_target']??'_blank')],
-        'schedule'=>['label'=>'Schedule','filter'=>'text','placeholder'=>'YYYY-MM-DD','form'=>$filterForm,'value'=>static fn(array $row):string=>trim((string)($row['start_date']??'').' '.(string)($row['finish_date']??''))],
+        'schedule'=>['label'=>'Schedule','filter'=>'text','placeholder'=>'DD/MM/YYYY','form'=>$filterForm,'value'=>static fn(array $row):string=>trim(admin_display_date($row['start_date']??null,'').' '.admin_display_date($row['finish_date']??null,''))],
         'status'=>['label'=>'Status','filter'=>'select','options'=>['visible'=>'Visible','hidden'=>'Hidden','archived'=>'Archived'],'form'=>$filterForm,'value'=>static fn(array $row):string=>!empty($row['archived'])?'archived':(!empty($row['show_on_web'])?'visible':'hidden')],
         'order'=>['label'=>'Order','field'=>'display_order','sortable'=>true,'filter'=>'text','compare'=>'number','placeholder'=>'Order','form'=>$filterForm],
         'actions'=>['label'=>'Actions'],
@@ -152,7 +152,7 @@ if ($isEditor):
         <td class="d-none d-md-table-cell advertising-drag-column"><button class="advertising-drag-handle" type="button" disabled aria-label="Move <?php echo h($item['name']); ?>"><i class="fa-solid fa-grip-vertical"></i></button></td>
         <td><?php if (!empty($item['image'])): ?><img src="<?php echo h(image_upload_public_path('advertising', 'sm', $item['image'])); ?>" alt="" style="width:90px;max-height:55px;object-fit:contain"><?php else: ?>—<?php endif; ?></td>
         <td class="fw-semibold"><?php echo h($item['name']); ?></td><td class="small"><?php echo h($item['title'] ?: '—'); ?></td><td class="small"><?php echo ($item['link_target'] ?? '_blank') === '_self' ? 'Same window' : 'New tab'; ?></td>
-        <td class="small"><?php echo h($item['start_date'] ?: 'Now'); ?> – <?php echo h($item['finish_date'] ?: 'No end date'); ?></td>
+        <td class="small"><?php echo h(admin_display_date($item['start_date'], 'Now')); ?> – <?php echo h(admin_display_date($item['finish_date'], 'No end date')); ?></td>
         <td><?php echo !empty($item['archived']) ? '<span class="badge bg-secondary">Archived</span>' : (!empty($item['show_on_web']) ? '<span class="badge bg-success">Visible</span>' : '<span class="badge bg-light text-dark border">Hidden</span>'); ?></td>
         <td><?php echo (int)$item['display_order']; ?></td>
         <td class="text-end"><div class="d-flex justify-content-end gap-1"><a class="btn btn-sm btn-outline-secondary" href="advertising.php?edit=<?php echo (int)$item['id']; ?>">Edit</a><?php if (empty($item['archived'])): ?><form method="post"><input type="hidden" name="action" value="archive"><input type="hidden" name="id" value="<?php echo (int)$item['id']; ?>"><button class="btn btn-sm btn-outline-warning">Archive</button></form><?php endif; ?><form method="post" data-confirm-message="Permanently delete this advertising item?" data-confirm-style="danger"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?php echo (int)$item['id']; ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form></div></td>

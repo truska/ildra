@@ -566,7 +566,7 @@ $rows = $stmt->fetchAll() ?: [];
                             <?php endif; ?>
                         </td>
                         <td><span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($status); ?></span></td>
-                        <td class="text-muted"><?php echo h(format_display_datetime($sent, '')); ?></td>
+                        <td class="text-muted"><?php echo h(admin_display_datetime($sent, '')); ?></td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/email_view.php?id=<?php echo (int)$id; ?>">View</a>
                         </td>

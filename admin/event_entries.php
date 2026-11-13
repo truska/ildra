@@ -382,7 +382,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $event && $pdo) {
 $pageTitle = $event ? (string)($event['title'] ?? 'Event') : 'Event entries';
 
 if ($event && $printMode) {
-    $rideDateText = format_display_date($event['event_date'] ?? null, 'Date TBC');
+    $rideDateText = admin_display_date($event['event_date'] ?? null, 'Date TBC');
     $isRiderInfoPrint = $printType === 'rider_info_list';
     $printListTitle = $isRiderInfoPrint ? 'Entry Rider Info List' : 'Entry Organiser List';
     ?>
@@ -664,7 +664,7 @@ admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
                         $entryPrice = price_to_number($entry['price'] ?? 0);
                         $price = format_price($entryPrice);
                         $placedAt = $entry['booking_created_at'] ?? $entry['created_at'] ?? null;
-                        $placedText = format_display_datetime($placedAt, '—');
+                        $placedText = admin_display_datetime($placedAt, '—');
                         $contactName = $entry['contact_name'] ?? '';
                         if ($contactName === '' && !empty($entry['contact_email'])) {
                             $contactName = $entry['contact_email'];
@@ -729,7 +729,7 @@ admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
                                 'refund_default' => max(0, $entryPrice - price_to_number($siteSettings['event_stripe_refund_fee'] ?? '5.00')),
                                 'refund_fee' => price_to_number($siteSettings['event_stripe_refund_fee'] ?? '5.00'),
                                 'closed' => $entryCloseTs !== false && $entryCloseTs <= time(),
-                                'close_label' => $entryCloseTs !== false ? format_display_datetime($event['entry_close_at'] ?? null, '') : '',
+                                'close_label' => $entryCloseTs !== false ? admin_display_datetime($event['entry_close_at'] ?? null, '') : '',
                             ];
                             ?>
                             <div class="btn-group-mobile" role="group" aria-label="Entry actions">
@@ -797,7 +797,7 @@ admin_layout_start($pageTitle, $organiserView ? 'ride_organiser' : 'events');
 	                        $entryPrice = price_to_number($entry['price'] ?? 0);
 	                        $price = format_price($entryPrice);
 	                        $placedAt = $entry['booking_created_at'] ?? $entry['created_at'] ?? null;
-	                        $placedText = format_display_datetime($placedAt, '—');
+	                        $placedText = admin_display_datetime($placedAt, '—');
 	                        $contactName = $entry['contact_name'] ?? '';
 	                        if ($contactName === '' && !empty($entry['contact_email'])) {
 	                            $contactName = $entry['contact_email'];

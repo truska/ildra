@@ -62,7 +62,7 @@ $tableColumns = [
     'membership_year' => ['label'=>'Year', 'field'=>'membership_year', 'sortable'=>true, 'filter'=>'select', 'options'=>$yearOptions, 'form'=>$filterForm, 'compare'=>'number'],
     'voting' => ['label'=>'Voting','sortable'=>true,'filter'=>'select','options'=>['1'=>'Yes','0'=>'No'],'form'=>$filterForm,'value'=>static fn(array $row):string=>!empty($row['has_voting_rights'])?'1':'0'],
     'purchased' => ['label'=>'Purchased', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm,
-        'value'=>static fn(array $row): string => format_display_date($row['purchased_at'] ?? null, ''),
+        'value'=>static fn(array $row): string => admin_display_date($row['purchased_at'] ?? null, ''),
         'sort_value'=>static fn(array $row): string => (string)($row['purchased_at'] ?? '')],
     'amount' => ['label'=>'Amount', 'sortable'=>true, 'filter'=>'text', 'compare'=>'number', 'form'=>$filterForm,
         'value'=>static fn(array $row): string => number_format((float)($row['amount'] ?? 0), 2, '.', ''),
@@ -93,7 +93,7 @@ if (!empty($_GET['print'])) {
     <p><?php echo count($printRows); ?> members — latest matching membership per person.</p>
     <table><thead><tr><th>Name</th><th>Email</th><th>Address</th><th>Mem Year</th><th>Type</th><th>Status</th><th>Date paid</th></tr></thead><tbody>
     <?php foreach ($printRows as $row): ?>
-    <tr><td><?php echo h((string)($row['member_name'] ?? '')); ?></td><td><?php echo h(trim((string)($row['member_email'] ?? '')) ?: (string)($row['user_email'] ?? '')); ?></td><td><?php echo nl2br(h(trim((string)($row['member_address'] ?? '') . "\n" . (string)($row['member_postcode'] ?? '')))); ?></td><td><?php echo (int)($row['membership_year'] ?? 0); ?></td><td><?php echo h((string)($row['membership_name'] ?? '')); ?></td><td><?php echo h(ucfirst((string)($row['status'] ?? ''))); ?></td><td><?php echo h(($row['status'] ?? '') === 'pending' ? 'Pending' : format_display_date($row['purchased_at'] ?? null, '')); ?></td></tr>
+    <tr><td><?php echo h((string)($row['member_name'] ?? '')); ?></td><td><?php echo h(trim((string)($row['member_email'] ?? '')) ?: (string)($row['user_email'] ?? '')); ?></td><td><?php echo nl2br(h(trim((string)($row['member_address'] ?? '') . "\n" . (string)($row['member_postcode'] ?? '')))); ?></td><td><?php echo (int)($row['membership_year'] ?? 0); ?></td><td><?php echo h((string)($row['membership_name'] ?? '')); ?></td><td><?php echo h(ucfirst((string)($row['status'] ?? ''))); ?></td><td><?php echo h(($row['status'] ?? '') === 'pending' ? 'Pending' : admin_display_date($row['purchased_at'] ?? null, '')); ?></td></tr>
     <?php endforeach; ?>
     <?php if (!$printRows): ?><tr><td colspan="7">No members match these filters.</td></tr><?php endif; ?>
     </tbody></table><script>window.addEventListener('load',function(){window.print();});</script></body></html>
@@ -131,7 +131,7 @@ admin_layout_start('Members', 'members');
                         <td><span class="text-capitalize"><?php echo h((string)($membership['status'] ?? '')); ?></span></td>
                         <td class="text-muted text-nowrap"><?php echo (int)($membership['membership_year'] ?? 0); ?></td>
                         <td><?php echo !empty($membership['has_voting_rights']) ? 'Yes' : 'No'; ?></td>
-                        <td class="text-muted text-nowrap"><?php echo h(format_display_date($membership['purchased_at'] ?? null, '')); ?></td>
+                        <td class="text-muted text-nowrap"><?php echo h(admin_display_date($membership['purchased_at'] ?? null, '')); ?></td>
                         <td class="fw-semibold text-nowrap">£<?php echo h(number_format((float)($membership['amount'] ?? 0), 2)); ?></td>
                         <td class="text-end"><?php if ($canEditMemberships): ?><a class="btn btn-sm btn-outline-secondary" href="members.php?edit=<?php echo (int)$membership['id']; ?>">Edit</a><?php endif; ?></td>
                     </tr>

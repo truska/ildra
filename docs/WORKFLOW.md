@@ -145,3 +145,32 @@ That is the acceptance test for a correct setup.
 ## 10. Admin tab ordering
 
 Append new admin tabs to the end of the existing tab list unless the user explicitly requests another position. Preserve the order of established tabs.
+
+
+## 11. Shared back navigation above content panels
+
+Use `render_back_navigation($url, $label, $ariaLabel)` from `helpers.php`
+above the content panel, inside the page container. For example:
+
+```php
+<?php echo render_back_navigation($navItemEventsUrl, 'Back to Events', 'Event navigation'); ?>
+```
+
+Load the existing shared `views/header_styles.php` include. Its
+`page-back-navigation` and `page-back-link` classes own the right alignment,
+spacing, grey button, back chevrons and hover/focus appearance. Reuse this
+helper when applying the same navigation to other pages; change the destination
+and labels rather than copying markup or adding page-specific styling.
+
+## 12. Admin date displays
+
+Use `admin_display_date()` for admin list dates (`DD/MM/YYYY`) and
+`admin_display_datetime()` for timestamps (`DD/MM/YYYY HH:mm:ss GMT/BST`).
+These shared helpers live in `helpers.php`. Datetimes without an explicit
+timezone follow the application's Europe/London database convention; Unix
+timestamps and values with UTC/offset information are converted to UK time,
+including daylight-saving changes. Date-only values retain their calendar date.
+
+Keep ISO values in database storage, native date/datetime inputs, date filter
+values and chronological sort keys. Format dropdown labels and visible table
+cells rather than changing the underlying values.

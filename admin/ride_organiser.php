@@ -77,7 +77,7 @@ admin_layout_start('Ride Organiser', 'ride_organiser');
         $id = (int)$ride['id'];
         $context = http_build_query(['organiser' => 1, 'return_query' => $listQuery]);
     ?>
-    <tr><td><?php echo h(format_display_date($ride['event_date'] ?? null, '—')); ?></td><td class="fw-semibold"><?php echo h($ride['title']); ?></td><td><?php echo h($ride['venue'] ?? '—'); ?></td><td><?php echo h($ride['organiser'] ?? '—'); ?></td><td><div class="d-flex flex-wrap gap-2">
+    <tr><td><?php echo h(admin_display_date($ride['event_date'] ?? null, '—')); ?></td><td class="fw-semibold"><?php echo h($ride['title']); ?></td><td><?php echo h($ride['venue'] ?? '—'); ?></td><td><?php echo h($ride['organiser'] ?? '—'); ?></td><td><div class="d-flex flex-wrap gap-2">
         <a class="btn btn-sm btn-outline-success" href="event_entries.php?event_id=<?php echo $id; ?>&amp;<?php echo h($context); ?>">Entry List</a>
         <a class="btn btn-sm btn-outline-primary" href="../ride_notes.php?event_id=<?php echo $id; ?>&amp;preview=1" target="_blank" rel="noopener">Rider Notes</a>
         <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($listUrl . '&view=venue&event_id=' . $id); ?>">Venue Details</a>

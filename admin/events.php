@@ -92,6 +92,10 @@ $filterOptions = [
     'status_filter'=>$eventFilterOptions($events,static fn(array $e)=>(string)($e['status']??'')), 'type_filter'=>$eventFilterOptions($events,static fn(array $e)=>(string)($e['event_type_name']??'')),
     'organiser_filter'=>$eventFilterOptions($events,static fn(array $e)=>(string)($e['organiser']??'')),
 ];
+foreach (['start_filter', 'end_filter'] as $dateFilter) {
+    foreach ($filterOptions[$dateFilter] as $value => &$label) $label = admin_display_date($value);
+    unset($label);
+}
 $events=array_values(array_filter($events,static function(array $event)use($filterValues,$entryCounts,$basketCounts):bool{
     foreach(['start_filter'=>'event_date','end_filter'=>'end_date','title_filter'=>'title','venue_filter'=>'venue','status_filter'=>'status','type_filter'=>'event_type_name','organiser_filter'=>'organiser']as$filter=>$field)if($filterValues[$filter]!==''&&(string)($event[$field]??'')!==$filterValues[$filter])return false;
     $date=(string)($event['event_date']??'');if($filterValues['date_from']!==''&&$date<$filterValues['date_from'])return false;if($filterValues['date_to']!==''&&$date>$filterValues['date_to'])return false;
@@ -225,7 +229,7 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
     $canDeleteEvent = !empty($GLOBALS['canDeleteEvent']);
     $start = $event['event_date'] ?? '';
     $end = $event['end_date'] ?? '';
-    $endDisplay = ($end && $end !== $start) ? ' to ' . h($end) : '';
+    $endDisplay = ($end && $end !== $start) ? ' to ' . h(admin_display_date($end)) : '';
     $classNames = event_class_names_admin($event);
     $classes = $classNames ? implode(', ', $classNames) : '';
     $slugTitle = slugify((string)($event['title'] ?? 'event'));
@@ -238,7 +242,7 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
         <div class="row g-2 align-items-center">
             <div class="col-12 col-md-2">
                 <div class="small text-muted">Start</div>
-                <div class="fw-semibold"><?php echo h($start ?: 'Date TBC'); ?></div>
+                <div class="fw-semibold"><?php echo h(admin_display_date($start, 'Date TBC')); ?></div>
             </div>
             <div class="col-12 col-md-2">
                 <div class="small text-muted">End</div>
@@ -359,7 +363,7 @@ admin_layout_start('Events', 'events');
 <div class="card-soft p-3"><p class="small text-muted">Events run by other organisations. Entries are handled on their websites.</p>
 <div class="table-responsive"><table class="table table-striped table-sm align-middle"><thead><tr><th>Date</th><th>Heading</th><th>Location</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody>
 <?php foreach ($thirdPartyEvents as $thirdPartyEvent): ?>
-<tr id="event-<?php echo (int)$thirdPartyEvent['id']; ?>"><td><?php echo h(format_display_date($thirdPartyEvent['event_date'])); ?></td><td><?php echo h($thirdPartyEvent['title']); ?></td><td><?php echo h($thirdPartyEvent['venue']); ?></td><td><?php echo h($thirdPartyEvent['status']); ?></td><td class="text-end">
+<tr id="event-<?php echo (int)$thirdPartyEvent['id']; ?>"><td><?php echo h(admin_display_date($thirdPartyEvent['event_date'])); ?></td><td><?php echo h($thirdPartyEvent['title']); ?></td><td><?php echo h($thirdPartyEvent['venue']); ?></td><td><?php echo h($thirdPartyEvent['status']); ?></td><td class="text-end">
 <a class="btn btn-sm btn-outline-success" href="third_party_event_edit.php?id=<?php echo (int)$thirdPartyEvent['id']; ?>">Edit</a>
 <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($siteBase); ?>/event.php?id=<?php echo (int)$thirdPartyEvent['id']; ?>" target="_blank" rel="noopener">View</a>
 <?php if ($canDeleteEvent && $thirdPartyEvent['event_date'] >= date('Y-m-d')): ?><form method="post" class="d-inline"><input type="hidden" name="action" value="delete_event"><input type="hidden" name="event_id" value="<?php echo (int)$thirdPartyEvent['id']; ?>"><button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this third-party event?');">Delete</button></form><?php endif; ?>
@@ -397,8 +401,8 @@ admin_layout_start('Events', 'events');
             <tbody>
                 <?php foreach ($upcoming as $event): ?>
                     <tr id="event-<?php echo (int)$event['id']; ?>" class="event-summary-row">
-                        <td><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></td>
-                        <td class="col-end"><?php echo h(format_display_date($event['end_date'] ?? null, '')); ?></td>
+                        <td><?php echo h(admin_display_date($event['event_date'] ?? null, '')); ?></td>
+                        <td class="col-end"><?php echo h(admin_display_date($event['end_date'] ?? null, '')); ?></td>
                         <td><?php echo h($event['title']); ?></td>
                         <td class="text-muted small col-venue"><?php echo h($event['venue'] ?: '—'); ?></td>
                         <td class="col-status"><?php echo h($event['status']); ?></td>
@@ -492,8 +496,8 @@ admin_layout_start('Events', 'events');
                 <tbody>
                     <?php foreach ($past as $event): ?>
                         <tr id="event-<?php echo (int)$event['id']; ?>" class="event-summary-row">
-                            <td><?php echo h(format_display_date($event['event_date'] ?? null, '')); ?></td>
-                            <td class="col-end"><?php echo h(format_display_date($event['end_date'] ?? null, '')); ?></td>
+                            <td><?php echo h(admin_display_date($event['event_date'] ?? null, '')); ?></td>
+                            <td class="col-end"><?php echo h(admin_display_date($event['end_date'] ?? null, '')); ?></td>
                             <td><?php echo h($event['title']); ?></td>
                             <td class="text-muted small col-venue"><?php echo h($event['venue'] ?: '—'); ?></td>
                             <td class="col-status"><?php echo h($event['status']); ?></td>
