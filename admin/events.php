@@ -19,18 +19,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if (!$isAdmin) {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage events.'];
-    } elseif ($action === 'delete_event' && !$canDeleteEvent) {
-        $alerts[] = ['type' => 'danger', 'message' => 'You do not have permission to delete events.'];
-    } elseif ($action === 'delete_event') {
-        $eventId = (int)($_POST['event_id'] ?? 0);
-        $eventToDelete = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
-        $eventLastDate = $eventToDelete
-            ? (string)($eventToDelete['end_date'] ?: ($eventToDelete['event_date'] ?? ''))
-            : '';
-        if ($eventToDelete && $eventLastDate !== '' && $eventLastDate < date('Y-m-d')) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Past events cannot be deleted from this page.'];
-        } elseif ($eventId > 0 && deleteEvent($pdo, $eventId, $alerts)) {
-            $successMessage = 'Event deleted.';
+    } elseif (in_array($action, ['archive_event', 'restore_event', 'delete_event'], true)) {
+        if (!$canDeleteEvent) {
+            $alerts[] = ['type'=>'danger', 'message'=>'You do not have permission to archive or restore events.'];
+        } elseif ($action === 'delete_event') {
+            $alerts[] = ['type'=>'danger', 'message'=>'Refresh the page and use Archive.'];
+        } elseif ($action === 'archive_event' && ($_POST['delete_confirmation'] ?? null) !== 'DELETE') {
+            $alerts[] = ['type'=>'danger', 'message'=>'Type DELETE in capital letters to confirm archiving. Nothing was archived.'];
+        } else {
+            $state = changeEventArchiveState($pdo, (int)($_POST['event_id'] ?? 0), $action, $alerts);
+            if ($state !== null) $successMessage = $state === 'active' ? 'Event restored as a draft. Review it before publishing.' : ($state === 'hidden' ? 'Event hidden with its related records retained.' : 'Event archived for later review and deletion.');
         }
     }
     if ($alerts) {
@@ -43,7 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$events = fetchEvents($pdo, false);
+$allEvents = fetchEvents($pdo, false, true);
+$hiddenEvents = array_values(array_filter($allEvents, static fn(array $event): bool => ($event['archive_state'] ?? 'active') === 'hidden'));
+$events = array_values(array_filter($allEvents, static fn(array $event): bool => ($event['archive_state'] ?? 'active') === 'active'));
 $thirdPartyEvents = array_values(array_filter($events, 'isThirdPartyEvent'));
 $events = array_values(array_filter($events, static fn(array $event): bool => !isThirdPartyEvent($event)));
 $rideReportsByEvent = [];
@@ -104,7 +104,7 @@ $events=array_values(array_filter($events,static function(array $event)use($filt
     return true;
 }));
 $today = date('Y-m-d');
-$activeView = in_array($_GET['view'] ?? '', ['past', 'third-party'], true) ? $_GET['view'] : 'future';
+$activeView = in_array($_GET['view'] ?? '', ['past', 'third-party', 'hidden'], true) ? $_GET['view'] : 'future';
 $sortKey = $_GET['sort'] ?? 'start';
 $sortDir = strtolower($_GET['dir'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
 $allowedSortKeys = ['start', 'end', 'title', 'venue', 'status', 'type', 'entries', 'organiser'];
@@ -268,10 +268,10 @@ function render_event_card(array $event, string $siteBase, bool $isAdmin): strin
                     <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">View</a>
                     <a class="btn btn-sm btn-outline-primary" href="<?php echo h($reportUrl); ?>"><?php echo $reportId ? 'Edit Report' : 'Add Report'; ?></a>
                     <?php if ($isAdmin && $canDeleteEvent): ?>
-                        <form method="POST" class="d-inline" data-confirm-message="Delete this event?" data-confirm-style="danger">
-                            <input type="hidden" name="action" value="delete_event">
+                        <form method="POST" class="d-inline" data-confirm-message="Archive this event? Events with entries, rider notes or reports will move to Hidden with all related records retained. Events without related records will move to Archives." data-confirm-style="danger" data-confirm-button="Archive" data-confirm-require-text="DELETE">
+                            <?php echo csrf_input(); ?><input type="hidden" name="action" value="archive_event">
                             <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">
-                            <button class="btn btn-sm btn-outline-danger">Delete</button>
+                            <button class="btn btn-sm btn-outline-danger">Archive</button>
                         </form>
                     <?php endif; ?>
                 </div>
@@ -357,7 +357,21 @@ admin_layout_start('Events', 'events');
         </a>
     </li>
     <li class="nav-item"><a class="nav-link future-tab <?php echo $activeView === 'third-party' ? 'active' : ''; ?>" href="?view=third-party">3rd Party Events <span class="badge text-bg-light ms-1"><?php echo count($thirdPartyEvents); ?></span></a></li>
+    <li class="nav-item"><a class="nav-link <?php echo $activeView === 'hidden' ? 'active' : ''; ?>" href="?view=hidden">Hidden <span class="badge text-bg-light ms-1"><?php echo count($hiddenEvents); ?></span></a></li>
 </ul>
+
+<?php if ($activeView === 'hidden'): ?>
+<div class="card-soft p-3">
+<p class="text-muted">Hidden events retain all entries, rider notes and ride reports. Restore as a draft to review before publishing.</p>
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date</th><th>Event</th><th>Venue</th><th>Actions</th></tr></thead><tbody>
+<?php foreach ($hiddenEvents as $event): ?>
+<tr><td><?php echo h(admin_display_date($event['event_date'])); ?></td><td><?php echo h($event['title']); ?></td><td><?php echo h($event['venue']); ?></td><td>
+<?php if ($isAdmin && $canDeleteEvent): ?><form method="post" data-confirm-message="Restore this hidden event as an unpublished draft?" data-confirm-button="Restore As Draft"><?php echo csrf_input(); ?><input type="hidden" name="action" value="restore_event"><input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>"><button class="btn btn-sm btn-outline-success">Restore As Draft</button></form><?php endif; ?>
+</td></tr>
+<?php endforeach; ?>
+<?php if (!$hiddenEvents): ?><tr><td colspan="4" class="text-muted">No hidden events.</td></tr><?php endif; ?>
+</tbody></table></div></div>
+<?php admin_layout_end(); exit; endif; ?>
 
 <?php if ($activeView === 'third-party'): ?>
 <div class="card-soft p-3"><p class="small text-muted">Events run by other organisations. Entries are handled on their websites.</p>
@@ -366,7 +380,7 @@ admin_layout_start('Events', 'events');
 <tr id="event-<?php echo (int)$thirdPartyEvent['id']; ?>"><td><?php echo h(admin_display_date($thirdPartyEvent['event_date'])); ?></td><td><?php echo h($thirdPartyEvent['title']); ?></td><td><?php echo h($thirdPartyEvent['venue']); ?></td><td><?php echo h($thirdPartyEvent['status']); ?></td><td class="text-end">
 <a class="btn btn-sm btn-outline-success" href="third_party_event_edit.php?id=<?php echo (int)$thirdPartyEvent['id']; ?>">Edit</a>
 <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($siteBase); ?>/event.php?id=<?php echo (int)$thirdPartyEvent['id']; ?>" target="_blank" rel="noopener">View</a>
-<?php if ($canDeleteEvent && $thirdPartyEvent['event_date'] >= date('Y-m-d')): ?><form method="post" class="d-inline"><input type="hidden" name="action" value="delete_event"><input type="hidden" name="event_id" value="<?php echo (int)$thirdPartyEvent['id']; ?>"><button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this third-party event?');">Delete</button></form><?php endif; ?>
+<?php if ($isAdmin && $canDeleteEvent): ?><form method="post" class="d-inline" data-confirm-message="Archive this event? Related records will be retained." data-confirm-button="Archive" data-confirm-style="danger" data-confirm-require-text="DELETE"><?php echo csrf_input(); ?><input type="hidden" name="action" value="archive_event"><input type="hidden" name="event_id" value="<?php echo (int)$thirdPartyEvent['id']; ?>"><button class="btn btn-sm btn-outline-danger">Archive</button></form><?php endif; ?>
 </td></tr>
 <?php endforeach; ?>
 <?php if (!$thirdPartyEvents): ?><tr><td colspan="5" class="text-muted">No third-party events yet.</td></tr><?php endif; ?>
@@ -454,11 +468,11 @@ admin_layout_start('Events', 'events');
                                     <i class="fa-solid fa-note-sticky btn-icon"></i><span class="btn-label">Rider Notes</span>
                                 </a>
                             <?php if ($isAdmin && $canDeleteEvent): ?>
-                                <form method="POST" class="d-inline" data-confirm-message="Delete this event?" data-confirm-style="danger">
-                                    <input type="hidden" name="action" value="delete_event">
+                                <form method="POST" class="d-inline" data-confirm-message="Archive this event? Events with entries, rider notes or reports will move to Hidden with all related records retained. Events without related records will move to Archives." data-confirm-style="danger" data-confirm-button="Archive" data-confirm-require-text="DELETE">
+                                    <?php echo csrf_input(); ?><input type="hidden" name="action" value="archive_event">
                                     <input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>">
                                     <input type="hidden" name="view" value="future">
-                                    <button class="btn btn-sm btn-outline-danger has-icon"><i class="fa-solid fa-trash btn-icon"></i><span class="btn-label">Delete</span></button>
+                                    <button class="btn btn-sm btn-outline-danger has-icon"><i class="fa-solid fa-trash btn-icon"></i><span class="btn-label">Archive</span></button>
                                 </form>
                             <?php endif; ?>
                             </div>
@@ -550,6 +564,9 @@ admin_layout_start('Events', 'events');
                                     <a class="btn btn-sm btn-outline-secondary has-icon" href="<?php echo h($viewUrl); ?>" target="_blank" rel="noopener">
                                         <i class="fa-solid fa-eye btn-icon"></i><span class="btn-label">View</span>
                                     </a>
+                                    <?php if ($isAdmin && $canDeleteEvent): ?>
+                                    <form method="post" class="d-inline" data-confirm-message="Archive this event? Events with entries, rider notes or reports will move to Hidden with all related records retained." data-confirm-button="Archive" data-confirm-style="danger" data-confirm-require-text="DELETE"><?php echo csrf_input(); ?><input type="hidden" name="action" value="archive_event"><input type="hidden" name="event_id" value="<?php echo (int)$event['id']; ?>"><button class="btn btn-sm btn-outline-danger">Archive</button></form>
+                                    <?php endif; ?>
                                     <?php $reportId=(int)($rideReportsByEvent[(int)$event['id']]['id']??0); ?><a class="btn btn-sm btn-outline-primary has-icon" href="<?php echo $reportId?'news_edit.php?id='.$reportId:'news_edit.php?type=ride_report&amp;event_id='.(int)$event['id']; ?>"><i class="fa-solid fa-newspaper btn-icon"></i><span class="btn-label"><?php echo $reportId?'Edit Report':'Add Report'; ?></span></a>
                                 </div>
                             </td>

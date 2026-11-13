@@ -10,6 +10,7 @@ $siteBase = $basePath ?: '';
 
 $eventId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $event = $eventId > 0 ? fetchEventById($pdo, $eventId) : null;
+if ($event && ($event['archive_state'] ?? 'active') !== 'active') $event = null;
 $eventImageBatch = $event ? mediaBatchFind($pdo, 'event_images', 'event', $eventId) : null;
 $eventImages = $eventImageBatch ? mediaBatchImages($pdo, (int)$eventImageBatch['id']) : [];
 $eventImage = $eventImages[0] ?? null;

@@ -174,3 +174,53 @@ including daylight-saving changes. Date-only values retain their calendar date.
 Keep ISO values in database storage, native date/datetime inputs, date filter
 values and chronological sort keys. Format dropdown labels and visible table
 cells rather than changing the underlying values.
+
+## 13. Event archiving and hiding
+
+The Archive action in Events requires the exact confirmation text `DELETE`.
+The existing `events.delete` permission controls archiving and restoring.
+`events.archive_state` is separate from the publication status:
+
+- `active`: normal event lists.
+- `archived`: no booking items, rider notes or linked news/report records;
+  retained under Admin → Archives → Events for later deletion work.
+- `hidden`: related records exist, including withdrawn entries and draft
+  notes/reports; retained under Events → Hidden with Restore As Draft only.
+
+Archiving never deletes related records. Both archive states set the event
+publication status to draft. Restore clears the archive state and keeps the
+event as a draft, with its related records intact. Public event lists and
+linked event/notes/report pages exclude archived or hidden parents.
+Permanent event purge is not enabled by this change.
+
+The additive column is set up automatically by the shared event helpers;
+`migrations/2026-11-13-event-archives.sql` provides the equivalent SQL.
+Schema setup must finish before the archive transaction begins.
+
+Verification: `php scripts/tests/event_archives.php` checks isolated archive
+routing and restoration; `node scripts/tests/archives_confirmation.cjs --events`
+checks the typed modal confirmation using a browser fixture.
+
+## 14. Venue archiving and hiding
+
+Venues has Current and Hidden tabs. Archive requires typing exactly
+`DELETE`. Any event referencing `venues.id` through `events.venue_id`
+(including past, draft, hidden and archived events) routes the venue to
+Hidden; an unlinked venue routes to Admin → Archives → Venues. Images and
+existing event links are retained.
+
+Hidden venues offer Restore As Draft only. Restoring either lifecycle state
+sets `archive_state=active` and `is_draft=1`; Current shows a Draft badge.
+Reviewing and saving the venue clears the draft flag. New event selectors
+exclude hidden, archived and draft venues, while the event editor retains
+its existing venue selection to preserve established links. Existing events
+continue to display their venue details.
+
+The additive fields are set up by the venue helpers; equivalent SQL is in
+`migrations/2026-11-13-venue-archives.sql`. Permanent venue purge remains
+future work. Verification: `php scripts/tests/venue_archives.php` and
+`node scripts/tests/archives_confirmation.cjs --venues`.
+
+Client sign-off is pending for the page, announcement, event and venue
+archive/delete flows. Pause further lifecycle changes until that review.
+Venue Current/Hidden tab badges show totals before table filters.

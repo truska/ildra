@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/event_archives.php';
+require_once __DIR__ . '/venue_archives.php';
 require_once __DIR__ . "/purchasing.php";
 require_once __DIR__ . "/ride_pricing.php";
 
@@ -2249,7 +2251,10 @@ function fetchNewsArticles(?PDO $pdo, bool $publishedOnly = false): array
     if (!$pdo) return [];
     ensureNewsTables($pdo);
     $sql = 'SELECT n.*,NULLIF(TRIM(CONCAT_WS(\' \',u.first_name,u.last_name)),\'\') AS creator_name,u.email AS creator_email FROM news_articles n LEFT JOIN users u ON u.id=n.created_by_user_id';
-    if ($publishedOnly) $sql .= ' WHERE is_published=1 AND (published_at IS NULL OR published_at<=NOW())';
+    if ($publishedOnly) {
+        ensureEventArchiveColumn($pdo);
+        $sql .= " WHERE is_published=1 AND (published_at IS NULL OR published_at<=NOW()) AND NOT EXISTS (SELECT 1 FROM events ae WHERE ae.id=n.event_id AND ae.archive_state<>'active')";
+    }
     $sql .= ' ORDER BY COALESCE(n.published_at,n.created_at) DESC,n.id DESC';
     return $pdo->query($sql)->fetchAll() ?: [];
 }
@@ -2264,6 +2269,7 @@ function fetchNewsArticle(?PDO $pdo, int $id): ?array
 function fetchRideReportByEvent(?PDO $pdo, int $eventId, bool $publishedOnly = true): ?array
 {
     if (!$pdo || $eventId <= 0) return null;
+    if ($publishedOnly && eventIsArchived($pdo, $eventId)) return null;
     ensureNewsTables($pdo);
     $sql = "SELECT * FROM news_articles WHERE event_id=:event_id AND article_type='ride_report'";
     if ($publishedOnly) $sql .= ' AND is_published=1 AND (published_at IS NULL OR published_at<=NOW())';
@@ -2332,16 +2338,18 @@ function ensureVenuesTable(?PDO $pdo): void
     }
 }
 
-function fetchVenues(?PDO $pdo): array
+function fetchVenues(?PDO $pdo, bool $includeArchived = false): array
 {
     if (!$pdo) {
         return [];
     }
-    ensureVenuesTable($pdo);
+    ensureVenueArchiveColumns($pdo);
+    $where = $includeArchived ? '' : "WHERE archive_state='active' AND is_draft=0";
     try {
         $stmt = $pdo->query("
-            SELECT id, name, address, postcode, google_url, what3words, directions, notes, created_at, updated_at
+            SELECT id, name, address, postcode, google_url, what3words, directions, notes, created_at, updated_at, archive_state, is_draft
             FROM venues
+            {$where}
             ORDER BY name ASC
         ");
         return $stmt->fetchAll() ?: [];
@@ -2375,9 +2383,16 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return false;
     }
-    ensureVenuesTable($pdo);
+    ensureVenueArchiveColumns($pdo);
 
     $id = isset($data['id']) ? (int)$data['id'] : 0;
+    if ($id > 0) {
+        $existingVenue = fetchVenueById($pdo, $id);
+        if (!$existingVenue || ($existingVenue['archive_state'] ?? 'active') !== 'active') {
+            $alerts[] = ['type'=>'danger', 'message'=>'Restore this venue before editing it.'];
+            return false;
+        }
+    }
     $name = trim((string)($data['name'] ?? ''));
     $address = trim((string)($data['address'] ?? ''));
     $postcode = trim((string)($data['postcode'] ?? ''));
@@ -2417,7 +2432,7 @@ function saveVenue(?PDO $pdo, array $data, array &$alerts)
             $stmt = $pdo->prepare("
                 UPDATE venues
                 SET name = :name, address = :address, postcode = :postcode, google_url = :google_url, what3words = :what3words,
-                    directions = :directions, notes = :notes, internal_notes_html = :internal_notes, updated_at = NOW()
+                    directions = :directions, notes = :notes, internal_notes_html = :internal_notes, is_draft=0, updated_at = NOW()
                 WHERE id = :id
             ");
             $stmt->execute([
@@ -2547,9 +2562,10 @@ function saveThirdPartyEvent(?PDO $pdo, array $data, array &$alerts, int $eventI
     }
 }
 
-function fetchEvents(?PDO $pdo, bool $upcomingOnly = false): array
+function fetchEvents(?PDO $pdo, bool $upcomingOnly = false, bool $includeArchived = false): array
 {
     ensureThirdPartyEventColumn($pdo);
+    ensureEventArchiveColumn($pdo);
     $eventTypes = fetchEventTypes($pdo);
 
     if (!$pdo) {
@@ -2592,6 +2608,7 @@ function fetchEvents(?PDO $pdo, bool $upcomingOnly = false): array
         if ($upcomingOnly) {
             $sql .= " WHERE e.event_date >= CURDATE()";
         }
+        if (!$includeArchived) $sql .= ($upcomingOnly ? " AND" : " WHERE") . " e.archive_state='active'";
         $sql .= " ORDER BY e.event_date ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
@@ -2611,6 +2628,7 @@ function fetchEvents(?PDO $pdo, bool $upcomingOnly = false): array
             if ($upcomingOnly) {
                 $sql .= " WHERE e.event_date >= CURDATE()";
             }
+            if (!$includeArchived) $sql .= ($upcomingOnly ? " AND" : " WHERE") . " e.archive_state='active'";
             $sql .= " ORDER BY e.event_date ASC";
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);

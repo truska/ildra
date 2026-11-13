@@ -18,6 +18,12 @@ $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
 $eventTypes = fetchEventTypes($pdo);
 $venues = fetchVenues($pdo);
+// Keep the existing relationship selectable when its venue has been hidden.
+$linkedVenueId = (int)($event['venue_id'] ?? 0);
+if ($linkedVenueId > 0 && !in_array($linkedVenueId, array_map('intval', array_column($venues, 'id')), true)) {
+    $linkedVenue = fetchVenueById($pdo, $linkedVenueId);
+    if ($linkedVenue) $venues[] = $linkedVenue;
+}
 $eligibleOrganisers = fetchEligibleEventOrganisers($pdo);
 $eventSettings = getSiteSettings($pdo);
 $existingTypeId = is_array($event) ? (int)($event['event_type_id'] ?? 0) : 0;

@@ -564,13 +564,22 @@ function admin_layout_end(): void
     <script type="application/json" id="admin-table-state"><?php echo json_encode(admin_table_state_config(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
     <script src="<?php echo h($GLOBALS['adminBase']); ?>/table_controls.js?v=<?php echo (int)filemtime(__DIR__ . '/table_controls.js'); ?>"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-    <div class="modal fade" id="sharedConfirmModal" tabindex="-1" aria-labelledby="sharedConfirmTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title d-flex align-items-center gap-2"><i id="sharedConfirmIcon" class="fa-solid" aria-hidden="true"></i><span id="sharedConfirmTitle">Please confirm</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" id="sharedConfirmMessage"></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn" id="sharedConfirmButton">Continue</button></div></div></div></div>
+    <div class="modal fade" id="sharedConfirmModal" tabindex="-1" aria-labelledby="sharedConfirmTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title d-flex align-items-center gap-2"><i id="sharedConfirmIcon" class="fa-solid" aria-hidden="true"></i><span id="sharedConfirmTitle">Please confirm</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p id="sharedConfirmMessage" class="mb-0"></p><div id="sharedConfirmTextGroup" class="mt-3" hidden><label for="sharedConfirmText" class="form-label">Type <strong id="sharedConfirmRequiredText"></strong> to confirm this action.</label><input type="text" class="form-control" id="sharedConfirmText" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="sharedConfirmTextHelp"><div id="sharedConfirmTextHelp" class="form-text">The text must match exactly, including capital letters.</div></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn" id="sharedConfirmButton">Continue</button></div></div></div></div>
     <script>
     document.addEventListener('DOMContentLoaded', function () {
         const modalEl = document.getElementById('sharedConfirmModal');
         const button = document.getElementById('sharedConfirmButton');
         if (!modalEl || !button || !window.bootstrap) return;
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const textGroup = document.getElementById('sharedConfirmTextGroup');
+        const textInput = document.getElementById('sharedConfirmText');
+        let requiredText = '';
+        textInput.addEventListener('input', function () {
+            button.disabled = requiredText !== '' && textInput.value !== requiredText;
+        });
+        modalEl.addEventListener('shown.bs.modal', function () {
+            if (requiredText) textInput.focus();
+        });
         const approved = new WeakSet();
         let resolvePending = null;
         let accepted = false;
@@ -582,6 +591,11 @@ function admin_layout_end(): void
             document.getElementById('sharedConfirmIcon').className = 'fa-solid ' + (danger ? 'fa-triangle-exclamation text-danger' : 'fa-circle-info text-primary');
             button.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
             button.textContent = options.button || (danger ? 'Confirm' : 'Continue');
+            requiredText = options.requireText || '';
+            textGroup.hidden = !requiredText;
+            document.getElementById('sharedConfirmRequiredText').textContent = requiredText;
+            textInput.value = '';
+            button.disabled = requiredText !== '';
             accepted = false;
             return new Promise(function (resolve) {
                 resolvePending = resolve;
@@ -589,6 +603,7 @@ function admin_layout_end(): void
             });
         };
         button.addEventListener('click', function () {
+            if (requiredText && textInput.value !== requiredText) return;
             accepted = true;
             modal.hide();
         });
@@ -602,9 +617,21 @@ function admin_layout_end(): void
                 title: trigger.dataset.confirmTitle,
                 message: trigger.dataset.confirmMessage,
                 style: trigger.dataset.confirmStyle,
-                button: trigger.dataset.confirmButton
+                button: trigger.dataset.confirmButton,
+                requireText: trigger.dataset.confirmRequireText
             });
             if (!confirmed) return;
+            const form = trigger.tagName === 'FORM' ? trigger : trigger.form;
+            if (trigger.dataset.confirmRequireText && form) {
+                let field = form.elements.namedItem('delete_confirmation');
+                if (!field) {
+                    field = document.createElement('input');
+                    field.type = 'hidden';
+                    field.name = 'delete_confirmation';
+                    form.appendChild(field);
+                }
+                field.value = textInput.value;
+            }
             if (trigger.dataset.confirmField && trigger.form) {
                 const field = trigger.form.elements.namedItem(trigger.dataset.confirmField);
                 if (field) field.value = trigger.dataset.confirmValue;

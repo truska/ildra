@@ -10,11 +10,15 @@ if (!$isAdmin) {
     exit;
 }
 
-$editParam = $_GET['edit'] ?? null;
+$activeView = ($_GET['view'] ?? '') === 'hidden' ? 'hidden' : 'current';
+$editParam = $activeView === 'hidden' ? null : ($_GET['edit'] ?? null);
 $editId = is_numeric($editParam ?? '') ? (int)$editParam : 0;
 $isCreate = $editParam === 'new';
 $editVenue = $editId ? fetchVenueById($pdo, $editId) : ($isCreate ? [] : null);
-$showEditor = $isCreate || $editVenue !== null || $_SERVER['REQUEST_METHOD'] === 'POST';
+if ($editVenue && ($editVenue['archive_state'] ?? 'active') !== 'active') {
+    header('Location: venues.php?view=hidden'); exit;
+}
+$showEditor = $isCreate || $editVenue !== null || ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? 'save_venue') === 'save_venue');
 $isListView = !$showEditor;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -22,13 +26,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage venues.'];
     } else {
         $action = $_POST['action'] ?? 'save_venue';
-        if ($action === 'delete_venue') {
-            $id = (int)($_POST['id'] ?? 0);
-            if ($id > 0 && deleteVenue($pdo, $id, $alerts)) {
-                $_SESSION['flash_success'] = 'Venue deleted.';
-                header('Location: venues.php');
-                exit;
+        if (in_array($action, ['archive_venue', 'restore_venue', 'delete_venue'], true)) {
+            if ($action === 'delete_venue') {
+                $alerts[] = ['type'=>'danger', 'message'=>'Refresh the page and use Archive.'];
+            } elseif ($action === 'archive_venue' && ($_POST['delete_confirmation'] ?? null) !== 'DELETE') {
+                $alerts[] = ['type'=>'danger', 'message'=>'Type DELETE in capital letters to confirm archiving. Nothing was archived.'];
+            } else {
+                $state = changeVenueArchiveState($pdo, (int)($_POST['id'] ?? 0), $action, $alerts);
+                if ($state !== null) $_SESSION['flash_success'] = $state === 'active' ? 'Venue restored as a draft. Review and save it before using it for new events.' : ($state === 'hidden' ? 'Venue hidden. Existing event links and venue details are retained.' : 'Venue archived.');
             }
+            if ($alerts) $_SESSION['flash_alerts'] = $alerts;
+            header('Location: venues.php?view=' . $activeView); exit;
         } else {
             $savedId = saveVenue($pdo, $_POST, $alerts);
             if ($savedId) {
@@ -46,7 +54,14 @@ if ($editId > 0 && $editVenue === null) {
     $showEditor = false;
 }
 
-$venues = fetchVenues($pdo);
+$allVenues = fetchVenues($pdo, true);
+$venueTabCounts = ['current'=>0, 'hidden'=>0];
+foreach ($allVenues as $venue) {
+    $state = $venue['archive_state'] ?? 'active';
+    if ($state === 'active') $venueTabCounts['current']++;
+    elseif ($state === 'hidden') $venueTabCounts['hidden']++;
+}
+$venues = array_values(array_filter($allVenues, static fn(array $venue): bool => ($venue['archive_state'] ?? 'active') === ($activeView === 'hidden' ? 'hidden' : 'active')));
 $venueCount = count($venues);
 $filterForm='venue-filter-form';
 $tableColumns=[
@@ -77,7 +92,10 @@ admin_layout_start('Venues', 'venues');
 </div>
 
 <?php if ($isListView): ?>
-    <form method="get" id="venue-filter-form" class="mb-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="venues.php">Clear</a></form>
+    <ul class="nav nav-tabs mb-3">
+    <?php foreach (['current'=>'Current','hidden'=>'Hidden'] as $view=>$label): ?><li class="nav-item"><a class="nav-link <?php echo $activeView === $view ? 'active' : ''; ?>" href="venues.php?view=<?php echo $view; ?>"><?php echo $label; ?> <span class="badge text-bg-light ms-1"><?php echo (int)$venueTabCounts[$view]; ?></span></a></li><?php endforeach; ?>
+    </ul>
+    <form method="get" id="venue-filter-form" class="mb-2 text-end"><input type="hidden" name="view" value="<?php echo h($activeView); ?>"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="venues.php?view=<?php echo h($activeView); ?>">Clear</a></form>
     <div class="card-soft p-3">
         <?php echo admin_table_record_count($table,'venue','venues'); ?>
         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -95,19 +113,23 @@ admin_layout_start('Venues', 'venues');
                 <tbody>
                     <?php foreach ($venues as $venue): ?>
                         <tr>
-                            <td class="fw-semibold"><?php echo h((string)($venue['name'] ?? '')); ?></td>
+                            <td class="fw-semibold"><?php echo h((string)($venue['name'] ?? '')); ?><?php if (!empty($venue['is_draft'])): ?> <span class="badge bg-secondary">Draft</span><?php endif; ?></td>
                             <td class="text-muted small"><?php echo h((string)($venue['address'] ?? '—')); ?></td>
                             <td class="text-muted small"><?php echo admin_table_value($venue['postcode'] ?? '', 'postcode_map'); ?></td>
                             <td class="text-muted small">
                                 <?php echo h(admin_display_datetime($venue['updated_at'] ?? $venue['created_at'] ?? '', '—')); ?>
                             </td>
                             <td class="text-end">
+                                <?php if ($activeView === 'hidden'): ?>
+                                <form method="post" data-confirm-message="Restore this venue as a draft?" data-confirm-button="Restore As Draft"><?php echo csrf_input(); ?><input type="hidden" name="action" value="restore_venue"><input type="hidden" name="id" value="<?php echo (int)$venue['id']; ?>"><button class="btn btn-sm btn-outline-success">Restore As Draft</button></form>
+                                <?php else: ?>
                                 <a class="btn btn-sm btn-outline-secondary" href="venues.php?edit=<?php echo (int)($venue['id'] ?? 0); ?>">Edit</a>
-                                <form method="POST" class="d-inline" data-confirm-message="Delete this venue?" data-confirm-style="danger">
-                                    <input type="hidden" name="action" value="delete_venue">
+                                <form method="POST" class="d-inline" data-confirm-message="Archive this venue? Venues linked to any event will move to Hidden. Unlinked venues will move to Archives. Existing event details and images will be retained." data-confirm-style="danger" data-confirm-button="Archive" data-confirm-require-text="DELETE">
+                                    <?php echo csrf_input(); ?><input type="hidden" name="action" value="archive_venue">
                                     <input type="hidden" name="id" value="<?php echo h((string)($venue['id'] ?? 0)); ?>">
-                                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                                    <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
                                 </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -170,10 +192,10 @@ admin_layout_start('Venues', 'venues');
             </div>
         </form>
         <?php if (!empty($v['id'])): ?>
-            <form method="POST" class="mt-3 text-end" data-confirm-message="Delete this venue?" data-confirm-style="danger">
-                <input type="hidden" name="action" value="delete_venue">
+            <form method="POST" class="mt-3 text-end" data-confirm-message="Archive this venue? Venues linked to any event will move to Hidden. Unlinked venues will move to Archives. Existing event details and images will be retained." data-confirm-style="danger" data-confirm-button="Archive" data-confirm-require-text="DELETE">
+                <?php echo csrf_input(); ?><input type="hidden" name="action" value="archive_venue">
                 <input type="hidden" name="id" value="<?php echo h((string)($v['id'] ?? 0)); ?>">
-                <button class="btn btn-outline-danger" type="submit">Delete</button>
+                <button class="btn btn-outline-danger" type="submit">Archive</button>
             </form>
         <?php endif; ?>
     </div>

@@ -6,6 +6,7 @@ $siteSettings = getSiteSettings($pdo);
 $eventId = max(0, (int)($_GET['event_id'] ?? 0));
 if (!$currentUser) { header('Location: /account'); exit; }
 $event = fetchEventById($pdo, $eventId);
+if ($event && ($event['archive_state'] ?? 'active') !== 'active') $event = null;
 $notes = fetchRideNotes($pdo, $eventId);
 $role = strtolower((string)($currentUser['role'] ?? ''));
 $preview = !empty($_GET['preview']) && $event && canAccessRideOrganiserEvent($currentUser, $event);

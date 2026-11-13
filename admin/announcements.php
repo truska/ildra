@@ -26,7 +26,9 @@ if ($id) {
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['action'] ?? '') === 'archive' && $activeTab !== 'automatic') {
-        if (archiveAnnouncement($pdo, $id, $activeTab, $alerts)) {
+        if (($_POST['delete_confirmation'] ?? null) !== 'DELETE') {
+            $alerts[] = ['type'=>'danger', 'message'=>'Type DELETE in capital letters to confirm archiving. Nothing was archived.'];
+        } elseif (archiveAnnouncement($pdo, $id, $activeTab, $alerts)) {
             $_SESSION['flash_success'] = 'Announcement archived.';
             header('Location: announcements.php?tab=' . $activeTab); exit;
         }
@@ -163,7 +165,7 @@ $table = admin_table_prepare($rows, $columns, 'display_order');
 <tr class="admin-table-filter-row"><?php foreach ($columns as $key=>$column): ?><th><?php echo admin_table_filter($key,$column,$table['filters']); ?></th><?php endforeach; ?><th></th></tr></thead><tbody>
 <?php foreach ($table['rows'] as $row): ?><tr>
 <td><?php echo h($row['title']); ?></td><td><?php echo $row['allow_hide'] ? 'Allow Hide' : 'Force Show'; ?></td><td><?php echo h(admin_display_date($row['show_from'] ?? null)); ?></td><td><?php echo h(admin_display_date($row['show_to'] ?? null)); ?></td><td><?php echo (int)$row['display_order']; ?></td><td><?php echo $row['showing'] ? 'Yes' : 'No'; ?></td><td><a class="btn btn-sm btn-outline-success" href="announcements.php?tab=<?php echo $activeTab; ?>&amp;id=<?php echo (int)$row['id']; ?>">Edit</a>
-<form method="post" class="d-inline" data-confirm-title="Archive announcement?" data-confirm-message="<?php echo h('Archive “'.$row['title'].'”? It will disappear from Announcements and public display.'); ?>" data-confirm-button="Archive"><?php echo csrf_input(); ?><input type="hidden" name="action" value="archive"><input type="hidden" name="settings_section" value="<?php echo $activeTab; ?>"><input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>"><button class="btn btn-sm btn-outline-danger">Archive</button></form>
+<form method="post" class="d-inline" data-confirm-title="Archive announcement?" data-confirm-message="<?php echo h('Archive “'.$row['title'].'”? It will disappear from Announcements and public display.'); ?>" data-confirm-button="Archive" data-confirm-require-text="DELETE"><?php echo csrf_input(); ?><input type="hidden" name="action" value="archive"><input type="hidden" name="settings_section" value="<?php echo $activeTab; ?>"><input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>"><button class="btn btn-sm btn-outline-danger">Archive</button></form>
 </td></tr><?php endforeach; ?>
 <?php if (!$table['rows']): ?><tr><td colspan="7" class="text-muted">No announcements match the current filters.</td></tr><?php endif; ?>
 </tbody></table></div><?php echo admin_table_pagination($table); ?></div>
