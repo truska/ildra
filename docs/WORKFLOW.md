@@ -273,3 +273,17 @@ The account migration plan in docs/plans records the agreed three-column
 Event-Pal export and proposed guided setup. No importer, activation workflow,
 data import or invitation send has been performed. Membership numbers will
 be newly allocated when people join for 2027.
+
+## 18. Admin menu dividers
+
+Menu → Add Menu Item supports Link, Section heading and Divider. Dividers
+use the existing Parent section, Order, role visibility and Visible in menu
+controls. The optional label is for the editor only; destination and icon do
+not apply. Dividers cannot have children or be selected as a parent.
+The sidebar removes leading, trailing and consecutive dividers within each
+level after applying visibility and parent role restrictions.
+
+The additive `admin_menu_items.item_type` column is created automatically by
+`ensureAdminMenuTable()`. Existing links and sections retain their behaviour.
+The public website menu continues to use its existing divider-below setting.
+Verification: `php scripts/tests/admin_menu_dividers.php`.

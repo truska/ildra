@@ -70,7 +70,7 @@ if ($editId > 0 && $editItem === null) {
 }
 $isEditor = $editItem !== null;
 
-$topLevelItems = array_values(array_filter($items, static fn(array $item): bool => (int)($item['parent_id'] ?? 0) === 0));
+$topLevelItems = array_values(array_filter($items, static fn(array $item): bool => (int)($item['parent_id'] ?? 0) === 0 && !adminMenuIsDivider($item)));
 $childCounts = [];
 foreach ($items as $item) {
     $parentId = (int)($item['parent_id'] ?? 0);
@@ -106,7 +106,7 @@ $tableColumns = [
         'value' => static fn(array $item): string => (string)(int)($item['parent_id'] ?? 0),
         'sort_value' => static fn(array $item): string => (string)($itemsById[(int)($item['parent_id'] ?? 0)]['label'] ?? 'Top level')],
     'destination' => ['label' => 'Destination', 'sortable' => true, 'filter' => 'text', 'form' => $filterForm,
-        'value' => static fn(array $item): string => !empty($childCounts[(int)$item['id']]) ? 'Expandable section' : (string)($item['href'] ?? '')],
+        'value' => static fn(array $item): string => adminMenuIsDivider($item) ? 'Divider' : (!empty($childCounts[(int)$item['id']]) ? 'Expandable section' : (string)($item['href'] ?? ''))],
     'minimum_role' => ['label'=>'Lowest role', 'sortable'=>true, 'filter'=>'select', 'options'=>$roleLabels, 'form'=>$filterForm,
         'sort_value'=>static fn(array $item): int => (int)array_search($item['minimum_role'], array_keys($roleLabels), true), 'compare'=>'number'],
     'status' => ['label' => 'Status', 'field' => 'is_active', 'sortable' => true, 'filter' => 'select', 'options' => ['1' => 'Visible', '0' => 'Hidden'], 'compare' => 'number', 'form' => $filterForm],
@@ -165,7 +165,7 @@ admin_layout_start('Menu', 'menu');
                                     <div class="small text-muted"><?php echo h((string)$item['menu_key']); ?><?php echo !empty($item['is_system']) ? ' · built-in' : ''; ?></div>
                                 </td>
                                 <td class="small text-muted"><?php echo $parentId > 0 ? h((string)($itemsById[$parentId]['label'] ?? 'Unknown')) : 'Top level'; ?></td>
-                                <td class="small"><?php echo $hasChildren ? '<span class="badge bg-secondary-subtle text-secondary">Expandable section</span>' : h((string)($item['href'] ?? '—')); ?></td>
+                                <td class="small"><?php echo adminMenuIsDivider($item) ? '<span class="badge bg-secondary-subtle text-secondary">Divider</span>' : ($hasChildren ? '<span class="badge bg-secondary-subtle text-secondary">Expandable section</span>' : h((string)($item['href'] ?? '—'))); ?></td>
                                 <td class="small"><?php echo h($roleLabels[$item['minimum_role']]); ?></td>
                                 <td><?php echo !empty($item['is_active']) ? '<span class="badge bg-success-subtle text-success">Visible</span>' : '<span class="badge bg-secondary-subtle text-secondary">Hidden</span>'; ?></td>
                                 <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?php echo h($menuUrl((string)$id)); ?>">Edit</a></td>
@@ -188,7 +188,7 @@ admin_layout_start('Menu', 'menu');
         $editRoles = is_array($rawEditRoles) ? $rawEditRoles : array_values(array_filter(array_map('trim', explode(',', (string)$rawEditRoles))));
         $editKind = ($_POST['action'] ?? '') === 'save' && isset($_POST['kind'])
             ? (string)$_POST['kind']
-            : (trim((string)($editItem['href'] ?? '')) === '' ? 'section' : 'link');
+            : (adminMenuIsDivider($editItem) ? 'divider' : (trim((string)($editItem['href'] ?? '')) === '' ? 'section' : 'link'));
     ?>
     <?php if ($isEditor): ?>
         <div>
@@ -206,16 +206,18 @@ admin_layout_start('Menu', 'menu');
                     <input type="hidden" name="id" value="<?php echo (int)($editItem['id'] ?? 0); ?>">
                     <div class="col-12">
                         <label class="form-label fw-semibold">Label</label>
-                        <input class="form-control" name="label" required maxlength="100" value="<?php echo h((string)($editItem['label'] ?? '')); ?>">
+                        <input class="form-control" name="label" data-menu-label required maxlength="100" value="<?php echo h((string)($editItem['label'] ?? '')); ?>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Item type</label>
                         <select class="form-select" name="kind" data-menu-kind>
                             <option value="link" <?php echo $editKind === 'link' ? 'selected' : ''; ?>>Link</option>
                             <option value="section" <?php echo $editKind === 'section' ? 'selected' : ''; ?>>Section heading</option>
+                            <option value="divider" <?php echo $editKind === 'divider' ? 'selected' : ''; ?>>Divider</option>
                         </select>
+                        <div class="form-text">Dividers use the parent and order settings. Their label is optional and only shown here.</div>
                     </div>
-                    <div class="col-12">
+                    <div class="col-12" data-menu-icon>
                         <label class="form-label fw-semibold">Font Awesome icon</label>
                         <div class="input-group"><span class="input-group-text"><i class="<?php echo h((string)($editItem['icon_class'] ?? 'fa-solid fa-circle')); ?>"></i></span><input class="form-control" name="icon_class" required value="<?php echo h((string)($editItem['icon_class'] ?? 'fa-solid fa-circle')); ?>" placeholder="fa-solid fa-calendar-days"></div>
                         <div class="form-text">Use a Font Awesome class. This icon remains visible when the sidebar is collapsed.</div>
@@ -280,10 +282,15 @@ admin_layout_start('Menu', 'menu');
         const hrefWrap = document.querySelector('[data-menu-href]');
         if (!kind || !hrefWrap) return;
         const sync = () => {
-            const isSection = kind.value === 'section';
-            hrefWrap.classList.toggle('d-none', isSection);
+            const isLink = kind.value === 'link';
+            const isDivider = kind.value === 'divider';
+            hrefWrap.classList.toggle('d-none', !isLink);
+            const iconWrap = document.querySelector('[data-menu-icon]');
+            iconWrap.classList.toggle('d-none', isDivider);
+            iconWrap.querySelector('input').required = !isDivider;
+            document.querySelector('[data-menu-label]').required = !isDivider;
             const input = hrefWrap.querySelector('input[name="href"]');
-            if (input) input.required = !isSection;
+            if (input) input.required = isLink;
         };
         kind.addEventListener('change', sync);
         sync();

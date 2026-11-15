@@ -140,6 +140,13 @@ function admin_layout_start(string $title, string $activeKey): void
             white-space:nowrap;
         }
         .admin-nav-icon { width:1.25rem; flex:0 0 1.25rem; text-align:center; }
+        .admin-sidebar .admin-nav-divider {
+            width: auto;
+            margin: 0.5rem var(--bs-nav-link-padding-x, 1rem);
+            border: 0;
+            border-top: 2px solid rgba(255,255,255,0.4);
+            opacity: 1;
+        }
         body.admin-nav-collapsed .admin-sidebar { padding-left:.6rem; padding-right:.6rem; }
         body.admin-nav-collapsed .admin-sidebar-brand,
         body.admin-nav-collapsed .admin-sidebar-meta,
@@ -525,11 +532,17 @@ function admin_layout_start(string $title, string $activeKey): void
                         }
                     }
                     ?>
-                    <?php if ($children): ?>
+                    <?php if (adminMenuIsDivider($item)): ?>
+                        <hr class="admin-nav-divider">
+                    <?php elseif ($children): ?>
                         <details class="admin-nav-section" name="admin-navigation" <?php echo $sectionActive ? 'open' : ''; ?>>
                             <summary class="nav-link <?php echo $sectionActive ? 'active' : ''; ?>" title="<?php echo h((string)($item['label'] ?? 'Section')); ?>"><i class="<?php echo h((string)($item['icon_class'] ?? 'fa-solid fa-circle')); ?> admin-nav-icon" aria-hidden="true"></i><span class="admin-nav-label"><?php echo h((string)($item['label'] ?? 'Section')); ?></span></summary>
                             <div class="admin-nav-children">
                                 <?php foreach ($children as $child): ?>
+                                    <?php if (adminMenuIsDivider($child)): ?>
+                                        <hr class="admin-nav-divider">
+                                        <?php continue; ?>
+                                    <?php endif; ?>
                                     <?php $childKey = (string)($child['menu_key'] ?? ''); ?>
                                     <a class="nav-link <?php echo admin_active($childKey, $activeKey); ?>" href="<?php echo h(adminMenuHref($child, $adminBase)); ?>" title="<?php echo h((string)($child['label'] ?? '')); ?>"><i class="<?php echo h((string)($child['icon_class'] ?? 'fa-solid fa-circle')); ?> admin-nav-icon" aria-hidden="true"></i><span class="admin-nav-label"><?php echo h((string)($child['label'] ?? '')); ?></span></a>
                                 <?php endforeach; ?>

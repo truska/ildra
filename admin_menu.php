@@ -101,6 +101,9 @@ function ensureAdminMenuTable(?PDO $pdo): void
         $pdo->exec("UPDATE admin_menu_items SET required_roles = 'developer,superadmin,admin' WHERE menu_key = 'finance'");
         $pdo->exec("UPDATE admin_menu_items SET required_roles = 'developer,superadmin' WHERE menu_key = 'menu'");
     }
+    if (!table_column_exists($pdo, 'admin_menu_items', 'item_type')) {
+        $pdo->exec("ALTER TABLE admin_menu_items ADD COLUMN item_type VARCHAR(16) NOT NULL DEFAULT 'link'");
+    }
     if (!table_column_exists($pdo, 'admin_menu_items', 'icon_class')) {
         $pdo->exec("ALTER TABLE admin_menu_items ADD COLUMN icon_class VARCHAR(100) NOT NULL DEFAULT 'fa-solid fa-circle' AFTER href");
     }
@@ -173,11 +176,32 @@ function adminMenuRoleAllowed(array $item, string $role): bool
     return in_array($role, $allowed ?: ['superadmin', 'admin', 'manager', 'organiser'], true);
 }
 
+function adminMenuIsDivider(array $item): bool
+{
+    return ($item['item_type'] ?? '') === 'divider';
+}
+
+// Apply after visibility filtering, independently within each menu level.
+function trimAdminMenuDividers(array $items): array
+{
+    $out = [];
+    foreach ($items as $item) {
+        if (adminMenuIsDivider($item) && (!$out || adminMenuIsDivider($out[count($out) - 1]))) {
+            continue;
+        }
+        $out[] = $item;
+    }
+    if ($out && adminMenuIsDivider($out[count($out) - 1])) {
+        array_pop($out);
+    }
+    return $out;
+}
+
 function buildAdminMenuTree(array $items, string $role): array
 {
     $allowed = [];
     foreach ($items as $index => $item) {
-        if (adminMenuRoleAllowed($item, $role)) {
+        if (!empty($item['is_active']) && empty($item['is_deleted']) && adminMenuRoleAllowed($item, $role)) {
             $item['children'] = [];
             $treeId = (int)($item['id'] ?? 0);
             if ($treeId <= 0) {
@@ -203,10 +227,11 @@ function buildAdminMenuTree(array $items, string $role): array
     foreach ($allowed as $item) {
         $parentId = (int)($item['parent_id'] ?? 0);
         if ($parentId <= 0) {
+            $item['children'] = trimAdminMenuDividers($item['children']);
             $roots[] = $item;
         }
     }
-    return $roots;
+    return trimAdminMenuDividers($roots);
 }
 
 function adminMenuHref(array $item, string $adminBase): string
@@ -231,7 +256,10 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     $id = max(0, (int)($data['id'] ?? 0));
     $label = trim((string)($data['label'] ?? ''));
     $kind = (string)($data['kind'] ?? 'link');
-    $href = $kind === 'section' ? '' : trim((string)($data['href'] ?? ''));
+    $href = $kind !== 'link' ? '' : trim((string)($data['href'] ?? ''));
+    if ($kind === 'divider') {
+        $label = $label ?: 'Divider';
+    }
     $iconClass = trim((string)($data['icon_class'] ?? 'fa-solid fa-circle'));
     $parentId = max(0, (int)($data['parent_id'] ?? 0));
     $displayOrder = (int)($data['display_order'] ?? 0);
@@ -241,10 +269,14 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     if ($label === '') {
         $alerts[] = ['type' => 'danger', 'message' => 'Menu label is required.'];
     }
+    if (!in_array($kind, ['link', 'section', 'divider'], true)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Choose a valid menu item type.'];
+    }
+    if ($kind === 'divider') $iconClass = 'fa-solid fa-circle';
     if (!preg_match('/^fa-(?:solid|regular|brands)(?: fa-[a-z0-9-]+)+$/', $iconClass)) {
         $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid Font Awesome class, for example fa-solid fa-calendar-days.'];
     }
-    if ($kind !== 'section' && ($href === '' || str_contains($href, '://') || str_starts_with($href, '//') || preg_match('/[\x00-\x1F<>"\']/', $href))) {
+    if ($kind === 'link' && ($href === '' || str_contains($href, '://') || str_starts_with($href, '//') || preg_match('/[\x00-\x1F<>"\']/', $href))) {
         $alerts[] = ['type' => 'danger', 'message' => 'Enter a safe internal link such as events.php.'];
     }
     if (!$roles) {
@@ -254,11 +286,18 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
         $alerts[] = ['type' => 'danger', 'message' => 'A menu item cannot be its own parent.'];
     }
     if ($parentId > 0) {
-        $stmt = $pdo->prepare('SELECT parent_id FROM admin_menu_items WHERE id = :id LIMIT 1');
+        $stmt = $pdo->prepare('SELECT parent_id, item_type FROM admin_menu_items WHERE id = :id AND is_deleted = 0 LIMIT 1');
         $stmt->execute([':id' => $parentId]);
         $parent = $stmt->fetch();
-        if (!$parent || (int)($parent['parent_id'] ?? 0) > 0) {
+        if (!$parent || adminMenuIsDivider($parent) || (int)($parent['parent_id'] ?? 0) > 0) {
             $alerts[] = ['type' => 'danger', 'message' => 'Menu items can only be assigned to a top-level section.'];
+        }
+    }
+    if ($kind === 'divider' && $id > 0) {
+        $children = $pdo->prepare('SELECT COUNT(*) FROM admin_menu_items WHERE parent_id = :id AND is_deleted = 0');
+        $children->execute([':id' => $id]);
+        if ((int)$children->fetchColumn() > 0) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Move this section’s child items before changing it to a divider.'];
         }
     }
     if ($alerts) {
@@ -276,11 +315,12 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
         $requiredRoles = implode(',', $roles);
         $stmt = $pdo->prepare("
             UPDATE admin_menu_items
-            SET label = :label, href = :href, icon_class=:icon_class, parent_id = :parent_id,
+            SET label = :label, href = :href, icon_class=:icon_class, item_type = :item_type, parent_id = :parent_id,
                 display_order = :display_order, is_active = :is_active, required_roles = :required_roles
             WHERE id = :id
         ");
         $stmt->execute([
+            ':item_type' => $kind,
             ':label' => $label,
             ':href' => $href !== '' ? $href : null,
             ':icon_class' => $iconClass,
@@ -306,11 +346,12 @@ function saveAdminMenuItem(?PDO $pdo, array $data, array &$alerts): ?int
     } while ($suffix < 1000);
     $stmt = $pdo->prepare("
         INSERT INTO admin_menu_items
-            (menu_key, label, href, icon_class, parent_id, display_order, is_active, required_roles, is_system)
+            (menu_key, label, href, icon_class, item_type, parent_id, display_order, is_active, required_roles, is_system)
         VALUES
-            (:menu_key, :label, :href, :icon_class, :parent_id, :display_order, :is_active, :required_roles, 0)
+            (:menu_key, :label, :href, :icon_class, :item_type, :parent_id, :display_order, :is_active, :required_roles, 0)
     ");
     $stmt->execute([
+        ':item_type' => $kind,
         ':menu_key' => $key,
         ':label' => $label,
         ':href' => $href !== '' ? $href : null,

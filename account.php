@@ -532,9 +532,6 @@ $accountIntroAutoOpen = false;
             background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.08), transparent);
             margin: 1.25rem 0;
         }
-        .share-accept-divider {
-            background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.24), transparent);
-        }
         .stat-pill {
             display: flex;
             align-items: center;
@@ -1430,31 +1427,31 @@ $accountIntroAutoOpen = false;
                                 ?>
                                 <div class="card-soft p-4 mt-4" id="shares">
                                     <div class="row g-4 align-items-start">
-                                        <div class="col-12 col-lg-6 order-2 order-lg-1">
+                                        <div class="col-12 col-lg-6">
                                             <div class="text-uppercase small text-muted">Shares</div>
                                             <h4 class="fw-bold mb-1">Share with another user.</h4>
                                             <div class="text-muted small">Share a rider or horse to allow a friend to make entries on your behalf.<br>They cannot change your information or use any payment methods you have used.</div>
-                                        </div>
-                                        <div class="col-12 col-lg-6 order-1 order-lg-2">
-                                            <div class="d-flex justify-content-between align-items-start gap-2">
-                                                <div>
-                                                    <div class="text-uppercase small text-muted">Shared with you</div>
-                                                    <h4 class="fw-bold mb-1">Accept a share code.</h4>
+                                            <hr class="my-4">
+                                            <div>
+                                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                                    <div>
+                                                        <div class="text-uppercase small text-muted">Shared with you</div>
+                                                        <h4 class="fw-bold mb-1">Accept a share code.</h4>
+                                                    </div>
+                                                    <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
                                                 </div>
-                                                <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
+                                                <div class="text-muted small mb-3">Enter a code someone has sent you to add their shared person or horse to your account.</div>
+                                                <form method="post" class="d-flex flex-column flex-sm-row gap-2">
+                                                    <input type="hidden" name="action" value="accept_share_code">
+                                                    <input class="form-control" name="share_code" placeholder="Share code" style="min-width: 180px;" required>
+                                                    <button class="btn btn-outline-success fw-bold text-nowrap" type="submit">Accept Code</button>
+                                                </form>
                                             </div>
-                                            <div class="text-muted small mb-3">Enter a code someone has sent you to add their shared person or horse to your account.</div>
-                                            <form method="post" class="d-flex flex-column flex-sm-row gap-2">
-                                                <input type="hidden" name="action" value="accept_share_code">
-                                                <input class="form-control" name="share_code" placeholder="Share code" style="min-width: 180px;" required>
-                                                <button class="btn btn-outline-success fw-bold text-nowrap" type="submit">Accept Code</button>
-                                            </form>
-                                            <div class="divider share-accept-divider mb-0"></div>
                                         </div>
-                                        <div class="col-12 order-3">
+                                        <div class="col-12 col-lg-6">
                                             <div class="fw-bold mb-2">Create a share</div>
                                             <form method="post" class="row g-3">
-                                        <div class="col-12 col-lg-6">
+                                        <div class="col-12">
                                             <label class="form-label fw-bold">Person or horse</label>
                                             <select class="form-select" name="entity_ref" required>
                                                 <option value="">Choose...</option>
@@ -1475,7 +1472,7 @@ $accountIntroAutoOpen = false;
                                                 <?php endif; ?>
                                             </select>
                                         </div>
-                                        <div class="col-12 col-lg-6">
+                                        <div class="col-12">
                                             <label class="form-label fw-bold">Recipient <span class="fw-normal text-muted">(for an invite)</span></label>
                                             <input class="form-control" name="recipient" placeholder="Email address or member number">
                                         </div>
