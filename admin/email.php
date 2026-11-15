@@ -41,6 +41,20 @@ if ($view === 'settings') {
             'email_smtp_port' => (string)((int)($_POST['email_smtp_port'] ?? 587)),
             'email_smtp_secure' => trim((string)($_POST['email_smtp_secure'] ?? 'tls')),
         ];
+        $data['email_delivery_default'] = (string)($_POST['email_delivery_default'] ?? 'truska');
+        $postedRoutes = $_POST['email_routes'] ?? [];
+        $routes = [];
+        if (is_array($postedRoutes)) {
+            foreach ($postedRoutes as $kind => $system) {
+                if ($system !== '') {
+                    $routes[$kind] = $system;
+                }
+            }
+        }
+        $data['email_delivery_routes'] = json_encode((object)$routes);
+        foreach (['email_ses_region', 'email_ses_from_email', 'email_ses_from_name'] as $key) {
+            $data[$key] = trim((string)($_POST[$key] ?? ''));
+        }
         $requestedEnable = $data['email_enabled'] === '1';
         $provider = strtolower((string)($emailSettings['email_provider'] ?? 'php_mail'));
 
@@ -85,18 +99,22 @@ if ($view === 'settings') {
             $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid test recipient email address.'];
         } else {
             $siteSettings = getSiteSettings($pdo);
-            $emailSettings = getEmailSettings($pdo);
+            $testSettings = getEmailSettings($pdo);
+            $testSystem = (string)($_POST['test_system'] ?? 'truska');
+            if ($testSystem === 'ses') {
+                $testSettings = emailSesSettings($testSettings);
+            }
 
             $token = strtoupper(bin2hex(random_bytes(3)));
-            $subject = subject_with_prefix($emailSettings, 'Email test ' . $token);
+            $subject = subject_with_prefix($testSettings, 'Email test ' . $token);
             $now = date('d M Y H:i:s');
 
-            $smtpHost = (string)($emailSettings['email_smtp_host'] ?? '');
-            $smtpPort = (string)($emailSettings['email_smtp_port'] ?? '');
-            $smtpSecure = (string)($emailSettings['email_smtp_secure'] ?? '');
-            $fromEmail = (string)($emailSettings['email_from_email'] ?? '');
-            $fromName = (string)($emailSettings['email_from_name'] ?? '');
-            $provider = strtolower((string)($emailSettings['email_provider'] ?? 'php_mail'));
+            $smtpHost = (string)($testSettings['email_smtp_host'] ?? '');
+            $smtpPort = (string)($testSettings['email_smtp_port'] ?? '');
+            $smtpSecure = (string)($testSettings['email_smtp_secure'] ?? '');
+            $fromEmail = (string)($testSettings['email_from_email'] ?? '');
+            $fromName = (string)($testSettings['email_from_name'] ?? '');
+            $provider = strtolower((string)($testSettings['email_provider'] ?? 'php_mail'));
             $delivery = $provider === 'smtp'
                 ? 'SMTP via ' . $smtpHost . ':' . $smtpPort . ' (' . $smtpSecure . ')'
                 : 'PHP mail()';
@@ -109,7 +127,7 @@ if ($view === 'settings') {
                 . '<div><strong>Delivery:</strong> ' . h($delivery) . '</div>'
                 . '</div>'
                 . '<p style="color:#476146;margin-top:14px;">This test uses the site\'s current outbound email configuration and logs the result.</p>';
-            $html = wrap_user_email_html($siteSettings, $emailSettings, $htmlInner);
+            $html = wrap_user_email_html($siteSettings, $testSettings, $htmlInner);
 
             $textInner = "ILDRA email test\n"
                 . "Sent at {$now}\n"
@@ -118,10 +136,11 @@ if ($view === 'settings') {
                 . "Delivery: {$delivery}"
                 . "\n\n"
                 . "This test uses the site's current outbound email configuration and logs the result.\n";
-            $text = wrap_user_email_text($siteSettings, $emailSettings, $textInner);
+            $text = wrap_user_email_text($siteSettings, $testSettings, $textInner);
 
             $ok = send_logged_email($pdo, $to, $subject, $html, $text, [
                 'type' => 'test',
+                'delivery_system' => $testSystem,
                 'token' => $token,
                 'admin_user_id' => (int)($currentUser['id'] ?? 0),
                 'admin_email' => (string)($currentUser['email'] ?? ''),
@@ -222,7 +241,7 @@ if ($view === 'settings') {
                     </div>
                 </div>
 
-                <div class="help-row">Uses authenticated SMTP from private server config when available, ignoring stale database SMTP secrets. Every send is logged and checkout never blocks on failures.</div>
+                <div class="help-row">Choose Truska or Amazon SES below for each email type. Every send is logged.</div>
                 <?php if ($enableBlockedWarning): ?>
                     <div class="alert alert-warning py-2 px-3 mt-2 mb-0">
                         Email is still off because required settings are incomplete.<?php echo h($enableBlockedDetail); ?>
@@ -278,7 +297,7 @@ if ($view === 'settings') {
             </div>
 
             <div class="panel-soft p-3 p-lg-4">
-                <p class="panel-title">SMTP Delivery</p>
+                <p class="panel-title">Truska SMTP delivery</p>
                 <p class="panel-subtitle">Resolved SMTP settings used for outbound email when credentials are available.</p>
 
                 <?php
@@ -290,7 +309,7 @@ if ($view === 'settings') {
                 <div class="row g-3 mt-1 align-items-end">
                     <div class="col-12 col-lg-6">
                         <label class="form-label fw-semibold" for="email_smtp_host">Host</label>
-                        <input class="form-control" id="email_smtp_host" name="email_smtp_host" value="<?php echo h((string)($emailSettings['email_smtp_host'] ?? '')); ?>" placeholder="email-smtp.eu-west-1.amazonaws.com">
+                        <input class="form-control" id="email_smtp_host" name="email_smtp_host" value="<?php echo h((string)($emailSettings['email_smtp_host'] ?? '')); ?>" placeholder="smtp.truska.net">
                     </div>
                     <div class="col-6 col-lg-2">
                         <label class="form-label fw-semibold" for="email_smtp_port">Port</label>
@@ -324,8 +343,58 @@ if ($view === 'settings') {
             </div>
 
             <div class="panel-soft p-3 p-lg-4 mt-3">
+                <p class="panel-title">Amazon SES delivery</p>
+                <?php $sesSettings = emailSesSettings($emailSettings); ?>
+                <p class="panel-subtitle">A second sending system with its own verified sender and SMTP credentials.</p>
+                <div class="row g-3 mt-1">
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="email_ses_region">AWS region</label>
+                        <input class="form-control" id="email_ses_region" name="email_ses_region" value="<?php echo h((string)$emailSettings['email_ses_region']); ?>" placeholder="eu-north-1">
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="email_ses_from_email">Verified From email</label>
+                        <input class="form-control" type="email" id="email_ses_from_email" name="email_ses_from_email" value="<?php echo h((string)$emailSettings['email_ses_from_email']); ?>">
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="email_ses_from_name">From name</label>
+                        <input class="form-control" id="email_ses_from_name" name="email_ses_from_name" value="<?php echo h((string)$emailSettings['email_ses_from_name']); ?>">
+                    </div>
+                </div>
+                <div class="help-row mt-3">SMTP endpoint: <?php echo h($sesSettings['email_smtp_host']); ?>, port 587, STARTTLS.</div>
+                <div class="help-row">Private SMTP credentials: <strong><?php echo $sesSettings['email_smtp_username'] !== '' && $sesSettings['email_smtp_password'] !== '' ? 'Configured' : 'Not configured'; ?></strong>. Store SES SMTP username/password in the private server email configuration. These are SES SMTP credentials, separate from your AWS sign-in.</div>
+                <div class="help-row">Verify the sender in this AWS region before sending. SES handles its own return path and bounces; the Truska bounce mailbox does not collect SES bounces.</div>
+            </div>
+
+            <div class="panel-soft p-3 p-lg-4 mt-3">
+                <p class="panel-title">Delivery by email type</p>
+                <p class="panel-subtitle">Save settings before testing. Types set to Default use the default system below. Existing emails continue through Truska until you change this.</p>
+                <div class="row g-3 mt-1">
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-semibold" for="email_delivery_default">Default sending system</label>
+                        <select class="form-select" id="email_delivery_default" name="email_delivery_default">
+                            <?php foreach (['truska' => 'Truska', 'ses' => 'Amazon SES'] as $value => $label): ?>
+                                <option value="<?php echo h($value); ?>" <?php echo $emailSettings['email_delivery_default'] === $value ? 'selected' : ''; ?>><?php echo h($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php $deliveryRoutes = emailDeliveryRoutes($emailSettings); ?>
+                    <?php foreach (emailDeliveryTypes() as $kind => $label): ?>
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label" for="route_<?php echo h($kind); ?>"><?php echo h($label); ?></label>
+                            <select class="form-select" id="route_<?php echo h($kind); ?>" name="email_routes[<?php echo h($kind); ?>]">
+                                <?php foreach (['' => 'Default', 'truska' => 'Truska', 'ses' => 'Amazon SES'] as $value => $systemLabel): ?>
+                                    <option value="<?php echo h($value); ?>" <?php echo ($deliveryRoutes[$kind] ?? '') === $value ? 'selected' : ''; ?>><?php echo h($systemLabel); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <div class="help-row mt-3">The testing redirect applies to both systems. Failed sends are logged against the selected system.</div>
+            </div>
+
+            <div class="panel-soft p-3 p-lg-4 mt-3">
                 <p class="panel-title">Test email</p>
-                <p class="panel-subtitle">Sends a test message using the current outbound email setup and logs the result.</p>
+                <p class="panel-subtitle">Sends a test message through the selected system using saved settings and logs the result.</p>
 
                 <div class="row g-3 align-items-end mt-1">
                     <div class="col-12 col-lg-6">
@@ -333,7 +402,14 @@ if ($view === 'settings') {
                         <input class="form-control" id="test_to" name="test_to" value="<?php echo h((string)($_POST['test_to'] ?? 'clients@truska.com')); ?>" placeholder="you@example.com">
                         <div class="help-row">If SES is in sandbox mode, the recipient must be verified in SES.</div>
                     </div>
-                    <div class="col-12 col-lg-6 d-flex justify-content-lg-end">
+                    <div class="col-12 col-lg-3">
+                        <label class="form-label fw-semibold" for="test_system">Sending system</label>
+                        <select class="form-select" id="test_system" name="test_system">
+                            <option value="truska">Truska</option>
+                            <option value="ses" <?php echo ($_POST['test_system'] ?? '') === 'ses' ? 'selected' : ''; ?>>Amazon SES</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-lg-3 d-flex justify-content-lg-end">
                         <button class="btn btn-outline-secondary" type="submit" name="action" value="send_test">Send Test Email</button>
                     </div>
                 </div>
@@ -440,7 +516,7 @@ $page = min($page, $pages);
 $offset = ($page - 1) * $pageSize;
 
 $stmt = $pdo->prepare("
-    SELECT el.id, el.status, el.to_email, el.subject, el.body_text, el.body_html, el.error_message, el.sent_at, el.created_at
+    SELECT el.id, el.status, el.provider, el.to_email, el.subject, el.body_text, el.body_html, el.error_message, el.sent_at, el.created_at
     FROM email_log el
     {$whereSql}
     ORDER BY {$sortSql} {$sortDir}
@@ -476,6 +552,7 @@ $rows = $stmt->fetchAll() ?: [];
                     <th style="width: 72px;"><?php echo admin_sort_link('id', '#', $sortKey, $sortDir); ?></th>
                     <th><?php echo admin_sort_link('to', 'To', $sortKey, $sortDir); ?></th>
                     <th><?php echo admin_sort_link('subject', 'Subject', $sortKey, $sortDir); ?></th>
+                    <th>Sending system</th>
                     <th style="width: 130px;"><?php echo admin_sort_link('status', 'Status', $sortKey, $sortDir); ?></th>
                     <th style="width: 170px;"><?php echo admin_sort_link('sent_at', 'Sent', $sortKey, $sortDir); ?></th>
                     <th style="width: 110px;"></th>
@@ -502,6 +579,7 @@ $rows = $stmt->fetchAll() ?: [];
                             <input class="form-control" type="search" name="filter_subject" value="<?php echo h($filters['subject']); ?>" placeholder="Subject">
                         </div>
                     </th>
+                    <th></th>
                     <th>
                         <div class="admin-table-filter">
                             <select class="form-select" name="filter_status">
@@ -530,7 +608,7 @@ $rows = $stmt->fetchAll() ?: [];
                 </thead>
             <tbody>
             <?php if (!$rows): ?>
-                <tr><td colspan="6" class="text-muted">No emails yet.</td></tr>
+                <tr><td colspan="7" class="text-muted">No emails yet.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $r): ?>
                     <?php
@@ -565,6 +643,7 @@ $rows = $stmt->fetchAll() ?: [];
                                 <div class="small text-muted"><?php echo h($snippet); ?></div>
                             <?php endif; ?>
                         </td>
+                        <td><?php echo h(($r['provider'] ?? '') === 'ses_smtp' ? 'Amazon SES' : (($r['provider'] ?? '') === 'smtp' ? 'Truska / SMTP' : (string)($r['provider'] ?? ''))); ?></td>
                         <td><span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($status); ?></span></td>
                         <td class="text-muted"><?php echo h(admin_display_datetime($sent, '')); ?></td>
                         <td class="text-end">

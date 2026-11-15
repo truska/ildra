@@ -12,6 +12,8 @@ Cadence: review this inventory once per quarter and before any production releas
 | Font Awesome | Site and admin icons | `cdnjs.cloudflare.com`, `kit.fontawesome.com` | Review version/kit ownership and CSP sources. |
 | Google Fonts (Manrope) | Web font delivery | `fonts.googleapis.com`, `fonts.gstatic.com` | Confirm font is still required and only the listed origins are allowed. |
 | TinyMCE 6 | Rich-text administration | `cdn.tiny.cloud` | Review API key ownership, editor version, and server-side sanitiser coverage. |
+| Truska SMTP / bounce IMAP | Existing website email delivery and bounce collection | `../private/email.php` | Review TLS, private credentials, sender identity and bounce processing. |
+| Amazon SES SMTP | Optional website email delivery selected by message type | Regional SES SMTP endpoint; credentials in `../private/email.php` | Review regional identity/DKIM, SES SMTP credentials, sandbox/production status, pricing plan and bounce/complaint feedback. |
 | Stripe API / Checkout / webhook | Payments, payouts and payment requests | `api.stripe.com`; credentials in `../private` | Review API version, webhook signature handling, test/live keys, payout permissions and Stripe notices. |
 | Facebook post embed | Ride-report gallery embeds | `www.facebook.com` | Confirm the restricted Facebook URL validation and `frame-src` allowlist remain sufficient. |
 | Playwright 1.62.1 | Development browser tests | `package.json`, `package-lock.json` | Run dependency update review and test suite; do not ship as a runtime dependency. |

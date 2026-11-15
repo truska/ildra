@@ -4362,7 +4362,7 @@ function sendShareCodeEmail(?PDO $pdo, array $request): bool
     $emailSettings = getEmailSettings($pdo);
     $html = wrap_user_email_html($siteSettings, $emailSettings, $html);
     $text = wrap_user_email_text($siteSettings, $emailSettings, $text);
-    return send_logged_email($pdo, $to, $subject, $html, $text, ['share_request_id' => (int)($request['id'] ?? 0)]);
+    return send_logged_email($pdo, $to, $subject, $html, $text, ['kind' => 'share_request', 'share_request_id' => (int)($request['id'] ?? 0)]);
 }
 
 function fetchIncomingShareRequests(?PDO $pdo, int $userId): array

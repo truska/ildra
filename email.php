@@ -156,6 +156,11 @@ function defaultEmailSettings(): array
         'email_smtp_username' => '',
         'email_smtp_password' => '',
         'email_site_code' => 'ildra',
+        'email_delivery_default' => 'truska',
+        'email_delivery_routes' => '{}',
+        'email_ses_region' => 'eu-north-1',
+        'email_ses_from_email' => '',
+        'email_ses_from_name' => '',
     ];
 }
 
@@ -396,6 +401,72 @@ function getEmailSettings(?PDO $pdo): array
     return $settings;
 }
 
+/** Stable message kinds used by transactional and campaign senders. */
+function emailDeliveryTypes(): array
+{
+    return [
+        'password_reset' => 'Password resets',
+        'magic_login' => 'Sign-in links',
+        'booking_confirmation' => 'Purchase / booking confirmations',
+        'entry_cancellation' => 'Entry cancellations',
+        'late_entry_alert' => 'Late-entry alerts',
+        'misc_payment_request' => 'Payment requests',
+        'misc_payment_request_reminder' => 'Payment reminders',
+        'coupon' => 'Coupons',
+        'share_request' => 'Rider / horse sharing invitations',
+        'external_recognition_verification' => 'External recognition verification',
+        'legacy_balance_confirmation' => 'Opening balance confirmations',
+        'campaign' => 'Campaign emails and event reminders',
+        'campaign_test' => 'Campaign tests',
+        'campaign_limited_test' => 'Campaign limited tests',
+        'campaign_template_test' => 'Campaign template tests',
+        'test' => 'Settings test emails',
+    ];
+}
+
+function emailDeliveryRoutes(array $settings): array
+{
+    $routes = json_decode((string)($settings['email_delivery_routes'] ?? '{}'), true);
+    return is_array($routes) ? $routes : [];
+}
+
+function emailDeliverySystem(array $settings, array $meta): string
+{
+    // Only the settings test can explicitly select a transport.
+    if (($meta['type'] ?? '') === 'test' && isset($meta['delivery_system'])) {
+        return (string)$meta['delivery_system'];
+    }
+    $kind = (string)($meta['kind'] ?? $meta['type'] ?? '');
+    $routes = emailDeliveryRoutes($settings);
+    return (string)($routes[$kind] ?? $settings['email_delivery_default'] ?? 'truska');
+}
+
+function emailSesSettings(array $settings): array
+{
+    $private = email_environment_config();
+    $ses = is_array($private['ses'] ?? null) ? $private['ses'] : [];
+    $region = trim((string)($ses['region'] ?? $settings['email_ses_region'] ?? 'eu-north-1'));
+    $settings['email_provider'] = 'smtp';
+    $settings['email_smtp_host'] = preg_match('/^[a-z]{2}(?:-[a-z]+)+-[0-9]+$/D', $region)
+        ? 'email-smtp.' . $region . '.amazonaws.com' : '';
+    $settings['email_smtp_port'] = '587';
+    $settings['email_smtp_secure'] = 'tls';
+    // Never borrow Truska/legacy credentials or sender identity for SES.
+    $settings['email_smtp_username'] = trim((string)($ses['username'] ?? ''));
+    $settings['email_smtp_password'] = (string)($ses['password'] ?? '');
+    $settings['email_from_email'] = trim((string)($ses['from_email'] ?? $settings['email_ses_from_email'] ?? ''));
+    $settings['email_from_name'] = trim((string)($ses['from_name'] ?? $settings['email_ses_from_name'] ?? ''));
+    return $settings;
+}
+
+function emailSesReady(array $settings): bool
+{
+    $ses = emailSesSettings($settings);
+    return $ses['email_smtp_host'] !== ''
+        && $ses['email_smtp_username'] !== '' && $ses['email_smtp_password'] !== ''
+        && (bool)filter_var($ses['email_from_email'], FILTER_VALIDATE_EMAIL);
+}
+
 function emailDebugSnapshot(array $settings, array $meta = []): array
 {
     $csv = legacyEmailCsvSettings();
@@ -405,7 +476,15 @@ function emailDebugSnapshot(array $settings, array $meta = []): array
     $csvUser = trim((string) ($csv['email_smtp_username'] ?? ($settings['email_from_email'] ?? '')));
     $csvPass = (string) ($csv['email_smtp_password'] ?? '');
 
+    $deliverySystem = (string)($meta['delivery_system'] ?? 'truska');
+    $private = email_environment_config();
+    $privateTransport = $deliverySystem === 'ses'
+        ? (array)($private['ses'] ?? []) : (array)($private['outbound'] ?? []);
+    $privateUser = trim((string)($privateTransport['username'] ?? ''));
+    $privatePass = (string)($privateTransport['password'] ?? '');
+
     return [
+        'delivery_system' => $deliverySystem,
         'resolved' => [
             'email_enabled' => (string) ($settings['email_enabled'] ?? '0'),
             'email_provider' => (string) ($settings['email_provider'] ?? ''),
@@ -433,11 +512,11 @@ function emailDebugSnapshot(array $settings, array $meta = []): array
             'csv_username_present' => $csvUser !== '',
             'csv_password_present' => $csvPass !== '',
             'csv_host_present' => trim((string) ($csv['email_smtp_host'] ?? '')) !== '',
-            'resolved_username_source' => $constUser !== '' ? 'config.php' : ($csvUser !== '' ? 'preferences.csv/email_from_email' : 'missing'),
-            'resolved_password_source' => $constPass !== '' ? 'config.php' : ($csvPass !== '' ? 'preferences.csv' : 'missing'),
-            'resolved_host_source' => trim((string) ($settings['email_smtp_host'] ?? '')) !== ''
+            'resolved_username_source' => $privateUser !== '' ? 'private/email.php' : ($deliverySystem === 'ses' ? 'missing' : ($constUser !== '' ? 'config.php' : ($csvUser !== '' ? 'preferences.csv/email_from_email' : 'missing'))),
+            'resolved_password_source' => $privatePass !== '' ? 'private/email.php' : ($deliverySystem === 'ses' ? 'missing' : ($constPass !== '' ? 'config.php' : ($csvPass !== '' ? 'preferences.csv' : 'missing'))),
+            'resolved_host_source' => $deliverySystem === 'ses' ? 'SES region' : (!empty($privateTransport['host']) ? 'private/email.php' : (trim((string) ($settings['email_smtp_host'] ?? '')) !== ''
                 ? (trim((string) ($csv['email_smtp_host'] ?? '')) !== '' ? 'site_settings_or_preferences.csv' : 'site_settings')
-                : 'missing',
+                : 'missing')),
         ],
         'message' => [
             'kind' => (string) ($meta['kind'] ?? $meta['type'] ?? ''),
@@ -501,11 +580,38 @@ function saveEmailSettings(?PDO $pdo, array $data, array &$alerts): bool
         }
     }
 
+    $deliveryDefault = (string)($merged['email_delivery_default'] ?? 'truska');
+    $routes = json_decode((string)($merged['email_delivery_routes'] ?? '{}'), true);
+    if (!in_array($deliveryDefault, ['truska', 'ses'], true) || !is_array($routes)) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Choose valid email delivery settings.'];
+    } else {
+        foreach ($routes as $kind => $system) {
+            if (!array_key_exists($kind, emailDeliveryTypes()) || !in_array($system, ['truska', 'ses'], true)) {
+                $alerts[] = ['type' => 'danger', 'message' => 'Choose a valid delivery system for each email type.'];
+                break;
+            }
+        }
+        if (($deliveryDefault === 'ses' || in_array('ses', $routes, true)) && !emailSesReady($merged)) {
+            $alerts[] = ['type' => 'danger', 'message' => 'Configure the SES region, verified From address and private SMTP credentials before routing emails through Amazon SES.'];
+        }
+    }
+    $sesRegion = trim((string)($merged['email_ses_region'] ?? 'eu-north-1'));
+    $sesFrom = trim((string)($merged['email_ses_from_email'] ?? ''));
+    if (!preg_match('/^[a-z]{2}(?:-[a-z]+)+-[0-9]+$/D', $sesRegion)
+        || ($sesFrom !== '' && !filter_var($sesFrom, FILTER_VALIDATE_EMAIL))) {
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid SES region and From email address.'];
+    }
     if ($alerts) {
         return false;
     }
 
     $toSave = [
+        'email_delivery_default' => $deliveryDefault,
+        'email_delivery_routes' => json_encode((object)$routes),
+        'email_ses_region' => $sesRegion,
+        'email_ses_from_email' => $sesFrom,
+        'email_ses_from_name' => trim((string)($merged['email_ses_from_name'] ?? '')),
+
         'email_enabled' => $enabled,
         'email_provider' => $provider,
         'email_test_redirect_enabled' => $redirectEnabled,
@@ -795,7 +901,11 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
     $clientHost = 'localhost';
     $ehlo = smtp_send_command($fp, "EHLO {$clientHost}", [250], 'EHLO');
 
-    if ($secure === 'tls' && stripos($ehlo, 'STARTTLS') !== false) {
+    if ($secure === 'tls' && stripos($ehlo, 'STARTTLS') === false) {
+        fclose($fp);
+        throw new RuntimeException('SMTP server does not offer required STARTTLS.');
+    }
+    if ($secure === 'tls') {
         smtp_send_command($fp, "STARTTLS", [220], 'STARTTLS');
         $ok = @stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
         if ($ok !== true) {
@@ -872,6 +982,11 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
     }
     ensureEmailTables($pdo);
     $settings = getEmailSettings($pdo);
+    $deliverySystem = emailDeliverySystem($settings, $meta);
+    if ($deliverySystem === 'ses') {
+        $settings = emailSesSettings($settings);
+    }
+    $meta['delivery_system'] = $deliverySystem;
     if (str_contains($htmlBody, 'cid:ildra-email-footer')) {
         $footerPath = __DIR__ . '/filestore/images/logos/ildra-email-footer.png';
         $alreadyAttached = false;
@@ -932,7 +1047,8 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
 
     $siteCode = email_site_code(['site_code' => (string)($settings['email_site_code'] ?? '')]);
     $bounceToken = substr(email_generate_bounce_token($siteCode), strlen($siteCode) + 1);
-    $envelopeFrom = email_bounce_sender($siteCode, $bounceToken, $settings);
+    $envelopeFrom = $deliverySystem === 'ses'
+        ? $fromEmail : email_bounce_sender($siteCode, $bounceToken, $settings);
     $messageId = email_message_id($siteCode, (string)($settings['bounce_domain'] ?? 'witecanvas.com'));
 
     $meta['provider'] = $provider;
@@ -948,7 +1064,7 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
 
     $logRow = [
         'status' => 'queued',
-        'provider' => $provider,
+        'provider' => $deliverySystem === 'ses' ? 'ses_smtp' : $provider,
         'to_email' => $toEmail,
         'cc' => $ccEmails ? implode(', ', $ccEmails) : null,
         'bcc' => $bccEmails ? implode(', ', $bccEmails) : null,
@@ -973,6 +1089,12 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
     }
 
     try {
+        if (!in_array($deliverySystem, ['truska', 'ses'], true)) {
+            throw new RuntimeException('Unknown email delivery system.');
+        }
+        if ($deliverySystem === 'ses' && !emailSesReady($settings)) {
+            throw new RuntimeException('Amazon SES is not configured: verified sender and private SMTP credentials are required.');
+        }
         if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
             throw new RuntimeException('Recipient email is not valid.');
         }
