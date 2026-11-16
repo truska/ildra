@@ -1,5 +1,20 @@
 # Deployment checklist
 
+## Ride Notice advertising link (16 November 2026)
+
+Deploy the account preference destination from development before updating the
+advertising link. After a destination database backup, preview and apply
+`migrations/2026-11-16-ride-notice-advert-link.sql`. It targets only adverts
+named/titled Rider Email Notifications, replaces their Mailchimp destination
+with `/account?view=people&email_preferences=ride_notice`, and opens the account
+in the same tab. No opt-in data is changed. Development has no matching advert;
+check the preview on the destination rather than assuming an affected row.
+
+Verify signed-out sign-in and signed-in access. A unique active, owned person
+matching the account's first/last name opens for editing with focus on the Ride
+Notice checkbox. Ambiguous/unmatched records show the People list with guidance;
+linked/shared people are never auto-selected. Saving remains an explicit action.
+
 ## Legacy opening balances (credits and debits)
 
 After an environment database backup, deploy the development commits with `git pull --ff-only`. Apply `migrations/2026-10-23-legacy-opening-balances.sql` to that environment's website database, or open **Legacy Opening Balances** as a finance administrator: the page applies that same idempotent table setup. The schema adds a pending-balance register, import batches and email-ownership confirmations. It does not modify user accounts or balances. Keep source-code fixes on development; destination environments receive only deployment and environment-specific data operations.

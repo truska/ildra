@@ -7,6 +7,15 @@ $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
 $siteBase = $basePath ?: '';
 $activeTab = ($_POST['action'] ?? '') === 'register' ? 'register' : 'login';
+// A fixed destination survives password, authenticator and magic-link sign-in.
+if (($_GET['email_preferences'] ?? '') === 'ride_notice' && !$currentUser) {
+    $_SESSION['ride_notice_preferences_pending'] = true;
+}
+if ($currentUser && !empty($_SESSION['ride_notice_preferences_pending'])) {
+    unset($_SESSION['ride_notice_preferences_pending']);
+    header('Location: ' . $basePath . '/account?view=people&email_preferences=ride_notice');
+    exit;
+}
 $authView = (string)($_GET['auth'] ?? '');
 $allowedAuthViews = ['forgot', 'magic', 'choose', 'password', 'app'];
 if (!in_array($authView, $allowedAuthViews, true)) {
@@ -1181,6 +1190,16 @@ $accountIntroAutoOpen = false;
                                     }
                                 }
                                 $editPersonId = (int)($_GET['person_id'] ?? 0);
+                                if (!$editPersonId && ($_GET['email_preferences'] ?? '') === 'ride_notice') {
+                                    $ownedPeople = array_values(array_filter($activePeople, static fn(array $person): bool => empty($person['is_linked']) && (int)$person['owner_user_id'] === $userId));
+                                    $matchingPeople = array_values(array_filter($ownedPeople, static fn(array $person): bool =>
+                                        strcasecmp(trim((string)$person['first_name']), trim((string)($currentUser['first_name'] ?? ''))) === 0
+                                        && strcasecmp(trim((string)$person['last_name']), trim((string)($currentUser['last_name'] ?? ''))) === 0
+                                        && trim((string)$person['first_name']) !== ''
+                                        && trim((string)$person['last_name']) !== ''
+                                    ));
+                                    if (count($matchingPeople) === 1) $editPersonId = (int)$matchingPeople[0]['id'];
+                                }
                                 $editPerson = $editPersonId > 0 ? fetchPersonForUserById($pdo, $userId, $editPersonId) : null;
                                 if ($editPerson && !empty($editPerson['is_linked'])) {
                                     $editPerson = null;
@@ -1190,6 +1209,9 @@ $accountIntroAutoOpen = false;
                                 ?>
 
 	                                <div class="card-soft p-4 mt-4">
+                                    <?php if (($_GET['email_preferences'] ?? '') === 'ride_notice'): ?>
+                                        <div class="alert alert-info">To receive the weekly Ride Notice, edit your person record, tick the Ride Notice email option and save your changes.</div>
+                                    <?php endif; ?>
 	                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
 	                                        <div>
 	                                            <div class="fw-bold">Your people</div>
@@ -2350,11 +2372,21 @@ $accountIntroAutoOpen = false;
         <?php if ($accountView === 'people' && (!empty($editPerson) || (($action ?? '') === 'save_person' && !empty($alerts)))): ?>
         const personEditorModalEl = document.getElementById('personEditorModal');
         if (personEditorModalEl) {
+            <?php if (($_GET['email_preferences'] ?? '') === 'ride_notice'): ?>
+            personEditorModalEl.addEventListener('shown.bs.modal', () => {
+                const preference = document.getElementById('person_ride_notice');
+                if (preference) {
+                    preference.scrollIntoView({block: 'center'});
+                    preference.focus({preventScroll: true});
+                }
+            }, {once: true});
+            <?php endif; ?>
             new bootstrap.Modal(personEditorModalEl).show();
             const clearPersonEditorUrl = () => {
                 const peoplePageUrl = new URL(window.location.href);
-                if (!peoplePageUrl.searchParams.has('person_id')) return;
+                if (!peoplePageUrl.searchParams.has('person_id') && !peoplePageUrl.searchParams.has('email_preferences')) return;
                 peoplePageUrl.searchParams.delete('person_id');
+                peoplePageUrl.searchParams.delete('email_preferences');
                 window.history.replaceState({}, '', peoplePageUrl.pathname + peoplePageUrl.search + peoplePageUrl.hash);
             };
             clearPersonEditorUrl();
