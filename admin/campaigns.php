@@ -72,7 +72,8 @@ function campaign_admin_send_template_test(PDO $pdo, array $template, array $cur
         'member_number' => 'TEST', 'membership_year' => date('Y'), 'current_date' => emailCampaignLocalNow()->format('j F Y'),
         'membership_url' => $base . '/memberships', 'logbook_url' => $base . '/logbooks', 'message' => 'This is a template test using the next upcoming event.',
     ]);
-    $recipient = ['merge_json' => json_encode($merge, JSON_UNESCAPED_SLASHES), 'tracking_token' => sha1(random_bytes(32)), 'unsubscribe_token' => sha1(random_bytes(32))];
+    // Template previews have no persisted recipient; use the non-mutating test link.
+    $recipient = ['merge_json' => json_encode($merge, JSON_UNESCAPED_SLASHES), 'tracking_token' => 'test', 'unsubscribe_token' => 'test'];
     $payload = emailCampaignRenderRecipient($campaign, $recipient, $settings); $emailSettings = getEmailSettings($pdo);
     $ok = send_logged_email($pdo, $email, subject_with_prefix($emailSettings, $payload['subject']), wrap_user_email_html($settings, $emailSettings, $payload['html'], $payload['after_footer_html']), wrap_user_email_text($settings, $emailSettings, $payload['text'], $payload['after_footer_text']), ['kind' => 'campaign_template_test', 'template_id' => (int)$template['id'], 'event_id' => $eventId, 'admin_user_id' => (int)($currentUser['id'] ?? 0)]);
     return ['ok' => $ok, 'message' => $ok ? 'Template test sent to ' . $email . ' using the next upcoming event.' : 'Template test was not sent. Check the email log and delivery safety settings.'];
