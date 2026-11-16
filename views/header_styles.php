@@ -239,16 +239,6 @@ a:visited {
 .inside-mobile-calendar,
 .inside-mobile-purchases { display: none; }
 
-/* Rich event details on attendee-profile event pages use the same card surface
-   as the booking-contact section that follows them. */
-main.container.py-5 > h1.h2 + .mb-4 {
-    background: #fff;
-    border: 1px solid rgba(0, 0, 0, .175);
-    border-radius: .375rem;
-    padding: 1.5rem;
-    margin-bottom: 1rem !important;
-}
-
 /* Attendee-profile events use a booking total rather than a ride entry total. */
 .entry-total strong { font-size: 0 !important; }
 .entry-total strong::before { content: 'Total Fee '; font-size: 1.5rem; }
