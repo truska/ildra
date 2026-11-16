@@ -728,6 +728,7 @@ body.show-page-hero .page-hero {
     gap: .4rem;
     padding: .375rem .75rem;
     font-size: 1rem;
+    font-weight: 400;
     background: transparent;
     border: 1px solid #6c757d;
     color: #6c757d;
