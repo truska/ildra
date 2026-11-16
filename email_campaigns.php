@@ -167,7 +167,13 @@ function emailCampaignLocalNow(): DateTimeImmutable
 function emailCampaignBaseUrl(array $settings): string
 {
     $configured = rtrim(trim((string)($settings['campaign_public_base_url'] ?? '')), '/');
-    if ($configured !== '') return $configured;
+    if ($configured !== '') {
+        if (!filter_var($configured, FILTER_VALIDATE_URL)
+            || !in_array(strtolower((string)parse_url($configured, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+            throw new RuntimeException('Campaign public base URL must be an absolute HTTP or HTTPS URL. Check Settings → Campaign Email.');
+        }
+        return $configured;
+    }
     $forwardedProto=strtolower(trim(explode(',',(string)($_SERVER['HTTP_X_FORWARDED_PROTO']??''))[0]));
     $scheme=$forwardedProto==='https'||(!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off')?'https':'http';
     $forwardedHost=trim(explode(',',(string)($_SERVER['HTTP_X_FORWARDED_HOST']??''))[0]);
@@ -179,7 +185,10 @@ function emailCampaignBaseUrl(array $settings): string
         $hostWithoutPort=preg_replace('/:\d+$/','',$host);
         if($candidate!==''&&($host===''||$hostWithoutPort===$candidate)){$host=$candidate;$scheme='https';}
     }
-    return $host !== '' ? $scheme . '://' . $host : '';
+    if ($host === '') {
+        throw new RuntimeException('Campaign public base URL is missing. Set it in Settings → Campaign Email before sending campaigns from cron.');
+    }
+    return $scheme . '://' . $host;
 }
 
 function emailCampaignMerge(string $template, array $values): string

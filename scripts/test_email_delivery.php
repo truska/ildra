@@ -120,16 +120,22 @@ namespace DeliveryFixture {
     check(!saveEmailSettings($pdo, ['email_delivery_routes' => '{"unknown":"ses"}'], $alerts), 'Unknown message type saved');
     // Render the actual settings template offline and inspect its form controls.
     $template = file_get_contents(dirname(__DIR__) . '/admin/email.php');
-    $start = strpos($template, "    admin_layout_start('Live Email Settings'");
+    $start = strpos($template, "    // Keep field validation beside its control");
     $end = strpos($template, "    exit;", $start);
     $emailSettings = $base; $adminBase = '/admin'; $testResult = null;
-    $enableBlockedWarning = false; $enableBlockedDetail = '';
+    $alerts = [['type' => 'danger', 'fields' => ['email_reply_to'], 'message' => 'Reply-to must be a valid email address.']];
+    $emailSettings['email_reply_to'] = 'invalid-address';
     ob_start();
     eval('namespace DeliveryFixture; ' . substr($template, $start, $end - $start));
     $html = ob_get_clean();
     $dom = new \DOMDocument();
     @$dom->loadHTML($html);
     $xpath = new \DOMXPath($dom);
+    check($xpath->query('//input[@id="email_reply_to" and @aria-invalid="true" and @aria-describedby="email_reply_to_error" and @value="invalid-address"]')->length === 1, 'Invalid field lost its value or accessible error association');
+    check($xpath->query('//input[@id="email_reply_to" and contains(@class,"is-invalid")]')->length === 1, 'Invalid field border missing');
+    check($xpath->query('//div[@id="email_reply_to_error" and @role="alert"]')->length === 1, 'Inline warning missing');
+    check($xpath->query('//input[@id="email_reply_to"]/preceding-sibling::*[2][@id="email_reply_to_error"]')->length === 1, 'Warning must appear above the field label');
+    check($xpath->query('//input[@id="email_from_email" and @aria-invalid]')->length === 0, 'Unrelated field marked invalid');
     check($xpath->query('//select[@name="email_delivery_default"]/option')->length === 2, 'Default system options missing');
     check($xpath->query('//select[@name="test_system"]/option')->length === 2, 'Test system options missing');
     foreach (emailDeliveryTypes() as $kind => $label) {

@@ -287,3 +287,12 @@ The additive `admin_menu_items.item_type` column is created automatically by
 `ensureAdminMenuTable()`. Existing links and sections retain their behaviour.
 The public website menu continues to use its existing divider-below setting.
 Verification: `php scripts/tests/admin_menu_dividers.php`.
+
+## 19. Form validation feedback
+
+For new or updated forms, show each missing/incorrect-field warning immediately
+above its field and give the affected control a red border. Preserve entered
+values after a failed save. Associate warnings using aria-invalid and
+aria-describedby. General failures without a specific field can remain in the
+page alerts. This convention is implemented first on Admin → Email → Email
+Settings, including its test recipient; other existing pages are unchanged.

@@ -22,8 +22,6 @@ if ($view === 'settings') {
     $emailSettings = getEmailSettings($pdo);
     $siteSettings = getSiteSettings($pdo);
     $testResult = null;
-    $enableBlockedWarning = false;
-    $enableBlockedDetail = '';
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'save_settings') {
         $data = [
@@ -55,39 +53,10 @@ if ($view === 'settings') {
         foreach (['email_ses_region', 'email_ses_from_email', 'email_ses_from_name'] as $key) {
             $data[$key] = trim((string)($_POST[$key] ?? ''));
         }
-        $requestedEnable = $data['email_enabled'] === '1';
-        $provider = strtolower((string)($emailSettings['email_provider'] ?? 'php_mail'));
-
         if (saveEmailSettings($pdo, $data, $alerts)) {
             $_SESSION['flash_success'] = 'Email settings saved.';
             header('Location: ' . $adminBase . '/email.php');
             exit;
-        }
-
-        if ($requestedEnable) {
-            $enableBlockedWarning = true;
-            $missing = [];
-            if ($data['email_from_email'] === '' || !filter_var($data['email_from_email'], FILTER_VALIDATE_EMAIL)) {
-                $missing[] = 'valid From email';
-            }
-            if ($provider === 'smtp' && $data['email_smtp_host'] === '') {
-                $missing[] = 'SMTP host';
-            }
-            $resolvedSettings = array_merge($emailSettings, $data);
-            if ($provider === 'smtp' && trim((string)($resolvedSettings['email_smtp_username'] ?? '')) === '') {
-                $missing[] = 'SMTP username';
-            }
-            if ($provider === 'smtp' && (string)($resolvedSettings['email_smtp_password'] ?? '') === '') {
-                $missing[] = 'SMTP password';
-            }
-            $detail = $missing
-                ? (' Missing: ' . implode(', ', $missing) . '.')
-                : '';
-            $enableBlockedDetail = $detail;
-            $alerts[] = [
-                'type' => 'warning',
-                'message' => 'Email was not enabled.' . $detail . ' Please fix and save again.',
-            ];
         }
 
         $emailSettings = array_merge($emailSettings, $data);
@@ -96,7 +65,7 @@ if ($view === 'settings') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['action'] ?? '') === 'send_test') {
         $to = trim((string)($_POST['test_to'] ?? ''));
         if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid test recipient email address.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['test_to'], 'message' => 'Enter a valid test recipient email address.'];
         } else {
             $siteSettings = getSiteSettings($pdo);
             $testSettings = getEmailSettings($pdo);
@@ -164,6 +133,22 @@ if ($view === 'settings') {
         }
     }
 
+    // Keep field validation beside its control; general failures remain in the page alerts.
+    $fieldErrors = [];
+    foreach ($alerts as $index => $alert) {
+        if (empty($alert['fields'])) continue;
+        foreach ($alert['fields'] as $field) $fieldErrors[$field][] = $alert['message'];
+        unset($alerts[$index]);
+    }
+    $fieldWarning = static function (string $field) use ($fieldErrors): string {
+        if (empty($fieldErrors[$field])) return '';
+        return '<div class="text-danger small fw-semibold mb-1" id="' . h($field) . '_error" role="alert">'
+            . h(implode(' ', array_unique($fieldErrors[$field]))) . '</div>';
+    };
+    $fieldAttributes = static function (string $field) use ($fieldErrors): string {
+        return empty($fieldErrors[$field]) ? '' : ' aria-invalid="true" aria-describedby="' . h($field) . '_error"';
+    };
+
     admin_layout_start('Live Email Settings', 'tech_email');
     ?>
     <style>
@@ -216,14 +201,16 @@ if ($view === 'settings') {
                 <div class="row g-3 align-items-end mt-1">
                     <div class="col-12 col-lg-6">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="email_test_redirect_enabled" name="email_test_redirect_enabled" value="1" <?php echo ((string)($emailSettings['email_test_redirect_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
+                            <input class="form-check-input<?php echo isset($fieldErrors['email_test_redirect_enabled']) ? ' is-invalid' : ''; ?>" type="checkbox" id="email_test_redirect_enabled"<?php echo $fieldAttributes('email_test_redirect_enabled'); ?> name="email_test_redirect_enabled" value="1" <?php echo ((string)($emailSettings['email_test_redirect_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
+                            <?php echo $fieldWarning('email_test_redirect_enabled'); ?>
                             <label class="form-check-label fw-semibold" for="email_test_redirect_enabled">Redirect all outgoing emails</label>
                         </div>
                         <div class="help-row">When enabled, CC/BCC are ignored and every message is delivered only to the address below.</div>
                     </div>
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_test_redirect_to'); ?>
                         <label class="form-label fw-semibold" for="email_test_redirect_to">Redirect to</label>
-                        <input class="form-control" id="email_test_redirect_to" name="email_test_redirect_to" value="<?php echo h((string)($emailSettings['email_test_redirect_to'] ?? 'clients@truska.com')); ?>" placeholder="clients@truska.com">
+                        <input class="form-control<?php echo isset($fieldErrors['email_test_redirect_to']) ? ' is-invalid' : ''; ?>" id="email_test_redirect_to"<?php echo $fieldAttributes('email_test_redirect_to'); ?> name="email_test_redirect_to" value="<?php echo h((string)($emailSettings['email_test_redirect_to'] ?? 'clients@truska.com')); ?>" placeholder="clients@truska.com">
                         <div class="help-row">Default: <code>clients@truska.com</code></div>
                     </div>
                 </div>
@@ -236,30 +223,29 @@ if ($view === 'settings') {
                         <p class="panel-subtitle">Identity and subject formatting.</p>
                     </div>
                     <div class="form-check form-switch m-0">
-                        <input class="form-check-input" type="checkbox" role="switch" id="email_enabled" name="email_enabled" value="1" <?php echo ((string)($emailSettings['email_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
+                        <input class="form-check-input<?php echo isset($fieldErrors['email_enabled']) ? ' is-invalid' : ''; ?>" type="checkbox" role="switch" id="email_enabled"<?php echo $fieldAttributes('email_enabled'); ?> name="email_enabled" value="1" <?php echo ((string)($emailSettings['email_enabled'] ?? '0') === '1') ? 'checked' : ''; ?>>
+                        <?php echo $fieldWarning('email_enabled'); ?>
                         <label class="form-check-label fw-semibold" for="email_enabled">Enable outbound email</label>
                     </div>
                 </div>
 
                 <div class="help-row">Choose Truska or Amazon SES below for each email type. Every send is logged.</div>
-                <?php if ($enableBlockedWarning): ?>
-                    <div class="alert alert-warning py-2 px-3 mt-2 mb-0">
-                        Email is still off because required settings are incomplete.<?php echo h($enableBlockedDetail); ?>
-                    </div>
-                <?php endif; ?>
 
                 <div class="row g-3 mt-2 align-items-end">
                     <div class="col-12 col-lg-4">
+                        <?php echo $fieldWarning('email_subject_prefix'); ?>
                         <label class="form-label fw-semibold" for="email_subject_prefix">Subject prefix</label>
-                        <input class="form-control" id="email_subject_prefix" name="email_subject_prefix" value="<?php echo h((string)($emailSettings['email_subject_prefix'] ?? '')); ?>" placeholder="TEST">
+                        <input class="form-control<?php echo isset($fieldErrors['email_subject_prefix']) ? ' is-invalid' : ''; ?>" id="email_subject_prefix"<?php echo $fieldAttributes('email_subject_prefix'); ?> name="email_subject_prefix" value="<?php echo h((string)($emailSettings['email_subject_prefix'] ?? '')); ?>" placeholder="TEST">
                     </div>
                     <div class="col-12 col-lg-4">
+                        <?php echo $fieldWarning('email_from_name'); ?>
                         <label class="form-label fw-semibold" for="email_from_name">From name</label>
-                        <input class="form-control" id="email_from_name" name="email_from_name" value="<?php echo h((string)($emailSettings['email_from_name'] ?? '')); ?>" placeholder="<?php echo h((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title'])); ?>">
+                        <input class="form-control<?php echo isset($fieldErrors['email_from_name']) ? ' is-invalid' : ''; ?>" id="email_from_name"<?php echo $fieldAttributes('email_from_name'); ?> name="email_from_name" value="<?php echo h((string)($emailSettings['email_from_name'] ?? '')); ?>" placeholder="<?php echo h((string)($siteSettings['hero_title'] ?? defaultSiteSettings()['hero_title'])); ?>">
                     </div>
                     <div class="col-12 col-lg-4">
+                        <?php echo $fieldWarning('email_from_email'); ?>
                         <label class="form-label fw-semibold" for="email_from_email">From email</label>
-                        <input class="form-control" id="email_from_email" name="email_from_email" value="<?php echo h((string)($emailSettings['email_from_email'] ?? '')); ?>" placeholder="no-reply@example.com">
+                        <input class="form-control<?php echo isset($fieldErrors['email_from_email']) ? ' is-invalid' : ''; ?>" id="email_from_email"<?php echo $fieldAttributes('email_from_email'); ?> name="email_from_email" value="<?php echo h((string)($emailSettings['email_from_email'] ?? '')); ?>" placeholder="no-reply@example.com">
                         <div class="help-row">Delivery identity used in the From header. This may be a no-reply SMTP address and is not shown in the email signature.</div>
                     </div>
                     <div class="col-12">
@@ -274,24 +260,28 @@ if ($view === 'settings') {
 
                 <div class="row g-3 mt-1 align-items-end">
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_reply_to'); ?>
                         <label class="form-label fw-semibold" for="email_reply_to">Reply-to / public contact email</label>
-                        <input class="form-control" id="email_reply_to" name="email_reply_to" value="<?php echo h((string)($emailSettings['email_reply_to'] ?? '')); ?>" placeholder="support@example.com">
+                        <input class="form-control<?php echo isset($fieldErrors['email_reply_to']) ? ' is-invalid' : ''; ?>" id="email_reply_to"<?php echo $fieldAttributes('email_reply_to'); ?> name="email_reply_to" value="<?php echo h((string)($emailSettings['email_reply_to'] ?? '')); ?>" placeholder="support@example.com">
                         <div class="help-row">Stored in <code>site_settings.email_reply_to</code>, used in the Reply-To header, and displayed in customer email signatures.</div>
                     </div>
 
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_return_path'); ?>
                         <label class="form-label fw-semibold" for="email_return_path">Return-path (optional)</label>
-                        <input class="form-control" id="email_return_path" name="email_return_path" value="<?php echo h((string)($emailSettings['email_return_path'] ?? '')); ?>" placeholder="bounces@example.com">
+                        <input class="form-control<?php echo isset($fieldErrors['email_return_path']) ? ' is-invalid' : ''; ?>" id="email_return_path"<?php echo $fieldAttributes('email_return_path'); ?> name="email_return_path" value="<?php echo h((string)($emailSettings['email_return_path'] ?? '')); ?>" placeholder="bounces@example.com">
                     </div>
 
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_cc_default'); ?>
                         <label class="form-label fw-semibold" for="email_cc_default">Default CC (optional)</label>
-                        <input class="form-control" id="email_cc_default" name="email_cc_default" value="<?php echo h((string)($emailSettings['email_cc_default'] ?? '')); ?>" placeholder="cc1@example.com, cc2@example.com">
+                        <input class="form-control<?php echo isset($fieldErrors['email_cc_default']) ? ' is-invalid' : ''; ?>" id="email_cc_default"<?php echo $fieldAttributes('email_cc_default'); ?> name="email_cc_default" value="<?php echo h((string)($emailSettings['email_cc_default'] ?? '')); ?>" placeholder="cc1@example.com, cc2@example.com">
                     </div>
 
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_bcc_default'); ?>
                         <label class="form-label fw-semibold" for="email_bcc_default">Default BCC (optional)</label>
-                        <input class="form-control" id="email_bcc_default" name="email_bcc_default" value="<?php echo h((string)($emailSettings['email_bcc_default'] ?? '')); ?>" placeholder="audit@example.com">
+                        <input class="form-control<?php echo isset($fieldErrors['email_bcc_default']) ? ' is-invalid' : ''; ?>" id="email_bcc_default"<?php echo $fieldAttributes('email_bcc_default'); ?> name="email_bcc_default" value="<?php echo h((string)($emailSettings['email_bcc_default'] ?? '')); ?>" placeholder="audit@example.com">
                     </div>
                 </div>
             </div>
@@ -308,16 +298,19 @@ if ($view === 'settings') {
 
                 <div class="row g-3 mt-1 align-items-end">
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_smtp_host'); ?>
                         <label class="form-label fw-semibold" for="email_smtp_host">Host</label>
-                        <input class="form-control" id="email_smtp_host" name="email_smtp_host" value="<?php echo h((string)($emailSettings['email_smtp_host'] ?? '')); ?>" placeholder="smtp.truska.net">
+                        <input class="form-control<?php echo isset($fieldErrors['email_smtp_host']) ? ' is-invalid' : ''; ?>" id="email_smtp_host"<?php echo $fieldAttributes('email_smtp_host'); ?> name="email_smtp_host" value="<?php echo h((string)($emailSettings['email_smtp_host'] ?? '')); ?>" placeholder="smtp.truska.net">
                     </div>
                     <div class="col-6 col-lg-2">
+                        <?php echo $fieldWarning('email_smtp_port'); ?>
                         <label class="form-label fw-semibold" for="email_smtp_port">Port</label>
-                        <input class="form-control" id="email_smtp_port" name="email_smtp_port" inputmode="numeric" value="<?php echo h((string)($emailSettings['email_smtp_port'] ?? '587')); ?>">
+                        <input class="form-control<?php echo isset($fieldErrors['email_smtp_port']) ? ' is-invalid' : ''; ?>" id="email_smtp_port"<?php echo $fieldAttributes('email_smtp_port'); ?> name="email_smtp_port" inputmode="numeric" value="<?php echo h((string)($emailSettings['email_smtp_port'] ?? '587')); ?>">
                     </div>
                     <div class="col-6 col-lg-4">
+                        <?php echo $fieldWarning('email_smtp_secure'); ?>
                         <label class="form-label fw-semibold" for="email_smtp_secure">Security</label>
-                        <select class="form-select" id="email_smtp_secure" name="email_smtp_secure">
+                        <select class="form-select<?php echo isset($fieldErrors['email_smtp_secure']) ? ' is-invalid' : ''; ?>" id="email_smtp_secure"<?php echo $fieldAttributes('email_smtp_secure'); ?> name="email_smtp_secure">
                             <?php
                             $secure = (string)($emailSettings['email_smtp_secure'] ?? 'tls');
                             foreach (['tls' => 'TLS (STARTTLS)', 'ssl' => 'SSL', 'none' => 'None'] as $val => $label) {
@@ -329,12 +322,14 @@ if ($view === 'settings') {
                     </div>
 
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_smtp_username'); ?>
                         <label class="form-label fw-semibold" for="email_smtp_username">Username</label>
-                        <input class="form-control" id="email_smtp_username" value="<?php echo h($smtpUserResolved); ?>" autocomplete="username" disabled>
+                        <input class="form-control<?php echo isset($fieldErrors['email_smtp_username']) ? ' is-invalid' : ''; ?>" id="email_smtp_username"<?php echo $fieldAttributes('email_smtp_username'); ?> value="<?php echo h($smtpUserResolved); ?>" autocomplete="username" disabled>
                     </div>
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_smtp_password'); ?>
                         <label class="form-label fw-semibold" for="email_smtp_password">Password</label>
-                        <input class="form-control" id="email_smtp_password" type="password" value="" placeholder="<?php echo $smtpCredsConfigured ? '(resolved from config or preferences.csv)' : '(not configured)'; ?>" autocomplete="current-password" disabled>
+                        <input class="form-control<?php echo isset($fieldErrors['email_smtp_password']) ? ' is-invalid' : ''; ?>" id="email_smtp_password"<?php echo $fieldAttributes('email_smtp_password'); ?> type="password" value="" placeholder="<?php echo $smtpCredsConfigured ? '(resolved from config or preferences.csv)' : '(not configured)'; ?>" autocomplete="current-password" disabled>
                     </div>
                     <div class="col-12">
                         <div class="help-row">SMTP host, port, security and credentials resolve from private server config when present. Database-stored SMTP secrets are ignored and are not written back.</div>
@@ -348,20 +343,24 @@ if ($view === 'settings') {
                 <p class="panel-subtitle">A second sending system with its own verified sender and SMTP credentials.</p>
                 <div class="row g-3 mt-1">
                     <div class="col-12 col-lg-4">
+                        <?php echo $fieldWarning('email_ses_region'); ?>
                         <label class="form-label fw-semibold" for="email_ses_region">AWS region</label>
-                        <input class="form-control" id="email_ses_region" name="email_ses_region" value="<?php echo h((string)$emailSettings['email_ses_region']); ?>" placeholder="eu-north-1">
+                        <input class="form-control<?php echo isset($fieldErrors['email_ses_region']) ? ' is-invalid' : ''; ?>" id="email_ses_region"<?php echo $fieldAttributes('email_ses_region'); ?> name="email_ses_region" value="<?php echo h((string)$emailSettings['email_ses_region']); ?>" placeholder="eu-north-1">
                     </div>
                     <div class="col-12 col-lg-4">
+                        <?php echo $fieldWarning('email_ses_from_email'); ?>
                         <label class="form-label fw-semibold" for="email_ses_from_email">Verified From email</label>
-                        <input class="form-control" type="email" id="email_ses_from_email" name="email_ses_from_email" value="<?php echo h((string)$emailSettings['email_ses_from_email']); ?>">
+                        <input class="form-control<?php echo isset($fieldErrors['email_ses_from_email']) ? ' is-invalid' : ''; ?>" type="email" id="email_ses_from_email"<?php echo $fieldAttributes('email_ses_from_email'); ?> name="email_ses_from_email" value="<?php echo h((string)$emailSettings['email_ses_from_email']); ?>">
                     </div>
                     <div class="col-12 col-lg-4">
+                        <?php echo $fieldWarning('email_ses_from_name'); ?>
                         <label class="form-label fw-semibold" for="email_ses_from_name">From name</label>
-                        <input class="form-control" id="email_ses_from_name" name="email_ses_from_name" value="<?php echo h((string)$emailSettings['email_ses_from_name']); ?>">
+                        <input class="form-control<?php echo isset($fieldErrors['email_ses_from_name']) ? ' is-invalid' : ''; ?>" id="email_ses_from_name"<?php echo $fieldAttributes('email_ses_from_name'); ?> name="email_ses_from_name" value="<?php echo h((string)$emailSettings['email_ses_from_name']); ?>">
                     </div>
                 </div>
                 <div class="help-row mt-3">SMTP endpoint: <?php echo h($sesSettings['email_smtp_host']); ?>, port 587, STARTTLS.</div>
-                <div class="help-row">Private SMTP credentials: <strong><?php echo $sesSettings['email_smtp_username'] !== '' && $sesSettings['email_smtp_password'] !== '' ? 'Configured' : 'Not configured'; ?></strong>. Store SES SMTP username/password in the private server email configuration. These are SES SMTP credentials, separate from your AWS sign-in.</div>
+                <?php echo $fieldWarning('email_ses_credentials'); ?>
+                <div id="email_ses_credentials" class="help-row<?php echo isset($fieldErrors['email_ses_credentials']) ? ' border border-danger rounded p-2' : ''; ?>">Private SMTP credentials: <strong><?php echo $sesSettings['email_smtp_username'] !== '' && $sesSettings['email_smtp_password'] !== '' ? 'Configured' : 'Not configured'; ?></strong>. Store SES SMTP username/password in the private server email configuration. These are SES SMTP credentials, separate from your AWS sign-in.</div>
                 <div class="help-row">Verify the sender in this AWS region before sending. SES handles its own return path and bounces; the Truska bounce mailbox does not collect SES bounces.</div>
             </div>
 
@@ -370,8 +369,9 @@ if ($view === 'settings') {
                 <p class="panel-subtitle">Save settings before testing. Types set to Default use the default system below. Existing emails continue through Truska until you change this.</p>
                 <div class="row g-3 mt-1">
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('email_delivery_default'); ?>
                         <label class="form-label fw-semibold" for="email_delivery_default">Default sending system</label>
-                        <select class="form-select" id="email_delivery_default" name="email_delivery_default">
+                        <select class="form-select<?php echo isset($fieldErrors['email_delivery_default']) ? ' is-invalid' : ''; ?>" id="email_delivery_default"<?php echo $fieldAttributes('email_delivery_default'); ?> name="email_delivery_default">
                             <?php foreach (['truska' => 'Truska', 'ses' => 'Amazon SES'] as $value => $label): ?>
                                 <option value="<?php echo h($value); ?>" <?php echo $emailSettings['email_delivery_default'] === $value ? 'selected' : ''; ?>><?php echo h($label); ?></option>
                             <?php endforeach; ?>
@@ -380,8 +380,9 @@ if ($view === 'settings') {
                     <?php $deliveryRoutes = emailDeliveryRoutes($emailSettings); ?>
                     <?php foreach (emailDeliveryTypes() as $kind => $label): ?>
                         <div class="col-12 col-lg-6">
+                            <?php echo $fieldWarning('route_' . $kind); ?>
                             <label class="form-label" for="route_<?php echo h($kind); ?>"><?php echo h($label); ?></label>
-                            <select class="form-select" id="route_<?php echo h($kind); ?>" name="email_routes[<?php echo h($kind); ?>]">
+                            <select class="form-select<?php echo isset($fieldErrors['route_' . $kind]) ? ' is-invalid' : ''; ?>" id="route_<?php echo h($kind); ?>"<?php echo $fieldAttributes('route_' . $kind); ?> name="email_routes[<?php echo h($kind); ?>]">
                                 <?php foreach (['' => 'Default', 'truska' => 'Truska', 'ses' => 'Amazon SES'] as $value => $systemLabel): ?>
                                     <option value="<?php echo h($value); ?>" <?php echo ($deliveryRoutes[$kind] ?? '') === $value ? 'selected' : ''; ?>><?php echo h($systemLabel); ?></option>
                                 <?php endforeach; ?>
@@ -398,13 +399,15 @@ if ($view === 'settings') {
 
                 <div class="row g-3 align-items-end mt-1">
                     <div class="col-12 col-lg-6">
+                        <?php echo $fieldWarning('test_to'); ?>
                         <label class="form-label fw-semibold" for="test_to">Send test to</label>
-                        <input class="form-control" id="test_to" name="test_to" value="<?php echo h((string)($_POST['test_to'] ?? 'clients@truska.com')); ?>" placeholder="you@example.com">
+                        <input class="form-control<?php echo isset($fieldErrors['test_to']) ? ' is-invalid' : ''; ?>" id="test_to"<?php echo $fieldAttributes('test_to'); ?> name="test_to" value="<?php echo h((string)($_POST['test_to'] ?? 'clients@truska.com')); ?>" placeholder="you@example.com">
                         <div class="help-row">If SES is in sandbox mode, the recipient must be verified in SES.</div>
                     </div>
                     <div class="col-12 col-lg-3">
+                        <?php echo $fieldWarning('test_system'); ?>
                         <label class="form-label fw-semibold" for="test_system">Sending system</label>
-                        <select class="form-select" id="test_system" name="test_system">
+                        <select class="form-select<?php echo isset($fieldErrors['test_system']) ? ' is-invalid' : ''; ?>" id="test_system"<?php echo $fieldAttributes('test_system'); ?> name="test_system">
                             <option value="truska">Truska</option>
                             <option value="ses" <?php echo ($_POST['test_system'] ?? '') === 'ses' ? 'selected' : ''; ?>>Amazon SES</option>
                         </select>

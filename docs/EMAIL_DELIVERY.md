@@ -20,6 +20,8 @@ Before rollout, check the destination’s domain/DKIM status, SES production-acc
 
 ## Settings and routes
 
+Scheduled campaigns need an absolute public URL under **Settings → Campaign Email → Public base URL** (for live, `https://enduranceridingireland.com`). Cron has no HTTP request hostname; a blank setting also requires a hostname from the private email environment configuration. Without either, older code generated relative ride, calendar and unsubscribe links. The development safeguard now rejects missing base URLs and configured URLs without an HTTP/HTTPS scheme before generating campaign content. Deploy this source correction through development first; check the destination's setting before its next campaign. Previously delivered emails cannot be repaired by changing the setting.
+
 Superadmin/developer users can manage **Admin → Email → Email Settings**:
 
 - Existing Truska settings and credentials retain their existing resolution rules.
@@ -56,6 +58,8 @@ SES uses the verified From address as the SMTP envelope sender and manages its o
 References: [SMTP credentials](https://docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html), [SES regions](https://docs.aws.amazon.com/ses/latest/dg/regions.html), [sandbox and production access](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html).
 
 ## Validation and rollout
+
+16 November follow-up: field validation warnings on Email Settings now appear above the affected controls with red borders and preserve entered values. Campaign URL generation rejects missing/invalid base URLs. Offline delivery/template and authentication-origin checks passed; `php scripts/test_campaign_urls.php` checks staging/live origins and missing cron hostnames. Destination testing is still required. On staging use `https://ildra.witecanvas.com` for Campaign Email → Public base URL until the final domain launches. After deployment, verify a controlled test's ride, calendar and unsubscribe links, its recipient/CC/BCC log, and inline settings validation. No real emails were sent during these checks.
 
 Run `php scripts/test_email_delivery.php` and `php scripts/test_auth_email_origins.php`. Tests are offline: all transports, credentials and log writes in the delivery fixture are simulated, with no production configuration loaded or real email sent. They cover both metadata keys, each known email type, fallback and override selection, test selection, separate credentials/senders, shared Reply-To, redirects, CC/BCC, attachments, log providers, failed/missing SES configuration and settings validation/secret exclusion.
 

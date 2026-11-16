@@ -561,45 +561,47 @@ function saveEmailSettings(?PDO $pdo, array $data, array &$alerts): bool
     // If enabled, enforce minimum viable config.
     if ($enabled === '1') {
         if ($fromEmail === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
-            $alerts[] = ['type' => 'danger', 'message' => 'From email is required and must be valid.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['email_from_email'], 'message' => 'From email is required and must be valid.'];
         }
         if ($redirectEnabled === '1' && ($redirectTo === '' || !filter_var($redirectTo, FILTER_VALIDATE_EMAIL))) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Test redirect email must be a valid email address.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['email_test_redirect_to'], 'message' => 'Test redirect email must be a valid email address.'];
         }
         if ($provider === 'smtp' && $smtpHost === '') {
-            $alerts[] = ['type' => 'danger', 'message' => 'SMTP host is required when SMTP email is enabled.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['email_smtp_host'], 'message' => 'SMTP host is required when SMTP email is enabled.'];
         }
         if ($provider === 'smtp' && ($smtpUser === '' || $smtpPass === '')) {
-            $alerts[] = ['type' => 'danger', 'message' => 'SMTP credentials must be available from config.php or preferences.csv when SMTP email is enabled.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['email_smtp_username', 'email_smtp_password'], 'message' => 'SMTP credentials must be available from config.php or preferences.csv when SMTP email is enabled.'];
         }
         if ($replyTo !== '' && !filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Reply-to must be a valid email address.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['email_reply_to'], 'message' => 'Reply-to must be a valid email address.'];
         }
         if ($returnPath !== '' && !filter_var($returnPath, FILTER_VALIDATE_EMAIL)) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Return-path must be a valid email address.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['email_return_path'], 'message' => 'Return-path must be a valid email address.'];
         }
     }
 
     $deliveryDefault = (string)($merged['email_delivery_default'] ?? 'truska');
     $routes = json_decode((string)($merged['email_delivery_routes'] ?? '{}'), true);
     if (!in_array($deliveryDefault, ['truska', 'ses'], true) || !is_array($routes)) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Choose valid email delivery settings.'];
+        $alerts[] = ['type' => 'danger', 'fields' => ['email_delivery_default'], 'message' => 'Choose valid email delivery settings.'];
     } else {
         foreach ($routes as $kind => $system) {
             if (!array_key_exists($kind, emailDeliveryTypes()) || !in_array($system, ['truska', 'ses'], true)) {
-                $alerts[] = ['type' => 'danger', 'message' => 'Choose a valid delivery system for each email type.'];
+                $alerts[] = ['type' => 'danger', 'fields' => ['route_' . $kind], 'message' => 'Choose a valid delivery system for each email type.'];
                 break;
             }
         }
         if (($deliveryDefault === 'ses' || in_array('ses', $routes, true)) && !emailSesReady($merged)) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Configure the SES region, verified From address and private SMTP credentials before routing emails through Amazon SES.'];
+            $alerts[] = ['type' => 'danger', 'fields' => ['email_ses_region', 'email_ses_from_email', 'email_ses_credentials'], 'message' => 'Configure the SES region, verified From address and private SMTP credentials before routing emails through Amazon SES.'];
         }
     }
     $sesRegion = trim((string)($merged['email_ses_region'] ?? 'eu-north-1'));
     $sesFrom = trim((string)($merged['email_ses_from_email'] ?? ''));
-    if (!preg_match('/^[a-z]{2}(?:-[a-z]+)+-[0-9]+$/D', $sesRegion)
-        || ($sesFrom !== '' && !filter_var($sesFrom, FILTER_VALIDATE_EMAIL))) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid SES region and From email address.'];
+    if (!preg_match('/^[a-z]{2}(?:-[a-z]+)+-[0-9]+$/D', $sesRegion)) {
+        $alerts[] = ['type' => 'danger', 'fields' => ['email_ses_region'], 'message' => 'Enter a valid SES region.'];
+    }
+    if ($sesFrom !== '' && !filter_var($sesFrom, FILTER_VALIDATE_EMAIL)) {
+        $alerts[] = ['type' => 'danger', 'fields' => ['email_ses_from_email'], 'message' => 'Enter a valid SES From email address.'];
     }
     if ($alerts) {
         return false;
