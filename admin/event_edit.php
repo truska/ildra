@@ -705,6 +705,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         <div class="section-card">
             <div class="section-title">Description</div>
             <textarea name="description" class="form-control wysiwyg-field" rows="4"><?php echo h($event['description'] ?? ''); ?></textarea>
+            <div class="form-text">This content is about the actual Ride and appears first in the description area on the Calendar.<br>
+                Content that will be common to ALL rides at this venue is input against the Venue and will appear below this description on the Calendar.</div>
         </div>
 
         <div class="section-card">
