@@ -38,6 +38,13 @@ normal destination sizes and adds a gallery record. Adjust alternative text,
 caption and gallery order in that editor. The first active image remains the
 main image according to the existing gallery rules.
 
+## Download an original
+
+Each image in Manage Old Library has a **Download** button. It downloads the
+full-size private original using its original filename, with no selection required.
+Downloads require the same administrator access as library management and remain
+available when the chooser is switched off. Deleted or missing files return 404.
+
 ## Switch off and clean up
 
 Uncheck **Offer Old Library in Events, Rider Notes and Venues** and save availability.

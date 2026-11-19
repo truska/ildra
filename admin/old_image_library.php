@@ -4,6 +4,27 @@ require __DIR__.'/_bootstrap.php';
 require_once dirname(__DIR__).'/old_image_library.php';
 if (!in_array(strtolower((string)$currentUser['role']),['developer','superadmin','admin','manager'],true)) { http_response_code(403);exit; }
 oldLibraryEnsure($pdo);
+if (($_SERVER['REQUEST_METHOD']??'GET')==='GET' && isset($_GET['download'])) {
+    $stmt=$pdo->prepare('SELECT filename,original_filename FROM old_image_library WHERE id=? AND deleted=0');
+    $stmt->execute([max(0,(int)$_GET['download'])]);
+    $image=$stmt->fetch();
+    $filename=(string)($image['filename']??'');
+    $path=oldLibraryRoot().'/originals/'.$filename;
+    if (!$image || !preg_match('/^[a-f0-9]{64}\.(jpg|png|gif|webp)$/D',$filename) || is_link($path) || !is_file($path) || !($file=@fopen($path,'rb'))) {
+        http_response_code(404);exit('Image unavailable.');
+    }
+    $downloadName=str_replace(['/', chr(92)], '_', (string)$image['original_filename']);
+    $downloadName=preg_replace('/[\x00-\x1f\x7f]/u','_', $downloadName) ?: $filename;
+    $fallback='image.'.pathinfo($filename,PATHINFO_EXTENSION);
+    $stat=fstat($file);
+    session_write_close();
+    header('Content-Type: application/octet-stream');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store');
+    header('Content-Disposition: attachment; filename="'.$fallback.'"; filename*=UTF-8\'\''.rawurlencode($downloadName));
+    if($stat!==false)header('Content-Length: '.(string)$stat['size']);
+    fpassthru($file);fclose($file);exit;
+}
 $target=(string)($_GET['target']??'');
 $eventId=max(0,(int)($_GET['event_id']??0));
 $venueId=max(0,(int)($_GET['venue_id']??0));
@@ -74,7 +95,7 @@ echo render_back_navigation($return,$picker?'Back without selecting':'Back to Ad
 <?php foreach($images as $image): ?>
 <div class="border rounded p-2"><img loading="lazy" decoding="async" width="240" height="180" style="width:100%;height:160px;object-fit:contain" src="<?php echo h(image_upload_public_path('old-library','thumb',$image['filename'])); ?>" alt="<?php echo h($image['original_filename']); ?>"><div class="small my-2" style="overflow-wrap:anywhere"><?php echo h($image['original_filename']); ?></div><div class="small text-muted mb-2"><?php echo $image['used_count']?'Used '.$image['used_count'].' time(s)':'Not yet used'; ?></div>
 <?php if($picker): ?><form method="post"><?php echo csrf_input(); ?><input type="hidden" name="image_id" value="<?php echo (int)$image['id']; ?>"><button class="btn btn-success w-100" name="action" value="attach">Use this image</button></form>
-<?php else: ?><label class="d-block p-2"><input type="checkbox" name="selected[]" value="<?php echo (int)$image['id']; ?>" <?php echo in_array((int)$image['id'],array_map('intval',(array)($_POST['selected']??[])),true)?'checked':''; ?>> Select for removal</label><?php endif; ?></div>
+<?php else: ?><a class="btn btn-outline-primary w-100 mb-2" href="old_image_library.php?download=<?php echo (int)$image['id']; ?>" aria-label="<?php echo h('Download original: '.$image['original_filename']); ?>">Download</a><label class="d-block p-2"><input type="checkbox" name="selected[]" value="<?php echo (int)$image['id']; ?>" <?php echo in_array((int)$image['id'],array_map('intval',(array)($_POST['selected']??[])),true)?'checked':''; ?>> Select for removal</label><?php endif; ?></div>
 <?php endforeach; ?></div>
 <?php if(!$picker): ?><div class="mt-4"><label>Type DELETE to remove selected library copies<?php if($confirmError): ?><span class="d-block text-danger" id="confirm-error"><?php echo h($confirmError); ?></span><?php endif; ?><input class="form-control <?php echo $confirmError?'is-invalid':''; ?>" name="confirm" value="<?php echo h((string)($_POST['confirm']??'')); ?>" autocomplete="off" <?php echo $confirmError?'aria-invalid="true" aria-describedby="confirm-error"':''; ?>></label><p class="small text-muted">Incoming source files are retained. Removed images will be skipped on future processing runs. Copies already attached to the site are unaffected.</p><button class="btn btn-outline-danger">Remove selected library copies</button></div></form><?php endif; ?>
 <nav class="d-flex justify-content-between mt-4" aria-label="Library pages"><?php if($page>1): ?><a class="btn btn-outline-primary" href="?<?php echo h(http_build_query($urlArgs+['page'=>$page-1])); ?>">Previous</a><?php endif; ?><span>Page <?php echo $page; ?> of <?php echo max(1,(int)ceil($total/24)); ?></span><?php if($page*24<$total): ?><a class="btn btn-outline-primary" href="?<?php echo h(http_build_query($urlArgs+['page'=>$page+1])); ?>">Next</a><?php endif; ?></nav></div>
