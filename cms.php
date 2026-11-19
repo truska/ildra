@@ -82,6 +82,7 @@ function defaultSiteSettings(): array
 {
     return [
         'entry_hub_enabled' => '0',
+        'old_image_library_enabled' => '1',
         'campaign_live_sending_enabled' => '0',
         'campaign_default_batch_size' => '25',
         'campaign_public_base_url' => '',

@@ -41,6 +41,7 @@ function defaultAdminMenuItems(): array
         ['testing_reset', 'Reset test data', 'testing_reset.php', 'fa-solid fa-eraser'],
         ['image_folders', 'Storage Folders', 'image_folders.php', 'fa-solid fa-folder-tree'],
         ['archives', 'Archives', 'archives.php', 'fa-solid fa-box-archive'],
+        ['old_image_library', 'Manage Old Library', 'old_image_library.php', 'fa-solid fa-images'],
     ];
     $out = [];
     foreach ($rows as $index => $row) {
@@ -62,6 +63,7 @@ function defaultAdminMenuItems(): array
 
 function adminMenuFixedRoles(string $key): array
 {
+    if ($key === 'old_image_library') return ['superadmin', 'admin', 'manager'];
     if ($key === 'menu') return ['developer', 'superadmin'];
     if (in_array($key, ['finance', 'stripe_fulfilment', 'legacy_balances', 'archives'], true)) return ['superadmin', 'admin'];
     if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons'], true)) {
@@ -130,6 +132,11 @@ function ensureAdminMenuTable(?PDO $pdo): void
                 JOIN admin_menu_items tech ON tech.menu_key = 'tech'
                 SET child.parent_id = tech.id
                 WHERE child.menu_key = 'tech_email'");
+        }
+        if ($item['menu_key'] === 'old_image_library' && $stmt->rowCount() > 0) {
+            $pdo->exec("UPDATE admin_menu_items child JOIN admin_menu_items parent
+                ON parent.parent_id IS NULL AND parent.is_deleted=0 AND (parent.menu_key='admin' OR LOWER(parent.label)='admin')
+                SET child.parent_id=parent.id WHERE child.menu_key='old_image_library'");
         }
         $iconUpdate = $pdo->prepare("UPDATE admin_menu_items SET icon_class=:icon WHERE menu_key=:menu_key AND (icon_class='' OR icon_class='fa-solid fa-circle')");
         $iconUpdate->execute([':icon'=>$item['icon_class'], ':menu_key'=>$item['menu_key']]);

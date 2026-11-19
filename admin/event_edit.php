@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
+require_once dirname(__DIR__).'/old_image_library.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 $eventId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -1318,6 +1319,7 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 <?php if ($eventId && $eventImageBatch): ?>
 <div class="card-soft p-4 mt-4">
     <h6 class="mb-1">Event image</h6>
+<?php if(oldLibraryEnabled($pdo)): ?><p><a class="btn btn-outline-primary" href="old_image_library.php?target=event&amp;event_id=<?php echo $eventId; ?>">Choose from Old Library</a><span class="d-block small text-muted mt-1">Save your changes before opening the library.</span></p><?php endif; ?>
     <p class="small text-muted">Upload any orientation. The first non-archived image by gallery order is used on the event page; additional images are retained in the gallery.</p>
     <form method="post" enctype="multipart/form-data" class="mb-4">
         <input type="hidden" name="action" value="upload_event_images">
