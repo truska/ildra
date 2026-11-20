@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__.'/media_image_actions.php';
 require_once dirname(__DIR__).'/old_image_library.php';
 
 $eventId=max(0,(int)($_GET['event_id']??$_POST['event_id']??0)); $event=fetchEventById($pdo,$eventId);
@@ -67,14 +68,12 @@ $images=$batch?mediaBatchImages($pdo,(int)$batch['id'],true):[];$defaultIntro=ri
             <td><input class="form-control" style="width:90px" aria-label="Image order" data-display-order type="number" name="image[<?php echo (int)$image['id']; ?>][display_order]" value="<?php echo (int)$image['display_order']; ?>"></td>
             <td><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][title]" value="<?php echo h($image['title']??''); ?>" placeholder="Title" aria-label="Image title"><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][alt_text]" value="<?php echo h($image['alt_text']??''); ?>" placeholder="Alternative text" aria-label="Alternative text"><textarea class="form-control form-control-sm" rows="2" name="image[<?php echo (int)$image['id']; ?>][caption]" placeholder="Caption" aria-label="Image caption"><?php echo h($image['caption']??''); ?></textarea></td>
             <td><input class="form-check-input" type="checkbox" name="image[<?php echo (int)$image['id']; ?>][archived]" value="1" aria-label="Archived" <?php echo !empty($image['archived'])?'checked':''; ?>></td>
-            <td><button type="submit" class="btn btn-sm btn-outline-danger" form="delete-ride-image-<?php echo (int)$image['id']; ?>">Delete</button></td>
+            <td><?= admin_image_delete_button($batch, $image) ?></td>
         </tr><?php endforeach; ?></tbody>
     </table></div>
     <button class="btn btn-success">Save Gallery</button>
 </form>
-<?php foreach($images as $image): ?><form id="delete-ride-image-<?php echo (int)$image['id']; ?>" method="post" data-confirm-message="Permanently delete this Rider Notes image and its files? This cannot be undone." data-confirm-style="danger">
-    <input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="delete_image"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"><input type="hidden" name="image_id" value="<?php echo (int)$image['id']; ?>">
-</form><?php endforeach; ?>
+<?= admin_image_delete_forms($batch, $images, ['event_id'=>$eventId], 'delete_image', $csrf) ?>
 <?php endif; ?></div></div><div class="col-12"><div class="card-soft p-4 h-100"><h6>Rider Notes PDF</h6><p class="small text-muted">Optional document; shown to riders and attached to Rider Notes emails.</p><form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="upload_pdf"><input type="hidden" name="event_id" value="<?php echo $eventId; ?>"><input class="form-control" type="file" name="ride_notes_pdf" accept="application/pdf,.pdf" required><div class="form-text">PDF only; up to 10 MB.</div><button class="btn btn-outline-success mt-3">Upload PDF</button></form><?php if(!empty($notes['pdf_filename'])): ?><div class="mt-3 small"><a target="_blank" rel="noopener" href="<?php echo h(rideNotesPdfUrl((string)$notes['pdf_filename'])); ?>"><i class="fa-solid fa-file-pdf text-danger"></i> <?php echo h((string)($notes['pdf_original_filename']?:$notes['pdf_filename'])); ?></a></div><?php endif; ?></div></div></div>
 <?php if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && riderNotesNeedsEmergencyWarning($pdo, $event)) require __DIR__.'/../views/ride_notes_emergency_warning.php'; ?>
 <?php render_tinymce_bootstrap(); ?><script>if(window.tinymce)tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script><?php admin_layout_end();

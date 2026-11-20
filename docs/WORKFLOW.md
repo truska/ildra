@@ -389,3 +389,60 @@ of every database table for Committee/individual switching, optional/manual/user
 numbers and invalid-number rejection. `node scripts/tests/committee_organiser.cjs`
 checks the actual emergency-control script and advisory modal in Chromium. No
 real event, user or phone record is changed by these tests.
+
+## 23. Permanent deletion in shared image galleries
+
+Event Edit, Rider Notes, Venue Images, News/Ride Report galleries and sections,
+content-section images and banners offer a red, white-bin Delete control
+alongside Archive.
+Third-party events also offer Delete permanently for their current image. Page
+Images already has permanent deletion. Asset Library retains its separate
+record-only deletion policy because stored files may be linked elsewhere.
+
+The shared admin controls live in `admin/media_image_actions.php`. Each image's
+button submits an independent CSRF-protected form after the existing Bootstrap
+confirmation. It does not save unrelated parent/gallery edits or trigger their
+required-field validation. The confirmation explains that all generated sizes
+are deleted and that unsaved changes are not saved. Success returns to the same
+editor and record. The server resolves the batch from the authorised editor's
+record and checks that the image belongs to that batch. Existing
+`mediaBatchDeleteImage()` removes the image record and its stored size files;
+Archive continues to retain files. No real uploads were deleted during testing.
+
+Verification: `php scripts/tests/gallery_image_delete.php` uses temporary database
+tables and the actual deletion functions with a synthetic `/tmp` storage root.
+It checks ownership, active/archived records, generated sizes, unrelated files,
+repeat deletion and CSRF. Render fixtures with
+`php scripts/tests/gallery_image_delete_forms.php <private-/tmp-directory>`, then
+run `node scripts/tests/gallery_image_delete.cjs <directory>` for seven editors'
+actual row controls, confirmation/cancel, context and unsaved-form isolation.
+
+## 24. Images attached directly to content records
+
+Awards and Advertising editors now offer the same red, white-bin control for
+the image without deleting the award/advert. Uploaded Awards (sm) and Advertising
+(original/md/sm) files are removed once no other record in that section uses
+them. Removing an award image clears both its direct upload and Library selection
+so a previously selected image does not unexpectedly reappear.
+
+Manual/Super Announcements use shared Library assets: their bin clears the
+announcement's image selection and refreshes its revision, retaining its text,
+publication/schedule and the Library source. Library images selected by Awards
+are likewise detached rather than deleted. The Library's own record-delete
+control also uses the red bin; its established stored-file retention remains.
+
+Dev Task screenshots have the same control for Manager/Admin/Superadmin/Developer.
+Removing a screenshot preserves the message and task; the message ID must belong
+to the selected task. Original/lg/sm screenshot files are removed when unused.
+
+`record_image_removal.php` handles these fixed owner types under a transaction;
+admin controls use separate CSRF-protected, confirmed forms and return to the
+same editor without submitting unsaved parent fields. They do not affect inline
+images embedded in rich-text bodies or remove shared Library source files.
+No new upload sections, schema changes or dependencies are introduced.
+
+Verification: `php scripts/tests/record_image_removal.php <private-/tmp-directory>`
+checks all owner types with temporary tables and synthetic files only, including
+shared-file/Library retention, announcement tab and screenshot task scope, CSRF
+and preservation of parent records. `node scripts/tests/record_image_removal.cjs
+<directory>` checks icon-only controls, confirmation/cancel and isolated forms.

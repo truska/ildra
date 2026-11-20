@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__.'/media_image_actions.php';
 ensureDevTaskTables($pdo);
 $assignableUsers = devTaskAssignableUsers($pdo);
 $testerUserIds = array_map('intval', array_column(devTaskTesterUsers($pdo), 'id'));
@@ -10,7 +11,18 @@ if (empty($_SESSION['dev_task_csrf'])) $_SESSION['dev_task_csrf'] = bin2hex(rand
 $csrf = (string)$_SESSION['dev_task_csrf'];
 $canEditTaskTitle = strtolower((string)($currentUser['role'] ?? '')) === 'developer';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$canRemoveTaskImages = in_array(strtolower((string)($currentUser['role'] ?? '')), ['developer','superadmin','admin','manager'], true);
+$removeTaskImageHandled = false;
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'remove_record_image') {
+    if (!$canRemoveTaskImages) {
+        http_response_code(403);
+        $alerts[]=['type'=>'danger','message'=>'You cannot remove task screenshots.'];
+        $removeTaskImageHandled = true;
+    } else {
+        $removeTaskImageHandled = admin_handle_record_image_delete($pdo, 'task_screenshot', (int)($_POST['message_id'] ?? 0), 'dev_task.php?id='.$taskId, $alerts, (string)$taskId);
+    }
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$removeTaskImageHandled) {
     if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
         $alerts[] = ['type'=>'danger','message'=>'Your session token expired. Please try again.'];
     } else {
@@ -130,12 +142,13 @@ admin_layout_start($task ? 'Dev Task #'.$taskId : 'New Dev Task', 'dev_tasks');
 <div id="conversation">
 <div class="row g-3 mb-3 align-items-start">
 <div class="col-md-8">
-<?php if ($messages): $message=$messages[0]; ?><article class="card-soft p-3"><div class="d-flex justify-content-between gap-3 mb-2"><strong><?php echo h($message['author_name']); ?></strong><time class="small text-muted text-nowrap"><?php echo h(admin_display_datetime((int)$message['created_at_ts'])); ?></time></div><div style="white-space:pre-wrap"><?php echo h($message['message']); ?></div><?php if(!empty($message['image_filename'])): ?><a href="<?php echo h(image_upload_public_path('dev-tasks','original',$message['image_filename'])); ?>" target="_blank" rel="noopener" class="d-inline-block mt-3"><img class="img-fluid rounded border" style="max-height:420px" src="<?php echo h(image_upload_public_path('dev-tasks','lg',$message['image_filename'])); ?>" alt="Screenshot attached by <?php echo h($message['author_name']); ?>"></a><?php endif; ?></article><?php endif; ?>
+<?php if ($messages): $message=$messages[0]; ?><article class="card-soft p-3"><div class="d-flex justify-content-between gap-3 mb-2"><strong><?php echo h($message['author_name']); ?></strong><time class="small text-muted text-nowrap"><?php echo h(admin_display_datetime((int)$message['created_at_ts'])); ?></time></div><div style="white-space:pre-wrap"><?php echo h($message['message']); ?></div><?php if(!empty($message['image_filename'])): ?><a href="<?php echo h(image_upload_public_path('dev-tasks','original',$message['image_filename'])); ?>" target="_blank" rel="noopener" class="d-inline-block mt-3"><img class="img-fluid rounded border" style="max-height:420px" src="<?php echo h(image_upload_public_path('dev-tasks','lg',$message['image_filename'])); ?>" alt="Screenshot attached by <?php echo h($message['author_name']); ?>"></a><?php if ($canRemoveTaskImages) echo '<div>'.admin_record_image_delete_button('task_screenshot', (int)$message['id']).'</div>'; ?><?php endif; ?></article><?php endif; ?>
 </div>
 <div class="col-md-4"><aside class="dev-task-notes card-soft p-3" id="task-notes"><h6 class="mb-2">Task notes</h6><p class="small text-muted mb-2">A shared running list for this task.</p><form method="post"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="save_notes"><input type="hidden" name="task_id" value="<?php echo $taskId; ?>"><textarea class="form-control" name="task_notes" rows="12" placeholder="Add notes, checklist items or decisions…"><?php echo h((string)($task['task_notes'] ?? '')); ?></textarea><button class="btn btn-sm btn-success mt-2">Save Notes</button></form></aside></div>
 </div>
-<?php foreach(array_slice($messages,1) as $message): ?><article class="card-soft p-3 mb-3"><div class="d-flex justify-content-between gap-3 mb-2"><strong><?php echo h($message['author_name']); ?></strong><time class="small text-muted text-nowrap"><?php echo h(admin_display_datetime((int)$message['created_at_ts'])); ?></time></div><div style="white-space:pre-wrap"><?php echo h($message['message']); ?></div><?php if(!empty($message['image_filename'])): ?><a href="<?php echo h(image_upload_public_path('dev-tasks','original',$message['image_filename'])); ?>" target="_blank" rel="noopener" class="d-inline-block mt-3"><img class="img-fluid rounded border" style="max-height:420px" src="<?php echo h(image_upload_public_path('dev-tasks','lg',$message['image_filename'])); ?>" alt="Screenshot attached by <?php echo h($message['author_name']); ?>"></a><?php endif; ?></article><?php endforeach; ?>
+<?php foreach(array_slice($messages,1) as $message): ?><article class="card-soft p-3 mb-3"><div class="d-flex justify-content-between gap-3 mb-2"><strong><?php echo h($message['author_name']); ?></strong><time class="small text-muted text-nowrap"><?php echo h(admin_display_datetime((int)$message['created_at_ts'])); ?></time></div><div style="white-space:pre-wrap"><?php echo h($message['message']); ?></div><?php if(!empty($message['image_filename'])): ?><a href="<?php echo h(image_upload_public_path('dev-tasks','original',$message['image_filename'])); ?>" target="_blank" rel="noopener" class="d-inline-block mt-3"><img class="img-fluid rounded border" style="max-height:420px" src="<?php echo h(image_upload_public_path('dev-tasks','lg',$message['image_filename'])); ?>" alt="Screenshot attached by <?php echo h($message['author_name']); ?>"></a><?php if ($canRemoveTaskImages) echo '<div>'.admin_record_image_delete_button('task_screenshot', (int)$message['id']).'</div>'; ?><?php endif; ?></article><?php endforeach; ?>
 </div>
 <div class="card-soft p-4 mt-4"><h6>Add to the conversation</h6><form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="<?php echo h($csrf); ?>"><input type="hidden" name="action" value="reply"><input type="hidden" name="task_id" value="<?php echo $taskId; ?>"><textarea class="form-control mb-3" name="message" rows="5" required placeholder="Write a reply…"><?php echo h($_POST['message']??''); ?></textarea><label class="form-label" for="reply-image">Attach screenshot (optional)</label><input class="form-control" id="reply-image" type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"><button class="btn btn-success mt-3">Add Reply</button></form></div>
 <?php endif; ?>
+<?php if ($canRemoveTaskImages) foreach ($messages as $message) { if (!empty($message['image_filename'])) echo admin_record_image_delete_form('task_screenshot', (int)$message['id'], ['task_id'=>$taskId,'message_id'=>$message['id']]); } ?>
 <?php admin_layout_end(); ?>

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__.'/media_image_actions.php';
 require_once __DIR__ . '/table_sort.php';
 $siteSettings = getSiteSettings($pdo);
 ensure_announcements_table($pdo, $siteSettings);
@@ -24,7 +25,7 @@ if ($id) {
     $siteSettings[$prefix . 'enabled'] = '0';
     $siteSettings[$prefix . 'asset_id'] = '0';
 }
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !admin_handle_record_image_delete($pdo, 'announcement', $id, 'announcements.php?tab='.$activeTab.'&id='.$id, $alerts, $activeTab)) {
     if (($_POST['action'] ?? '') === 'archive' && $activeTab !== 'automatic') {
         if (($_POST['delete_confirmation'] ?? null) !== 'DELETE') {
             $alerts[] = ['type'=>'danger', 'message'=>'Type DELETE in capital letters to confirm archiving. Nothing was archived.'];
@@ -123,7 +124,7 @@ admin_layout_start('Announcements', 'announcements');
                     <div class="col-12"><label class="form-label" for="<?php echo h($formPrefix); ?><?php echo h($field); ?>"><?php echo h($label); ?></label><input class="form-control" name="<?php echo h($formPrefix); ?><?php echo h($field); ?>" id="<?php echo h($formPrefix); ?><?php echo h($field); ?>" value="<?php echo h((string)$siteSettings[$formPrefix . $field]); ?>"></div>
                 <?php endforeach; ?>
                 <div class="col-12"><label class="form-label" for="<?php echo h($formPrefix); ?>body_html">Text</label><textarea class="form-control wysiwyg-field" rows="6" id="<?php echo h($formPrefix); ?>body_html" name="<?php echo h($formPrefix); ?>body_html"><?php echo h((string)$siteSettings[$formPrefix . 'body_html']); ?></textarea></div>
-                <div class="col-md-8"><label class="form-label" for="<?php echo h($formPrefix); ?>asset_id">Image from library (optional)</label><select class="form-select" name="<?php echo h($formPrefix); ?>asset_id" id="<?php echo h($formPrefix); ?>asset_id"><option value="0">No image — full-width text</option><?php foreach ($announcementAssets as $asset): if (!empty($asset['archived'])) continue; ?><option value="<?php echo (int)$asset['id']; ?>" <?php echo (int)$siteSettings[$formPrefix . 'asset_id'] === (int)$asset['id'] ? 'selected' : ''; ?>><?php echo h((string)($asset['title'] ?: $asset['name'])); ?></option><?php endforeach; ?></select><a class="small" href="asset_library.php">Upload/manage library images</a></div>
+                <div class="col-md-8"><label class="form-label" for="<?php echo h($formPrefix); ?>asset_id">Image from library (optional)</label><select class="form-select" name="<?php echo h($formPrefix); ?>asset_id" id="<?php echo h($formPrefix); ?>asset_id"><option value="0">No image — full-width text</option><?php foreach ($announcementAssets as $asset): if (!empty($asset['archived'])) continue; ?><option value="<?php echo (int)$asset['id']; ?>" <?php echo (int)$siteSettings[$formPrefix . 'asset_id'] === (int)$asset['id'] ? 'selected' : ''; ?>><?php echo h((string)($asset['title'] ?: $asset['name'])); ?></option><?php endforeach; ?></select><a class="small" href="asset_library.php">Upload/manage library images</a><?php if ($id && !empty($siteSettings[$formPrefix . 'asset_id'])): ?><div><?= admin_record_image_delete_button('announcement', $id) ?></div><?php endif; ?></div>
                 <div class="col-md-4"><label class="form-label" for="<?php echo h($formPrefix); ?>image_side">Image position</label><select class="form-select" id="<?php echo h($formPrefix); ?>image_side" name="<?php echo h($formPrefix); ?>image_side"><option value="left">Left</option><option value="right" <?php echo $siteSettings[$formPrefix . 'image_side'] === 'right' ? 'selected' : ''; ?>>Right</option></select></div>
                 <?php foreach (['bg_colour' => 'Background colour', 'text_colour' => 'Text colour'] as $field => $label): ?>
                     <div class="col-md-6"><label class="form-label" for="<?php echo h($formPrefix); ?><?php echo h($field); ?>"><?php echo h($label); ?></label><input type="color" class="form-control form-control-color" name="<?php echo h($formPrefix); ?><?php echo h($field); ?>" id="<?php echo h($formPrefix); ?><?php echo h($field); ?>" value="<?php echo h((string)$siteSettings[$formPrefix . $field]); ?>"></div>
@@ -132,6 +133,7 @@ admin_layout_start('Announcements', 'announcements');
                 <div class="col-md-6"><label class="form-label" for="display_order">Display order (lowest first)</label><input class="form-control" type="number" id="display_order" name="display_order" value="<?php echo (int)$record['display_order']; ?>"></div>
                 <div class="col-12"><button class="btn btn-success">Save Announcement</button></div>
             </form>
+<?php if ($id) echo admin_record_image_delete_form('announcement', $id, ['id'=>$id,'settings_section'=>$activeTab], true); ?>
 </div>
 <?php else:
 $stmt = $pdo->prepare('SELECT * FROM announcements WHERE announcement_type=? AND is_archived=0');

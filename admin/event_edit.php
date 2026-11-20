@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__.'/media_image_actions.php';
 require_once dirname(__DIR__).'/old_image_library.php';
 
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
@@ -35,16 +36,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? 'save_event');
     if (!$isAdmin) {
         $alerts[] = ['type' => 'danger', 'message' => 'Only admins can manage events.'];
-    } elseif (!in_array($action,['save_event','upload_event_images','save_event_gallery'],true)) {
+    } elseif (!in_array($action,['save_event','upload_event_images','save_event_gallery','delete_event_image'],true)) {
         $alerts[]=['type'=>'danger','message'=>'Unknown event action.'];
     } elseif ($action==='save_event' && (int)($_POST['event_id']??0)!==$eventId) {
         $alerts[]=['type'=>'danger','message'=>'The event ID does not match this editor. Reload the event before saving.'];
-    } elseif (in_array($action, ['upload_event_images', 'save_event_gallery'], true)) {
+    } elseif (in_array($action, ['upload_event_images', 'save_event_gallery', 'delete_event_image'], true)) {
         if (!$eventId || !$event) {
             $alerts[] = ['type' => 'danger', 'message' => 'Save the event before adding images.'];
         } else {
             $batch = mediaBatchGetOrCreate($pdo, 'event_images', 'event', $eventId, 'Event images: ' . (string)$event['title'], 'events');
-            if ($action === 'upload_event_images') {
+            if ($action === 'delete_event_image') {
+                admin_handle_image_delete($pdo, $batch, 'event_edit.php?id='.$eventId, $alerts, 'delete_event_image');
+            } elseif ($action === 'upload_event_images') {
                 $errors = [];
                 $count = mediaBatchUpload($pdo, $batch, $_FILES['images'] ?? [], ['original'=>null, 'lg'=>1200, 'sm'=>300, 'xs'=>150], $errors);
                 foreach ($errors as $error) $alerts[] = ['type'=>'danger', 'message'=>$error];
@@ -1337,10 +1340,10 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
     </form>
     <?php if ($eventImages): ?>
     <form method="post"><input type="hidden" name="action" value="save_event_gallery">
-        <div class="table-responsive"><table class="table align-middle" data-admin-inline-reorder><thead><tr><th>Preview</th><th>Order</th><th>Title / alternative text / caption</th><th>Archived</th></tr></thead><tbody>
-        <?php foreach ($eventImages as $image): ?><tr data-order-id="<?php echo (int)$image['id']; ?>"><td><img class="rounded border" style="width:120px;height:90px;object-fit:cover" src="<?php echo h(mediaBatchImageUrl($eventImageBatch,$image,'xs')); ?>" alt=""></td><td><input class="form-control" style="width:90px" data-display-order type="number" name="image[<?php echo (int)$image['id']; ?>][display_order]" value="<?php echo (int)$image['display_order']; ?>"></td><td><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][title]" value="<?php echo h($image['title']??''); ?>" placeholder="Title"><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][alt_text]" value="<?php echo h($image['alt_text']??''); ?>" placeholder="Alternative text"><textarea class="form-control form-control-sm" rows="2" name="image[<?php echo (int)$image['id']; ?>][caption]" placeholder="Caption"><?php echo h($image['caption']??''); ?></textarea></td><td><input type="checkbox" name="image[<?php echo (int)$image['id']; ?>][archived]" value="1" <?php echo !empty($image['archived'])?'checked':''; ?>></td></tr><?php endforeach; ?>
+        <div class="table-responsive"><table class="table align-middle" data-admin-inline-reorder><thead><tr><th>Preview</th><th>Order</th><th>Title / alternative text / caption</th><th>Archived</th><th>Delete</th></tr></thead><tbody>
+        <?php foreach ($eventImages as $image): ?><tr data-order-id="<?php echo (int)$image['id']; ?>"><td><img class="rounded border" style="width:120px;height:90px;object-fit:cover" src="<?php echo h(mediaBatchImageUrl($eventImageBatch,$image,'xs')); ?>" alt=""></td><td><input class="form-control" style="width:90px" data-display-order type="number" name="image[<?php echo (int)$image['id']; ?>][display_order]" value="<?php echo (int)$image['display_order']; ?>"></td><td><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][title]" value="<?php echo h($image['title']??''); ?>" placeholder="Title"><input class="form-control form-control-sm mb-1" name="image[<?php echo (int)$image['id']; ?>][alt_text]" value="<?php echo h($image['alt_text']??''); ?>" placeholder="Alternative text"><textarea class="form-control form-control-sm" rows="2" name="image[<?php echo (int)$image['id']; ?>][caption]" placeholder="Caption"><?php echo h($image['caption']??''); ?></textarea></td><td><input type="checkbox" name="image[<?php echo (int)$image['id']; ?>][archived]" value="1" <?php echo !empty($image['archived'])?'checked':''; ?>></td><td><?= admin_image_delete_button($eventImageBatch, $image) ?></td></tr><?php endforeach; ?>
         </tbody></table></div><button class="btn btn-success">Save Gallery</button>
-    </form><?php endif; ?>
+    </form><?= admin_image_delete_forms($eventImageBatch, $eventImages, ['event_id'=>$eventId], 'delete_event_image') ?><?php endif; ?>
 </div>
 <?php endif; ?>
 <?php render_tinymce_bootstrap(); ?>

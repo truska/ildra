@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__.'/media_image_actions.php';
 require_once __DIR__ . '/table_sort.php';
 
 $role = strtolower((string)($currentUser['role'] ?? ''));
@@ -25,7 +26,7 @@ if ($editId > 0 && !$record) {
     $isEditor = false;
 }
 
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !admin_handle_record_image_delete($pdo, 'advertising', $editId, 'advertising.php?edit='.$editId, $alerts)) {
     $action = (string)($_POST['action'] ?? 'save');
     $id = max(0, (int)($_POST['id'] ?? 0));
     if ($action === 'reorder') {
@@ -111,7 +112,7 @@ if ($isEditor):
         <div class="col-md-4"><label class="form-label fw-semibold">Link target</label><select class="form-select" name="link_target"><option value="_self" <?php echo ($record['link_target'] ?? '_blank') === '_self' ? 'selected' : ''; ?>>Same window</option><option value="_blank" <?php echo ($record['link_target'] ?? '_blank') === '_blank' ? 'selected' : ''; ?>>New window / tab</option></select></div>
         <div class="col-md-8"><label class="form-label fw-semibold">Image</label><input class="form-control" type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"><div class="form-text">Creates original, 600px and 320px renditions.</div></div>
         <div class="col-md-4 d-flex align-items-end pb-2"><div class="form-check"><input class="form-check-input" type="checkbox" name="rename_image" value="1" id="rename-image" checked><label class="form-check-label" for="rename-image">Rename from record name</label></div></div>
-        <?php if (!empty($record['image'])): ?><div class="col-12"><img class="img-fluid border rounded" style="max-height:180px" src="<?php echo h(image_upload_public_path('advertising', 'md', $record['image'])); ?>" alt=""></div><?php endif; ?>
+        <?php if (!empty($record['image'])): ?><div class="col-12"><img class="img-fluid border rounded" style="max-height:180px" src="<?php echo h(image_upload_public_path('advertising', 'md', $record['image'])); ?>" alt=""><div><?= admin_record_image_delete_button('advertising', (int)$record['id']) ?></div></div><?php endif; ?>
         <div class="col-md-4"><label class="form-label fw-semibold">Start date</label><input class="form-control" type="date" name="start_date" value="<?php echo h($record['start_date'] ?? ''); ?>"></div>
         <div class="col-md-4"><label class="form-label fw-semibold">Finish date</label><input class="form-control" type="date" name="finish_date" value="<?php echo h($record['finish_date'] ?? ''); ?>"><div class="form-text">Blank means no end date.</div></div>
         <div class="col-md-4"><label class="form-label fw-semibold">Order</label><input class="form-control" type="number" name="display_order" value="<?php echo (int)($record['display_order'] ?? 100); ?>"></div>
@@ -121,6 +122,7 @@ if ($isEditor):
         <div class="col-12 d-flex gap-2"><button class="btn btn-success">Save Item</button><a class="btn btn-outline-secondary" href="advertising.php">Cancel</a></div>
     </form>
 </div>
+<?php if (!empty($record['id'])) echo admin_record_image_delete_form('advertising', (int)$record['id']); ?>
 <?php else:
     $filterForm='advertising-filter-form';
     $tableColumns = [

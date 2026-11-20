@@ -1,12 +1,14 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__.'/media_image_actions.php';
 $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
 if (!$isAdmin) { http_response_code(403); exit('Only admins can manage events.'); }
 $eventId = max(0, (int)($_GET['id'] ?? 0));
 $event = $eventId ? fetchEventById($pdo, $eventId) : null;
 if ($eventId && (!$event || !isThirdPartyEvent($event))) { http_response_code(404); exit('Third-party event not found.'); }
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+$deleteBatch = $eventId ? mediaBatchFind($pdo, 'event_images', 'event', $eventId) : null;
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !admin_handle_image_delete($pdo, $deleteBatch, 'third_party_event_edit.php?id='.$eventId, $alerts)) {
     $savedId = saveThirdPartyEvent($pdo, $_POST, $alerts, $eventId);
     if ($savedId) {
         $eventId = $savedId;
@@ -43,11 +45,12 @@ admin_layout_start($eventId ? 'Edit 3rd Party Event' : 'Add 3rd Party Event', 'e
 <div class="col-md-6"><label class="form-label" for="event-date">Date</label><input id="event-date" class="form-control" type="date" name="event_date" required value="<?php echo h($event['event_date']); ?>"></div>
 <div class="col-md-6"><label class="form-label" for="event-location">Location</label><input id="event-location" class="form-control" name="venue" maxlength="255" required value="<?php echo h($event['venue']); ?>"></div>
 <div class="col-12"><label class="form-label" for="event-text">Text</label><textarea id="event-text" class="form-control wysiwyg-field" name="description" rows="8"><?php echo h($event['description']); ?></textarea></div>
-<div class="col-12"><label class="form-label" for="event-image">Image</label><?php if ($images): ?><div class="mb-2"><img src="<?php echo h(mediaBatchImageUrl($batch, $images[0], 'sm')); ?>" alt="Current event image" class="rounded" style="max-width:300px;max-height:200px"></div><?php endif; ?><input id="event-image" class="form-control" type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"><div class="form-text">Optional. Upload a new image to replace the current one.</div></div>
+<div class="col-12"><label class="form-label" for="event-image">Image</label><?php if ($images): ?><div class="mb-2"><img src="<?php echo h(mediaBatchImageUrl($batch, $images[0], 'sm')); ?>" alt="Current event image" class="rounded" style="max-width:300px;max-height:200px"><div><?= admin_image_delete_button($batch, $images[0]) ?></div></div><?php endif; ?><input id="event-image" class="form-control" type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"><div class="form-text">Optional. Upload a new image to replace the current one.</div></div>
 <div class="col-12"><label class="form-label" for="event-link">Entry Link URL</label><input id="event-link" class="form-control" type="url" name="external_entry_url" maxlength="2048" placeholder="https://" required value="<?php echo h($event['external_entry_url']); ?>"></div>
 <div class="col-md-6"><label class="form-label" for="event-status">Status</label><select id="event-status" class="form-select" name="status"><option value="draft" <?php echo $event['status'] === 'draft' ? 'selected' : ''; ?>>Draft</option><option value="published" <?php echo $event['status'] === 'published' ? 'selected' : ''; ?>>Published</option></select></div>
 <div class="col-12"><button class="btn btn-success">Save 3rd Party Event</button></div>
 </form></div>
+<?php if ($batch && $images) echo admin_image_delete_forms($batch, [$images[0]], ['event_id'=>$eventId]); ?>
 <?php render_tinymce_bootstrap(); ?>
 <script>if (window.tinymce) tinymce.init(window.ildraTinyMceConfig({selector:'textarea.wysiwyg-field'}));</script>
 <?php admin_layout_end(); ?>
