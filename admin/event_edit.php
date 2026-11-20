@@ -460,12 +460,16 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                 <div class="col-md-4">
                     <label class="form-label">Organiser</label>
                     <?php
-                        $selectedOrganiserUserId = (int)($event['organiser_user_id'] ?? 0);
+                        $selectedOrganiserUserId = (int)($_POST['organiser_user_id'] ?? $event['organiser_user_id'] ?? 0);
                         $legacyOrganiser = trim((string)($event['organiser'] ?? ''));
-                        $hasSelectedOrganiser = false;
+                        $committeeSelected = ($_SERVER['REQUEST_METHOD'] === 'POST')
+                            ? (($_POST['organiser_user_id'] ?? '') === 'committee')
+                            : ($selectedOrganiserUserId === 0 && $legacyOrganiser === 'Committee');
+                        $hasSelectedOrganiser = $committeeSelected;
                     ?>
                     <select name="organiser_user_id" class="form-select">
                         <option value="0">Choose organiser...</option>
+                        <option value="committee" data-phone="" <?= $committeeSelected ? 'selected' : '' ?>>Committee</option>
                         <?php foreach ($eligibleOrganisers as $userRow): ?>
                             <?php
                                 $userId = (int)($userRow['id'] ?? 0);
@@ -491,9 +495,13 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                     <?php $emergencyUseOrganiser = $_SERVER['REQUEST_METHOD'] === 'POST' ? !empty($_POST['emergency_use_organiser']) : !empty($event['emergency_use_organiser'] ?? 1); ?>
                     <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 gap-md-3">
                     <div class="form-check mb-0 flex-shrink-0"><input class="form-check-input" type="checkbox" name="emergency_use_organiser" id="emergency_use_organiser" value="1" <?php echo $emergencyUseOrganiser ? 'checked' : ''; ?>><label class="form-check-label" for="emergency_use_organiser">Use organiser’s number</label></div>
-                    <input type="tel" class="form-control" id="emergency_phone" name="emergency_phone" maxlength="60" value="<?php echo h((string)($_POST['emergency_phone'] ?? $event['emergency_phone'] ?? '')); ?>">
+                    <div class="flex-grow-1">
+                    <?php $emergencyPhoneError = ''; foreach ($alerts as $alert) { if (($alert['field'] ?? '') === 'emergency_phone') $emergencyPhoneError = $alert['message']; } ?>
+                    <?php if ($emergencyPhoneError !== ''): ?><div class="text-danger small" id="emergency-phone-error"><?= h($emergencyPhoneError) ?></div><?php endif; ?>
+                    <input type="tel" class="form-control <?= $emergencyPhoneError !== '' ? 'is-invalid' : '' ?>" <?= $emergencyPhoneError !== '' ? 'aria-invalid="true" aria-describedby="emergency-phone-error"' : '' ?> id="emergency_phone" name="emergency_phone" maxlength="60" value="<?php echo h((string)($_POST['emergency_phone'] ?? $event['emergency_phone'] ?? '')); ?>">
                     </div>
-                    <div class="form-text" id="emergency-phone-help">Shown prominently on Rider Notes.</div>
+                    </div>
+                    <div class="form-text" id="emergency-phone-help">Optional for now. Shown prominently on Rider Notes when supplied.</div>
                 </div>
             </div>
         </div>
@@ -762,11 +770,11 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
             emergencyCheck.disabled = !isRide || !usable;
             if (!usable) emergencyCheck.checked = false;
             emergencyInput.disabled = !isRide || emergencyCheck.checked;
-            emergencyInput.required = isRide && !emergencyCheck.checked;
+            emergencyInput.required = false;
             emergencyInput.value = emergencyCheck.checked ? phone : manualEmergencyPhone;
             document.getElementById('emergency-phone-help').textContent = usable
                 ? 'Shown prominently on Rider Notes. Organiser’s number: ' + phone
-                : 'The organiser has no usable number listed. Enter a Ride Emergency Number.';
+                : 'Optional for now. Add a Ride Emergency Number before preparing Rider Notes.';
         };
         emergencyInput.addEventListener('input', () => { manualEmergencyPhone = emergencyInput.value; });
         emergencyCheck.addEventListener('change', syncEmergencyPhone);

@@ -5997,6 +5997,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $venueId = isset($data['venue_id']) ? (int)$data['venue_id'] : 0;
     $organiser = trim((string)($data['organiser'] ?? ''));
     $organiserUserId = isset($data['organiser_user_id']) ? (int)$data['organiser_user_id'] : 0;
+    $committeeOrganiser = ($data['organiser_user_id'] ?? '') === 'committee';
     $classPrices = $data['class_price'] ?? [];
     $selectedClasses = $data['class_selected'] ?? [];
     $classesOffered = null;
@@ -6014,7 +6015,7 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
             $venueId = 0;
         }
     }
-    if ($eventId > 0 && !array_key_exists('organiser', $data)) {
+    if ($eventId > 0 && !array_key_exists('organiser', $data) && !array_key_exists('organiser_user_id', $data)) {
         try {
             $stmt = $pdo->prepare("SELECT organiser, organiser_user_id FROM events WHERE id = :id LIMIT 1");
             $stmt->execute([':id' => $eventId]);
@@ -6026,6 +6027,12 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
         } catch (PDOException $e) {
             // ignore
         }
+    }
+    if ($committeeOrganiser) {
+        $organiser = 'Committee';
+        $organiserUserId = 0;
+    } elseif (array_key_exists('organiser_user_id', $data) && $organiserUserId <= 0) {
+        $organiser = '';
     }
     if ($organiserUserId > 0) {
         $organiserUser = fetchEligibleEventOrganiserById($pdo, $organiserUserId);
@@ -6040,8 +6047,8 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     $emergencyPhone = trim((string)($data['emergency_phone'] ?? ''));
     if (strtolower(trim($eventTypeName)) === 'ride') {
         $effectiveEmergencyPhone = $emergencyUseOrganiser ? eventOrganiserPhone($pdo, $organiserUserId) : $emergencyPhone;
-        if ($effectiveEmergencyPhone === '' || mb_strlen($effectiveEmergencyPhone) > 60 || !preg_match('/^\+?[0-9 ()-]*[0-9][0-9 ()-]*$/', $effectiveEmergencyPhone)) {
-            $alerts[] = ['type' => 'danger', 'message' => $emergencyUseOrganiser ? 'The organiser has no usable phone number. Untick Use organiser’s number and enter a Ride Emergency Number.' : 'Enter a valid Ride Emergency Number (up to 60 characters).'];
+        if ($effectiveEmergencyPhone !== '' && !isUsableRideEmergencyPhone($effectiveEmergencyPhone)) {
+            $alerts[] = ['type' => 'danger', 'field' => 'emergency_phone', 'message' => $emergencyUseOrganiser ? 'The organiser has no usable phone number. Untick Use organiser’s number and enter a Ride Emergency Number.' : 'Enter a valid Ride Emergency Number (up to 60 characters).'];
             return false;
         }
     }
@@ -6294,6 +6301,17 @@ function eventOrganiserPhone(?PDO $pdo, int $userId): string
     $stmt->execute([':id' => $userId]);
     $rows = $stmt->fetchAll();
     return count($rows) === 1 ? trim((string)($rows[0]['phone'] ?? '')) : '';
+}
+
+function isUsableRideEmergencyPhone(string $phone): bool
+{
+    return $phone !== '' && mb_strlen($phone) <= 60
+        && (bool)preg_match('/^\+?[0-9 ()-]*[0-9][0-9 ()-]*$/', $phone);
+}
+
+function riderNotesNeedsEmergencyWarning(?PDO $pdo, array $event): bool
+{
+    return !isUsableRideEmergencyPhone(rideEmergencyPhone($pdo, $event));
 }
 
 function rideEmergencyPhone(?PDO $pdo, array $event): string

@@ -71,4 +71,5 @@ $logo = trim((string)($siteSettings['ride_notes_email_header_image_url']??$siteS
 })();
 </script>
 <?php endif; ?>
+<?php if ($preview && $event && riderNotesNeedsEmergencyWarning($pdo, $event)) require __DIR__.'/views/ride_notes_emergency_warning.php'; ?>
 </body></html>

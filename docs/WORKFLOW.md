@@ -363,3 +363,29 @@ Verification: `node scripts/tests/event_quarter_hour_times.cjs` checks the seven
 fields, quarter-hour choices, narrow tablet columns, generated reopening/manual
 overrides and form submission values. The existing five-minute control test also
 passes. No event records were changed by these synthetic browser tests.
+
+## 22. Committee organiser and Rider Notes emergency warning
+
+Event Edit offers Committee alongside eligible individual organisers. This is a
+reserved organiser choice, stored as `organiser=Committee` with no user ID. It
+does not create a shared login, grant organiser access, or receive user emails.
+Existing event duplication retains the label. Selecting an individual replaces
+Committee and vice versa; an explicit empty selection clears the organiser.
+No new schema or account records are needed.
+
+Ride Emergency Number is optional when saving an event, including when the
+selected organiser has no number. Non-empty values still undergo phone format
+validation. Manual numbers and Use organiser’s number retain their existing
+selection behaviour.
+
+Opening the admin Rider Notes editor or an authorised preview checks the same
+effective number used on Rider Notes. If absent/unusable, a dismissible advisory
+modal says “No Emergency Number added yet” with Continue. It does not block
+saving, publishing, previewing or sending, and ordinary riders do not receive
+this administrative prompt. The editor warning appears on GET, not save POSTs.
+
+Verification: `php scripts/tests/committee_organiser.php` uses temporary copies
+of every database table for Committee/individual switching, optional/manual/user
+numbers and invalid-number rejection. `node scripts/tests/committee_organiser.cjs`
+checks the actual emergency-control script and advisory modal in Chromium. No
+real event, user or phone record is changed by these tests.
