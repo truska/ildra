@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../bootstrap.php';
 
 if (!$currentUser) {
-    header('Location: ../index.php');
+    header('Location: /');
     exit;
 }
 
@@ -22,7 +22,7 @@ if (!empty($_SESSION['act_as_original_user'])) {
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
 $canAccessAdmin = roleCanAccessAdmin($currentRole);
 if (!$canAccessAdmin) {
-    header('Location: ../index.php');
+    header('Location: /');
     exit;
 }
 

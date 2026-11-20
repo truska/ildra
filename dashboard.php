@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
 
 if (!$currentUser) {
-    header('Location: index.php');
+    header('Location: /');
     exit;
 }
 
