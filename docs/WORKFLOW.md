@@ -296,3 +296,52 @@ values after a failed save. Associate warnings using aria-invalid and
 aria-describedby. General failures without a specific field can remain in the
 page alerts. This convention is implemented first on Admin → Email → Email
 Settings, including its test recipient; other existing pages are unchanged.
+
+## 20. User password tools and recovery confirmation
+
+Admin → Users has a separate Reset password button on eligible user rows. It
+opens a modal with the account email, a new password field, Show/Hide and Reset
+password. The old password is not required.
+Admin can reset active ordinary User accounts; Superadmin/Developer retain access
+to other unprotected active accounts. Manager has no password-reset access.
+Protected accounts use their own password-change or recovery flow. Server checks
+mirror visibility; password changes use the shared session/token revocation helper
+and existing audit event without recording the password. Passwords must be 8–72
+characters; errors reopen the editor with a warning above the field and a red
+border. Password values are never echoed back and are cleared/remasked on close.
+
+Successful Forgot Password requests redirect to a dedicated Check your email
+screen (`account?auth=reset-sent`) with the shared generic Bootstrap success
+alert. It explains that the one-hour, single-use emailed link sets a new password
+without the old one; it does not redirect to Email Sign In. Failed requests remain
+on the request form. Reset links render the recovery form even when an ordinary
+account session already exists, rather than showing My Account's change-password
+form. New password and confirmation have Show/Hide controls, 8–72 character
+validation and accessible field errors. Reset POST carries its token explicitly
+to `/account`; validation failures retain the recovery form. Recovery screens use
+no-store and no-referrer headers. No expiry or delivery setting changed.
+
+Preparation exceptions and failed submissions now write a private PHP diagnostic
+without passwords, bearer tokens, email bodies or exception messages. Public
+responses remain the same for registered and unregistered addresses. The user
+authorized one real recovery request on 20 November: its email was accepted by
+SES and recorded in the email log; opening its link confirmed the dedicated form
+without changing the account password. The earlier missing request could not be
+reproduced; no recent password-reset throttle/token evidence was present before
+that controlled request.
+
+Verification: PHP syntax checks, authentication-email-origin fixtures,
+password/session-revocation temporary-table tests and a reveal-control script
+check passed. No real account passwords were changed; only the explicitly authorized recovery
+email was sent during the follow-up live check.
+
+Password recovery transaction correction — 20 November 2026: token consumption
+must not run `CREATE TABLE IF NOT EXISTS` inside the reset transaction. Normal
+MySQL DDL implicitly commits even when the table already exists, unlike the
+temporary-table DDL used in the original tests. The reset handler prepares tables
+before starting its transaction; token consumption now only prepares its table
+when called outside a transaction. This fixes the generic reset failure after a
+potentially already-applied password change/token revocation. The revocation test
+now rejects transactional schema operations so its temporary fixtures cannot
+mask this production behaviour. Reset exceptions also emit a private class/code
+diagnostic without credentials or tokens.

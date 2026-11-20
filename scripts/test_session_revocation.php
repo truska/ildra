@@ -10,6 +10,11 @@ class RevocationTestPDO extends PDO {
         parent::__construct('mysql:host='.$db['host'].';port='.($db['port']??3306).';dbname='.$db['name'].';charset=utf8mb4',$db['user'],$db['pass'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     }
     public function exec(string $statement): int|false {
+        // Temporary-table DDL does not implicitly commit as normal MySQL DDL
+        // does. Reject transactional DDL so fixtures expose that production bug.
+        if ($this->inTransaction() && preg_match('/^\s*(?:CREATE|ALTER|DROP|TRUNCATE)\b/i', $statement)) {
+            throw new PDOException('Schema setup attempted inside a password transaction.');
+        }
         $statement=preg_replace('/CREATE TABLE IF NOT EXISTS (auth_(?:remember_tokens|magic_tokens|password_resets))\b/i','CREATE TEMPORARY TABLE IF NOT EXISTS $1',$statement);
         return parent::exec($statement);
     }
@@ -35,7 +40,7 @@ ini_set('session.save_path','/tmp');session_start();
 $pdo=new RevocationTestPDO($db);
 $pdo->exec('CREATE TEMPORARY TABLE roles(id INT PRIMARY KEY,name VARCHAR(30),level INT)');
 $pdo->exec("INSERT INTO roles VALUES(1,'user',1),(2,'admin',5)");
-$pdo->exec('CREATE TEMPORARY TABLE users(id INT PRIMARY KEY,email VARCHAR(255),password_hash VARCHAR(255),is_archived TINYINT DEFAULT 0,role_id INT,first_name VARCHAR(60),last_name VARCHAR(60),last_login_at DATETIME NULL,updated_at DATETIME NULL) ENGINE=InnoDB');
+$pdo->exec('CREATE TEMPORARY TABLE users(id INT PRIMARY KEY,email VARCHAR(255),password_hash VARCHAR(255),is_archived TINYINT DEFAULT 0,is_protected TINYINT DEFAULT 0,role_id INT,first_name VARCHAR(60),last_name VARCHAR(60),last_login_at DATETIME NULL,updated_at DATETIME NULL) ENGINE=InnoDB');
 $oldHash=password_hash('old password 123',PASSWORD_DEFAULT);
 $pdo->prepare("INSERT INTO users(id,email,password_hash,role_id) VALUES(1,'user1@example.invalid',?,1),(2,'user2@example.invalid',?,2)")->execute([$oldHash,password_hash('admin password 123',PASSWORD_DEFAULT)]);
 ensureAuthTables($pdo);ensurePasswordResetTable($pdo);

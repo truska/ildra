@@ -10,6 +10,9 @@ $isAdmin = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['le
 $currentRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageUsers = in_array($currentRole, ['developer', 'superadmin', 'admin', 'manager'], true);
 $canManageRolesAndPasswords = roleIsSuperadminOrDeveloper($currentRole);
+$passwordErrors = [];
+$passwordUserId = 0;
+$canResetUserPasswords = in_array($currentRole, ['developer', 'superadmin', 'admin'], true);
 $canImpersonateUsers = in_array($currentRole, ['developer', 'superadmin', 'admin'], true);
 if (!$canManageUsers) {
     header('Location: index.php');
@@ -114,11 +117,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'reset_password') {
             $userId = (int)($_POST['user_id'] ?? 0);
             $newPassword = (string)($_POST['new_password'] ?? '');
-            if (!$canManageRolesAndPasswords) {
-                $alerts[] = ['type' => 'danger', 'message' => 'Only SuperAdmins can reset passwords.'];
-            } elseif ($userId > 0 && resetUserPassword($pdo, $userId, $newPassword, $alerts)) {
+            $target = null;
+            if ($pdo && $userId > 0) {
+                $targetQuery = $pdo->prepare('SELECT u.is_protected, u.is_archived, r.name AS role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?');
+                $targetQuery->execute([$userId]);
+                $target = $targetQuery->fetch();
+            }
+            if (!$canResetUserPasswords || !$target || !empty($target['is_protected']) || !empty($target['is_archived']) || (!$canManageRolesAndPasswords && $target['role'] !== 'user')) {
+                $alerts[] = ['type' => 'danger', 'message' => 'You cannot reset this account’s password. Protected accounts must use their own password-change or recovery flow.'];
+            } elseif (strlen($newPassword) < 8 || strlen($newPassword) > 72) {
+                $passwordUserId = $userId;
+                $passwordErrors[$userId] = 'Enter a password between 8 and 72 characters.';
+            } elseif (resetUserPassword($pdo, $userId, $newPassword, $alerts)) {
                 adminAuditLog($pdo, 'users.reset_password', $currentUser, 'user', $userId);
-                $successMessage = 'Password reset.';
+                $successMessage = 'Password changed. The user can sign in with the new password.';
+            } else {
+                $passwordUserId = $userId;
             }
         } elseif ($action === 'act_as') {
             $targetUserId = (int)($_POST['user_id'] ?? 0);
@@ -244,6 +258,9 @@ admin_layout_start('Users', 'users');
                             <?php if ($canImpersonateUsers && ($userRow['role'] ?? '') === 'user' && empty($userRow['is_archived']) && (int)$userRow['id'] !== (int)$currentUser['id']): ?>
                             <button class="btn btn-sm btn-outline-secondary" type="submit" form="actAsUserForm<?php echo (int)$userRow['id']; ?>" title="Act as this user" aria-label="Act as this user"><i class="fa-solid fa-user-secret" aria-hidden="true"></i></button>
                             <?php endif; ?>
+                            <?php if ($canResetUserPasswords && empty($userRow['is_protected']) && empty($userRow['is_archived']) && ($canManageRolesAndPasswords || $userRow['role'] === 'user')): ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#resetPasswordModal<?= (int)$userRow['id'] ?>">Reset password</button>
+                            <?php endif; ?>
                             <button type="button" class="btn btn-sm btn-outline-success" aria-label="Edit user" title="Edit user" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo (int)$userRow['id']; ?>"><i class="fa-solid fa-pen-to-square btn-icon" aria-hidden="true"></i></button>
                         </td>
                     </tr>
@@ -299,14 +316,8 @@ admin_layout_start('Users', 'users');
                             </select>
                         </div>
                     </div>
-                    <div class="border-top mt-3 pt-3">
-                        <label class="form-label fw-semibold" for="user-password-<?php echo (int)$userRow['id']; ?>">Reset password</label>
-                        <div class="d-flex flex-wrap gap-2">
-                            <input type="password" class="form-control flex-grow-1" style="width:auto" id="user-password-<?php echo (int)$userRow['id']; ?>" name="new_password" form="passwordUserForm<?php echo (int)$userRow['id']; ?>" autocomplete="new-password" minlength="8" required placeholder="New password">
-                            <button class="btn btn-outline-secondary" type="submit" form="passwordUserForm<?php echo (int)$userRow['id']; ?>">Reset Password</button>
-                        </div>
-                    </div>
                     <?php endif; ?>
+
 
                 </div>
                 <div class="modal-footer">
@@ -319,11 +330,38 @@ admin_layout_start('Users', 'users');
             </form>
     </div>
 </div>
-<?php if ($canManageRolesAndPasswords): ?>
-<form method="post" id="passwordUserForm<?php echo (int)$userRow['id']; ?>">
-    <input type="hidden" name="action" value="reset_password">
-    <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
-</form>
+<?php if ($canResetUserPasswords && empty($userRow['is_protected']) && empty($userRow['is_archived']) && ($canManageRolesAndPasswords || $userRow['role'] === 'user')): ?>
+<div class="modal fade" id="resetPasswordModal<?= (int)$userRow['id'] ?>" tabindex="-1" aria-labelledby="resetPasswordTitle<?= (int)$userRow['id'] ?>" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" class="modal-content" id="passwordUserForm<?= (int)$userRow['id'] ?>">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="reset_password">
+            <input type="hidden" name="user_id" value="<?= (int)$userRow['id'] ?>">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resetPasswordTitle<?= (int)$userRow['id'] ?>">Reset password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Set a new password for <strong><?= h($userRow['email']) ?></strong>. Their old password is not required.</p>
+                <p class="small text-muted">This signs the user out of existing sessions and invalidates their old sign-in and password-reset links.</p>
+                    <div class="border-top mt-3 pt-3">
+                        <label class="form-label fw-semibold" for="user-password-<?php echo (int)$userRow['id']; ?>">Set a new password</label>
+                        <?php if (isset($passwordErrors[(int)$userRow['id']])): ?><div class="text-danger small mb-1" id="password-error-<?= (int)$userRow['id'] ?>"><?= h($passwordErrors[(int)$userRow['id']]) ?></div><?php endif; ?>
+                        <div class="d-flex flex-wrap gap-2">
+                            <input type="password" class="form-control flex-grow-1 <?= isset($passwordErrors[(int)$userRow['id']]) ? 'is-invalid' : '' ?>" <?= isset($passwordErrors[(int)$userRow['id']]) ? 'aria-invalid="true" aria-describedby="password-error-'.(int)$userRow['id'].'"' : '' ?> style="width:auto" id="user-password-<?php echo (int)$userRow['id']; ?>" name="new_password" form="passwordUserForm<?php echo (int)$userRow['id']; ?>" autocomplete="new-password" minlength="8" maxlength="72" required placeholder="New password">
+                            <button class="btn btn-outline-secondary" type="button" data-password-reveal aria-controls="user-password-<?= (int)$userRow['id'] ?>" aria-label="Show new password" aria-pressed="false">Show</button>
+
+                        </div>
+                    </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success">Reset password</button>
+            </div>
+        </form>
+    </div>
+</div>
 <?php endif; ?>
 <form method="post" id="actAsUserForm<?php echo (int)$userRow['id']; ?>">
     <input type="hidden" name="action" value="act_as">
@@ -334,5 +372,33 @@ admin_layout_start('Users', 'users');
     <input type="hidden" name="user_id" value="<?php echo (int)$userRow['id']; ?>">
 </form>
 <?php endforeach; ?>
+<script>
+document.querySelectorAll('[data-password-reveal]').forEach(button => {
+    button.addEventListener('click', () => {
+        const input = document.getElementById(button.getAttribute('aria-controls'));
+        const reveal = input.type === 'password';
+        input.type = reveal ? 'text' : 'password';
+        button.textContent = reveal ? 'Hide' : 'Show';
+        button.setAttribute('aria-label', reveal ? 'Hide new password' : 'Show new password');
+        button.setAttribute('aria-pressed', String(reveal));
+    });
+});
+document.querySelectorAll('[id^="resetPasswordModal"]').forEach(modal => modal.addEventListener('hidden.bs.modal', () => {
+    const button = modal.querySelector('[data-password-reveal]');
+    if (!button) return;
+    const input = document.getElementById(button.getAttribute('aria-controls'));
+    input.value = '';
+    input.type = 'password';
+    button.textContent = 'Show';
+    button.setAttribute('aria-label', 'Show new password');
+    button.setAttribute('aria-pressed', 'false');
+}));
+<?php if ($passwordUserId > 0): ?>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('resetPasswordModal<?= (int)$passwordUserId ?>');
+    if (modal) bootstrap.Modal.getOrCreateInstance(modal).show();
+});
+<?php endif; ?>
+</script>
 <?php
 admin_layout_end();

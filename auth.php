@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/user_protection.php';
 require_once __DIR__ . '/auth_throttle.php';
 require_once __DIR__ . '/auth_sessions.php';
 require_once __DIR__ . '/auth_app_security.php';
@@ -377,7 +378,9 @@ function consumePasswordResetToken(PDO $pdo, string $token): ?int
     if ($selector === '' || $validator === '') {
         return null;
     }
-    ensurePasswordResetTable($pdo);
+    // handlePasswordReset prepares the table before starting its transaction.
+    // Even CREATE TABLE IF NOT EXISTS implicitly commits a MySQL transaction.
+    if (!$pdo->inTransaction()) ensurePasswordResetTable($pdo);
     try {
         $stmt = $pdo->prepare("
             SELECT id, user_id, token_hash, expires_at, used_at
@@ -469,7 +472,7 @@ function handlePasswordResetRequest(?PDO $pdo, array &$alerts, ?string &$success
     }
     $email = authThrottleEmail((string)($_POST['email'] ?? ''));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Please provide a valid email address.'];
+        $alerts[] = ['type' => 'danger', 'field' => 'email', 'message' => 'Please provide a valid email address.'];
         return;
     }
 
@@ -508,9 +511,13 @@ function handlePasswordResetRequest(?PDO $pdo, array &$alerts, ?string &$success
             "Reset your password\n\nWe received a request to reset your password for {$brandName}.\n\nUse this secure link within 1 hour:\n{$url}\n\nIf you didn’t request this, you can ignore this email."
         );
 
-        send_logged_email($pdo, $email, $subject, $html, $text, ['kind' => 'password_reset']);
+        if (send_logged_email($pdo, $email, $subject, $html, $text, ['kind' => 'password_reset']) === false) {
+            error_log('Password recovery: email submission failed; see the email delivery log.');
+        }
     } catch (Throwable $e) {
-        // do not block flow
+        // Keep the public response identical for known and unknown accounts.
+        // Do not log tokens, email bodies, passwords or exception messages.
+        error_log('Password recovery: preparation failed (' . get_class($e) . ', code ' . (string)$e->getCode() . ').');
     }
 }
 
@@ -523,12 +530,12 @@ function handlePasswordReset(?PDO $pdo, array &$alerts, ?string &$successMessage
     $token = trim((string)($_POST['token'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     $confirm = (string)($_POST['confirm_password'] ?? '');
-    if ($password === '' || strlen($password) < 8) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Password must be at least 8 characters.'];
+    if ($password === '' || strlen($password) < 8 || strlen($password) > 72) {
+        $alerts[] = ['type' => 'danger', 'field' => 'password', 'message' => 'Password must be between 8 and 72 characters.'];
         return null;
     }
     if ($password !== $confirm) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Password confirmation does not match.'];
+        $alerts[] = ['type' => 'danger', 'field' => 'confirm_password', 'message' => 'Password confirmation does not match.'];
         return null;
     }
     ensureAuthTables($pdo);ensurePasswordResetTable($pdo);
@@ -562,6 +569,7 @@ function handlePasswordReset(?PDO $pdo, array &$alerts, ?string &$successMessage
 
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Password recovery: reset failed (' . get_class($e) . ', code ' . (string)$e->getCode() . ').');
         $alerts[] = ['type' => 'danger', 'message' => 'Could not reset password. Please try again.'];
         return null;
     }
@@ -1121,7 +1129,7 @@ function fetchAllUsersForAdmin(?PDO $pdo, array &$alerts): array
     try {
         $stmt = $pdo->query("
             SELECT u.id, u.email, r.name AS role, r.level AS level, u.first_name, u.last_name, u.last_login_at, u.created_at,
-                   u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in, u.is_tester, u.is_archived
+                   u.general_email_opt_in, u.ride_notice_opt_in, u.renewal_reminder_opt_in, u.is_tester, u.is_archived, u.is_protected
             FROM users u
             JOIN roles r ON r.id = u.role_id
             ORDER BY u.created_at DESC
@@ -1167,6 +1175,10 @@ function resetUserPassword(?PDO $pdo, int $userId, string $password, array &$ale
     }
     if (strlen($password) < 8) {
         $alerts[] = ['type' => 'danger', 'message' => 'Password must be at least 8 characters.'];
+        return false;
+    }
+    if (userIsProtected($pdo, $userId)) {
+        $alerts[] = ['type'=>'danger', 'message'=>'Use the protected account’s own password-change or recovery flow.'];
         return false;
     }
     try {

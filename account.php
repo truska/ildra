@@ -17,11 +17,11 @@ if ($currentUser && !empty($_SESSION['ride_notice_preferences_pending'])) {
     exit;
 }
 $authView = (string)($_GET['auth'] ?? '');
-$allowedAuthViews = ['forgot', 'magic', 'choose', 'password', 'app'];
+$allowedAuthViews = ['forgot', 'reset-sent', 'magic', 'choose', 'password', 'app'];
 if (!in_array($authView, $allowedAuthViews, true)) {
     $authView = 'default';
 }
-$resetToken = trim((string)($_GET['reset'] ?? ''));
+$resetToken = trim((string)($_POST['action'] ?? '') === 'password_reset' ? (string)($_POST['token'] ?? '') : (string)($_GET['reset'] ?? ''));
 $resetTokenInfo = null;
 if ($resetToken !== '' && $pdo) {
     $resetTokenInfo = inspectPasswordResetToken($pdo, $resetToken);
@@ -31,6 +31,11 @@ if ($resetToken !== '' && $pdo) {
 
 if (isset($_GET['logout'])) {
     handleLogout();
+}
+
+if ($resetToken !== '' || in_array($authView, ['forgot', 'reset-sent', 'reset'], true)) {
+    header('Cache-Control: no-store, private');
+    header('Referrer-Policy: no-referrer');
 }
 
 $siteSettings = getSiteSettings($pdo);
@@ -268,7 +273,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         handlePasswordResetRequest($pdo, $alerts, $successMessage);
         if (!$alerts && $successMessage) {
             $_SESSION['flash_success'] = $successMessage;
-            header('Location: ' . $basePath . '/account?auth=forgot');
+            header('Location: ' . $basePath . '/account?auth=reset-sent');
             exit;
         }
     } elseif ($action === 'password_reset') {
@@ -462,7 +467,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $activeTab = $action === 'register' ? 'register' : 'login';
 }
 
-$isLoggedIn = !empty($currentUser);
+$isLoggedIn = !empty($currentUser) && !in_array($authView, ['forgot', 'reset-sent', 'reset'], true);
 $accountIntroModal = $isLoggedIn && $isAccountManagementView ? fetchAccountIntroModal($pdo, $accountView) : null;
 $personConsentModals = $isLoggedIn ? [
     'general_email' => fetchAccountIntroModal($pdo, 'person_general_email'),
@@ -2125,10 +2130,12 @@ $accountIntroAutoOpen = false;
 	            <?php else: ?>
 	                <div class="row justify-content-center">
 	                    <div class="col-lg-6">
-	                        <div class="p-3 p-lg-4 mb-3 auth-helper">
-                            <div class="fw-bold mb-1">Create or access your account</div>
-                            <div class="text-muted small">Save your rider and horse details, keep track of bookings and revisit your basket any time.</div>
+	                        <?php if ($authView !== 'reset'): ?>
+                        <div class="p-3 p-lg-4 mb-3 auth-helper">
+                            <div class="fw-bold mb-1"><?= in_array($authView, ['forgot', 'reset-sent', 'reset'], true) ? 'Password recovery' : 'Create or access your account' ?></div>
+                            <div class="text-muted small"><?= in_array($authView, ['forgot', 'reset-sent', 'reset'], true) ? 'Use the emailed reset link to choose a new password. You do not need your old password.' : 'Save your rider and horse details, keep track of bookings and revisit your basket any time.' ?></div>
                         </div>
+                        <?php endif; ?>
                         <?php include __DIR__ . '/views/auth_forms.php'; ?>
                     </div>
                 </div>

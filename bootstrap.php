@@ -150,7 +150,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && !$csrfExemptScript && !c
 ob_start('csrf_protect_forms');
 
 $pdo = createPdo($config, $alerts);
-if ($pdo) ensureUserArchiveColumn($pdo);
+if ($pdo) {
+    ensureUserArchiveColumn($pdo);
+    ensureUserProtectionColumn($pdo);
+}
 if ($pdo) {
     ensureEmailCampaignTables($pdo);
 }

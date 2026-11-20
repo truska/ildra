@@ -3,17 +3,31 @@
     $loginEmailValue = currentLoginEmail();
     $loginMethods = $loginMethods ?? ($loginEmailValue !== '' ? loginMethodState($pdo ?? null, $loginEmailValue, $siteSettings ?? []) : null);
     ?>
-    <?php if (($authView ?? 'default') === 'forgot'): ?>
+    <?php if (($authView ?? 'default') === 'reset-sent'): ?>
+        <div class="mb-3">
+            <div class="text-uppercase small text-secondary">Password recovery</div>
+            <h4 class="fw-semibold mb-1">Check your email</h4>
+            <p>Follow the <strong>Reset password</strong> link in the email to choose and confirm a new password. You do not need your old password.</p>
+            <p class="text-muted small">The link lasts one hour from the request and works once. Check your spam folder if the email has not arrived. A new request replaces any previous reset link.</p>
+        </div>
+        <div class="d-grid gap-2">
+            <a class="btn btn-outline-success" href="<?= h($basePath) ?>/account?auth=forgot">Request another reset email</a>
+            <a class="btn btn-outline-secondary" href="<?= h($basePath) ?>/account">Back to login</a>
+        </div>
+    <?php elseif (($authView ?? 'default') === 'forgot'): ?>
         <div class="mb-3">
             <div class="text-uppercase small text-secondary">Password Help</div>
             <h4 class="fw-semibold mb-1">Forgot your password?</h4>
-            <div class="text-muted small">We’ll email you a one-time reset link.</div>
+            <div class="text-muted small">Enter the email address you use to log in. We will email you a link to set a new password without your old password.</div>
         </div>
-        <form method="POST" novalidate>
+        <form method="POST" action="<?= h($basePath) ?>/account?auth=forgot" novalidate>
+            <?= csrf_input() ?>
             <input type="hidden" name="action" value="password_reset_request">
             <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input type="email" name="email" class="form-control placeholder-muted" placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'password_reset_request') ? ($_POST['email'] ?? '') : $loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                <?php $recoveryEmailError = ''; foreach (($alerts ?? []) as $alert) { if (($alert['field'] ?? '') === 'email') $recoveryEmailError = $alert['message']; } ?>
+                <label class="form-label" for="recovery-email">Email</label>
+                <?php if ($recoveryEmailError !== ''): ?><div class="text-danger small mb-1" id="recovery-email-error"><?= h($recoveryEmailError) ?></div><?php endif; ?>
+                <input type="email" id="recovery-email" name="email" class="form-control placeholder-muted <?= $recoveryEmailError !== '' ? 'is-invalid' : '' ?>" <?= $recoveryEmailError !== '' ? 'aria-invalid="true" aria-describedby="recovery-email-error"' : '' ?> placeholder="name@example.com" value="<?php echo h((($_POST['action'] ?? '') === 'password_reset_request') ? ($_POST['email'] ?? '') : $loginEmailValue); ?>" autocomplete="username" autocapitalize="none" spellcheck="false" required>
             </div>
             <div class="d-grid gap-2">
                 <button class="btn btn-success btn-lg">Email Reset Link</button>
@@ -113,17 +127,22 @@
                 <h4 class="fw-semibold mb-1">Set a new password</h4>
                 <div class="text-muted small">Resetting password for <?php echo h($resetTokenInfo['email'] ?? 'your account'); ?>.</div>
             </div>
-            <form method="POST" class="row g-3">
+            <?php $resetFieldErrors = []; foreach (($alerts ?? []) as $alert) { if (isset($alert['field'])) $resetFieldErrors[$alert['field']] = $alert['message']; } ?>
+            <p class="small text-muted">Choose a new password below. Your old password is not required.</p>
+            <form method="POST" action="<?= h($basePath) ?>/account" class="row g-3" novalidate>
+                <?= csrf_input() ?>
                 <input type="hidden" name="action" value="password_reset">
                 <input type="hidden" name="token" value="<?php echo h($resetToken); ?>">
+                <?php foreach (['password' => 'New password', 'confirm_password' => 'Confirm new password'] as $field => $label): ?>
                 <div class="col-12">
-                    <label class="form-label">New password</label>
-                    <input type="password" class="form-control" name="password" placeholder="New password" required>
+                    <label class="form-label" for="recovery-<?= h($field) ?>"><?= h($label) ?></label>
+                    <?php if (isset($resetFieldErrors[$field])): ?><div class="text-danger small mb-1" id="recovery-error-<?= h($field) ?>"><?= h($resetFieldErrors[$field]) ?></div><?php endif; ?>
+                    <div class="input-group">
+                        <input type="password" id="recovery-<?= h($field) ?>" class="form-control <?= isset($resetFieldErrors[$field]) ? 'is-invalid' : '' ?>" name="<?= h($field) ?>" autocomplete="new-password" minlength="8" maxlength="72" required <?= isset($resetFieldErrors[$field]) ? 'aria-invalid="true" aria-describedby="recovery-error-'.h($field).'"' : '' ?>>
+                        <button type="button" class="btn btn-outline-secondary" data-recovery-reveal aria-controls="recovery-<?= h($field) ?>" aria-label="Show <?= h(strtolower($label)) ?>" aria-pressed="false">Show</button>
+                    </div>
                 </div>
-                <div class="col-12">
-                    <label class="form-label">Confirm password</label>
-                    <input type="password" class="form-control" name="confirm_password" placeholder="Confirm password" required>
-                </div>
+                <?php endforeach; ?>
                 <div class="col-12 d-grid gap-2">
                     <button class="btn btn-success btn-lg">Set New Password</button>
                     <a class="btn btn-outline-success btn-lg" href="<?php echo h($basePath); ?>/account?auth=forgot">Back to Reset Help</a>
@@ -200,3 +219,17 @@
         </div>
     <?php endif; ?>
 </div>
+
+<script>
+document.querySelectorAll('[data-recovery-reveal]').forEach(button => {
+    const label = button.getAttribute('aria-label').slice(5);
+    button.addEventListener('click', () => {
+        const input = document.getElementById(button.getAttribute('aria-controls'));
+        const reveal = input.type === 'password';
+        input.type = reveal ? 'text' : 'password';
+        button.textContent = reveal ? 'Hide' : 'Show';
+        button.setAttribute('aria-label', (reveal ? 'Hide ' : 'Show ') + label);
+        button.setAttribute('aria-pressed', String(reveal));
+    });
+});
+</script>
