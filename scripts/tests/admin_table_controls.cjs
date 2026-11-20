@@ -68,6 +68,19 @@ const root = path.resolve(__dirname, '../..');
  await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
  check(await page.locator('#direct-editor input[name=_table_context]').count()===0,'A direct editor without a source list must not invent a return context');
  check(!(await page.locator('#direct-back').getAttribute('href')).includes('_table_context='),'Direct editor return keeps the existing destination');
+ // Explicit email navigation must not inherit settings or campaign routing state.
+ for (const route of ['email.php?view=settings','campaigns.php?view=templates','campaigns.php?tab=automatic']) {
+  await page.goto('http://test.local/admin/'+route);
+  const state={...config,query:Object.fromEntries(new URLSearchParams(route.split('?')[1]))};
+  await page.setContent(`<main class="admin-content"><nav data-table-navigation><a id="history" href="email.php">Email history</a><a id="manual" href="campaigns.php?tab=manual">Manual</a></nav><nav data-table-navigation><a id="email-back" href="email.php?page=3&filter_status=failed">Back</a></nav></main><script type="application/json" id="admin-table-state">${JSON.stringify(state)}</script>`);
+  await page.addScriptTag({content:fs.readFileSync(path.join(root,'admin/table_controls.js'),'utf8')});
+  check(await page.locator('#history').getAttribute('href')==='email.php','History must not inherit settings view');
+  check(await page.locator('#manual').getAttribute('href')==='campaigns.php?tab=manual','Manual tab must not inherit templates view');
+  check(await page.locator('#email-back').getAttribute('href')==='email.php?page=3&filter_status=failed','Back must preserve its own filters only');
+  await page.locator('#history').click();
+  check(page.url()==='http://test.local/admin/email.php','Click handler must not restore stale route');
+ }
+ await page.goto('http://test.local/admin/finance.php');
  await page.setContent(`<main class="admin-content"><section data-finance-section="requests"><table id="requests"><thead><tr><th>Created</th><th>Recipient</th><th>Status</th></tr></thead><tbody><tr><td>Today</td><td>Anne</td><td><span class="bg-warning-subtle">Pending</span></td></tr><tr><td>Yesterday</td><td>Bob</td><td>Completed</td></tr></tbody></table></section><div class="mt-2"><form method="post"><button>Send reminder</button></form></div></main><script type="application/json" id="admin-table-state">${JSON.stringify(config)}</script>`);
  const finance=fs.readFileSync(path.join(root,'admin/finance.php'),'utf8');
  const financeStart=finance.indexOf('        const paymentRequestsSection =');

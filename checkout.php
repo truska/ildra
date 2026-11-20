@@ -600,10 +600,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                 <li class="list-group-item">
                                     <?php
                                         $bookingType = $item['booking_type'] ?? 'ride';
-                                        $bookingTypeLabel = ucfirst($bookingType);
+                                        $bookingTypeLabel = $bookingType === 'membership'
+                                            ? (trim((string)($item['membership_name'] ?? '')) ?: 'Membership')
+                                            : ($bookingType === 'horse_logbook' ? 'Horse Logbook' : ucfirst($bookingType));
                                     ?>
                                     <?php
                                         $meta = $item['metadata'] ?? [];
+                                        $itemTitle = match ($bookingType) {
+                                            'membership' => 'Membership: ' . trim((string)($item['member_name'] ?? $item['rider_name'] ?? $meta['member_name'] ?? $meta['rider_name'] ?? '')),
+                                            'horse_logbook' => 'Horse Logbook: ' . trim((string)($item['horse_name'] ?? $meta['horse_name'] ?? '')),
+                                            default => (string)($item['event_title'] ?? ''),
+                                        };
                                         $chips = [];
                                         if (isset($meta['class_label'])) {
                                             $chips[] = $meta['class_label'];
@@ -619,7 +626,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                             $chips[] = 'Extras: ' . $componentsSummary;
                                         }
                                     ?>
-                                    <div class="fw-semibold"><?php echo h($item['event_title']); ?><?php echo $chips ? ' — ' . h(implode(' • ', $chips)) : ''; ?></div>
+                                    <div class="fw-semibold"><?php echo h($itemTitle); ?><?php echo !in_array($bookingType, ['membership', 'horse_logbook'], true) && $chips ? ' — ' . h(implode(' • ', $chips)) : ''; ?></div>
+
                                     <div class="text-muted small">Price: <?php echo h(format_price($item['price'] ?? 0)); ?></div>
                                     <div class="text-muted small">Type: <?php echo h($bookingTypeLabel); ?></div>
                                 </li>

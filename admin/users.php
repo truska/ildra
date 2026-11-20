@@ -38,9 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $firstName = trim((string)($_POST['first_name'] ?? ''));
             $lastName = trim((string)($_POST['last_name'] ?? ''));
             $email = strtolower(trim((string)($_POST['email'] ?? '')));
-            $generalEmailOptIn = !empty($_POST['general_email_opt_in']) ? 1 : 0;
+            $generalEmailOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
             $rideNoticeOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
-            $renewalReminderOptIn = !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0;
+            $renewalReminderOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
             $isTester = !empty($_POST['is_tester']) ? 1 : 0;
 
             if ($userId <= 0) {
@@ -53,6 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];
             }
 
+            if ($userId > 0 && userIsProtected($pdo, $userId)) {
+                $alerts[] = ['type'=>'danger', 'message'=>'This account is protected. Its email and role cannot be edited here; use My Account for personal details.'];
+            }
             $roleRow = null;
             if (array_key_exists('role', $_POST)) {
                 $requestedRole = (string)$_POST['role'];
@@ -73,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $alerts[] = ['type' => 'danger', 'message' => 'That email address is already in use.'];
                     } else {
                         $roleSql = $roleRow ? ', role_id = :role_id' : '';
-                        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, is_tester = :is_tester' . $roleSql . ', updated_at = NOW() WHERE id = :id LIMIT 1');
+                        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, is_tester = :is_tester' . $roleSql . ', updated_at = NOW() WHERE id = :id AND is_protected=0 LIMIT 1');
                         $updateParams = [
                             ':first_name' => $firstName,
                             ':last_name' => $lastName,
@@ -194,13 +197,11 @@ $tableColumns=[
     'email'=>['label'=>'Email','sortable'=>true,'filter'=>'text','placeholder'=>'Search email','form'=>$filterForm,'data_type'=>'email'],
     'role'=>['label'=>'Role','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['developer'=>'Developer','superadmin'=>'SuperAdmin','admin'=>'Admin','manager'=>'Manager','organiser'=>'Organiser','user'=>'User']],
     'status'=>['label'=>'Status','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['active'=>'Active','archived'=>'Archived'],'value'=>static fn(array $r):string=>!empty($r['is_archived'])?'archived':'active'],
-    'general'=>['label'=>'Gen','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['1'=>'Yes','0'=>'No'],'value'=>static fn(array $r):string=>!empty($r['general_email_opt_in'])?'1':'0'],
-    'weekly'=>['label'=>'Week','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['1'=>'Yes','0'=>'No'],'value'=>static fn(array $r):string=>!empty($r['ride_notice_opt_in'])?'1':'0'],
-    'renewal'=>['label'=>'Renew','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['1'=>'Yes','0'=>'No'],'value'=>static fn(array $r):string=>!empty($r['renewal_reminder_opt_in'] ?? 1)?'1':'0'],
+    'weekly'=>['label'=>'Ride Reminders and Updates','sortable'=>true,'filter'=>'select','form'=>$filterForm,'options'=>['1'=>'Yes','0'=>'No'],'value'=>static fn(array $r):string=>!empty($r['ride_notice_opt_in'])?'1':'0'],
     'last_login'=>['label'=>'Last login','field'=>'last_login_at','sortable'=>true,'filter'=>'text','placeholder'=>'Search last login','form'=>$filterForm],
     'actions'=>['label'=>'Actions'],
 ];
-$subscriptionColumns = ['general'=>'General news', 'weekly'=>'Weekly Ride Notice', 'renewal'=>'Renewal reminders'];
+$subscriptionColumns = ['weekly'=>'Ride Reminders and Updates'];
 $table=admin_table_prepare($allUsers,$tableColumns,'email');$allUsers=$table['rows'];$filters=$table['filters'];$sortKey=$table['sort_key'];$sortDir=$table['sort_dir'];
 
 admin_layout_start('Users', 'users');
@@ -212,10 +213,11 @@ admin_layout_start('Users', 'users');
     </div>
     <?php echo admin_table_pagination($table); ?>
 </div>
+<?php if(recordNotesCanRead($currentRole)): ?><div class="mb-2"><a class="btn btn-outline-secondary" href="record_notes.php">Internal record notes</a></div><?php endif; ?>
 <form method="get" id="user-filter-form" class="mb-2 text-end"><button class="btn btn-sm btn-outline-secondary">Filter</button> <a class="btn btn-sm btn-link" href="users.php">Clear</a></form>
 
 <style>
-.users-list .subscription-column { width: 4.5rem; min-width: 4.5rem; text-align: center; }
+.users-list .subscription-column { width: 12rem; min-width: 10rem; text-align: center; }
 .users-list .subscription-column .form-select { padding-left: .35rem; padding-right: 1.4rem; }
 .users-list th[rowspan] { vertical-align: bottom; }
 </style>
@@ -226,15 +228,8 @@ admin_layout_start('Users', 'users');
             <thead class="table-light">
                 <tr>
                     <?php foreach ($tableColumns as $key=>$column): ?>
-                        <?php if (isset($subscriptionColumns[$key])): ?>
-                            <?php if ($key==='general'): ?><th colspan="3" scope="colgroup" class="text-center">Subscribed</th><?php endif; ?>
-                        <?php else: ?>
-                            <th rowspan="2" scope="col" class="<?php echo $key==='actions'?'text-end':''; ?>"><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th>
-                        <?php endif; ?>
+                        <th scope="col" class="<?php echo $key==='actions'?'text-end':''; ?>"><?php echo admin_table_heading($key,$column,$sortKey,$sortDir); ?></th>
                     <?php endforeach; ?>
-                </tr>
-                <tr>
-                    <?php foreach ($subscriptionColumns as $key=>$label): ?><th scope="col" class="subscription-column" title="<?php echo h($label); ?>"><?php echo admin_table_heading($key,$tableColumns[$key],$sortKey,$sortDir); ?></th><?php endforeach; ?>
                 </tr>
                 <tr class="admin-table-filter-row"><?php foreach($tableColumns as$key=>$column): ?><th class="<?php echo isset($subscriptionColumns[$key])?'subscription-column':''; ?>"><?php echo admin_table_filter($key,$column,$filters); ?></th><?php endforeach; ?></tr>
             </thead>
@@ -249,7 +244,7 @@ admin_layout_start('Users', 'users');
                         <td><?php echo h($fullName); ?></td>
                         <td><?php echo admin_table_value($userRow['email'] ?? '', 'email'); ?></td>
                         <td><?php echo h($tableColumns['role']['options'][$userRow['role']] ?? ucfirst($userRow['role'])); ?></td>
-                        <td><?php echo !empty($userRow['is_archived']) ? 'Archived' : 'Active'; ?></td>
+                        <td><?php echo !empty($userRow['is_protected']) ? 'Protected' : (!empty($userRow['is_archived']) ? 'Archived' : 'Active'); ?></td>
                         <?php foreach ($subscriptionColumns as $key=>$label): $subscribed = $tableColumns[$key]['value']($userRow)==='1'; ?>
                         <td class="subscription-column"><span title="<?php echo h($label . ': ' . ($subscribed ? 'Yes' : 'No')); ?>"><i class="fa-solid <?php echo $subscribed ? 'fa-check text-success' : 'fa-xmark text-muted'; ?>" aria-hidden="true"></i><span class="visually-hidden"><?php echo $subscribed ? 'Yes' : 'No'; ?></span></span></td>
                         <?php endforeach; ?>
@@ -258,6 +253,7 @@ admin_layout_start('Users', 'users');
                             <?php if ($canImpersonateUsers && ($userRow['role'] ?? '') === 'user' && empty($userRow['is_archived']) && (int)$userRow['id'] !== (int)$currentUser['id']): ?>
                             <button class="btn btn-sm btn-outline-secondary" type="submit" form="actAsUserForm<?php echo (int)$userRow['id']; ?>" title="Act as this user" aria-label="Act as this user"><i class="fa-solid fa-user-secret" aria-hidden="true"></i></button>
                             <?php endif; ?>
+                            <?php if(recordNotesCanRead($currentRole)): ?><a class="btn btn-sm btn-outline-secondary" href="record_notes.php?record_type=user&amp;record_id=<?= (int)$userRow['id'] ?>" title="Internal notes" aria-label="Internal notes">Notes</a><?php endif; ?>
                             <?php if ($canResetUserPasswords && empty($userRow['is_protected']) && empty($userRow['is_archived']) && ($canManageRolesAndPasswords || $userRow['role'] === 'user')): ?>
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#resetPasswordModal<?= (int)$userRow['id'] ?>">Reset password</button>
                             <?php endif; ?>
@@ -298,14 +294,12 @@ admin_layout_start('Users', 'users');
                             <div class="form-text">This is the email address the user signs in with.</div>
                         </div>
                         <div class="col-12">
-                            <div class="form-check"><input class="form-check-input" type="checkbox" id="userGeneralEmail<?php echo (int)$userRow['id']; ?>" name="general_email_opt_in" value="1" <?php echo !empty($userRow['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="userGeneralEmail<?php echo (int)$userRow['id']; ?>">Subscribed to general news and announcements</label></div>
-                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="userRideNotice<?php echo (int)$userRow['id']; ?>" name="ride_notice_opt_in" value="1" <?php echo !empty($userRow['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="userRideNotice<?php echo (int)$userRow['id']; ?>">Subscribed to the weekly Ride Notice</label></div>
-                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="userRenewalReminder<?php echo (int)$userRow['id']; ?>" name="renewal_reminder_opt_in" value="1" <?php echo !empty($userRow['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="userRenewalReminder<?php echo (int)$userRow['id']; ?>">Receives renewal reminders</label></div>
+                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="userRideNotice<?php echo (int)$userRow['id']; ?>" name="ride_notice_opt_in" value="1" <?php echo !empty($userRow['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="userRideNotice<?php echo (int)$userRow['id']; ?>">Ride Reminders and Updates</label></div>
                             <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="userTester<?php echo (int)$userRow['id']; ?>" name="is_tester" value="1" <?php echo !empty($userRow['is_tester']) ? 'checked' : ''; ?>><label class="form-check-label" for="userTester<?php echo (int)$userRow['id']; ?>">Member of the Test Group</label></div>
                             <div class="form-text">Only record a subscription where the user has agreed to receive it. Essential entry-related messages are separate.</div>
                         </div>
                     </div>
-                    <?php if ($canManageRolesAndPasswords): ?>
+                    <?php if ($canManageRolesAndPasswords && empty($userRow['is_protected'])): ?>
                     <div class="border-top mt-3 pt-3">
                         <label class="form-label fw-semibold" for="user-role-<?php echo (int)$userRow['id']; ?>">User role / level</label>
                         <div class="d-flex flex-wrap gap-2">
@@ -325,7 +319,7 @@ admin_layout_start('Users', 'users');
                     <button class="btn btn-danger me-auto" type="submit" form="deleteUserForm<?php echo (int)$userRow['id']; ?>" data-bs-dismiss="modal" data-confirm-style="danger" data-confirm-title="Delete user?" data-confirm-button="Delete or archive" data-confirm-message="Delete this user? If transaction history or linked records exist, the account will be archived instead and sign-in disabled.">Delete</button>
                     <?php endif; ?>
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-success">Save Changes</button>
+                    <?php if (empty($userRow['is_protected'])): ?><button class="btn btn-success">Save Changes</button><?php else: ?><span class="badge bg-secondary">Protected account</span><?php endif; ?>
                 </div>
             </form>
     </div>

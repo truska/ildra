@@ -156,11 +156,17 @@ above the content panel, inside the page container. For example:
 <?php echo render_back_navigation($navItemEventsUrl, 'Back to Events', 'Event navigation'); ?>
 ```
 
-Load the existing shared `views/header_styles.php` include. Its
+For pages needing only Back navigation, load `views/back_navigation_styles.php`.
+The public `views/header_styles.php` also includes this same file. Its
 `page-back-navigation` and `page-back-link` classes own the right alignment,
 spacing, grey button, back chevrons and hover/focus appearance. Reuse this
 helper when applying the same navigation to other pages; change the destination
 and labels rather than copying markup or adding page-specific styling.
+
+Campaign/email pages share `admin/campaign_navigation.php` for their tab bar
+and contextual Back destinations. Top-level tabs do not add a sibling Back
+button; editors/details return to their parent or accepted source view. See
+`EMAIL_DELIVERY.md` for scope and offline navigation/browser checks.
 
 ## 12. Admin date displays
 
@@ -270,8 +276,10 @@ Admin placeholders match public forms: lighter text, invisible while focused,
 and visible again when the empty field loses focus. Saved values are retained.
 
 The account migration plan in docs/plans records the agreed three-column
-Event-Pal export and proposed guided setup. No importer, activation workflow,
-data import or invitation send has been performed. Membership numbers will
+Event-Pal export and wider proposed guided setup. The six-row development
+import trial completed on 17 November 2026, followed by the single-account
+email/setup pilot documented in ACCOUNT_MIGRATION_PILOT.md. No migration
+invitation has been sent during implementation. Membership numbers will
 be newly allocated when people join for 2027.
 
 ## 18. Admin menu dividers
@@ -296,6 +304,7 @@ values after a failed save. Associate warnings using aria-invalid and
 aria-describedby. General failures without a specific field can remain in the
 page alerts. This convention is implemented first on Admin → Email → Email
 Settings, including its test recipient; other existing pages are unchanged.
+
 
 ## 20. User password tools and recovery confirmation
 

@@ -209,6 +209,22 @@ if ($currentUser && $pdo) {
         $_SESSION['user'] = $currentUser = null;
     }
 }
+// A started migration resumes on every login method and blocks direct account/admin writes.
+require_once __DIR__ . '/account_migration.php';
+if ($pdo && $currentUser && migrationAvailable($pdo)) {
+    if (empty($_SESSION['act_as_original_user']) && (int)($_SESSION['auth_fresh_login_user_id']??0)===(int)$currentUser['id']) {
+        migrationActivateScheduledRestart($pdo,(int)$currentUser['id']);
+        unset($_SESSION['auth_fresh_login_user_id']);
+    }
+    $migrationPrincipal = $_SESSION['act_as_original_user'] ?? $currentUser;
+    $migrationStateBootstrap = migrationState($pdo, (int)$migrationPrincipal['id']);
+    if (migrationPending($migrationStateBootstrap)
+        && !migrationGuardAllows(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), $_GET, (string)($_SERVER['REQUEST_METHOD'] ?? 'GET'), $_POST)) {
+        header('Cache-Control: no-store, private');
+        header('Location: /migrate.php', true, 303);
+        exit;
+    }
+}
 $allUsers = [];
 
 // Basket tidy/load (shared across front/back)

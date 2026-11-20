@@ -306,15 +306,15 @@ After deployment, verify the sign-in chooser offers the same methods for known/u
 
 Deploy the development commit normally with `git pull --ff-only` after the destination backup. This change needs **no additional database migration or per-environment origin configuration**; the persistent authentication-throttle migration remains required if that earlier release has not yet been deployed.
 
-The central `authEmailOrigins()` map in `auth.php` ships with these exact host/origin pairs:
+The central `authEmailOrigins()` map in `auth.php` ships with these exact host/origin pairs: Development proxy authorities `dev-ildra.witecanvas.com:28085` and `dev-ildra.witecanvas.com:28086` are explicit aliases to the same fixed development HTTPS origin; staging/live port acceptance is unchanged.
 
 | Incoming hostname | Fixed email origin |
 | --- | --- |
 | `ildra.witecanvas.com` | `https://ildra.witecanvas.com` |
 | `enduranceridingireland.com` | `https://enduranceridingireland.com` |
-| `dev-ildra.witecanvas.com` | `https://dev-ildra.witecanvas.com` |
+| `dev-ildra.witecanvas.com` (also exact `:28085` / `:28086` authorities) | `https://dev-ildra.witecanvas.com:28086` |
 
-Both password-reset and magic-login request handlers call the shared `authEmailOrigin()` helper **before** throttling, account lookup, token generation or sending. The incoming Host value is used only for an exact, case-insensitive allowlist lookup; generated email URLs use the map's fixed HTTPS origin and fixed `/account` route. Missing/unknown Host values, suffix lookalikes, userinfo, ports (including `:443`), trailing dots, whitespace, schemes, paths and encoded/deceptive hostnames are rejected. There is no fallback to `SERVER_NAME`, the supplied hostname or any forwarded-host header. An approved Host remains safe even when forwarded-host/protocol headers contain hostile values. Host rejection gives the same website-related error regardless of account existence and issues no token/email.
+Both password-reset and magic-login request handlers call the shared `authEmailOrigin()` helper **before** throttling, account lookup, token generation or sending. The incoming Host value is used only for an exact, case-insensitive allowlist lookup; generated email URLs use the map's fixed HTTPS origin and fixed `/account` route. Missing/unknown Host values, suffix lookalikes, userinfo, unlisted ports (including `:443`), trailing dots, whitespace, schemes, paths and encoded/deceptive hostnames are rejected. There is no fallback to `SERVER_NAME`, the supplied hostname or any forwarded-host header. An approved Host remains safe even when forwarded-host/protocol headers contain hostile values. Host rejection gives the same website-related error regardless of account existence and issues no token/email.
 
 Staging and live origins are approved together in the same source. When the live domain points to this server at launch, authentication email links automatically use its already-approved HTTPS origin: **no launch-day application code or origin configuration change is needed**. Remove the staging pair from the single map later when staging is retired; do not introduce a raw-header fallback. These installations are rooted at `/`, so email routes intentionally do not inherit an incoming script path.
 

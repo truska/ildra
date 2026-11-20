@@ -64,3 +64,11 @@ References: [SMTP credentials](https://docs.aws.amazon.com/ses/latest/dg/smtp-cr
 Run `php scripts/test_email_delivery.php` and `php scripts/test_auth_email_origins.php`. Tests are offline: all transports, credentials and log writes in the delivery fixture are simulated, with no production configuration loaded or real email sent. They cover both metadata keys, each known email type, fallback and override selection, test selection, separate credentials/senders, shared Reply-To, redirects, CC/BCC, attachments, log providers, failed/missing SES configuration and settings validation/secret exclusion.
 
 Deploy committed development source using the normal [deployment workflow](DEPLOYMENT.md); configure the destination's private SES credentials separately. Do not copy development credentials to staging/live or change reusable source there. No new upload directories or runtime dependencies are required. Verify actual SES delivery only after the relevant identity, DNS, credentials and feedback handling are configured. Roll back routing by choosing Truska; the additive settings may remain.
+
+## Single visible email preference (20 November 2026)
+
+Registration, My Account, People and the admin user/person forms show **Ride Reminders and Updates**, using the existing `ride_notice_opt_in` value. Saving sets `general_email_opt_in`, `ride_notice_opt_in` and `renewal_reminder_opt_in` to the same choice. Existing divergent values are not bulk changed. Campaign types and audience selection still use their original columns.
+
+Existing unsubscribe links for any of those three categories turn off all three preferences for matching user/person email addresses and cancel pending campaign deliveries in those categories. Essential operational messages remain separate. GET and preview requests do not change preferences.
+
+The uncommitted onboarding update now uses the same single preference and saves all three flags together on the Person and matching account. Regression checks: `php scripts/tests/email_preferences.php` (isolated PDO fixture; no database writes or email sends).

@@ -14,8 +14,10 @@ Read this index and [WORKFLOW.md](WORKFLOW.md) at the start of each session, as 
 - [Onboarding wording editor](ONBOARDING_WORDING.md): tabbed admin HTML messages for the account setup screens.
 - [Amazon SES enhancements](amazon-enhancements.md): deferred email improvements and future requests, including direct website links instead of Amazon tracking redirects.
 - [DEPENDENCY_REVIEW.md](DEPENDENCY_REVIEW.md): external services, dependencies and review checklist; read before changing integrations or dependencies.
+- [IMPORT_WORKSPACE.md](IMPORT_WORKSPACE.md): development-only repeatable reset, protected Developer login and users/people/horse CSV trials.
 - [OLD_IMAGE_LIBRARY.md](OLD_IMAGE_LIBRARY.md): repeatable FTP/VS Code image processing, Events/Rider Notes/Venues selection and retirement.
 - [SOURCE_DATA.md](SOURCE_DATA.md): where to upload source data and how to prepare future imports.
+- [Account migration pilot](ACCOUNT_MIGRATION_PILOT.md): development-only selected/unsent invitations, user/person onboarding, per-horse logbook choices, Shares placeholder, closure and internal notes.
 - [Account migration and first login plan](plans/ACCOUNT_MIGRATION_AND_FIRST_LOGIN_PLAN.md): proposed exports, sharing, activation and guided setup.
 - [SESSION_CHANGELOG_2026-08-05.md](SESSION_CHANGELOG_2026-08-05.md): historical implementation notes.
 - [plans/](plans/): implementation plans for admin permissions, audit logging, basket holds and late entries, and dynamic event entry forms. Read the matching plan before work in these areas.

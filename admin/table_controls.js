@@ -26,6 +26,9 @@
     };
     const isClear = link => link.hasAttribute('data-table-clear') || /^clear(?:\s+(?:all|filters))?$/i.test(link.textContent.trim());
     const decorateLink = link => {
+        // These links already specify their destination, including any saved filters.
+        // Restoring the current table context can turn History into Settings.
+        if (link.closest('[data-table-navigation]')) return;
         if (!link.getAttribute('href') || link.getAttribute('href').startsWith('#') || link.hasAttribute('download')) return;
         const url = localAdminUrl(link.href);
         if (!url) return;

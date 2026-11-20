@@ -3,6 +3,13 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
+// Return the invited pilot here after ordinary password/authenticator sign-in.
+if ($currentUser && $pdo && !isset($_GET['logout']) && !isset($_GET['reset'])
+    && !empty($_SESSION['migration_invite']) && migrationAvailable($pdo)
+    && migrationInspectInvitation($pdo,(string)$_SESSION['migration_invite'])) {
+    header('Location: /migrate.php',true,303);exit;
+}
+
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
 $siteBase = $basePath ?: '';
@@ -1073,10 +1080,8 @@ $accountIntroAutoOpen = false;
                                             <div class="form-text">Required only when changing your email.</div>
                                         </div>
                                         <div class="col-12">
-                                            <div class="form-check"><input class="form-check-input" type="checkbox" id="user_general_email" name="general_email_opt_in" value="1" <?php echo !empty($_POST['general_email_opt_in'] ?? $currentUser['general_email_opt_in'] ?? 0) ? 'checked' : ''; ?>><label class="form-check-label" for="user_general_email">General news and announcements</label></div>
-                                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="user_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($_POST['ride_notice_opt_in'] ?? $currentUser['ride_notice_opt_in'] ?? 0) ? 'checked' : ''; ?>><label class="form-check-label" for="user_ride_notice">Weekly Ride Notice calendar update</label></div>
-                                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="user_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($_POST['renewal_reminder_opt_in'] ?? $currentUser['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="user_renewal_reminder">Renewal reminders</label></div>
-                                            <div class="form-text">These choices do not stop essential emails about events you have entered.</div>
+                                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="user_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty(($action ?? '') === 'save_user_details' ? ($_POST['ride_notice_opt_in'] ?? 0) : ($currentUser['ride_notice_opt_in'] ?? 0)) ? 'checked' : ''; ?>><label class="form-check-label" for="user_ride_notice">Ride Reminders and Updates</label></div>
+                                            <div class="form-text">This choice does not stop essential emails about events you have entered.</div>
                                         </div>
                                         <div class="col-12"><button class="btn btn-success">Save Login Details</button></div>
                                     </form>
@@ -1215,7 +1220,7 @@ $accountIntroAutoOpen = false;
 
 	                                <div class="card-soft p-4 mt-4">
                                     <?php if (($_GET['email_preferences'] ?? '') === 'ride_notice'): ?>
-                                        <div class="alert alert-info">To receive the weekly Ride Notice, edit your person record, tick the Ride Notice email option and save your changes.</div>
+                                        <div class="alert alert-info">To receive Ride Reminders and Updates, edit your person record, tick Ride Reminders and Updates and save your changes.</div>
                                     <?php endif; ?>
 	                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
 	                                        <div>
@@ -1402,10 +1407,8 @@ $accountIntroAutoOpen = false;
                                             <input type="email" class="form-control" name="email" value="<?php echo h($editPerson['email'] ?? ''); ?>">
                                         </div>
                                         <div class="col-12">
-                                            <div class="form-check d-flex align-items-center gap-1"><input class="form-check-input" type="checkbox" id="person_general_email" name="general_email_opt_in" value="1" <?php echo !empty($editPerson['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="person_general_email">I/this person agrees to receive general news and announcements.</label><?php if (!empty($personConsentModals['general_email'])): ?><button class="btn btn-sm btn-outline-success py-0" type="button" data-person-consent-info data-bs-toggle="modal" data-bs-target="#personGeneralEmailInfoModal" aria-label="Information about general news emails"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><?php endif; ?></div>
-                                            <div class="form-check mt-2 d-flex align-items-center gap-1"><input class="form-check-input" type="checkbox" id="person_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($editPerson['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label fw-bold" for="person_ride_notice">I/this person agrees to receive Ride Notice emails. Recommended</label><?php if (!empty($personConsentModals['ride_notice'])): ?><button class="btn btn-sm btn-outline-success py-0" type="button" data-person-consent-info data-bs-toggle="modal" data-bs-target="#personRideNoticeInfoModal" aria-label="Information about Ride Notice emails"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><?php endif; ?></div>
-                                            <div class="form-check mt-2 d-flex align-items-center gap-1"><input class="form-check-input" type="checkbox" id="person_renewal_reminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($editPerson['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="person_renewal_reminder">I/this person agrees to receive renewal reminders.</label><?php if (!empty($personConsentModals['renewal_reminder'])): ?><button class="btn btn-sm btn-outline-success py-0" type="button" data-person-consent-info data-bs-toggle="modal" data-bs-target="#personRenewalReminderInfoModal" aria-label="Information about renewal reminders"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><?php endif; ?></div>
-                                            <div class="form-text">Only select these where the person has agreed. Essential emails about their own entries are handled separately.</div>
+                                            <div class="form-check mt-2 d-flex align-items-center gap-1"><input class="form-check-input" type="checkbox" id="person_ride_notice" name="ride_notice_opt_in" value="1" <?php echo !empty($editPerson['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label fw-bold" for="person_ride_notice">Ride Reminders and Updates</label></div>
+                                            <div class="form-text">Only select this where the person has agreed. Essential emails about their own entries are handled separately.</div>
                                         </div>
                                         <div class="col-12 col-md-6">
                                             <label class="form-label fw-bold">Emergency contact name <span class="text-danger">*</span></label>

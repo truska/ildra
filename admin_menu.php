@@ -41,6 +41,7 @@ function defaultAdminMenuItems(): array
         ['testing_reset', 'Reset test data', 'testing_reset.php', 'fa-solid fa-eraser'],
         ['image_folders', 'Storage Folders', 'image_folders.php', 'fa-solid fa-folder-tree'],
         ['archives', 'Archives', 'archives.php', 'fa-solid fa-box-archive'],
+        ['import_workspace', 'Import workspace', 'import_workspace.php', 'fa-solid fa-database'],
         ['old_image_library', 'Manage Old Library', 'old_image_library.php', 'fa-solid fa-images'],
         ['onboarding', 'Onboarding', 'onboarding.php', 'fa-solid fa-list-check'],
     ];
@@ -66,6 +67,7 @@ function adminMenuFixedRoles(string $key): array
 {
     if ($key === 'onboarding') return ['superadmin', 'admin', 'manager'];
     if ($key === 'old_image_library') return ['superadmin', 'admin', 'manager'];
+    if ($key === 'import_workspace') return ['developer'];
     if ($key === 'menu') return ['developer', 'superadmin'];
     if (in_array($key, ['finance', 'stripe_fulfilment', 'legacy_balances', 'archives'], true)) return ['superadmin', 'admin'];
     if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons'], true)) {
@@ -129,11 +131,11 @@ function ensureAdminMenuTable(?PDO $pdo): void
         ]);
         // Set the initial location only when this built-in item is first created.
         // Later Menu edits (including moving it to the top level) must persist.
-        if ($item['menu_key'] === 'tech_email' && $stmt->rowCount() > 0) {
+        if (in_array($item['menu_key'], ['tech_email', 'import_workspace'], true) && $stmt->rowCount() > 0) {
             $pdo->exec("UPDATE admin_menu_items child
                 JOIN admin_menu_items tech ON tech.menu_key = 'tech'
                 SET child.parent_id = tech.id
-                WHERE child.menu_key = 'tech_email'");
+                WHERE child.menu_key = " . $pdo->quote($item['menu_key']));
         }
         if (in_array($item['menu_key'], ['old_image_library', 'onboarding'], true) && $stmt->rowCount() > 0) {
             $pdo->exec("UPDATE admin_menu_items child JOIN admin_menu_items parent
@@ -179,6 +181,7 @@ function adminMenuRoleAllowed(array $item, string $role): bool
     }
     $key = (string)($item['menu_key'] ?? '');
     // Menu permissions cannot grant access to their own editor below Superadmin.
+    if ($key === 'import_workspace') return false; // Developer already returned above.
     if ($key === 'menu' && $role !== 'superadmin') return false;
     if ($key === 'archives' && !in_array($role, ['superadmin', 'admin'], true)) return false;
     $allowed = array_values(array_filter(array_map('trim', explode(',', strtolower((string)($item['required_roles'] ?? implode(',', adminMenuFixedRoles($key))))))));

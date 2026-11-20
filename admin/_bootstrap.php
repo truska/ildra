@@ -500,6 +500,7 @@ function admin_layout_start(string $title, string $activeKey): void
                 }
             }
 	    </style>
+        <?php if (!empty($GLOBALS['campaignNavigationEnabled'])) require __DIR__ . '/../views/back_navigation_styles.php'; ?>
 	</head>
 	<body>
         <?php $developmentBanner = __DIR__ . '/../views/development_banner.local.php'; if (is_file($developmentBanner)) include $developmentBanner; ?>

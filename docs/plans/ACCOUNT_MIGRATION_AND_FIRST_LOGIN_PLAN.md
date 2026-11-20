@@ -1,8 +1,18 @@
 # Account migration and first login plan
 
-Status: proposal for staged review. Importers, onboarding and migration
-invitations are not implemented by this document. No data has been imported
-and no email send is authorised.
+Status: staged implementation. The six-row development CSV trial completed on
+17 November 2026 (five new ordinary Users and six people, protected existing
+user unchanged). The [development account migration pilot](../ACCOUNT_MIGRATION_PILOT.md)
+now supplies a dedicated campaign and persistent Password → User → Person →
+Finish journey for `david@truska.com` only. No invitation has been sent and no
+real password has changed during implementation. The campaign draft awaits
+provided wording. Broad onboarding/invitations and horse/share steps remain
+future work; the sections below describe the wider intended design.
+
+Preparation update — 15 November 2026: the development-only
+[Import workspace](../IMPORT_WORKSPACE.md) provides a previewed, backed-up,
+repeatable reset retaining the protected Developer login. See that document
+for the completed import trial and safe rerun behaviour.
 
 The agreed first delivery is a single CSV with email, first name and surname.
 Each resolved row creates one ordinary login user and one person owned by
@@ -140,6 +150,13 @@ does not duplicate the person or transfer ownership. The current system's
 select-only permission does not give shared users editing rights.
 
 ## Stage 3 Horses
+
+Development trial update — 17 November 2026: the approved two-column horse-name
+and account-email sample created eight horses under five existing users, with
+other fields unset. No logbook entitlements or purchases were imported. A full
+backup and private source-hash/target-ID receipt support the trial and reruns;
+see IMPORT_WORKSPACE.md. Stable legacy IDs remain required for a wider recurring
+migration, and the horse onboarding step is now implemented, followed by a Shares placeholder.
 
 Minimum export: source_horse_id, owner_source_user_id and name.
 

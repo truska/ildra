@@ -54,9 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'alloc
     $dob = trim((string)($_POST['dob'] ?? ''));
     $memberNumber = trim((string)($_POST['member_number'] ?? ''));
     $juniorSenior = trim((string)($_POST['junior_or_senior'] ?? ''));
-    $generalEmailOptIn = !empty($_POST['general_email_opt_in']) ? 1 : 0;
+    $generalEmailOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
     $rideNoticeOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
-    $renewalReminderOptIn = !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0;
+    $renewalReminderOptIn = !empty($_POST['ride_notice_opt_in']) ? 1 : 0;
 
     if ($firstName === '' || $lastName === '') $alerts[] = ['type' => 'danger', 'message' => 'First name and last name are required.'];
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];
@@ -103,6 +103,7 @@ $allocationTypes = $canAllocateMembership ? array_values(array_filter(fetchMembe
     <div><div class="small text-muted">People</div><h5 class="mb-0">Edit person</h5></div>
     <a class="btn btn-outline-secondary" href="<?php echo h($peopleReturnWithRow); ?>">Back To People</a>
 </div>
+<?php if(recordNotesCanRead($currentRole)): ?><div class="mb-3"><a class="btn btn-outline-secondary" href="record_notes.php?record_type=person&amp;record_id=<?= (int)$personId ?>">Internal record notes</a></div><?php endif; ?>
 <div class="card-soft p-4">
     <form method="post" class="row g-3">
         <input type="hidden" name="person_id" value="<?php echo (int)$personId; ?>">
@@ -114,9 +115,7 @@ $allocationTypes = $canAllocateMembership ? array_values(array_filter(fetchMembe
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Email</label><input type="email" class="form-control" name="email" value="<?php echo h((string)($person['email'] ?? '')); ?>"></div>
         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Phone</label><input class="form-control" name="phone" value="<?php echo h((string)($person['phone'] ?? '')); ?>"></div>
         <div class="col-12">
-            <div class="form-check"><input class="form-check-input" type="checkbox" id="personGeneralEmail" name="general_email_opt_in" value="1" <?php echo !empty($person['general_email_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="personGeneralEmail">Subscribed to general news and announcements</label></div>
-            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="personRideNotice" name="ride_notice_opt_in" value="1" <?php echo !empty($person['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="personRideNotice">Subscribed to the weekly Ride Notice</label></div>
-            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="personRenewalReminder" name="renewal_reminder_opt_in" value="1" <?php echo !empty($person['renewal_reminder_opt_in'] ?? 1) ? 'checked' : ''; ?>><label class="form-check-label" for="personRenewalReminder">Receives renewal reminders</label></div>
+            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="personRideNotice" name="ride_notice_opt_in" value="1" <?php echo !empty($person['ride_notice_opt_in']) ? 'checked' : ''; ?>><label class="form-check-label" for="personRideNotice">Ride Reminders and Updates</label></div>
             <div class="form-text">Only record a subscription where this person has agreed to receive it. Essential entry-related messages are separate.</div>
         </div>
         <div class="col-12"><label class="form-label fw-semibold">Address</label><textarea class="form-control" name="address" rows="3"><?php echo h((string)($person['address'] ?? '')); ?></textarea></div>

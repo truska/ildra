@@ -22,4 +22,6 @@ $deleted = item(3); $deleted['is_deleted'] = 1;
 check(buildAdminMenuTree([$hidden,$deleted], 'developer') === [], 'Inactive and deleted items stay hidden for developers');
 check(buildAdminMenuTree([item(1,false,0,'admin'),item(2,false,1)], 'manager') === [], 'Parent role restrictions remain enforced');
 check(count(buildAdminMenuTree(defaultAdminMenuItems(), 'developer')) === count(defaultAdminMenuItems()), 'Existing default menu retained');
+check(!adminMenuRoleAllowed(['menu_key'=>'import_workspace','required_roles'=>'superadmin,admin,manager,organiser'], 'superadmin'), 'Import workspace cannot grant access through editable menu roles');
+check(adminMenuRoleAllowed(['menu_key'=>'import_workspace'], 'developer'), 'Developer sees import workspace');
 echo "Admin menu divider ordering, visibility and role filtering passed.\n";

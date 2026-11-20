@@ -57,10 +57,12 @@ namespace {
     $approved=[
         'ildra.witecanvas.com'=>'https://ildra.witecanvas.com',
         'enduranceridingireland.com'=>'https://enduranceridingireland.com',
-        'dev-ildra.witecanvas.com'=>'https://dev-ildra.witecanvas.com',
+        'dev-ildra.witecanvas.com'=>'https://dev-ildra.witecanvas.com:28086',
+        'dev-ildra.witecanvas.com:28085'=>'https://dev-ildra.witecanvas.com:28086',
+        'dev-ildra.witecanvas.com:28086'=>'https://dev-ildra.witecanvas.com:28086',
     ];
     originCheck(authEmailOrigins()===$approved,'Central origin map changed; update reviewed cases.');
-    $bad=['evil.example','enduranceridingireland.com.evil.example','evil.enduranceridingireland.com','www.enduranceridingireland.com','evil.example@enduranceridingireland.com','enduranceridingireland.com@evil.example','https://enduranceridingireland.com','enduranceridingireland.com:443','enduranceridingireland.com:80','enduranceridingireland.com.',' enduranceridingireland.com','enduranceridingireland.com ','enduranceridingireland.com/path','enduranceridingireland.com?x=1','enduranceridingireland%2ecom',"enduranceridingireland.com\r\nX-Host: evil.example","enduranceridingireland.com\0.evil.example",'enduranceridingireland．com','',null,[],42];
+    $bad=['dev-ildra.witecanvas.com:443','dev-ildra.witecanvas.com:28087','dev-ildra.witecanvas.com:28086.evil.test','evil.example','enduranceridingireland.com.evil.example','evil.enduranceridingireland.com','www.enduranceridingireland.com','evil.example@enduranceridingireland.com','enduranceridingireland.com@evil.example','https://enduranceridingireland.com','enduranceridingireland.com:443','enduranceridingireland.com:80','enduranceridingireland.com.',' enduranceridingireland.com','enduranceridingireland.com ','enduranceridingireland.com/path','enduranceridingireland.com?x=1','enduranceridingireland%2ecom',"enduranceridingireland.com\r\nX-Host: evil.example","enduranceridingireland.com\0.evil.example",'enduranceridingireland．com','',null,[],42];
     foreach($bad as $host) {
         $server=['HTTP_HOST'=>$host,'SERVER_NAME'=>'enduranceridingireland.com','HTTP_X_FORWARDED_HOST'=>'enduranceridingireland.com','HTTP_FORWARDED'=>'host=enduranceridingireland.com;proto=https'];
         originCheck(authEmailOrigin($server)===null,'Unknown/deceptive authority accepted');

@@ -3777,9 +3777,9 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
     $lastName = trim((string)($data['last_name'] ?? ''));
     $dob = trim((string)($data['dob'] ?? ''));
     $email = trim((string)($data['email'] ?? ''));
-    $generalOptIn = !empty($data['general_email_opt_in']) ? 1 : 0;
+    $generalOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
     $rideNoticeOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
-    $renewalReminderOptIn = !empty($data['renewal_reminder_opt_in']) ? 1 : 0;
+    $renewalReminderOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
     $phone = trim((string)($data['phone'] ?? ''));
     $address = trim((string)($data['address'] ?? ''));
     $postcode = trim((string)($data['postcode'] ?? ''));

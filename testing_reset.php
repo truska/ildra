@@ -7,7 +7,7 @@ function testingResetTables(bool $keepCalendar): array
     $tables = ['legacy_balance_verifications', 'legacy_balances', 'legacy_balance_imports', 'coupon_redemptions', 'coupon_audit', 'ride_results', 'booking_items', 'bookings',
         'membership_purchases', 'horse_logbook_purchases', 'external_recognition_applications',
         'misc_payment_requests', 'finance_transactions', 'user_credits', 'loyalty_cards',
-        'stripe_customers', 'email_log', 'admin_audit_log', 'baskets', 'share_requests',
+        'stripe_customers', 'email_delivery_events', 'email_delivery_transport', 'email_log', 'admin_audit_log', 'baskets', 'share_requests',
         'user_horse_links', 'user_person_links', 'horses'];
     if (!$keepCalendar) $tables = array_merge($tables, ['event_ride_notes', 'event_result_classes', 'event_pricing_rows', 'event_entry_components', 'events']);
     return $tables;

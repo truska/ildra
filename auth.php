@@ -13,7 +13,9 @@ function authEmailOrigins(): array
     return [
         'ildra.witecanvas.com' => 'https://ildra.witecanvas.com',
         'enduranceridingireland.com' => 'https://enduranceridingireland.com',
-        'dev-ildra.witecanvas.com' => 'https://dev-ildra.witecanvas.com',
+        'dev-ildra.witecanvas.com' => 'https://dev-ildra.witecanvas.com:28086',
+        'dev-ildra.witecanvas.com:28085' => 'https://dev-ildra.witecanvas.com:28086',
+        'dev-ildra.witecanvas.com:28086' => 'https://dev-ildra.witecanvas.com:28086',
     ];
 }
 
@@ -47,10 +49,11 @@ function deleteOrArchiveUser(PDO $pdo, int $userId, array $actor): string
     ensureUserArchiveColumn($pdo);
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare('SELECT u.id, r.name AS role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=:id FOR UPDATE');
+        $stmt = $pdo->prepare('SELECT u.id, u.is_protected, r.name AS role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=:id FOR UPDATE');
         $stmt->execute([':id'=>$userId]);
         $target = $stmt->fetch();
         if (!$target) throw new RuntimeException('User not found.');
+        if (!empty($target['is_protected'])) throw new RuntimeException('This protected account cannot be deleted or archived.');
         if (strtolower((string)$target['role']) !== 'user') {
             throw new RuntimeException('Only standard user accounts can be deleted or archived here.');
         }
@@ -974,9 +977,9 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
             ':role_id' => (int)$roleRow['id'],
             ':first_name' => $firstName ?: null,
             ':last_name' => $lastName ?: null,
-            ':general_opt_in' => !empty($_POST['general_email_opt_in']) ? 1 : 0,
+            ':general_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
             ':ride_notice_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
-            ':renewal_opt_in' => !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0,
+            ':renewal_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
         ]);
         $userId = (int)$pdo->lastInsertId();
 
@@ -996,9 +999,9 @@ function handleRegister(?PDO $pdo, array &$alerts, ?string &$successMessage): ?a
                 ':first_name' => $safeFirst,
                 ':last_name' => $safeLast,
                     ':email' => $email,
-                    ':general_opt_in' => !empty($_POST['general_email_opt_in']) ? 1 : 0,
+                    ':general_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
                     ':ride_notice_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
-                    ':renewal_opt_in' => !empty($_POST['renewal_reminder_opt_in']) ? 1 : 0,
+                    ':renewal_opt_in' => !empty($_POST['ride_notice_opt_in']) ? 1 : 0,
                 ]);
                 $newPersonId = (int)$pdo->lastInsertId();
         } catch (Throwable $e) {
@@ -1152,13 +1155,17 @@ function updateUserRoleAndLevel(?PDO $pdo, int $userId, string $role, int $level
         $alerts[] = ['type' => 'danger', 'message' => 'Invalid role selected.'];
         return false;
     }
+    if (userIsProtected($pdo, $userId)) {
+        $alerts[] = ['type'=>'danger', 'message'=>'This protected account’s role cannot be changed.'];
+        return false;
+    }
     try {
         $roleRow = fetchRoleByName($pdo, $role);
         if (!$roleRow) {
             $alerts[] = ['type' => 'danger', 'message' => 'Role configuration missing.'];
             return false;
         }
-        $stmt = $pdo->prepare("UPDATE users SET role_id = :role_id, updated_at = NOW() WHERE id = :id");
+        $stmt = $pdo->prepare("UPDATE users SET role_id = :role_id, updated_at = NOW() WHERE id = :id AND is_protected=0");
         $stmt->execute([':role_id' => (int)$roleRow['id'], ':id' => $userId]);
         return true;
     } catch (PDOException $e) {
@@ -1212,7 +1219,7 @@ function updateOwnUserDetails(?PDO $pdo, int $userId, array $data, array &$alert
     if ($alerts) return null;
 
     try {
-        $stmt = $pdo->prepare('SELECT email, password_hash FROM users WHERE id = :id LIMIT 1');
+        $stmt = $pdo->prepare('SELECT email, password_hash, is_protected FROM users WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $userId]);
         $existing = $stmt->fetch();
         if (!$existing) {
@@ -1220,6 +1227,10 @@ function updateOwnUserDetails(?PDO $pdo, int $userId, array $data, array &$alert
             return null;
         }
         if (strcasecmp($email, (string)$existing['email']) !== 0) {
+            if (!empty($existing['is_protected'])) {
+                $alerts[] = ['type'=>'danger', 'message'=>'The email address of this protected account cannot be changed.'];
+                return null;
+            }
             if ($currentPassword === '' || !password_verify($currentPassword, (string)$existing['password_hash'])) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Enter your current password to change your email address.'];
                 return null;
@@ -1231,11 +1242,11 @@ function updateOwnUserDetails(?PDO $pdo, int $userId, array $data, array &$alert
                 return null;
             }
         }
-        $generalOptIn = !empty($data['general_email_opt_in']) ? 1 : 0;
+        $generalOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
         $rideNoticeOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
-        $renewalReminderOptIn = !empty($data['renewal_reminder_opt_in']) ? 1 : 0;
-        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, updated_at = NOW() WHERE id = :id');
-        $update->execute([':first_name' => $firstName, ':last_name' => $lastName, ':email' => $email, ':general_opt_in' => $generalOptIn, ':ride_notice_opt_in' => $rideNoticeOptIn, ':renewal_opt_in' => $renewalReminderOptIn, ':id' => $userId]);
+        $renewalReminderOptIn = !empty($data['ride_notice_opt_in']) ? 1 : 0;
+        $update = $pdo->prepare('UPDATE users SET first_name = :first_name, last_name = :last_name, email = :email, general_email_opt_in = :general_opt_in, ride_notice_opt_in = :ride_notice_opt_in, renewal_reminder_opt_in = :renewal_opt_in, updated_at = NOW() WHERE id = :id AND (is_protected=0 OR email=:protected_email)');
+        $update->execute([':first_name' => $firstName, ':last_name' => $lastName, ':email' => $email, ':general_opt_in' => $generalOptIn, ':ride_notice_opt_in' => $rideNoticeOptIn, ':renewal_opt_in' => $renewalReminderOptIn, ':id' => $userId, ':protected_email' => $email]);
         return ['first_name' => $firstName, 'last_name' => $lastName, 'email' => $email, 'general_email_opt_in' => $generalOptIn, 'ride_notice_opt_in' => $rideNoticeOptIn, 'renewal_reminder_opt_in' => $renewalReminderOptIn];
     } catch (PDOException $e) {
         $alerts[] = ['type' => 'danger', 'message' => 'Could not update your account details.'];
