@@ -234,3 +234,10 @@ policy. The original Import workspace tool retains its existing behaviour.
 See [Onboarding reset controls](ONBOARDING_WORDING.md#onboarding-test-data-reset-controls)
 for mode details, confirmation requirements and isolated tests. Implementation
 performed no real reset, import, invitation send or external payment operation.
+
+Production population no longer requires enabling the development reset
+workspace. The reviewed CLI user/horse scripts now also support the independent
+`allow_imports` permission in the destination's private `account-migration.php`,
+bound to its installed root/database and an active Developer/Superadmin operator.
+See ONBOARDING_LIVE_ROLLOUT.md for preview/apply sequencing. Destructive workspace
+resets and per-user testing restarts remain restricted to development.

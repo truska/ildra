@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/campaign_navigation.php';
 
 // Email admin is admin+ only (nav hides it, but enforce here too).
 $roleKey = strtolower((string)($currentUser['role'] ?? ''));
@@ -29,6 +30,8 @@ if (!$email) {
 }
 
 admin_layout_start('Email', 'email');
+$emailBackUrl=campaign_navigation_request_return()??'email.php';
+render_campaign_navigation('history',$roleKey,[$emailBackUrl,campaign_navigation_back_label($emailBackUrl)]);
 
 $status = (string)($email['status'] ?? '');
 $badgeClass = 'bg-secondary-subtle text-secondary';
@@ -64,9 +67,7 @@ if ($metaJson !== '') {
         <span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($status); ?></span>
         <div class="text-muted">Email #<?php echo (int)$id; ?></div>
     </div>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php">Back To Email Log</a>
-    </div>
+
 </div>
 
 <div class="card-soft p-4 mb-4">

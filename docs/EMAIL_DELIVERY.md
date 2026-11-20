@@ -65,6 +65,77 @@ Run `php scripts/test_email_delivery.php` and `php scripts/test_auth_email_origi
 
 Deploy committed development source using the normal [deployment workflow](DEPLOYMENT.md); configure the destination's private SES credentials separately. Do not copy development credentials to staging/live or change reusable source there. No new upload directories or runtime dependencies are required. Verify actual SES delivery only after the relevant identity, DNS, credentials and feedback handling are configured. Roll back routing by choosing Truska; the additive settings may remain.
 
+## Campaign navigation — 17 November 2026
+
+Campaign lists, template selection/editing, campaign creation/editing, Account
+migration, Email history/details and Email settings use the shared
+`admin/campaign_navigation.php` tab bar. Existing order is preserved: Manual
+campaigns, Automatic campaigns, Templates, Email history, then Account migration
+for Developer/Superadmin users. Exactly one tab is active on each view.
+
+Top-level tab pages use the tabs to switch sections. Subpages use the shared
+`render_back_navigation()` grey, right-aligned Back button with double chevrons,
+above their content. Campaign/template editors return to their parent section;
+a template opened from a campaign returns to that campaign. The template picker
+returns to Manual campaigns, and creating from a picked template returns to the
+picker. Rider Notes campaigns retain their event-specific Rider Notes parent.
+
+Email details opened from a recipient report return to that campaign. Details
+opened from Email history preserve history filters, sorting and pagination.
+Email settings use the same Back style and return to the originating history
+view; saving settings keeps the settings screen open. Navigation return targets
+are canonicalised against a small allowlist of internal admin destinations,
+never arbitrary URLs. Campaign/template save redirects retain accepted origin
+context. Notes opened from Account migration retain its tabs and return there;
+notes opened from Users/People retain their record-management navigation.
+
+The shared navigation flag loads `views/back_navigation_styles.php` in the
+admin head only for participating pages, reusing the project's Back-button
+style without loading public-site button rules.
+No schema, delivery routing, account settings, approval or real email-send change
+is part of this navigation update. PHP/web readability for the new helper was
+verified with HTTP 200 and mode 664.
+
+Checks: `php scripts/tests/campaign_navigation.php` verifies navigation parents,
+origin preservation, role visibility, unsafe return rejection and active/Back
+counts without a database. Pass a private temporary fixture directory under
+`/tmp/` to also render the shared navigation for
+`node scripts/tests/campaign_navigation.cjs <directory>`; Chromium checks tab
+order/active state, shared Back styling and click destinations across 15 views.
+`php scripts/test_email_delivery.php` and `php scripts/test_campaign_urls.php`
+remain offline regression checks; no real emails are sent.
+
+
+17 November follow-up: development migration, magic-login and password-reset
+email links now use `https://dev-ildra.witecanvas.com:28086`. The exact development
+Host authorities without a port, with `:28085`, or with `:28086` all resolve to
+that fixed HTTPS origin. Arbitrary ports/hosts remain rejected; staging/live
+origins are unchanged. Migration preview uses the same origin map. Existing
+emails retain their original URLs; newly generated emails receive the fix.
+Development's ordinary campaign base URL already uses the working HTTP proxy
+`http://dev-ildra.witecanvas.com:28085` and was left unchanged.
+
+The navigation change had accidentally loaded the full public stylesheet into
+campaign admin pages, applying its global `.btn {font-weight:800}` rule. Shared
+Back CSS now lives in `views/back_navigation_styles.php`; public header styles
+include that file, while campaign admin and migration setup load only that
+small shared file. Their Bootstrap buttons retain normal weight. Public-site
+button styling is preserved. PHP, origin/delivery/URL fixtures and Chromium
+navigation/setup checks passed, including normal button weight. The new shared
+file is mode 664 and PHP read access returned HTTP 200. No real email was sent.
+
+
+Migration recipient expansion: Account migration now offers selected accounts or
+all not yet successfully emailed, with a reviewed per-recipient batch and explicit
+send. The active redirect was read-only verified as `clients@truska.com`. A
+`required_test_redirect` delivery guard pins each reviewed migration send to that
+address in the transport settings snapshot and blocks changed/disabled redirects.
+Existing To/CC/BCC redirection, original-recipient banner and email log are reused.
+No redirect configuration was changed and no new real message was sent during
+implementation. See ACCOUNT_MIGRATION_PILOT.md for forwarding/tester entry and
+retry/resend rules. `scripts/tests/migration_batches.php` and the extended offline
+email-delivery and Chromium setup fixtures passed.
+
 ## Single visible email preference (20 November 2026)
 
 Registration, My Account, People and the admin user/person forms show **Ride Reminders and Updates**, using the existing `ride_notice_opt_in` value. Saving sets `general_email_opt_in`, `ride_notice_opt_in` and `renewal_reminder_opt_in` to the same choice. Existing divergent values are not bulk changed. Campaign types and audience selection still use their original columns.
@@ -72,3 +143,9 @@ Registration, My Account, People and the admin user/person forms show **Ride Rem
 Existing unsubscribe links for any of those three categories turn off all three preferences for matching user/person email addresses and cancel pending campaign deliveries in those categories. Essential operational messages remain separate. GET and preview requests do not change preferences.
 
 The uncommitted onboarding update now uses the same single preference and saves all three flags together on the Person and matching account. Regression checks: `php scripts/tests/email_preferences.php` (isolated PDO fixture; no database writes or email sends).
+
+Production invitation delivery is separately pinned by `required_migration_redirect`:
+an empty target means explicitly configured direct delivery with the global
+redirect disabled; a non-empty target requires that exact redirect to remain
+enabled. The shared sender rechecks immediately before transport. The private
+production opt-in and cutover sequence are documented in ONBOARDING_LIVE_ROLLOUT.md.

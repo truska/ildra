@@ -472,3 +472,14 @@ supersedes the earlier fixed Password → User → Person → Horses → Shares 
 The legacy separate save helpers remain for internal compatibility; public
 password/user submissions use the combined save and cannot bypass identity
 confirmation.
+
+## Production rollout follow-up — 20 November 2026
+
+Production readiness is now implemented separately from the development pilot:
+see [ONBOARDING_LIVE_ROLLOUT.md](ONBOARDING_LIVE_ROLLOUT.md). A private
+destination opt-in binds approved host/origin, installed root and database.
+Developer/Superadmin can prepare/send reviewed invitations when enabled; reset
+functions remain development-only. CLI imports use a separate temporary opt-in
+and do not enroll/email accounts. Populate via ildra.witecanvas.com, then verify
+DNS/TLS and use enduranceridingireland.com before real invitations. Existing
+development pilot redirect restrictions are retained.

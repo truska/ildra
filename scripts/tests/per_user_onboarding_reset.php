@@ -34,6 +34,7 @@ migrationCheck(migrationState($pdo,2)['current_step']==='password' && migrationP
 $bootstrap=file_get_contents(dirname(__DIR__,2).'/bootstrap.php');migrationCheck(str_contains($bootstrap,"migrationActivateScheduledRestart(\$pdo,(int)\$currentUser['id'])"),'Bootstrap activation hook missing');
 if(!empty($argv[1])&&is_dir($argv[1])&&str_starts_with(realpath($argv[1]),'/tmp/')){
     $source=file_get_contents(dirname(__DIR__,2).'/admin/migration_campaign.php');
+    $canResetOnboarding=true;
     $row=['id'=>2,'email'=>'fixture@example.invalid','person_id'=>123,'name'=>'Fixture User','reason'=>'','status'=>'Complete','sent'=>1];
     $a=strpos($source,'<tr><td><input class="form-check-input" type="checkbox" name="user_ids[]"');$b=strpos($source,'<?php endforeach;', $a);
     ob_start();eval('?>'.substr($source,$a,$b-$a));$rowHtml=ob_get_clean();

@@ -6,7 +6,7 @@ require dirname(__DIR__,2).'/auth.php';
 require dirname(__DIR__,2).'/email_campaigns.php';
 require dirname(__DIR__,2).'/email.php';
 require dirname(__DIR__,2).'/account_migration.php';
-require dirname(__DIR__,2).'/import_workspace.php';
+require_once dirname(__DIR__,2).'/import_workspace.php';
 ini_set('session.save_path','/tmp');session_start();date_default_timezone_set('Europe/London');
 function migrationCheck(bool $ok,string $why): void { if(!$ok)throw new RuntimeException($why); }
 function migrationReject(callable $fn,string $why): void { try{$fn();}catch(RuntimeException $e){return;}throw new LogicException($why); }

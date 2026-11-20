@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/record_notes.php';
 require_once __DIR__.'/onboarding_copy.php';
+require_once __DIR__.'/migration_rollout.php';
 
 /** Pilot scope is intentionally enforced server-side, independent of email redirects. */
 function migrationPilotUser(PDO $pdo): array
@@ -87,9 +88,7 @@ function migrationRecipient(PDO $pdo, int $uid): array
 
 function migrationRequiredRedirect(PDO $pdo): string
 {
-    $settings=getEmailSettings($pdo);$to=trim((string)($settings['email_test_redirect_to']??''));
-    if (($settings['email_test_redirect_enabled']??'0')!=='1' || !filter_var($to,FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enable Redirect all outgoing emails to a valid test address before sending migration invitations.');
-    return $to;
+    return migrationDeliveryRedirect(migrationEnvironment($pdo),getEmailSettings($pdo));
 }
 
 function migrationDeliveryCounts(PDO $pdo, int $uid): array
@@ -137,14 +136,13 @@ function migrationPreviewRecipients(PDO $pdo, string $mode, array $selected, boo
 /** Rechecks selection under locks. Any change since preview requires another preview. */
 function migrationSendRecipient(PDO $pdo, int $revision, int $uid, callable $transport, bool $resend=false, ?string $snapshot=null, ?string $requiredRedirect=null): bool
 {
-    require_once __DIR__.'/import_workspace.php';
-    importWorkspaceAuthorize($pdo,$_SESSION['user']??[],importWorkspaceConfig(),(string)($_SERVER['HTTP_HOST']??''));
+    $environment=migrationAuthorizeAdmin($pdo,$_SESSION['user']??[]);
     $redirect=migrationRequiredRedirect($pdo);
     if($requiredRedirect!==null && $redirect!==$requiredRedirect)throw new RuntimeException('The redirect changed. Preview the recipients again.');
     $campaign=migrationCampaign($pdo);
     if((int)$campaign['revision']!==$revision || migrationCampaignErrors($campaign))throw new RuntimeException('Save and review the current campaign first.');
     $user=migrationRecipient($pdo,$uid);$person=migrationPilotPerson($pdo,$user);$token=bin2hex(random_bytes(32));
-    $payload=migrationEmailPayload($campaign,$user,authEmailOrigins()['dev-ildra.witecanvas.com'].'/migrate.php?invite='.rawurlencode($token));
+    $payload=migrationEmailPayload($campaign,$user,$environment['origin'].'/migrate.php?invite='.rawurlencode($token));
     $pdo->beginTransaction();
     try {
         $s=$pdo->prepare('SELECT id FROM users WHERE id=? FOR UPDATE');$s->execute([$uid]);

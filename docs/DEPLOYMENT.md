@@ -392,3 +392,19 @@ php scripts/test_scripts_access.php
 The test audits every PHP guard, runs each guard prefix in CLI without executing operational bodies, and invokes the actual guarded files through PHP-CGI with configuration/extensions disabled to check rejection before output/dependencies. It also starts an isolated loopback Apache instance with the actual `.htaccess` files and **inert canary files**, checking directory, PHP/static, nested, path-info, encoded/case variants and GET/HEAD/POST denials, plus an ordinary public-file control. It does not connect to the mailbox, run migrations, send mail or change database data. It requires local PHP-CGI and Apache binaries/modules; they are already available on development, not runtime application dependencies.
 
 After deployment, GET/HEAD/POST requests to `/scripts/`, `/scripts/process_bounces.php`, a migration script and a static file under `/scripts/tests/` must return 403/404 without script output. Normal public/account/event pages must still load. Confirm the existing cron command still points to the PHP CLI executable and script file; do not invoke mailbox processing merely to verify the HTTP guard.
+
+## Onboarding production-readiness release (20 November 2026)
+
+Follow [ONBOARDING_LIVE_ROLLOUT.md](ONBOARDING_LIVE_ROLLOUT.md) and
+[LIVE_SETUP_CHECKLIST.md](LIVE_SETUP_CHECKLIST.md). Production migration admin
+and invitations use a separate private destination opt-in and active
+Developer/Superadmin access. CLI imports have an independent opt-in and do not
+enroll or email users. The legacy test-reset endpoint now rejects all requests
+outside the explicitly opted-in development workspace; supporting reset source
+is retained because the development tools share it. Never copy that development
+workspace opt-in into live.
+
+The destination schema preparer is CLI-only and defaults to check-only. Back up
+the destination before --apply. It prepares additive dependencies and initial
+draft rows without importing/enrolling users or sending email. Exact root,
+database and approved origin must match the destination private configuration.

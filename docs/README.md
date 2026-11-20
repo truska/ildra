@@ -4,6 +4,8 @@ Read this index and [WORKFLOW.md](WORKFLOW.md) at the start of each session, as 
 
 - [WORKFLOW.md](WORKFLOW.md): server, workspace, permissions and development setup standards.
 - [DEPLOYMENT.md](DEPLOYMENT.md): required deployment and migration checks; read before deploying.
+- [Onboarding live rollout](ONBOARDING_LIVE_ROLLOUT.md): populate via ildra.witecanvas.com, change DNS, then explicitly enable final-domain invitations.
+- [Live setup checklist](LIVE_SETUP_CHECKLIST.md): manual setup, database/content transfer and rollout limits for the recent onboarding and membership work.
 - [MASTER_RIDE_PRICING.md](MASTER_RIDE_PRICING.md): master ride classes, scheme selections, event price snapshots and migration.
 - Operational scripts: see [CLI-only access and HTTP denial](DEPLOYMENT.md#cli-only-operationaltest-scripts-security-priority-3); `scripts/` is not a public endpoint.
 - Authenticator changes: see [fresh authentication and setup verification](DEPLOYMENT.md#fresh-authentication-for-authenticator-changes-security-priority-2); implementation is in `auth_app_security.php`.

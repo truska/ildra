@@ -2,6 +2,8 @@
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../testing_reset.php';
+require_once __DIR__ . '/../import_workspace.php';
+if(!$pdo || !importWorkspaceEnvironmentAllowed(importWorkspaceConfig(),(string)realpath(dirname(__DIR__)),(string)$pdo->query('SELECT DATABASE()')->fetchColumn(),strtolower((string)($_SERVER['HTTP_HOST']??'')))) { http_response_code(404);exit; }
 if (!roleIsSuperadminOrDeveloper($currentRole)) { http_response_code(403); exit('Superadmin access required.'); }
 $preview = null;
 $choices = (array)($_POST['people'] ?? []);

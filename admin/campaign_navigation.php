@@ -73,7 +73,7 @@ function campaign_template_back_link(array $template): array
 function render_campaign_navigation(string $active,string $role,?array $back=null): void
 {
     $tabs=['manual'=>['campaigns.php?tab=manual','Manual campaigns'],'automatic'=>['campaigns.php?tab=automatic','Automatic campaigns'],'templates'=>['campaigns.php?view=templates','Templates'],'history'=>['email.php','Email history']];
-    if($role==='developer')$tabs['migration']=['migration_campaign.php','Account migration'];
+    if(in_array($role,['developer','superadmin'],true))$tabs['migration']=['migration_campaign.php','Account migration'];
     echo '<nav aria-label="Email campaigns" data-table-navigation><ul class="nav nav-tabs admin-tabs mb-4">';
     foreach($tabs as $key=>[$url,$label])echo '<li class="nav-item"><a class="nav-link'.($key===$active?' active':'').'"'.($key===$active?' aria-current="page"':'').' href="'.h($url).'">'.h($label).'</a></li>';
     echo '</ul></nav>';

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/campaign_navigation.php';
 require_once __DIR__ . '/table_sort.php';
 
 // Email admin is admin+ only (nav hides it, but enforce here too).
@@ -55,7 +56,7 @@ if ($view === 'settings') {
         }
         if (saveEmailSettings($pdo, $data, $alerts)) {
             $_SESSION['flash_success'] = 'Email settings saved.';
-            header('Location: ' . $adminBase . '/email.php');
+            header('Location: '.campaign_navigation_with_return('email.php?view=settings'));
             exit;
         }
 
@@ -150,6 +151,8 @@ if ($view === 'settings') {
     };
 
     admin_layout_start('Live Email Settings', 'tech_email');
+    $emailBackUrl=campaign_navigation_request_return()??'email.php';
+    render_campaign_navigation('history',$roleKey,[$emailBackUrl,campaign_navigation_back_label($emailBackUrl)]);
     ?>
     <style>
         .panel-soft {
@@ -185,9 +188,7 @@ if ($view === 'settings') {
         <div>
             <div class="text-muted">Email settings</div>
         </div>
-        <div class="d-flex gap-2">
-            <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php">Back To Email Log</a>
-        </div>
+
     </div>
 
     <div class="card-soft p-4">
@@ -426,7 +427,7 @@ if ($view === 'settings') {
                             <span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($testResult['status']); ?></span>
                             <div class="fw-semibold">Test result</div>
                             <?php if (!empty($testResult['log_id'])): ?>
-                                <a class="small text-decoration-none" href="<?php echo h($adminBase); ?>/email_view.php?id=<?php echo (int)$testResult['log_id']; ?>">View log</a>
+                                <a class="small text-decoration-none" href="<?php echo h($adminBase); ?>/email_view.php?id=<?php echo (int)$testResult['log_id']; ?>&amp;return=email.php%3Fview%3Dsettings">View log</a>
                             <?php endif; ?>
                         </div>
                         <div class="debug-kv">
@@ -452,6 +453,7 @@ if ($view === 'settings') {
 }
 
 admin_layout_start('Email', 'email');
+render_campaign_navigation('history',$roleKey);
 ensureEmailTables($pdo);
 
 // Log view (default)
@@ -540,7 +542,7 @@ $rows = $stmt->fetchAll() ?: [];
         <div class="small text-muted">Showing <?php echo (int)$total; ?><?php echo $hasFilters ? ' of ' . (int)$totalAll : ''; ?></div>
     </div>
     <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php?view=settings">Email Settings</a>
+        <a class="btn btn-outline-secondary" href="<?php echo h($adminBase); ?>/email.php?view=settings&amp;return=<?= rawurlencode(campaign_navigation_return('email.php?'.http_build_query($_GET))??'email.php') ?>">Email Settings</a>
     </div>
 </div>
 
@@ -650,7 +652,7 @@ $rows = $stmt->fetchAll() ?: [];
                         <td><span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($status); ?></span></td>
                         <td class="text-muted"><?php echo h(admin_display_datetime($sent, '')); ?></td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/email_view.php?id=<?php echo (int)$id; ?>">View</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/email_view.php?id=<?php echo (int)$id; ?>&amp;return=<?= rawurlencode(campaign_navigation_return('email.php?'.http_build_query($_GET))??'email.php') ?>">View</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

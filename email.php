@@ -987,6 +987,12 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
     // Migration test batches pin the reviewed redirect to this exact delivery settings snapshot.
     if (isset($meta['required_test_redirect']) && (($settings['email_test_redirect_enabled']??'0')!=='1'
         || trim((string)($settings['email_test_redirect_to']??''))!==(string)$meta['required_test_redirect'])) return false;
+    // Pin both redirected rehearsals and direct rollout sends to the reviewed mode.
+    if (array_key_exists('required_migration_redirect',$meta)) {
+        $redirectEnabled=($settings['email_test_redirect_enabled']??'0')==='1';
+        $required=(string)$meta['required_migration_redirect'];
+        if ($required==='' ? $redirectEnabled : (!$redirectEnabled || trim((string)($settings['email_test_redirect_to']??''))!==$required)) return false;
+    }
     $deliverySystem = emailDeliverySystem($settings, $meta);
     if ($deliverySystem === 'ses') {
         $settings = emailSesSettings($settings);
