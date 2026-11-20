@@ -348,10 +348,20 @@ if ($order) {
                                 <li class="list-group-item">
                                     <?php
                                         $bookingType = $item['booking_type'] ?? 'ride';
-                                        $bookingTypeLabel = ucfirst($bookingType);
+                                        $meta = is_array($item['metadata'] ?? null) ? $item['metadata'] : [];
+                                        $membershipName = trim((string)($item['membership_name'] ?? $meta['membership_name'] ?? ''));
+                                        $bookingTypeLabel = $bookingType === 'membership'
+                                            ? ($membershipName !== '' ? $membershipName : 'Membership')
+                                            : ($bookingType === 'horse_logbook' ? 'Horse Logbook' : ucfirst($bookingType));
                                     ?>
                                     <?php
-                                        $meta = $item['metadata'] ?? [];
+                                        $memberName = trim((string)($item['member_name'] ?? $item['rider_name'] ?? $meta['member_name'] ?? $meta['rider_name'] ?? ''));
+                                        $horseName = trim((string)($item['horse_name'] ?? $meta['horse_name'] ?? ''));
+                                        $itemTitle = match ($bookingType) {
+                                            'membership' => $memberName !== '' ? 'Membership: ' . $memberName : (string)($item['event_title'] ?? 'Membership'),
+                                            'horse_logbook' => $horseName !== '' ? 'Horse Logbook: ' . $horseName : (string)($item['event_title'] ?? 'Horse Logbook'),
+                                            default => (string)($item['event_title'] ?? ''),
+                                        };
                                         $chips = [];
                                         if (isset($meta['class_label'])) {
                                             $chips[] = $meta['class_label'];
@@ -359,12 +369,15 @@ if ($order) {
                                         if (isset($meta['rider_name']) || isset($meta['horse_name'])) {
                                             $chips[] = 'Rider: ' . ($meta['rider_name'] ?? '—') . ' · Horse: ' . ($meta['horse_name'] ?? '—');
                                         }
+                                        if (isset($meta['contact_email']) || isset($meta['contact_phone'])) {
+                                            $chips[] = 'Contact: ' . ($meta['contact_email'] ?? '') . (empty($meta['contact_phone']) ? '' : ' · ' . $meta['contact_phone']);
+                                        }
                                         $componentsSummary = entry_components_summary($meta);
                                         if ($componentsSummary !== '') {
                                             $chips[] = 'Extras: ' . $componentsSummary;
                                         }
                                     ?>
-                                    <div class="fw-semibold"><?php echo h($item['event_title'] ?? ''); ?><?php echo $chips ? ' — ' . h(implode(' • ', $chips)) : ''; ?></div>
+                                    <div class="fw-semibold"><?php echo h($itemTitle); ?><?php echo !in_array($bookingType, ['membership', 'horse_logbook'], true) && $chips ? ' (' . h(implode(' • ', $chips)) . ')' : ''; ?></div>
                                     <div class="text-muted small">Price: <?php echo h(format_price($item['price'] ?? 0)); ?></div>
                                     <div class="text-muted small">Type: <?php echo h($bookingTypeLabel); ?></div>
                                 </li>
