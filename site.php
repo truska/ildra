@@ -421,6 +421,7 @@ function event_url(array $event): string
                             if (!$classNames) {
                                 $classNames = class_names_from_classes_offered($event['classes_offered'] ?? '');
                             }
+                            $classNames = calendar_ride_type_descriptions($classNames, $siteSettings);
                             ?>
                             <a class="event-row rounded-3 p-3 mb-3" href="<?php echo h(event_url($event)); ?>">
                                 <div class="d-flex justify-content-between align-items-start gap-3">
@@ -500,6 +501,7 @@ function event_url(array $event): string
                             }
                             $classNames = $pdo ? class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)($event['id'] ?? 0))) : [];
                             if (!$classNames) $classNames = class_names_from_classes_offered($event['classes_offered'] ?? '');
+                            $classNames = calendar_ride_type_descriptions($classNames, $siteSettings);
                             ?>
                             <div class="col">
                                 <a class="event-row rounded-3 p-3 h-100" href="<?php echo h(event_url($event)); ?>">

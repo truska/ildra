@@ -830,6 +830,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 if (!$classesList) {
                     $classesList = class_names_from_classes_offered($event['classes_offered'] ?? '');
                 }
+                $classesList = calendar_ride_type_descriptions($classesList, $siteSettings);
                 ?>
 
                 <?php echo render_back_navigation($navItemEventsUrl, 'Back to Events', 'Event navigation'); ?>

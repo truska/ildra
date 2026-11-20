@@ -278,6 +278,7 @@ foreach ($pageElements as &$pageElement) {
             $calendarNotice = (string)($event[$isRideEvent ? 'details_html' : 'description'] ?? '');
             $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
             if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');
+            $classes = calendar_ride_type_descriptions($classes, $siteSettings);
             $entryOpenAt = $event['entry_open_at'] ?? null;
             $nonMemberOpenAt = $event['non_member_entry_open_at'] ?? null;
             $entryCloseAt = $event['entry_close_at'] ?? null;
@@ -337,6 +338,7 @@ foreach ($pageElements as &$pageElement) {
             $reportUrl = $rideReport ? $basePath . '/ride-reports/' . (int)$event['id'] . '-' . rawurlencode((string)$rideReport['slug']) : '';
             $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
             if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');
+            $classes = calendar_ride_type_descriptions($classes, $siteSettings);
             ?>
             <div class="d-block border rounded-3 p-3 mb-2 shadow-sm">
                 <div class="row g-3 align-items-start">

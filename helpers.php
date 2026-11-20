@@ -391,6 +391,26 @@ function format_price($price): string
     return '£0.00';
 }
 
+function calendar_ride_type_setting_defaults(): array
+{
+    return [
+        'calendar_ride_label_PR' => 'Pleasure Ride (PR)',
+        'calendar_ride_label_VPR' => 'Vetted Pleasure Ride (VPR)',
+        'calendar_ride_label_CTR' => 'Competitive Trail Ride (CTR)',
+        'calendar_ride_label_ER' => 'Endurance Ride (ER)',
+    ];
+}
+
+/** Expand calendar summaries without changing saved pricing names or codes. */
+function calendar_ride_type_descriptions(array $classes, array $settings): array
+{
+    $labels = array_replace(calendar_ride_type_setting_defaults(), $settings);
+    return array_map(static function (string $name) use ($labels): string {
+        $key = 'calendar_ride_label_' . strtoupper(trim($name));
+        return isset(calendar_ride_type_setting_defaults()[$key]) ? (string)$labels[$key] : $name;
+    }, $classes);
+}
+
 function class_names_from_pricing_rows(array $rows): array
 {
     $names = [];

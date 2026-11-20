@@ -4,13 +4,37 @@ require __DIR__.'/_bootstrap.php';
 $isAdmin=(($currentUser['role']??'')==='admin') || (int)($currentUser['level']??0)>=4;
 if(!$isAdmin){http_response_code(403);exit('Only administrators can manage ride classes.');}
 if(!ridePricingReady($pdo)){admin_layout_start('Ride Classes & Prices','pricing_schemes');echo '<div class="alert alert-info">The master ride class migration must be applied before editing ride prices.</div>';admin_layout_end();exit;}
+$tab = ($_GET['tab'] ?? '') === 'calendar-labels' ? 'calendar-labels' : 'classes';
+$labelDefaults = calendar_ride_type_setting_defaults();
+$calendarLabels = array_intersect_key(getSiteSettings($pdo), $labelDefaults);
+$labelErrors = [];
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && ($_POST['action'] ?? '') === 'save_calendar_labels') {
+    $tab = 'calendar-labels';
+    foreach ($labelDefaults as $key => $default) {
+        $calendarLabels[$key] = is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
+        if ($calendarLabels[$key] === '' || mb_strlen($calendarLabels[$key]) > 120) $labelErrors[$key] = 'Enter a description of 1–120 characters.';
+    }
+    if (!$labelErrors) {
+        try {
+            $pdo->beginTransaction();
+            $statement = $pdo->prepare('INSERT INTO site_settings (setting_key,setting_value,updated_at) VALUES (?,?,NOW()) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_at=NOW()');
+            foreach ($calendarLabels as $key => $value) $statement->execute([$key,$value]);
+            $pdo->commit();
+            $_SESSION['flash_success'] = 'Calendar ride descriptions saved.';
+            header('Location: ride_classes.php?tab=calendar-labels');exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $alerts[] = ['type'=>'danger','message'=>'The calendar descriptions could not be saved. Please try again.'];
+        }
+    }
+}
 $id=max(0,(int)($_GET['id']??0));
 $classes=fetchMasterRideClasses($pdo);
 $byId=array_column($classes,null,'id');
 if($id && !isset($byId[$id])){http_response_code(404);exit('Ride class not found.');}
 $editing=$id>0 || isset($_GET['new']);
 $record=$byId[$id]??['class_id'=>0,'class_name'=>'','class_code'=>'','class_group'=>'PR','distance_km'=>'','price'=>'','foreign_recognition_price'=>'','is_member_price'=>0,'is_junior_ride'=>0,'rider_eligibility'=>'all','sort_order'=>10,'is_active'=>1,'show_on_public'=>1];
-if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
+if(($_SERVER['REQUEST_METHOD']??'GET')==='POST' && ($_POST['action']??'') !== 'save_calendar_labels'){
     if((int)($_POST['class_id']??0)!==$id){http_response_code(400);exit('Invalid ride class.');}
     $saved=saveMasterRideClass($pdo,$_POST,$alerts);
     if($saved){adminAuditLog($pdo,'ride_classes.save',$currentUser,'ride_class',$saved,['before'=>$byId[$id]??null,'after'=>array_intersect_key($_POST,array_flip(['class_name','class_code','class_group','distance_km','price','foreign_recognition_price','is_member_price','is_junior_ride','rider_eligibility','sort_order','is_active','show_on_public']))]);$_SESSION['flash_success']='Master ride class saved. Existing event prices are unchanged.';header('Location: ride_classes.php');exit;}
@@ -19,6 +43,24 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
 admin_layout_start('Ride Classes & Prices','pricing_schemes');
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3"><div><h5>Ride Classes &amp; Prices</h5><p class="text-muted mb-0">Standard prices and eligibility shared by every ride pricing scheme. Existing events retain their saved prices.</p></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="pricing_schemes.php">Pricing Schemes</a><a class="btn btn-success" href="ride_classes.php?new=1">Add Ride Class</a></div></div>
+<ul class="nav nav-tabs admin-tabs mb-3" aria-label="Ride class settings">
+    <li class="nav-item"><a class="nav-link <?= $tab === 'classes' ? 'active' : '' ?>" <?= $tab === 'classes' ? 'aria-current="page"' : '' ?> href="ride_classes.php">Classes &amp; Prices</a></li>
+    <li class="nav-item"><a class="nav-link <?= $tab === 'calendar-labels' ? 'active' : '' ?>" <?= $tab === 'calendar-labels' ? 'aria-current="page"' : '' ?> href="ride_classes.php?tab=calendar-labels">Calendar descriptions</a></li>
+</ul>
+<?php if ($tab === 'calendar-labels'): ?>
+<form method="post" action="ride_classes.php?tab=calendar-labels" class="card-soft p-4">
+    <?= csrf_input() ?><input type="hidden" name="action" value="save_calendar_labels">
+    <p class="text-muted">Wording shown for available ride types on calendars, event details and ride reports. Each type appears once, based on the event’s enabled classes.</p>
+    <?php foreach ($labelDefaults as $key => $default): $code = substr($key, strlen('calendar_ride_label_')); ?>
+    <div class="mb-3">
+        <label class="form-label fw-semibold" for="<?= h($key) ?>"><?= h($code) ?></label>
+        <?php if (isset($labelErrors[$key])): ?><div class="text-danger small mb-1" id="<?= h($key) ?>-error"><?= h($labelErrors[$key]) ?></div><?php endif; ?>
+        <input class="form-control <?= isset($labelErrors[$key]) ? 'is-invalid' : '' ?>" id="<?= h($key) ?>" name="<?= h($key) ?>" value="<?= h($calendarLabels[$key] ?? $default) ?>" maxlength="120" required <?= isset($labelErrors[$key]) ? 'aria-invalid="true" aria-describedby="'.h($key).'-error"' : '' ?>>
+    </div>
+    <?php endforeach; ?>
+    <button class="btn btn-success">Save Calendar Descriptions</button>
+</form>
+<?php else: ?>
 <?php if($editing): ?>
 <form method="post" class="card-soft p-4 mb-4"><?php echo csrf_input(); ?><input type="hidden" name="class_id" value="<?php echo $id; ?>"><div class="row g-3">
 <div class="col-md-8"><label class="form-label" for="class_name">Class Name</label><input class="form-control" id="class_name" name="class_name" maxlength="190" required value="<?php echo h($record['class_name']); ?>"></div>
@@ -35,4 +77,5 @@ admin_layout_start('Ride Classes & Prices','pricing_schemes');
 <div class="card-soft p-3 table-responsive"><table class="table align-middle"><thead><tr><th>Order</th><th>Class</th><th>Type</th><th>Rider</th><th>Entry</th><th>Price</th><th>Public</th><th>Status</th><th></th></tr></thead><tbody>
 <?php foreach($classes as $row): ?><tr><td><?php echo (int)$row['sort_order']; ?></td><td><?php echo h($row['class_name']); ?><small class="d-block text-muted"><?php echo h($row['class_code']); ?></small></td><td><?php echo h($row['class_group']); ?></td><td><?php echo h(ucfirst($row['rider_eligibility'])); ?></td><td><?php echo $row['is_member_price']?'Member':'Non-Member'; ?></td><td><?php echo format_price($row['price']); ?></td><td><?php echo $row['show_on_public']?'Yes':'No'; ?></td><td><?php echo $row['is_active']?'Active':'Inactive'; ?></td><td><a class="btn btn-sm btn-outline-success" href="ride_classes.php?id=<?php echo (int)$row['id']; ?>">Edit</a></td></tr><?php endforeach; ?>
 </tbody></table></div>
+<?php endif; ?>
 <?php admin_layout_end(); ?>

@@ -81,6 +81,7 @@ function defaultMemberships(): array
 function defaultSiteSettings(): array
 {
     return [
+        ...calendar_ride_type_setting_defaults(),
         'entry_hub_enabled' => '0',
         'old_image_library_enabled' => '1',
         'campaign_live_sending_enabled' => '0',

@@ -27,6 +27,7 @@ $facebookGalleryUrl = $report ? trim((string)($report['facebook_gallery_url'] ??
 $facebookEmbedUrl = $facebookGalleryUrl !== '' ? 'https://www.facebook.com/plugins/post.php?href=' . rawurlencode($facebookGalleryUrl) . '&show_text=true&width=750' : '';
 $classesList = class_names_from_pricing_rows($eventPricingRows);
 if (!$classesList && $event) $classesList = class_names_from_classes_offered($event['classes_offered'] ?? '');
+$classesList = calendar_ride_type_descriptions($classesList, $siteSettings);
 $capacityLimit = (int)($event['capacity_limit'] ?? 0);
 $hasLimit = $event && !empty($event['capacity_enabled']) && $capacityLimit > 0;
 $totalEntryCount = (int)($event['entry_count'] ?? 0);

@@ -6,6 +6,26 @@ Ride pricing schemes select master classes and their order. Names, prices and el
 
 The public **Ride prices (live data)** content element reads the active, publicly visible master list once. It does not render every scheme, so classes are not repeated or assigned conflicting prices. Rider eligibility displays All, Junior or Senior from the actual eligibility field.
 
+## Calendar ride descriptions
+
+Pricing Schemes → Master Ride Classes & Prices → Calendar descriptions edits the
+four category labels used on current/past calendar cards, homepage event lists,
+event details and ride reports. Defaults are
+Pleasure Ride (PR), Vetted Pleasure Ride (VPR), Competitive Trail Ride (CTR) and
+Endurance Ride (ER). Only enabled event classes are listed, once per category;
+other event classes keep their existing names. The legacy classes-offered
+fallback also expands exact category codes.
+
+Descriptions use the existing `site_settings` table (`calendar_ride_label_PR`,
+`calendar_ride_label_VPR`, `calendar_ride_label_CTR`, `calendar_ride_label_ER`).
+Saving requires the existing ride-class admin access and CSRF protection;
+non-empty plain-text labels up to 120 characters are required. Validation errors
+appear above the fields and retain entered wording. Saving writes only those
+four settings. No schema migration, price changes, template reapplication or
+changes to event snapshots are needed. Stored class codes and admin class summaries retain their codes.
+Verification: `php scripts/tests/calendar_ride_labels.php` and a read-only check
+of the development calendar.
+
 ## Event snapshots and locks
 
 Applying a scheme creates independent event pricing rows. Master or scheme edits never automatically update existing events, including drafts. The event editor permits enabling/removing existing classes before opening, but ride names, prices and eligibility are read-only; use **Apply Template**, then **Save**, to obtain current master rates. Server-side validation resolves applied templates against current master records, and preserves historical snapshot fields on ordinary edits rather than trusting posted prices. A members-only class selection is valid; an event does not need a non-member price row. Price replacement checks the event lock inside its database transaction, and a mismatched editor/posted event ID is rejected.
