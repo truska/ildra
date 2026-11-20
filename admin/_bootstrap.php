@@ -115,10 +115,17 @@ function admin_layout_start(string $title, string $activeKey): void
             display: none;
         }
         .admin-sidebar {
+            position: sticky;
+            top: 0;
+            align-self: start;
+            height: 100vh;
+            height: 100dvh;
             background: var(--nav-bg);
             color: #f1fff0;
             padding: 1.5rem 1rem;
             overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior-y: contain;
             transition: padding 0.2s ease;
         }
         .admin-sidebar-header { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }

@@ -446,3 +446,15 @@ checks all owner types with temporary tables and synthetic files only, including
 shared-file/Library retention, announcement tab and screenshot task scope, CSRF
 and preservation of parent records. `node scripts/tests/record_image_removal.cjs
 <directory>` checks icon-only controls, confirmation/cancel and isolated forms.
+
+## 25. Independent admin menu scrolling
+
+The desktop admin sidebar sticks to the viewport top, has viewport height
+(`100dvh` with `100vh` fallback) and scrolls vertically independently of the
+editor. Scroll containment prevents reaching the menu's end from scrolling the
+page behind it. Existing collapsed-menu widths and the fixed mobile/iPad drawer
+remain intact. Main page scrolling remains the browser's normal page scroll.
+
+Verification: `node scripts/tests/admin_sidebar_scroll.cjs` exercises the actual
+shared CSS/menu script at 1440, 1024, 768 and 390px: pinned position, independent
+menu scrolling and boundaries, desktop collapse, drawer opening and Escape.
