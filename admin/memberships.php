@@ -57,6 +57,7 @@ foreach ($membershipTypes as $membershipType) {
 }
 natcasesort($statusOptions);
 $tableColumns = [
+    'display_order' => ['label'=>'Order', 'field'=>'display_order', 'sortable'=>true, 'compare'=>'number'],
     'name' => ['label'=>'Name', 'field'=>'name', 'sortable'=>true, 'filter'=>'text', 'form'=>$filterForm],
     'ride_entries' => ['label'=>'Ride benefits', 'sortable'=>true, 'filter'=>'select', 'options'=>['1'=>'Allowed','0'=>'Not allowed'], 'form'=>$filterForm,
         'value'=>static fn(array $row): string => !empty($row['allows_ride_entries']) ? 'Allowed' : 'Not allowed',
@@ -72,7 +73,7 @@ $tableColumns = [
         'sort_value'=>static fn(array $row): float => (float)($row['cost'] ?? 0)],
     'status' => ['label'=>'Status', 'field'=>'status', 'sortable'=>true, 'filter'=>'select', 'options'=>$statusOptions, 'form'=>$filterForm],
 ];
-$table = admin_table_prepare($membershipTypes, $tableColumns, 'name');
+$table = admin_table_prepare($membershipTypes, $tableColumns, 'display_order');
 $membershipTypes = $table['rows'];
 
 $editId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -84,6 +85,7 @@ if ($editingType) {
 }
 $formValues = $editingType ?: [
     'id' => 0,
+    'display_order' => 100,
     'name' => '',
     'description' => '',
     'cost' => '0.00',
@@ -254,6 +256,7 @@ admin_layout_start('Memberships', 'memberships');
                 <tbody>
                     <?php foreach ($membershipTypes as $type): ?>
                         <tr>
+                            <td><?php echo (int)($type['display_order'] ?? 100); ?></td>
                             <td class="fw-semibold"><?php echo h($type['name'] ?? ''); ?></td>
                             <td class="text-muted"><?php echo !empty($type['allows_ride_entries']) ? 'Allowed' : 'Not allowed'; ?></td>
                             <td class="text-muted"><?php echo !empty($type['allows_competitive_rides']) ? 'Allowed' : 'Not allowed'; ?></td>
@@ -270,6 +273,7 @@ admin_layout_start('Memberships', 'memberships');
                                         class="btn btn-sm btn-outline-secondary js-edit"
                                         href="memberships.php?id=<?php echo (int)$type['id']; ?>"
                                         data-id="<?php echo (int)$type['id']; ?>"
+                                        data-display-order="<?php echo (int)($type['display_order'] ?? 100); ?>"
                                         data-name="<?php echo h($type['name'] ?? ''); ?>"
                                         data-description="<?php echo h($type['description'] ?? ''); ?>"
                                         data-allows-competitive-rides="<?php echo !empty($type['allows_competitive_rides']) ? '1' : '0'; ?>"
@@ -293,7 +297,7 @@ admin_layout_start('Memberships', 'memberships');
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$membershipTypes): ?>
-                        <tr><td colspan="7" class="text-muted">No membership types match these filters.</td></tr>
+                        <tr><td colspan="8" class="text-muted">No membership types match these filters.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -322,6 +326,12 @@ admin_layout_start('Memberships', 'memberships');
         <form method="POST" class="mt-2" id="membership-form">
             <input type="hidden" name="action" value="save_membership_type">
             <input type="hidden" name="membership_type_id" value="<?php echo (int)($formValues['id'] ?? 0); ?>" id="field-id">
+            <div class="mb-3">
+                <label class="form-label" for="membership-display-order">Display order</label>
+                <input class="form-control" type="number" name="display_order" id="membership-display-order" min="0" max="999999" step="1" value="<?php echo (int)($formValues['display_order'] ?? 100); ?>" required>
+                <div class="form-text">Lower numbers appear first on membership pages and in membership dropdowns.</div>
+            </div>
+
 
             <div class="fieldset">
                 <div class="legend">Basics</div>
@@ -430,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const fields = {
         id: form.querySelector('#field-id'),
+        display_order: form.querySelector('input[name="display_order"]'),
         name: form.querySelector('input[name="name"]'),
         description: form.querySelector('textarea[name="description"]'),
         cost: form.querySelector('input[name="cost"]'),
@@ -445,6 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const blankData = {
         mode: 'create',
         id: '0',
+        display_order: '100',
         name: '',
         description: '',
         cost: '0.00',
@@ -489,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const applyData = (data) => {
         fields.id.value = data.id || '0';
+        fields.display_order.value = data.display_order ?? '100';
         fields.name.value = data.name || '';
         fields.description.value = data.description || '';
         fields.cost.value = data.cost || '';
@@ -525,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const collectCurrent = (mode) => ({
         mode,
         id: fields.id.value || '0',
+        display_order: fields.display_order.value || '0',
         name: fields.name.value || '',
         description: fields.description.value || '',
         cost: fields.cost.value || '',
@@ -548,6 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             mode: 'edit',
             id: btn.dataset.id || '0',
+            display_order: btn.dataset.displayOrder || '100',
             name: btn.dataset.name || '',
             description: btn.dataset.description || '',
             cost: btn.dataset.cost || '',

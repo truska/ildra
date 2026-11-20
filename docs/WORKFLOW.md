@@ -458,3 +458,23 @@ remain intact. Main page scrolling remains the browser's normal page scroll.
 Verification: `node scripts/tests/admin_sidebar_scroll.cjs` exercises the actual
 shared CSS/menu script at 1440, 1024, 768 and 390px: pinned position, independent
 menu scrolling and boundaries, desktop collapse, drawer opening and Escape.
+
+## 26. Membership display order
+
+Admin → Memberships → Edit has a Display order field. Lower numbers appear
+first; ties use name then ID. The catalogue defaults to this order and shows an
+Order column. Shared membership fetches apply the saved order to
+`/pages/membership`, `/memberships` and membership dropdowns, including onboarding.
+
+The additive `membership_types.display_order` field initializes existing types
+once to Adult Membership (10), Adult 66+ Membership (20), Youth (30),
+Child Member (40), Supporter (50), and other types (100). Later admin edits
+persist. Existing names, prices and eligibility rules are retained; the current
+Youth product is named Youth 18 - 22. New types default to 100.
+
+Verified create/update persistence, invalid order rejection and public ordering
+against a connection-local temporary copy of membership_types.
+
+No manual SQL migration is needed on live: after deploying the code, opening
+Admin → Memberships creates and initializes the column automatically using the
+application database account. Later changes to display order are managed there.

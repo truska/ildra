@@ -2744,7 +2744,7 @@ function fetchMembershipTypes(?PDO $pdo, bool $publishedOnly = false): array
         if ($publishedOnly) {
             $sql .= " WHERE status = 'published'";
         }
-        $sql .= " ORDER BY name ASC";
+        $sql .= " ORDER BY display_order ASC, name ASC, id ASC";
         $stmt = $pdo->query($sql);
         return $stmt->fetchAll();
     } catch (PDOException $e) {
@@ -2798,6 +2798,11 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
     $id = isset($data['membership_type_id']) ? (int)$data['membership_type_id'] : 0;
     $name = trim((string)($data['name'] ?? ''));
     $description = trim((string)($data['description'] ?? ''));
+    $displayOrder = filter_var($data['display_order'] ?? 100, FILTER_VALIDATE_INT, ['options'=>['min_range'=>0,'max_range'=>999999]]);
+    if ($displayOrder === false) {
+        $alerts[] = ['type'=>'danger','message'=>'Display order must be a whole number from 0 to 999999.'];
+        return false;
+    }
     $cost = trim((string)($data['cost'] ?? '0'));
     $type = trim((string)($data['type'] ?? 'senior'));
     $membershipCode = strtoupper(trim((string)($data['membership_code'] ?? '')));
@@ -2831,6 +2836,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
             $stmt = $pdo->prepare("
                 UPDATE membership_types SET
                     name = :name,
+                    display_order = :display_order,
                     description = :description,
                     cost = :cost,
                     type = :type,
@@ -2845,6 +2851,7 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
             ");
             $stmt->execute([
                 ':name' => $name,
+                ':display_order' => $displayOrder,
                 ':description' => $description,
                 ':cost' => $cost,
                 ':type' => $type ?: 'standard', ':membership_code' => $membershipCode,
@@ -2856,11 +2863,12 @@ function saveMembershipType(?PDO $pdo, array $data, array &$alerts): bool
             ]);
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO membership_types (name, description, membership_year, cost, type, membership_code, allows_ride_entries, allows_competitive_rides, has_voting_rights, admin_allocation_only, status, created_at, updated_at)
-                VALUES (:name, :description, 0, :cost, :type, :membership_code, :allows_ride_entries, :allows_competitive_rides, :has_voting_rights, :admin_allocation_only, :status, NOW(), NOW())
+                INSERT INTO membership_types (name, display_order, description, membership_year, cost, type, membership_code, allows_ride_entries, allows_competitive_rides, has_voting_rights, admin_allocation_only, status, created_at, updated_at)
+                VALUES (:name, :display_order, :description, 0, :cost, :type, :membership_code, :allows_ride_entries, :allows_competitive_rides, :has_voting_rights, :admin_allocation_only, :status, NOW(), NOW())
             ");
             $stmt->execute([
                 ':name' => $name,
+                ':display_order' => $displayOrder,
                 ':description' => $description,
                 ':cost' => $cost,
                 ':type' => $type ?: 'standard', ':membership_code' => $membershipCode,
@@ -2899,6 +2907,16 @@ function ensureMembershipTypesTable(PDO $pdo): void
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
     ");
+    if (!table_column_exists($pdo, 'membership_types', 'display_order')) {
+        $pdo->exec("ALTER TABLE membership_types ADD COLUMN display_order INT UNSIGNED NOT NULL DEFAULT 100");
+        $pdo->exec("UPDATE membership_types SET display_order = CASE
+            WHEN name = 'Adult Membership' THEN 10
+            WHEN name = 'Adult 66+ Membership' THEN 20
+            WHEN name LIKE 'Youth %' THEN 30
+            WHEN name = 'Child Member' THEN 40
+            WHEN name = 'Supporter' THEN 50
+            ELSE 100 END");
+    }
     if (!table_index_on_column_exists($pdo, 'membership_types', 'membership_year') && table_index_count($pdo, 'membership_types') < 64) {
         $pdo->exec("ALTER TABLE membership_types ADD INDEX idx_membership_types_year (membership_year)");
     }
