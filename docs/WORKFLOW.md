@@ -345,3 +345,21 @@ potentially already-applied password change/token revocation. The revocation tes
 now rejects transactional schema operations so its temporary fixtures cannot
 mask this production behaviour. Reset exceptions also emit a private class/code
 diagnostic without credentials or tokens.
+
+## 21. Event editor time selectors
+
+All seven Admin → Events → Edit time fields use separate Hour and Minute
+dropdowns, with minutes 00/15/30/45. Tablet layouts use two date/time columns
+per row (one date/time pair), expanding to four only at the XXL/1400px
+breakpoint so iPad landscape retains one pair per row. Controls use 16px text and
+44px minimum touch height. The shared `admin/five_minute_times.js` recognises
+`step=900` for this presentation; Settings retains its existing five-minute
+controls. Named hidden inputs preserve posted values and the date/default/late
+reopening scripts. Existing off-quarter values remain selected as “existing”
+until changed, avoiding silent changes to saved schedules. Blank optional times
+remain blank. Labels target the visible dropdowns.
+
+Verification: `node scripts/tests/event_quarter_hour_times.cjs` checks the seven
+fields, quarter-hour choices, narrow tablet columns, generated reopening/manual
+overrides and form submission values. The existing five-minute control test also
+passes. No event records were changed by these synthetic browser tests.
