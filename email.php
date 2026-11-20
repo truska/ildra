@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/cms.php';
+require_once __DIR__ . '/email_delivery_status.php';
 
 function email_private_config(): array
 {
@@ -120,6 +121,8 @@ function ensureEmailTables(PDO $pdo): void
             INDEX (sent_at)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
     ");
+
+    ensureEmailDeliveryTables($pdo);
 
     // Seed default email settings (kept minimal; admin can override).
     $defaults = defaultEmailSettings();
@@ -456,6 +459,7 @@ function emailSesSettings(array $settings): array
     $settings['email_smtp_password'] = (string)($ses['password'] ?? '');
     $settings['email_from_email'] = trim((string)($ses['from_email'] ?? $settings['email_ses_from_email'] ?? ''));
     $settings['email_from_name'] = trim((string)($ses['from_name'] ?? $settings['email_ses_from_name'] ?? ''));
+    $settings['email_ses_configuration_set'] = trim((string)($ses['configuration_set'] ?? ''));
     return $settings;
 }
 
@@ -882,7 +886,7 @@ function smtp_send_command($fp, string $cmd, array $okCodes, string $context): s
     return $resp;
 }
 
-function smtp_send_mail(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = [], array $attachments = []): void
+function smtp_send_mail(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = [], array $attachments = []): array
 {
     $host = (string)($settings['email_smtp_host'] ?? '');
     $port = (int)($settings['email_smtp_port'] ?? 587);
@@ -897,6 +901,7 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
     }
     stream_set_timeout($fp, 15);
 
+    try {
     $greeting = smtp_read_line($fp);
     smtp_expect_ok($greeting, [220], 'connect');
 
@@ -904,7 +909,6 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
     $ehlo = smtp_send_command($fp, "EHLO {$clientHost}", [250], 'EHLO');
 
     if ($secure === 'tls' && stripos($ehlo, 'STARTTLS') === false) {
-        fclose($fp);
         throw new RuntimeException('SMTP server does not offer required STARTTLS.');
     }
     if ($secure === 'tls') {
@@ -947,10 +951,14 @@ function smtp_send_mail(array $settings, string $fromEmail, string $fromName, st
     $data = preg_replace('/\\r\\n\\./', "\r\n..", $data);
     fwrite($fp, $data . "\r\n.\r\n");
     $resp = smtp_read_line($fp);
+    if($resp==='')throw new EmailSubmissionUnconfirmed('The connection ended before the final SMTP acceptance response. The message may have been accepted; check delivery feedback before resending.');
     smtp_expect_ok($resp, [250], 'DATA end');
 
-    smtp_send_command($fp, "QUIT", [221], 'QUIT');
-    fclose($fp);
+    // DATA was accepted. A later QUIT disconnect must not falsely report a failed send.
+    stream_set_timeout($fp, 2);
+    try { smtp_send_command($fp, "QUIT", [221], 'QUIT'); } catch (Throwable $ignored) {}
+    return emailDeliverySmtpReceipt($resp);
+    } finally { if (is_resource($fp)) fclose($fp); }
 }
 
 function php_mail_send(array $settings, string $fromEmail, string $fromName, string $toEmail, array $ccEmails, array $bccEmails, string $subject, string $htmlBody, string $textBody, string $envelopeFrom, array $extraHeaders = [], array $attachments = []): void
@@ -1099,6 +1107,7 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
         return false;
     }
 
+    $deliveryStarted=hrtime(true);
     try {
         if (!in_array($deliverySystem, ['truska', 'ses'], true)) {
             throw new RuntimeException('Unknown email delivery system.');
@@ -1120,17 +1129,32 @@ function send_logged_email(?PDO $pdo, string $toEmail, string $subject, string $
             'X-CMS-Log-ID' => (string)$logId,
         ];
 
+        if ($deliverySystem === 'ses') {
+            $configurationSet=(string)($settings['email_ses_configuration_set']??'');
+            if($configurationSet!=='' && !preg_match('/^[A-Za-z0-9_-]{1,64}$/D',$configurationSet))throw new RuntimeException('Invalid SES configuration set name.');
+            if($configurationSet!=='')$extraHeaders['X-SES-CONFIGURATION-SET']=$configurationSet;
+            $extraHeaders['X-SES-MESSAGE-TAGS']='cms_log_id='.$logId.', cms_site='.$siteCode.', cms_token='.$bounceToken;
+        }
+        $receipt=[];
         if ($provider === 'smtp') {
-            smtp_send_mail($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders, $attachments);
+            $receipt=smtp_send_mail($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders, $attachments);
         } else {
             php_mail_send($settings, $fromEmail, $fromName, $toEmail, $ccEmails, $bccEmails, $subject, $htmlBody, $textBody, $envelopeFrom, $extraHeaders, $attachments);
         }
 
+        $meta['delivery_duration_ms']=(int)round((hrtime(true)-$deliveryStarted)/1e6);
+        $meta['provider_message_id']=$receipt['message_id']??null;
+        $meta['smtp_response']=$receipt['response']??null;
+        $logRow['meta_json']=json_encode($meta,JSON_UNESCAPED_SLASHES);
+        try { emailDeliveryRecordTransport($pdo,$logId,is_array($receipt)?$receipt:[],$meta['delivery_duration_ms']); }
+        catch(Throwable $trackingError){error_log('Email delivery transport receipt could not be recorded for log #'.$logId);}
         $logRow['status'] = 'sent';
         $logRow['sent_at'] = date('Y-m-d H:i:s');
         updateEmailLog($pdo, $logId, $logRow);
         return true;
     } catch (Throwable $e) {
+        $meta['delivery_duration_ms']=(int)round((hrtime(true)-$deliveryStarted)/1e6);
+        $meta['submission_uncertain']=$e instanceof \EmailSubmissionUnconfirmed;
         $meta['smtp_error'] = email_safe_debug_error($e);
         $logRow['status'] = 'failed';
         $logRow['error_message'] = $e->getMessage();

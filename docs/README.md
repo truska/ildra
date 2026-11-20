@@ -13,6 +13,7 @@ Read this index and [WORKFLOW.md](WORKFLOW.md) at the start of each session, as 
 - Authentication email links: see the [approved origins and launch behaviour](DEPLOYMENT.md#approved-password-reset-and-magic-login-email-origins); the shared allowlist is in `auth.php`.
 - Authentication throttling: see the [deployment instructions](DEPLOYMENT.md#persistent-authentication-and-email-request-throttling-12-november-2026); thresholds are in `auth_throttle.php`.
 - [EMAIL_DELIVERY.md](EMAIL_DELIVERY.md): Truska and Amazon SES settings, routing by email type, private credentials and verification.
+- [Email delivery status](EMAIL_DELIVERY_STATUS.md): accepted/delivered/bounce reporting, signed SES feedback and the separate AWS/SNS setup.
 - [Onboarding wording editor](ONBOARDING_WORDING.md): tabbed admin HTML messages for the account setup screens.
 - [Amazon SES enhancements](amazon-enhancements.md): deferred email improvements and future requests, including direct website links instead of Amazon tracking redirects.
 - [DEPENDENCY_REVIEW.md](DEPENDENCY_REVIEW.md): external services, dependencies and review checklist; read before changing integrations or dependencies.

@@ -122,11 +122,11 @@ days. Saving/importing/configuring never sends mail on its own.
 
 ## Separate email reporting enhancement
 
-Core SES sending is already committed (`a4ff24a`). The separate uncommitted
+Core SES sending is already committed (`a4ff24a`). The separately committed
 `email_delivery_status.php`, `email_ses_feedback.php`, `email_ses_webhook.php`,
 admin panels and associated migration/tests add acceptance/delivery/bounce status
 and signed SNS feedback. They are not required for onboarding invitation delivery
-and are excluded from this production-readiness commit. Review
+and were committed separately from the production-readiness change. Review
 EMAIL_DELIVERY_STATUS.md separately before their AWS/SNS rollout.
 
 ## Verification performed on development

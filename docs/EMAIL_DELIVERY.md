@@ -149,3 +149,14 @@ an empty target means explicitly configured direct delivery with the global
 redirect disabled; a non-empty target requires that exact redirect to remain
 enabled. The shared sender rechecks immediately before transport. The private
 production opt-in and cutover sequence are documented in ONBOARDING_LIVE_ROLLOUT.md.
+
+## Delivery outcome reporting
+
+The separately committed delivery-status enhancement records SMTP acceptance,
+provider IDs and submission duration, and can display signed SES delivery/bounce
+feedback. See [EMAIL_DELIVERY_STATUS.md](EMAIL_DELIVERY_STATUS.md) for the
+additive schema, private configuration and AWS/SNS setup. Code deployment alone
+does not connect Amazon feedback; unconfigured installations continue to show
+acceptance without claiming confirmed delivery. Validation used offline signature
+fixtures, temporary tables, a loopback SMTP fixture and synthetic browser panels.
+No real email was sent by those checks.

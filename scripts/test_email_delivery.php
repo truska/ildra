@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace {
     if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+    require_once dirname(__DIR__).'/helpers.php';
+    require_once dirname(__DIR__).'/admin/campaign_navigation.php';
 }
 namespace DeliveryFixture {
     use PDO;
@@ -26,14 +28,16 @@ namespace DeliveryFixture {
     function ensureEmailTables(PDO $pdo): void {}
     function logEmail(PDO $pdo, array $row): int { State::$log = $row; return 1; }
     function updateEmailLog(PDO $pdo, int $id, array $row): void { State::$log = array_replace(State::$log, $row); }
+    function emailDeliveryRecordTransport(PDO $pdo,int $id,array $receipt,int $duration): void {}
     function emailDebugSnapshot(array $settings, array $meta): array { return []; }
     function defaultSiteSettings(): array { return ['hero_title' => 'Fixture']; }
     function admin_layout_start(...$args): void {}
     function admin_layout_end(): void {}
     function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
-    function smtp_send_mail(...$args): void {
+    function smtp_send_mail(...$args): array {
         State::$sent[] = $args;
         if (State::$fail) throw new RuntimeException('Fixture SMTP failure');
+        return ['message_id'=>'fixture-provider-message-id','response'=>'250 Ok fixture-provider-message-id'];
     }
     function php_mail_send(...$args): void { throw new RuntimeException('Unexpected PHP mail fallback'); }
     function check(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
@@ -83,6 +87,15 @@ namespace DeliveryFixture {
             check(!str_contains(State::$log['meta_json'], 'fixture-ses-secret'), 'Secret leaked');
         }
     }
+    State::$private['ses']['configuration_set']='fixture-status-events';
+    State::$settings=array_replace($base,['email_delivery_default'=>'ses']);
+    check($send(['type'=>'contact']), 'SES status headers send failed');
+    $headers=State::$sent[0][10];
+    check(($headers['X-SES-CONFIGURATION-SET']??'')==='fixture-status-events','Configuration set header missing');
+    check(str_contains($headers['X-SES-MESSAGE-TAGS']??'','cms_log_id=1') && str_contains($headers['X-SES-MESSAGE-TAGS'],'cms_token='),'SES correlation tags missing');
+    $loggedMeta=json_decode(State::$log['meta_json'],true);
+    check(($loggedMeta['provider_message_id']??'')==='fixture-provider-message-id' && isset($loggedMeta['delivery_duration_ms']),'Transport status metadata missing');
+    unset(State::$private['ses']['configuration_set']);
     State::$settings = array_replace($base, ['email_delivery_default' => 'ses', 'email_delivery_routes' => '{"magic_login":"truska"}']);
     check($send(['kind' => 'unknown']), 'Unknown kind should use default');
     check(State::$log['provider'] === 'ses_smtp', 'Default ignored');
@@ -96,6 +109,13 @@ namespace DeliveryFixture {
         check($send(['type' => 'test', 'delivery_system' => $system]), 'Redirect send failed');
         check(State::$sent[0][3] === 'redirect@example.test' && State::$sent[0][4] === [] && State::$sent[0][5] === [], 'Redirect leaked recipients');
     }
+    // A reviewed migration batch must never fall through to original recipients if redirect settings change.
+    check($send(['kind'=>'account_migration','required_test_redirect'=>'redirect@example.test']), 'Pinned redirect send failed');
+    check(State::$sent[0][3]==='redirect@example.test' && State::$sent[0][4]===[] && State::$sent[0][5]===[], 'Pinned redirect leaked To/CC/BCC');
+    check(!$send(['kind'=>'account_migration','required_test_redirect'=>'different@example.test']) && State::$sent===[], 'Changed redirect attempted transport');
+    State::$settings['email_test_redirect_enabled']='0';
+    check(!$send(['kind'=>'account_migration','required_test_redirect'=>'redirect@example.test']) && State::$sent===[], 'Disabled redirect attempted transport');
+    State::$settings['email_test_redirect_enabled']='1';
     State::$fail = true;
     check(!$send(['type' => 'test', 'delivery_system' => 'ses']), 'SMTP failure ignored');
     check(count(State::$sent) === 1 && State::$log['status'] === 'failed', 'Failed SES fell back or was not logged');
@@ -122,7 +142,7 @@ namespace DeliveryFixture {
     $template = file_get_contents(dirname(__DIR__) . '/admin/email.php');
     $start = strpos($template, "    // Keep field validation beside its control");
     $end = strpos($template, "    exit;", $start);
-    $emailSettings = $base; $adminBase = '/admin'; $testResult = null;
+    $emailSettings = $base; $adminBase = '/admin'; $testResult = null; $roleKey='developer'; $_GET=[]; $_POST=[];
     $alerts = [['type' => 'danger', 'fields' => ['email_reply_to'], 'message' => 'Reply-to must be a valid email address.']];
     $emailSettings['email_reply_to'] = 'invalid-address';
     ob_start();

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/campaign_navigation.php';
+require_once __DIR__ . '/../views/email_delivery_panel.php';
 require_once __DIR__ . '/table_sort.php';
 
 // Email admin is admin+ only (nav hides it, but enforce here too).
@@ -420,11 +421,11 @@ if ($view === 'settings') {
 
                 <?php if ($testResult): ?>
                     <?php
-                    $badgeClass = $testResult['status'] === 'sent' ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger';
+                    $badgeClass = $testResult['status'] === 'sent' ? 'bg-secondary-subtle text-secondary' : 'bg-danger-subtle text-danger';
                     ?>
                     <div class="mt-3">
                         <div class="d-flex align-items-center gap-2 mb-2">
-                            <span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($testResult['status']); ?></span>
+                            <span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($testResult['status']==='sent'?'Accepted by sending system':ucfirst($testResult['status'])); ?></span>
                             <div class="fw-semibold">Test result</div>
                             <?php if (!empty($testResult['log_id'])): ?>
                                 <a class="small text-decoration-none" href="<?php echo h($adminBase); ?>/email_view.php?id=<?php echo (int)$testResult['log_id']; ?>&amp;return=email.php%3Fview%3Dsettings">View log</a>
@@ -479,6 +480,7 @@ $filters = [
     'subject' => trim((string)($_GET['filter_subject'] ?? '')),
     'status' => trim((string)($_GET['filter_status'] ?? '')),
     'sent' => trim((string)($_GET['filter_sent'] ?? '')),
+    'delivery' => trim((string)($_GET['filter_delivery'] ?? '')),
 ];
 $hasFilters = implode('', $filters) !== '';
 
@@ -507,6 +509,11 @@ if ($filters['sent'] !== '') {
     $where[] = "COALESCE(DATE_FORMAT(el.sent_at, '%Y-%m-%d %H:%i:%s'), DATE_FORMAT(el.created_at, '%Y-%m-%d %H:%i:%s')) LIKE :filter_sent";
     $params[':filter_sent'] = '%' . $filters['sent'] . '%';
 }
+$deliveryEventTypes=['delivered','delayed','bounced','invalid','complaint','rejected','rendering_failed'];
+if(in_array($filters['delivery'],$deliveryEventTypes,true)){
+    $where[]='EXISTS (SELECT 1 FROM email_delivery_events de WHERE de.email_log_id=el.id AND de.event_type=:filter_delivery)';
+    $params[':filter_delivery']=$filters['delivery'];
+}
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
 $totalAll = (int)$pdo->query("SELECT COUNT(*) FROM email_log")->fetchColumn();
@@ -521,7 +528,7 @@ $page = min($page, $pages);
 $offset = ($page - 1) * $pageSize;
 
 $stmt = $pdo->prepare("
-    SELECT el.id, el.status, el.provider, el.to_email, el.subject, el.body_text, el.body_html, el.error_message, el.sent_at, el.created_at
+    SELECT el.id, el.status, el.provider, el.to_email, el.subject, el.body_text, el.body_html, el.error_message, el.sent_at, el.created_at, el.cc, el.bcc, el.meta_json
     FROM email_log el
     {$whereSql}
     ORDER BY {$sortSql} {$sortDir}
@@ -534,6 +541,7 @@ $stmt->bindValue(':limit', $pageSize, PDO::PARAM_INT);
 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $rows = $stmt->fetchAll() ?: [];
+$deliveryData=emailDeliveryData($pdo,array_column($rows,'id'));
 
 ?>
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
@@ -546,6 +554,10 @@ $rows = $stmt->fetchAll() ?: [];
     </div>
 </div>
 
+<?php $feedbackTopics=email_environment_config()['ses_feedback']['topic_arns']??[]; if(!$feedbackTopics): ?>
+<div class="alert alert-info">Amazon delivery feedback is not configured yet. Send acceptance and errors are recorded; delivered, bounce and complaint updates require the SES/SNS connection.</div>
+<?php endif; ?>
+<p class="small text-muted">“Accepted” confirms submission to the sending system. Delivery feedback appears separately when received from Amazon SES. Use View for recipient details and the event history.</p>
 <div class="card-soft p-4">
     <div class="table-responsive">
         <form method="get" class="m-0">
@@ -587,12 +599,16 @@ $rows = $stmt->fetchAll() ?: [];
                     <th></th>
                     <th>
                         <div class="admin-table-filter">
-                            <select class="form-select" name="filter_status">
+                            <select class="form-select" name="filter_status" aria-label="Submission status">
                                 <option value="">All</option>
                                 <?php foreach ($statusOptions as $statusOption): ?>
                                     <?php $statusOption = (string)$statusOption; ?>
-                                    <option value="<?php echo h($statusOption); ?>" <?php echo $filters['status'] === $statusOption ? 'selected' : ''; ?>><?php echo h($statusOption); ?></option>
+                                    <option value="<?php echo h($statusOption); ?>" <?php echo $filters['status'] === $statusOption ? 'selected' : ''; ?>><?php echo h($statusOption==='sent'?'Accepted by sending system':ucfirst($statusOption)); ?></option>
                                 <?php endforeach; ?>
+                            </select>
+                            <select class="form-select mt-1" name="filter_delivery" aria-label="Delivery event">
+                                <option value="">Any delivery event</option>
+                                <?php foreach($deliveryEventTypes as $eventType): ?><option value="<?= h($eventType) ?>" <?= $filters['delivery']===$eventType?'selected':'' ?>><?= h(emailDeliveryEventLabel($eventType)) ?></option><?php endforeach; ?>
                             </select>
                         </div>
                     </th>
@@ -628,14 +644,6 @@ $rows = $stmt->fetchAll() ?: [];
                     }
                     $snippetSource = preg_replace('/\\s+/', ' ', trim($snippetSource)) ?: '';
                     $snippet = function_exists('mb_substr') ? mb_substr($snippetSource, 0, 120) : substr($snippetSource, 0, 120);
-                    $badgeClass = 'bg-secondary-subtle text-secondary';
-                    if ($status === 'sent') {
-                        $badgeClass = 'bg-success-subtle text-success';
-                    } elseif ($status === 'bounced') {
-                        $badgeClass = 'bg-warning-subtle text-warning';
-                    } elseif ($status === 'failed') {
-                        $badgeClass = 'bg-danger-subtle text-danger';
-                    }
                     ?>
                     <tr>
                         <td class="text-muted fw-semibold">#<?php echo (int)$id; ?></td>
@@ -649,7 +657,7 @@ $rows = $stmt->fetchAll() ?: [];
                             <?php endif; ?>
                         </td>
                         <td><?php echo h(($r['provider'] ?? '') === 'ses_smtp' ? 'Amazon SES' : (($r['provider'] ?? '') === 'smtp' ? 'Truska / SMTP' : (string)($r['provider'] ?? ''))); ?></td>
-                        <td><span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($status); ?></span></td>
+                        <td><?php emailDeliveryRenderSummary($r,$deliveryData[$id]??[]); ?></td>
                         <td class="text-muted"><?php echo h(admin_display_datetime($sent, '')); ?></td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-secondary" href="<?php echo h($adminBase); ?>/email_view.php?id=<?php echo (int)$id; ?>&amp;return=<?= rawurlencode(campaign_navigation_return('email.php?'.http_build_query($_GET))??'email.php') ?>">View</a>

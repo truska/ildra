@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/campaign_navigation.php';
+require_once __DIR__ . '/../views/email_delivery_panel.php';
 
 // Email admin is admin+ only (nav hides it, but enforce here too).
 $roleKey = strtolower((string)($currentUser['role'] ?? ''));
@@ -29,20 +30,12 @@ if (!$email) {
     exit;
 }
 
+$deliveryData=emailDeliveryData($pdo,[$id])[$id]??[];
 admin_layout_start('Email', 'email');
 $emailBackUrl=campaign_navigation_request_return()??'email.php';
 render_campaign_navigation('history',$roleKey,[$emailBackUrl,campaign_navigation_back_label($emailBackUrl)]);
 
 $status = (string)($email['status'] ?? '');
-$badgeClass = 'bg-secondary-subtle text-secondary';
-if ($status === 'sent') {
-    $badgeClass = 'bg-success-subtle text-success';
-} elseif ($status === 'bounced') {
-    $badgeClass = 'bg-warning-subtle text-warning';
-} elseif ($status === 'failed') {
-    $badgeClass = 'bg-danger-subtle text-danger';
-}
-
 $sentAt = $email['sent_at'] ?? null;
 $createdAt = $email['created_at'] ?? null;
 $toEmail = (string)($email['to_email'] ?? '');
@@ -64,7 +57,7 @@ if ($metaJson !== '') {
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="d-flex align-items-center gap-2">
-        <span class="badge rounded-pill <?php echo h($badgeClass); ?>"><?php echo h($status); ?></span>
+        <?php emailDeliveryRenderSummary($email,$deliveryData); ?>
         <div class="text-muted">Email #<?php echo (int)$id; ?></div>
     </div>
 
@@ -112,6 +105,8 @@ if ($metaJson !== '') {
         <?php endif; ?>
     </div>
 </div>
+
+<?php emailDeliveryRenderPanel($email,$deliveryData); ?>
 
 <div class="card-soft p-4 mb-4">
     <div class="fw-bold mb-2">HTML preview</div>

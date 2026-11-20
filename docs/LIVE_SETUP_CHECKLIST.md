@@ -79,8 +79,10 @@ These values are database content; Git does not transfer development edits.
 - [ ] Verify live Stripe configuration, webhook signing secret/endpoints and
   payment mode using the existing deployment/payment procedure. The receipt
   layout change itself needs no Stripe setting or database migration.
-- [ ] Do not assume the uncommitted SES delivery-report/webhook enhancements are
-  included in this release. Their rollout is a separate task.
+- [ ] The separately committed SES delivery-report/webhook enhancement needs its
+  additive tables and private AWS/SNS configuration. Follow
+  [EMAIL_DELIVERY_STATUS.md](EMAIL_DELIVERY_STATUS.md); verify the destination
+  subscription/event destination before expecting delivery/bounce updates.
 
 ## Filesystem and automatic setup
 
