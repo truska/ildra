@@ -11,7 +11,7 @@ Cadence: review this inventory once per quarter and before any production releas
 | Bootstrap 5.3.2 | Public and admin UI CSS/JavaScript | `cdn.jsdelivr.net` | Pin version, review release/security notices, confirm CSP source remains required. |
 | Font Awesome | Site and admin icons | `cdnjs.cloudflare.com`, `kit.fontawesome.com` | Review version/kit ownership and CSP sources. |
 | Google Fonts (Manrope) | Web font delivery | `fonts.googleapis.com`, `fonts.gstatic.com` | Confirm font is still required and only the listed origins are allowed. |
-| TinyMCE 6 | Rich-text administration | `cdn.tiny.cloud` | Review API key ownership, editor version, and server-side sanitiser coverage. |
+| TinyMCE 6.8.6 (MIT) | Shared rich-text editor | Local `assets/tinymce/6.8.6/` | Cloud loader/API key removed on 24 November 2026. Version 6 is out of security support; plan a supported editor upgrade with licence review. Retain server-side sanitiser coverage. |
 | Truska SMTP / bounce IMAP | Existing website email delivery and bounce collection | `../private/email.php` | Review TLS, private credentials, sender identity and bounce processing. |
 | Amazon SES SMTP | Optional website email delivery selected by message type | Regional SES SMTP endpoint; credentials in `../private/email.php` | Review regional identity/DKIM, SES SMTP credentials, sandbox/production status, pricing plan and bounce/complaint feedback. |
 | Stripe API / Checkout / webhook | Payments, payouts and payment requests | `api.stripe.com`; credentials in `../private` | Review API version, webhook signature handling, test/live keys, payout permissions and Stripe notices. |
@@ -26,3 +26,18 @@ Cadence: review this inventory once per quarter and before any production releas
 3. Confirm credentials remain outside the web root and rotate any vendor secret when access changes.
 4. Run the relevant smoke tests, payment test-mode checks, and browser tests after upgrades.
 5. Record the reviewer, date, upgrades, exceptions, and next review date.
+
+## Self-hosted TinyMCE — 24 November 2026
+
+All existing editors use the shared loader in `helpers.php`, now pointing to
+`/assets/tinymce/6.8.6/tinymce.min.js`. Core, plugins, icons, theme, skins and
+content CSS are committed together; no npm install or Tiny Cloud account is
+required on the destination server. Deploy the entire asset directory with the
+PHP change. The previous cloud API key and CSP cloud origin were removed.
+
+Source: https://registry.npmjs.org/tinymce/-/tinymce-6.8.6.tgz
+The archive was checked against the npm registry SHA-512 integrity value before
+extracting runtime minified assets, fonts, package metadata and the MIT licence.
+Version 6 is retained for compatibility and its existing MIT licence; it is no
+longer security-supported. Current TinyMCE versions require GPL compliance or a
+commercial self-hosting licence, which needs review before upgrading.

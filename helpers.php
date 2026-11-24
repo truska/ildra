@@ -177,14 +177,11 @@ function render_wysiwyg(string $value): string
     return $html;
 }
 
-function tinymce_api_key(): string
-{
-    return '7dorpwqq3ijql244rl0nfkayvqy5uxys69khek91x2lqqazw';
-}
-
 function tinymce_base_config(): array
 {
     return [
+        'base_url' => '/assets/tinymce/6.8.6',
+        'suffix' => '.min',
         'menubar' => 'file edit view format',
         'branding' => false,
         'plugins' => 'advlist autolink lists link image charmap anchor searchreplace visualblocks code fullscreen insertdatetime media table preview help wordcount',
@@ -207,7 +204,7 @@ function render_tinymce_bootstrap(): void
 
     $baseConfigJson = json_encode(tinymce_base_config(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     ?>
-    <script src="https://cdn.tiny.cloud/1/<?php echo h(tinymce_api_key()); ?>/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="/assets/tinymce/6.8.6/tinymce.min.js" referrerpolicy="origin"></script>
     <script>
         window.ildraTinyMceBaseConfig = <?php echo $baseConfigJson ?: '{}'; ?>;
         window.ildraTinyMceConfig = function(overrides) {
