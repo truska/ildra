@@ -869,6 +869,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                         ?>
                                         <li><strong class="text-dark">Dates:</strong> <?php echo h($eventDateText); ?><?php echo $endDateText !== '' ? ' to ' . h($endDateText) : ''; ?></li>
                                         <li><strong class="text-dark">Venue:</strong> <?php echo h($event['venue'] ?: 'Venue TBC'); ?></li>
+                                        <?php if ($isRideEvent && !empty($startTime) && !empty($endTime)): ?>
+                                            <li>Ride Out between <?php echo h(substr((string)$startTime, 0, 5)); ?> and <?php echo h(substr((string)$endTime, 0, 5)); ?></li>
+                                        <?php endif; ?>
                                         <?php if ($eventContactEmail !== ''): ?>
                                             <li><strong class="text-dark">Contact:</strong> <a href="mailto:<?php echo h($eventContactEmail); ?>"><?php echo h($eventContactEmail); ?></a></li>
                                         <?php endif; ?>
