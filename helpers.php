@@ -10,6 +10,20 @@ function birth_date_is_valid(string $value): bool
         && $date <= new DateTimeImmutable('today', $zone);
 }
 
+/** Optional rider DOB: age is measured today in the UK, not at the season cutoff. */
+function rider_birth_date_error(string $value, ?DateTimeImmutable $today = null): ?string
+{
+    if ($value === '') return null;
+    $zone = new DateTimeZone('Europe/London');
+    $today = ($today ?? new DateTimeImmutable('today', $zone))->setTimezone($zone)->setTime(0, 0);
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value, $zone);
+    if (!$date || $date->format('Y-m-d') !== $value || $date > $today) {
+        return 'Date of birth must be a valid date and cannot be in the future.';
+    }
+    if ($date->diff($today)->y < 5) return 'All Riders need to be 5 years old or over.';
+    return null;
+}
+
 function birth_year_is_valid(string $value): bool
 {
     return preg_match('/^[1-9][0-9]{3}$/', $value) === 1

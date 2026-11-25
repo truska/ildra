@@ -503,3 +503,17 @@ Verification: `node scripts/tests/event_quarter_hour_times.cjs` now also exercis
 the actual editor reset script with saved overrides, all posted schedule values,
 selector synchronisation and a UK daylight-saving reopening. Existing PHP
 late-entry reopening checks pass. No real event records were changed.
+
+## 28. Minimum rider age on person saves
+
+A supplied person date of birth must make the rider at least five today in
+Europe/London. Younger dates block saving with “All Riders need to be 5 years
+old or over.” Blank DOB remains allowed except where existing Junior rules
+require it. This applies to account person create/edit, administrator person
+edits and new people added through membership purchase. Horse DOB rules and
+season-based Junior/Senior classification are unchanged.
+
+Account and admin person forms show DOB warnings immediately above the field,
+with an accessible red border; failed account saves retain entered values.
+Verification: `php scripts/tests/rider_minimum_age.php` checks birthday/leap-day
+boundaries and actual create/edit rejection using temporary database tables only.

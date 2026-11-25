@@ -1380,7 +1380,6 @@ if (window.tinymce) {
 </script>
 <?php if($pricingLocked): ?><script>
 (() => {
-    const fee=document.querySelector('input[name="late_entry_fee"]');if(fee)fee.readOnly=true;
     const type=document.querySelector('select[name="event_type_id"]');
     if(type){const hidden=document.createElement('input');hidden.type='hidden';hidden.name=type.name;hidden.value=type.value;type.after(hidden);type.disabled=true;}
 })();

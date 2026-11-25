@@ -331,6 +331,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } elseif ($action === 'save_person') {
             $personId = (int)($_POST['person_id'] ?? 0);
             $savedId = savePersonForUser($pdo, $userId, $_POST, $alerts, $personId > 0 ? $personId : null);
+            if ($promptPerson && $personId === (int)$promptPerson['id']) $promptPerson = array_merge($promptPerson, $_POST);
+            foreach ($alerts as $personAlert) {
+                if (($personAlert['field'] ?? '') === 'dob') $personDobError = (string)$personAlert['message'];
+            }
             $hasSaveError = (bool)array_filter($alerts, static fn(array $alert): bool => ($alert['type'] ?? '') === 'danger' && empty($alert['non_blocking']));
             if ($savedId && !$hasSaveError) {
                 $_SESSION['flash_success'] = $personId > 0 ? 'Person updated.' : 'Person added.';
@@ -1214,6 +1218,10 @@ $accountIntroAutoOpen = false;
                                 if ($editPerson && !empty($editPerson['is_linked'])) {
                                     $editPerson = null;
                                 }
+                                if (($action ?? '') === 'save_person' && !empty($alerts)) {
+                                    $editPerson = array_merge($editPerson ?: [], $_POST);
+                                    $editPerson['id'] = (int)($_POST['person_id'] ?? 0);
+                                }
                                 $accountIntroAutoOpen = !$activePeople && !$editPerson && !(($action ?? '') === 'save_person' && !empty($alerts));
                                 $riderQualifications = fetchHorseQualifications($pdo);
                                 ?>
@@ -1363,7 +1371,7 @@ $accountIntroAutoOpen = false;
 	                                        <div class="modal-content">
 	                                            <div class="modal-header">
 	                                                <div>
-	                                                    <h4 class="modal-title fw-bold mb-1" id="personEditorModalLabel"><?php echo $editPerson ? 'Edit person' : 'Add person'; ?></h4>
+	                                                    <h4 class="modal-title fw-bold mb-1" id="personEditorModalLabel"><?php echo !empty($editPerson['id']) ? 'Edit person' : 'Add person'; ?></h4>
 	                                                    <div class="text-muted small">People can be selected on event entry forms to prefill details.</div>
 	                                                </div>
 	                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1428,12 +1436,13 @@ $accountIntroAutoOpen = false;
                                         </div>
                                         <div class="col-12 col-md-6">
                                             <label class="form-label fw-bold">Date of birth (required for juniors)</label>
-                                            <input type="date" class="form-control" name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($editPerson['dob'] ?? ''); ?>">
+                                            <?php if (!empty($personDobError)): ?><div class="text-danger small mb-1" id="personDobError"><?php echo h($personDobError); ?></div><?php endif; ?>
+                                            <input type="date" class="form-control<?php echo !empty($personDobError) ? ' is-invalid' : ''; ?>" <?php if (!empty($personDobError)): ?>aria-invalid="true" aria-describedby="personDobError"<?php endif; ?> name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($editPerson['dob'] ?? ''); ?>">
                                         </div>
                                         <div class="col-12 d-flex flex-wrap gap-2">
-                                            <button class="btn btn-success fw-bold" type="submit"><?php echo $editPerson ? 'Save changes' : 'Add person'; ?></button>
+                                            <button class="btn btn-success fw-bold" type="submit"><?php echo !empty($editPerson['id']) ? 'Save changes' : 'Add person'; ?></button>
 	                                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <?php if ($editPerson): ?>
+                                            <?php if (!empty($editPerson['id'])): ?>
                                                 <a class="btn btn-outline-success ms-md-auto" href="<?php echo h($basePath); ?>/account?view=recognition&amp;person_id=<?php echo (int)$editPerson['id']; ?>">Apply as a Non-ILDRA Member</a>
                                             <?php endif; ?>
 	                                        </div>
@@ -2223,7 +2232,8 @@ $accountIntroAutoOpen = false;
                             </div>
                             <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold">Date of birth (required for juniors)</label>
-                                <input type="date" class="form-control" name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($promptPerson['dob'] ?? ''); ?>">
+                                <?php if (!empty($personDobError)): ?><div class="text-danger small mb-1" id="promptPersonDobError"><?php echo h($personDobError); ?></div><?php endif; ?>
+                                            <input type="date" class="form-control<?php echo !empty($personDobError) ? ' is-invalid' : ''; ?>" <?php if (!empty($personDobError)): ?>aria-invalid="true" aria-describedby="promptPersonDobError"<?php endif; ?> name="dob" max="<?php echo date('Y-m-d'); ?>" value="<?php echo h($promptPerson['dob'] ?? ''); ?>">
                             </div>
                             <div class="col-12 d-flex gap-2">
                                 <button class="btn btn-success fw-bold" type="submit">Save Details</button>

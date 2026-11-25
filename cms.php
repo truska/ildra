@@ -3800,8 +3800,8 @@ function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$ale
     $dobDate = null;
     if ($dob !== '') {
         $dt = DateTimeImmutable::createFromFormat('!Y-m-d', $dob);
-        if (!$dt || !birth_date_is_valid($dob)) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Date of birth must be a valid date and cannot be in the future.'];
+        if ($dobError = rider_birth_date_error($dob)) {
+            $alerts[] = ['type' => 'danger', 'field' => 'dob', 'message' => $dobError];
             return null;
         }
         $dobValue = $dt->format('Y-m-d');
@@ -4653,8 +4653,8 @@ function createMemberForUser(?PDO $pdo, int $ownerUserId, string $firstName, str
         return null;
     }
     $dt = DateTimeImmutable::createFromFormat('!Y-m-d', $dob);
-    if (!$dt || !birth_date_is_valid($dob)) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Date of birth must be a valid date and cannot be in the future.'];
+    if ($dobError = rider_birth_date_error($dob)) {
+        $alerts[] = ['type' => 'danger', 'field' => 'dob', 'message' => $dobError];
         return null;
     }
 
@@ -6182,7 +6182,6 @@ function saveEvent(?PDO $pdo, array $data, array &$alerts)
     }
 
     if ($lockedEvent) {
-        $lateEntryFee = (float)($lockedEvent['late_entry_fee']??0);
         $classesOffered = $lockedEvent['classes_offered'];
     }
     $capacityEnabled = !empty($data['capacity_enabled']) ? 1 : 0;

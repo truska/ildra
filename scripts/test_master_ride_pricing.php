@@ -211,3 +211,23 @@ $copy=$pdo->query('SELECT * FROM events WHERE id='.(int)$copyId)->fetch();
 rideCheck(strtotime($copy['late_entry_open_at'])-strtotime($copy['entry_close_at'])===12*3600,'Copied event did not generate reopening from current twelve-hour default');
 rideCheck($copy['status']==='draft','Copied event not a draft');
 echo "Copied event reopening default passed. Temporary tables only.\n";
+
+// Late-entry fees remain editable while class prices and availability stay protected.
+$pdo->exec("DELETE FROM booking_items WHERE event_id=900");
+$pdo->exec("UPDATE events SET status='published',entry_open_at=NOW()-INTERVAL 1 DAY,non_member_entry_open_at=NOW()-INTERVAL 1 DAY,entry_close_at=NOW()+INTERVAL 1 DAY,late_entries_enabled=0 WHERE id=900");
+$feeData=['event_id'=>900,'title'=>'Late fee fixture','event_date'=>date('Y-m-d',strtotime('+30 days')),'event_type_id'=>7,'status'=>'published','entry_open_date'=>date('Y-m-d',strtotime('-1 day')),'entry_open_time'=>'00:00','non_member_entry_open_date'=>date('Y-m-d',strtotime('-1 day')),'non_member_entry_open_time'=>'00:00','entry_close_date'=>date('Y-m-d',strtotime('+1 day')),'entry_close_time'=>'18:00','late_entry_fee'=>'8.50'];
+$lockedRows=fetchEventPricingRows($pdo,900);
+rideCheck(eventPricingLocked($pdo,900),'Fee fixture must be locked while entries are open');
+$feeAlerts=[];
+rideCheck(saveEvent($pdo,$feeData,$feeAlerts)!==false,'Open-event late fee edit rejected: '.json_encode($feeAlerts));
+rideCheck((float)$pdo->query('SELECT late_entry_fee FROM events WHERE id=900')->fetchColumn()===8.5,'Open-event late fee change discarded');
+rideCheck(fetchEventPricingRows($pdo,900)===$lockedRows,'Late fee edit changed class prices');
+$pdo->exec("INSERT INTO booking_items(id,event_id,status) VALUES(2,900,'withdrawn')");
+$feeData['status']='draft';$feeData['late_entry_fee']='0.00';$feeAlerts=[];
+rideCheck(eventPricingLocked($pdo,900),'Recorded-entry fee fixture must be locked');
+rideCheck(saveEvent($pdo,$feeData,$feeAlerts)!==false,'Recorded-entry late fee edit rejected');
+rideCheck((float)$pdo->query('SELECT late_entry_fee FROM events WHERE id=900')->fetchColumn()===0.0,'Removing late fee discarded');
+rideCheck(fetchEventPricingRows($pdo,900)===$lockedRows,'Recorded-entry fee edit changed class prices');
+$forged=$lockedRows;$forged[0]['price']='0.01';
+rideCheck(!replaceEventPricingRows($pdo,900,$forged),'Late fee exception unlocked class pricing');
+echo "Late-entry fee editable for open/recorded-entry events; zero fee and class-price protection passed. Temporary tables only.\n";
