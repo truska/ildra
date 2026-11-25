@@ -940,7 +940,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     <div class="alert alert-danger mt-2 py-2 mb-0">Event full. No further entries can be accepted.</div>
                                     <br/>
                                 <?php elseif ($canViewAdmin && !$entriesOpenNow && !$lateEntriesOpenNow): ?>
-                                    <div class="alert alert-warning mt-2 py-2 mb-0">Admin preview: <?php echo nl2br(h(str_replace(". Non-member", ".\nNon-member", $entryStateMessage))); ?> (visitors cannot enter)</div>
+                                    <div class="alert alert-warning mt-2 py-2 mb-0">Admin preview:<br><?php echo nl2br(h(str_replace(". Non-member", ".\nNon-member", $entryStateMessage))); ?><?php if ($entryCloseDt): ?><br>Entries close on <?php echo h($entryCloseDt->format('jS M Y \a\t H:i')); ?><?php endif; ?></div>
                                     <br/>
                                 <?php elseif ($canViewAdmin): ?>
                                     <div class="alert alert-info mt-2 py-2 mb-0">Admin note: <?php echo nl2br(h(str_replace(". Non-member", ".\nNon-member", $entryStateMessage))); ?></div>
