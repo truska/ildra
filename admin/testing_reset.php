@@ -2,9 +2,12 @@
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../testing_reset.php';
-require_once __DIR__ . '/../import_workspace.php';
-if(!$pdo || !importWorkspaceEnvironmentAllowed(importWorkspaceConfig(),(string)realpath(dirname(__DIR__)),(string)$pdo->query('SELECT DATABASE()')->fetchColumn(),strtolower((string)($_SERVER['HTTP_HOST']??'')))) { http_response_code(404);exit; }
+require_once __DIR__ . '/../testing_reset_access.php';
+$resetHost = (string)($_SERVER['HTTP_HOST'] ?? '');
+if (!testingResetEnvironmentEnabled($pdo, $resetHost)) { http_response_code(404); exit; }
+header('Cache-Control: no-store, private');
 if (!roleIsSuperadminOrDeveloper($currentRole)) { http_response_code(403); exit('Superadmin access required.'); }
+$resetEnvironment = testingResetEnvironmentFingerprint($pdo, $resetHost);
 $preview = null;
 $choices = (array)($_POST['people'] ?? []);
 $keepCalendar = !empty($_POST['keep_calendar']);
@@ -13,16 +16,17 @@ if ($pdo && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (($_POST['action'] ?? '') === 'reset') {
             $saved = $_SESSION['testing_reset_preview'] ?? null;
             unset($_SESSION['testing_reset_preview']);
-            if (!$saved || time() - $saved['time'] > 900 || !hash_equals($saved['token'], (string)($_POST['preview_token'] ?? ''))) throw new RuntimeException('Preview expired. Create a new preview.');
+            if (!$saved || ($saved['environment'] ?? '') !== $resetEnvironment || (int)($saved['actor_id'] ?? 0) !== (int)$currentUser['id'] || time() - $saved['time'] > 900 || !hash_equals($saved['token'], (string)($_POST['preview_token'] ?? ''))) throw new RuntimeException('Preview expired. Create a new preview.');
             if (($_POST['confirmation'] ?? '') !== 'RESET TEST DATA' || empty($_POST['quiet'])) throw new RuntimeException('Confirm the reset phrase and that testing/payment processing has stopped.');
             $plan = testingResetPlan($pdo, $saved['calendar'], $saved['choices']);
             if ($plan !== $saved['plan'] || testingResetCounts($pdo, $plan) !== $saved['counts']) throw new RuntimeException('Data changed since preview. Review a new preview.');
+            if (!testingResetEnvironmentEnabled($pdo, $resetHost)) throw new RuntimeException('Test data reset is no longer enabled in this environment.');
             $backup = testingResetRun($pdo, $plan, (int)$currentUser['id'], $saved['choices'], $saved['counts']);
             unset($_SESSION['basket'], $_SESSION['basket_last_added']);
             $successMessage = 'Test data reset completed. Private backup: ' . $backup;
         } else {
             $plan = testingResetPlan($pdo, $keepCalendar, $choices);
-            $preview = ['plan'=>$plan, 'counts'=>testingResetCounts($pdo, $plan), 'choices'=>$choices, 'calendar'=>$keepCalendar, 'time'=>time(), 'token'=>bin2hex(random_bytes(24))];
+            $preview = ['plan'=>$plan, 'counts'=>testingResetCounts($pdo, $plan), 'choices'=>$choices, 'calendar'=>$keepCalendar, 'actor_id'=>(int)$currentUser['id'], 'environment'=>$resetEnvironment, 'time'=>time(), 'token'=>bin2hex(random_bytes(24))];
             $_SESSION['testing_reset_preview'] = $preview;
         }
     } catch (Throwable $e) { $alerts[] = ['type'=>'danger', 'message'=>$e->getMessage()]; }

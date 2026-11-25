@@ -71,7 +71,9 @@ stable matching. File receipt/mapping checks protect horse reruns; existing
 accounts are preserved rather than overwritten. Imported accounts are not emailed
 or forced into onboarding merely by importing them. Set `allow_imports` back to
 **false** after the final validated import. Do not use development reset tools on
-production data; the HTTP reset tools are blocked outside development.
+production data. Development import/onboarding reset tools stay blocked outside
+development. The agreed pre-launch Test Data Reset has its own narrowly pinned
+[private opt-in and mandatory retirement](PRELAUNCH_TESTING_RESET.md).
 
 ## 3. Review destination settings and content
 

@@ -399,12 +399,27 @@ Follow [ONBOARDING_LIVE_ROLLOUT.md](ONBOARDING_LIVE_ROLLOUT.md) and
 [LIVE_SETUP_CHECKLIST.md](LIVE_SETUP_CHECKLIST.md). Production migration admin
 and invitations use a separate private destination opt-in and active
 Developer/Superadmin access. CLI imports have an independent opt-in and do not
-enroll or email users. The legacy test-reset endpoint now rejects all requests
-outside the explicitly opted-in development workspace; supporting reset source
-is retained because the development tools share it. Never copy that development
-workspace opt-in into live.
+enroll or email users. The development reset/import tools retain their development-only guard. The
+legacy Test Data Reset endpoint separately supports the agreed pre-launch
+cleanup on `ildra.witecanvas.com` via the private opt-in described in
+[PRELAUNCH_TESTING_RESET.md](PRELAUNCH_TESTING_RESET.md). Never copy the
+development workspace opt-in into live. Retire the separate pre-launch facility
+before accepting real memberships or payments.
 
 The destination schema preparer is CLI-only and defaults to check-only. Back up
 the destination before --apply. It prepares additive dependencies and initial
 draft rows without importing/enrolling users or sending email. Exact root,
 database and approved origin must match the destination private configuration.
+
+
+## Pre-launch Test Data Reset opt-in (25 November 2026)
+
+Deploy the committed development source normally with `git pull --ff-only`
+after the destination backup. No database migration is required. The separate
+private `prelaunch-testing-reset.php` opt-in is disabled by default, pins the
+exact physical root/database/`ildra.witecanvas.com` host and only permits
+Superadmin/Developer. The development import-workspace guard is unchanged.
+Follow [the exact configuration/deployment instructions](PRELAUNCH_TESTING_RESET.md)
+to generate literal destination pins, check PHP backup-directory access, verify
+preview only and permanently retire with the private disable marker before real
+memberships/payments. Do not perform a real reset to test deployment.

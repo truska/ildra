@@ -241,3 +241,11 @@ workspace. The reviewed CLI user/horse scripts now also support the independent
 bound to its installed root/database and an active Developer/Superadmin operator.
 See ONBOARDING_LIVE_ROLLOUT.md for preview/apply sequencing. Destructive workspace
 resets and per-user testing restarts remain restricted to development.
+
+
+The legacy Tech → Test Data Reset facility now has a **separate** optional
+pre-launch destination guard for `ildra.witecanvas.com`; see
+[PRELAUNCH_TESTING_RESET.md](PRELAUNCH_TESTING_RESET.md). It does not change
+`importWorkspaceEnvironmentAllowed()` or enable any Import workspace/Onboarding
+reset/restart tools on that destination. The new opt-in defaults to disabled
+and must be permanently retired before real memberships/payments.

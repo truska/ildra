@@ -24,6 +24,10 @@ membership display and related event/image/admin work.
 - [ ] Keep Import workspace, destructive onboarding resets and the per-user
   testing reset restricted to development. Do not copy
   `../private/import-workspace.php` or enable its development reset opt-in on live.
+- [ ] If the agreed pre-launch Test Data Reset is needed at `ildra.witecanvas.com`,
+  use only its separate [private opt-in](PRELAUNCH_TESTING_RESET.md). Retire it
+  with the disable marker and remove its config before accepting real
+  memberships/payments; verify the Tech card is hidden and endpoint returns 404.
 - [ ] For the approved production release, initialize the onboarding schema and
   initial campaign/page-copy rows in the destination after backup. The additive
   schema files are:

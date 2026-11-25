@@ -19,6 +19,7 @@ Current session handover: [private security review notes](../../private/handover
 - [Onboarding wording editor](ONBOARDING_WORDING.md): tabbed admin HTML messages for the account setup screens.
 - [Amazon SES enhancements](amazon-enhancements.md): deferred email improvements and future requests, including direct website links instead of Amazon tracking redirects.
 - [DEPENDENCY_REVIEW.md](DEPENDENCY_REVIEW.md): external services, dependencies and review checklist; read before changing integrations or dependencies.
+- [Pre-launch Test Data Reset](PRELAUNCH_TESTING_RESET.md): separate private opt-in for `ildra.witecanvas.com`, deployment and mandatory retirement before real memberships/payments.
 - [IMPORT_WORKSPACE.md](IMPORT_WORKSPACE.md): development-only repeatable reset, protected Developer login and users/people/horse CSV trials.
 - [OLD_IMAGE_LIBRARY.md](OLD_IMAGE_LIBRARY.md): repeatable FTP/VS Code image processing, Events/Rider Notes/Venues selection and retirement.
 - [SOURCE_DATA.md](SOURCE_DATA.md): where to upload source data and how to prepare future imports.

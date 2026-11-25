@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../testing_reset_access.php';
 
 if (!roleIsSuperadminOrDeveloper((string)($currentUser['role'] ?? ''))) {
     header('Location: index.php');
@@ -21,6 +22,7 @@ admin_layout_start('Tech', 'tech');
             <a class="btn btn-outline-success" href="audit_log.php">Open Audit Log</a>
         </div>
     </div>
+    <?php if (testingResetEnvironmentEnabled($pdo, (string)($_SERVER['HTTP_HOST'] ?? ''))): ?>
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
             <h6>Reset test data</h6>
@@ -28,6 +30,7 @@ admin_layout_start('Tech', 'tech');
             <a class="btn btn-outline-danger" href="testing_reset.php">Open Test Data Reset</a>
         </div>
     </div>
+    <?php endif; ?>
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
             <div class="d-flex align-items-center gap-2 mb-2"><i class="fa-solid fa-server text-success" aria-hidden="true"></i><h6 class="mb-0">Live Email Settings</h6></div>
