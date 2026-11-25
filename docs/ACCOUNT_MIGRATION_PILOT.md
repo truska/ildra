@@ -20,8 +20,8 @@ verified as `clients@truska.com`. The redirect settings are never changed here.
 3. Choose **Selected accounts** and tick the accounts, or **All who have not yet
    been emailed**. Successful previous sends are excluded from the latter;
    failures with no successful send can be retried. Completed/closed accounts,
-   ambiguous person mappings, other administrative accounts and pending/uncertain
-   deliveries are excluded. Up to 100 recipients per reviewed batch.
+   ambiguous person mappings and pending/uncertain deliveries are excluded.
+   Active accounts of every role may be recipients when their Person match is valid. Up to 100 recipients per reviewed batch.
 4. Preview the recipients and campaign. The server stores the exact reviewed
    recipient snapshots, draft revision and delivery redirect for 15 minutes.
    A resend of an already emailed account requires the explicit Allow resends
@@ -37,7 +37,7 @@ verified as `clients@truska.com`. The redirect settings are never changed here.
    consume tokens. Continue consumes the single-use token and establishes that
    user's credential-bound session, gated to the saved setup journey. A browser
    logged into another account must sign out first; sessions are never silently
-   replaced. The protected Developer still signs in normally first.
+   replaced. All privileged or protected accounts still sign in normally first.
    **Password:** choose/confirm the new password (8–72 characters), without an old
    password question. Each field has an eye/eye-slash reveal control. The shared
    replacement mechanism revokes other sessions and old remembered/login/reset
@@ -483,3 +483,15 @@ functions remain development-only. CLI imports use a separate temporary opt-in
 and do not enroll/email accounts. Populate via ildra.witecanvas.com, then verify
 DNS/TLS and use enduranceridingireland.com before real invitations. Existing
 development pilot redirect restrictions are retained.
+
+
+Recipient eligibility update — 25 November 2026: `migrationRecipient()` and
+`migrationRecipients()` no longer filter by role. Active-account checks and the
+matching active Person requirement remain. Administrative/protected recipients
+must still sign in normally with a credential-bound session before accepting;
+invitation acceptance preserves their roles, permissions and event links. No
+schema migration is needed and this change sends no invitations by itself.
+Verification: `php scripts/tests/migration_recipient_roles.php` covers all role
+names, archived/mismatched/missing-Person rejection, privileged sign-in and
+unchanged organiser links using temporary tables. The existing migration suite
+now sets its own synthetic redirect rather than relying on current site settings.

@@ -82,7 +82,7 @@ function migrationSendPilot(PDO $pdo, int $revision, callable $transport): bool
 function migrationRecipient(PDO $pdo, int $uid): array
 {
     $s=$pdo->prepare('SELECT u.*,r.name AS role,r.level FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=? AND u.is_archived=0');$s->execute([$uid]);$user=$s->fetch();
-    if (!$user || ($user['role']!=='user' && ($user['role']!=='developer' || empty($user['is_protected']) || $user['email']!=='david@truska.com'))) throw new RuntimeException('Account is not eligible for migration.');
+    if (!$user) throw new RuntimeException('Account is not eligible for migration.');
     return $user;
 }
 
@@ -104,7 +104,7 @@ function migrationRecipientSnapshot(PDO $pdo, int $uid): string
 
 function migrationRecipients(PDO $pdo): array
 {
-    $ids=$pdo->query("SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.is_archived=0 AND (r.name='user' OR (r.name='developer' AND u.is_protected=1 AND u.email='david@truska.com')) ORDER BY u.email,u.id")->fetchAll(PDO::FETCH_COLUMN);$rows=[];
+    $ids=$pdo->query("SELECT u.id FROM users u JOIN roles r ON r.id=u.role_id WHERE u.is_archived=0 ORDER BY u.email,u.id")->fetchAll(PDO::FETCH_COLUMN);$rows=[];
     foreach($ids as $id) {
         $u=migrationRecipient($pdo,(int)$id);$state=migrationState($pdo,(int)$id);$counts=migrationDeliveryCounts($pdo,(int)$id);$reason='';$person=null;
         try{$person=migrationPilotPerson($pdo,$u);}catch(RuntimeException $e){$reason='Person match needs review';}

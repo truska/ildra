@@ -39,6 +39,8 @@ foreach(['migration_campaigns','migration_enrolments','migration_invitations','m
     migrationCheck(str_contains($pdo->query("SHOW CREATE TABLE `$t`")->fetch(PDO::FETCH_NUM)[1],'CREATE TEMPORARY TABLE'),'Migration table is not temporary');
     $pdo->exec("DELETE FROM `$t`");
 }
+// Use an explicit fixture redirect; never depend on the site's current email settings.
+$pdo->exec("INSERT INTO site_settings(setting_key,setting_value) VALUES ('email_test_redirect_enabled','1'),('email_test_redirect_to','migration-fixture@example.invalid') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)");
 // Preserve the legacy explicit-empty-page scenarios in this fixture suite.
 $pdo->exec("INSERT INTO site_settings (setting_key,setting_value) VALUES ('onboarding_show_blank_pages','1') ON DUPLICATE KEY UPDATE setting_value='1'");
 $pdo->exec('DELETE FROM users');$pdo->exec('DELETE FROM people');$pdo->exec('DELETE FROM horses WHERE id<>1');$pdo->exec('DELETE FROM auth_throttle');
