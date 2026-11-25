@@ -517,3 +517,16 @@ Account and admin person forms show DOB warnings immediately above the field,
 with an accessible red border; failed account saves retain entered values.
 Verification: `php scripts/tests/rider_minimum_age.php` checks birthday/leap-day
 boundaries and actual create/edit rejection using temporary database tables only.
+
+
+## 29. Settings audit history
+
+Tech → Audit Log shows existing admin audit actions plus new Settings changes.
+It is read-only and restricted to Superadmin/Developer, with sortable columns,
+header-row search/select/date filters and pagination. All Settings tabs,
+purchasing controls, footer links and Live Email Settings saves capture the
+actual changed fields with old/new values and actor identity. Unchanged saves
+add no entry; credentials are redacted. Earlier settings history is unavailable.
+See [the audit plan](plans/AUDIT_LOGGING_PLAN.md) for current coverage and limits.
+Verification: `php scripts/tests/admin_settings_audit.php` uses synthetic data
+in temporary tables only; no real settings, emails or accounts are changed.

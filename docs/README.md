@@ -25,6 +25,7 @@ Current session handover: [private security review notes](../../private/handover
 - [Account migration pilot](ACCOUNT_MIGRATION_PILOT.md): development-only selected/unsent invitations, user/person onboarding, per-horse logbook choices, Shares placeholder, closure and internal notes.
 - [Account migration and first login plan](plans/ACCOUNT_MIGRATION_AND_FIRST_LOGIN_PLAN.md): proposed exports, sharing, activation and guided setup.
 - [SESSION_CHANGELOG_2026-08-05.md](SESSION_CHANGELOG_2026-08-05.md): historical implementation notes.
+- [Admin audit logging](plans/AUDIT_LOGGING_PLAN.md): implemented Settings change history and Tech → Audit Log viewer; broader logging remains planned.
 - [plans/](plans/): implementation plans for admin permissions, audit logging, basket holds and late entries, and dynamic event entry forms. Read the matching plan before work in these areas.
 
 Paths and commands in these documents are relative to the project web root unless explicitly stated otherwise.

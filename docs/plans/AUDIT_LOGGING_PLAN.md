@@ -1,6 +1,36 @@
 # Audit Logging Plan
 
-Status: planning notes only; no implementation or database changes yet.
+Status: partially implemented. A limited `admin_audit_log` service already records
+selected user/security, permission and master-class actions. As of 25 November
+2026, Settings changes and a read-only Tech → Audit Log viewer are implemented.
+The broader authentication/content/operations coverage below remains planned.
+
+## Implemented Settings scope
+
+All Admin → Settings tabs log actual persisted field changes: Global, Home,
+Company, Footer (including social/partner links), Campaign Email, Marketing,
+Rider Notes, Events and Purchasing. Live Email Settings saves are also covered.
+Each entry records actor ID/name/email/role, tab, timestamp, IP and safe
+before/after values. No-op saves and validation failures with no persisted
+changes add no entry. A save that partly writes before failing is labelled
+partial. Passwords, tokens and credential keys are redacted; raw POST bodies
+are never stored. Existing audit action formats are retained.
+
+Tech → Audit Log is restricted in both menu and endpoint to Superadmin and
+Developer. It provides header-row date/search/select filters, sortable columns,
+pagination and expandable details. Existing entries remain visible; names for
+older entries come from current user records, falling back to user ID where the
+account no longer exists. New Settings entries retain identity snapshots.
+Settings history is prospective; older settings changes cannot be reconstructed.
+There are no edit/delete/export controls, retention jobs or audit-view events in
+this initial phase. Broader coverage and operational retention remain future work.
+
+The existing audit table is created automatically if absent; no new columns or
+manual SQL migration are required. The menu item is initially placed under Tech
+and later Menu edits are retained. Verification:
+`php scripts/tests/admin_settings_audit.php` uses temporary database tables and
+synthetic records only, including real save helpers, menu placement/persistence,
+viewer filtering, escaped values, old records, credential redaction and role checks.
 
 ## Purpose
 

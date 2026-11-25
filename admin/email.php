@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../admin_settings_audit.php';
 require_once __DIR__ . '/campaign_navigation.php';
 require_once __DIR__ . '/../views/email_delivery_panel.php';
 require_once __DIR__ . '/table_sort.php';
@@ -55,7 +56,7 @@ if ($view === 'settings') {
         foreach (['email_ses_region', 'email_ses_from_email', 'email_ses_from_name'] as $key) {
             $data[$key] = trim((string)($_POST[$key] ?? ''));
         }
-        if (saveEmailSettings($pdo, $data, $alerts)) {
+        if (adminAuditSettingsOperation($pdo, $currentUser, 'live_email', static fn() => array_intersect_key(getSiteSettings($pdo), $data), function () use ($pdo, $data, &$alerts) { return saveEmailSettings($pdo, $data, $alerts); })) {
             $_SESSION['flash_success'] = 'Email settings saved.';
             header('Location: '.campaign_navigation_with_return('email.php?view=settings'));
             exit;

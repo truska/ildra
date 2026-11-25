@@ -16,6 +16,13 @@ admin_layout_start('Tech', 'tech');
 <div class="row g-4">
     <div class="col-md-6 col-xl-4">
         <div class="card-soft p-4 h-100">
+            <h6>Audit Log</h6>
+            <p class="small text-muted">Review who changed settings, when they changed them, and other recorded admin actions.</p>
+            <a class="btn btn-outline-success" href="audit_log.php">Open Audit Log</a>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+        <div class="card-soft p-4 h-100">
             <h6>Reset test data</h6>
             <p class="small text-muted">Preview and back up a testing reset, keeping logins and optionally the event calendar.</p>
             <a class="btn btn-outline-danger" href="testing_reset.php">Open Test Data Reset</a>

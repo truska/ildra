@@ -44,6 +44,7 @@ function defaultAdminMenuItems(): array
         ['import_workspace', 'Import workspace', 'import_workspace.php', 'fa-solid fa-database'],
         ['old_image_library', 'Manage Old Library', 'old_image_library.php', 'fa-solid fa-images'],
         ['onboarding', 'Onboarding', 'onboarding.php', 'fa-solid fa-list-check'],
+        ['audit_log', 'Audit Log', 'audit_log.php', 'fa-solid fa-clock-rotate-left'],
     ];
     $out = [];
     foreach ($rows as $index => $row) {
@@ -70,7 +71,7 @@ function adminMenuFixedRoles(string $key): array
     if ($key === 'import_workspace') return ['developer'];
     if ($key === 'menu') return ['developer', 'superadmin'];
     if (in_array($key, ['finance', 'stripe_fulfilment', 'legacy_balances', 'archives'], true)) return ['superadmin', 'admin'];
-    if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons'], true)) {
+    if (in_array($key, ['tech', 'tech_email', 'testing_reset', 'image_folders', 'coupons', 'audit_log'], true)) {
         return ['superadmin'];
     }
     if (in_array($key, ['users', 'email', 'email_campaigns', 'pricing_schemes', 'event_types', 'people', 'horses', 'external_recognition', 'awards', 'menu', 'asset_library', 'help', 'help_accounts'], true)) {
@@ -131,7 +132,7 @@ function ensureAdminMenuTable(?PDO $pdo): void
         ]);
         // Set the initial location only when this built-in item is first created.
         // Later Menu edits (including moving it to the top level) must persist.
-        if (in_array($item['menu_key'], ['tech_email', 'import_workspace'], true) && $stmt->rowCount() > 0) {
+        if (in_array($item['menu_key'], ['tech_email', 'import_workspace', 'audit_log'], true) && $stmt->rowCount() > 0) {
             $pdo->exec("UPDATE admin_menu_items child
                 JOIN admin_menu_items tech ON tech.menu_key = 'tech'
                 SET child.parent_id = tech.id

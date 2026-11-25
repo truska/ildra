@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../admin_settings_audit.php';
 
 $settingsRole = strtolower((string)($currentUser['role'] ?? ''));
 $canManageCampaignEmail = in_array($settingsRole, ['developer', 'superadmin', 'admin'], true);
@@ -15,13 +16,16 @@ $companyLogoAssets = array_values(array_filter(fetchAssetLibrary($pdo, true), st
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $settingsSection = (string)($_POST['settings_section'] ?? 'global');
+    if (!in_array($settingsSection, ['global','home','company','footer','campaign_email','marketing','ride_notes_email','events','purchasing'], true)) $settingsSection = 'global';
     if ($settingsSection === 'purchasing') {
         if (!$canManageCampaignEmail) {
             http_response_code(403);
             $alerts[] = ['type'=>'danger','message'=>'Only Admin, Superadmin and Developer can change purchasing maintenance.'];
         } else {
             try {
-                savePurchasingPause($pdo, !empty($_POST['purchasing_paused']), (string)($_POST['purchasing_pause_message'] ?? ''));
+                adminAuditSettingsOperation($pdo, $currentUser, 'purchasing',
+                    static fn() => array_intersect_key(getSiteSettings($pdo), array_flip(['purchasing_paused_at','purchasing_paused_seconds','purchasing_pause_message'])),
+                    static function () use ($pdo) { savePurchasingPause($pdo, !empty($_POST['purchasing_paused']), (string)($_POST['purchasing_pause_message'] ?? '')); return true; });
                 $_SESSION['flash_success'] = 'Purchasing maintenance settings saved.';
                 header('Location: settings.php?tab=purchasing'); exit;
             } catch (Throwable $e) {
@@ -42,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'sponsor_image_url' => trim((string)($_POST['sponsor_image_url'] ?? '')),
             'home_carousel_interval_seconds' => max(2, min(60, (int)($_POST['home_carousel_interval_seconds'] ?? 6))),
         ];
-        if (saveSiteSettings($pdo, $payload, $alerts)) {
+        if (adminSaveSiteSettings($pdo, $payload, $alerts, $currentUser, $settingsSection)) {
             $_SESSION['flash_success'] = 'Home page settings saved.';
             header('Location: settings.php?tab=home');
             exit;
@@ -71,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if (!$alerts && saveSiteSettings($pdo, $payload, $alerts)) {
+        if (!$alerts && adminSaveSiteSettings($pdo, $payload, $alerts, $currentUser, $settingsSection)) {
             $_SESSION['flash_success'] = 'Company settings saved.';
             header('Location: settings.php?tab=company');
             exit;
@@ -102,7 +106,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payload['footer_service_links'] = json_encode($footerServiceLinks, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         $postedSocials = isset($_POST['socials']) && is_array($_POST['socials']) ? array_values($_POST['socials']) : [];
         $postedAffiliates = isset($_POST['affiliates']) && is_array($_POST['affiliates']) ? array_values($_POST['affiliates']) : [];
-        if (!$alerts && saveSiteSettings($pdo, $payload, $alerts) && saveCompanySocials($pdo, $postedSocials, $alerts) && saveCompanyAffiliates($pdo, $postedAffiliates, $alerts)) {
+        if (!$alerts && adminAuditSettingsOperation($pdo, $currentUser, 'footer',
+            static fn() => array_merge(array_intersect_key(getSiteSettings($pdo), $payload), [
+                'socials'=>adminAuditFooterRows(fetchCompanySocials($pdo)),
+                'partners'=>adminAuditFooterRows(fetchCompanyAffiliates($pdo)),
+            ]),
+            function () use ($pdo, $payload, $postedSocials, $postedAffiliates, &$alerts) {
+                return saveSiteSettings($pdo, $payload, $alerts)
+                    && saveCompanySocials($pdo, $postedSocials, $alerts)
+                    && saveCompanyAffiliates($pdo, $postedAffiliates, $alerts);
+            })) {
             $_SESSION['flash_success'] = 'Footer settings saved.';
             header('Location: settings.php?tab=footer');
             exit;
@@ -123,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'campaign_default_batch_size' => max(1, min(500, (int)($_POST['campaign_default_batch_size'] ?? 25))),
                 'campaign_public_base_url' => $baseUrl,
             ];
-            if (!$alerts && saveSiteSettings($pdo, $payload, $alerts)) {
+            if (!$alerts && adminSaveSiteSettings($pdo, $payload, $alerts, $currentUser, $settingsSection)) {
                 $_SESSION['flash_success'] = 'Campaign email settings saved.';
                 header('Location: settings.php?tab=campaign_email');
                 exit;
@@ -135,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ride_helper_coupon_value' => number_format(max(0, price_to_number($_POST['ride_helper_coupon_value'] ?? 0)), 2, '.', ''),
             'coupon_default_terms_html' => trim((string)($_POST['coupon_default_terms_html'] ?? '')),
         ];
-        if (saveSiteSettings($pdo, $payload, $alerts)) { $_SESSION['flash_success']='Marketing settings saved.'; header('Location: settings.php?tab=marketing'); exit; }
+        if (adminSaveSiteSettings($pdo, $payload, $alerts, $currentUser, $settingsSection)) { $_SESSION['flash_success']='Marketing settings saved.'; header('Location: settings.php?tab=marketing'); exit; }
         $siteSettings=array_merge($siteSettings,$payload);
     } elseif ($settingsSection === 'ride_notes_email') {
         $payload = [
@@ -144,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ride_notes_email_signature_html' => trim((string)($_POST['ride_notes_email_signature_html'] ?? '')),
             'ride_notes_email_header_image_url' => trim((string)($_POST['ride_notes_email_header_image_url'] ?? '')),
         ];
-        if (saveSiteSettings($pdo, $payload, $alerts)) {
+        if (adminSaveSiteSettings($pdo, $payload, $alerts, $currentUser, $settingsSection)) {
             $_SESSION['flash_success'] = 'Rider Notes settings saved.';
             header('Location: settings.php?tab=ride_notes_email');
             exit;
@@ -175,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'event_late_entry_fee' => number_format(max(0, price_to_number($_POST['event_late_entry_fee'] ?? '0')), 2, '.', ''),
             'event_stripe_refund_fee' => number_format(max(0, price_to_number($_POST['event_stripe_refund_fee'] ?? '5.00')), 2, '.', ''),
         ];
-        if (saveSiteSettings($pdo, $payload, $alerts)) {
+        if (adminSaveSiteSettings($pdo, $payload, $alerts, $currentUser, $settingsSection)) {
             $_SESSION['flash_success'] = 'Event settings saved.';
             header('Location: settings.php?tab=events');
             exit;
@@ -196,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'entry_hub_enabled' => !empty($_POST['entry_hub_enabled']) ? '1' : '0',
             'membership_next_year_from' => trim((string)($_POST['membership_next_year_from'] ?? '11-01')),
         ];
-        if (saveSiteSettings($pdo, $payload, $alerts)) {
+        if (adminSaveSiteSettings($pdo, $payload, $alerts, $currentUser, $settingsSection)) {
             $_SESSION['flash_success'] = 'Global settings saved.';
             header('Location: settings.php?tab=global');
             exit;
