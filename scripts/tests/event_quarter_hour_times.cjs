@@ -54,6 +54,21 @@ const assert = require('node:assert/strict');
         assert.equal(data.start_time, '10:30');
         assert.equal(data.entry_close_time, '19:00');
         assert.equal(data.late_entry_close_time, '23:45');
+        // Run the actual editor schedule script against a saved event with manual dates.
+        const names = {startDate:'event_date', endDate:'end_date', startTime:'start_time', endTime:'end_time', openDate:'entry_open_date', openTime:'entry_open_time', nonMemberOpenDate:'non_member_entry_open_date', nonMemberOpenTime:'non_member_entry_open_time', closeDate:'entry_close_date', closeTime:'entry_close_time', lateCloseDate:'late_entry_close_date', lateCloseTime:'late_entry_close_time'};
+        const defaults = {startTime:'09:00',endDays:1,endTime:'17:00',memberOpenWeeks:2,memberOpenWeekday:1,memberOpenTime:'10:00',nonMemberOpenWeeks:1,nonMemberOpenWeekday:1,nonMemberOpenTime:'11:00',closeWeeks:1,closeWeekday:6,closeTime:'23:00',lateCloseDays:0,lateCloseTime:'08:00'};
+        const schedule = source.slice(source.indexOf('        const pad = '), source.indexOf('        // Capacity toggle'));
+        const bindings = Object.entries(names).map(([variable,name]) => `const ${variable}=document.querySelector('[name="${name}"]');`).join('');
+        await page.setContent(`<form><button type="button" id="applyDateDefaults">Apply</button><div id="dateDefaultsStatus"></div>${[...Object.values(names),'late_entry_open_date','late_entry_open_time'].map(name => `<input name="${name}" type="${name.includes('time')?'time':'date'}" ${name.includes('time')?'step="900"':''} value="${name.includes('time')?'12:15':name==='event_date'?'2026-03-30':'2025-01-01'}">`).join('')}</form><script>${fs.readFileSync('admin/five_minute_times.js','utf8')}</script><script>const isNewEvent=false,openHint=null,nonMemberOpenHint=null,closeHint=null;const eventDefaults=${JSON.stringify(defaults)};${bindings}${schedule}</script><script data-reopen-hours="6" data-stored="1">${fs.readFileSync('admin/event_late_entries.js','utf8')}</script>`);
+        assert.equal(await page.locator('[name=end_date]').inputValue(),'2025-01-01','Saved schedules must survive initial load');
+        await page.locator('[name=event_date]').fill('2026-03-31');
+        assert.equal(await page.locator('[name=end_date]').inputValue(),'2025-01-01','Changing saved event date must preserve overrides');
+        await page.locator('[name=event_date]').fill('2026-03-30');
+        await page.locator('#applyDateDefaults').click();
+        const reset = await page.locator('form').evaluate(form => Object.fromEntries(new FormData(form)));
+        assert.deepEqual(reset,{event_date:'2026-03-30',end_date:'2026-03-31',start_time:'09:00',end_time:'17:00',entry_open_date:'2026-03-16',entry_open_time:'10:00',non_member_entry_open_date:'2026-03-23',non_member_entry_open_time:'11:00',entry_close_date:'2026-03-28',entry_close_time:'23:00',late_entry_close_date:'2026-03-30',late_entry_close_time:'08:00',late_entry_open_date:'2026-03-29',late_entry_open_time:'06:00'});
+        await page.waitForFunction(() => document.getElementById('late_entry_open_time-hour').value === '06');
+        console.log('PASS: explicit date reset replaces saved overrides, preserves start date, updates selectors and applies UK DST reopening.');
         console.log('PASS: all seven event hour/minute pairs, quarter-hour options, six tablet/desktop widths, existing values, generated reopening, manual overrides and posted times.');
     } finally {
         await browser.close();

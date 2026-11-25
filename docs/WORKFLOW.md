@@ -487,3 +487,19 @@ against a connection-local temporary copy of membership_types.
 No manual SQL migration is needed on live: after deploying the code, opening
 Admin → Memberships creates and initializes the column automatically using the
 application database account. Later changes to display order are managed there.
+
+## 27. Reapply event schedule defaults
+
+Event Edit → Date & Time offers **Apply date defaults**. It keeps the entered
+start date and replaces start/end times, end date, member/non-member opening,
+normal closing, late reopening and late closing with current Settings rules.
+This explicitly replaces manual schedule overrides; review and Save to persist.
+Ordinary saved-event date changes still preserve existing schedule values.
+Late reopening uses elapsed hours in Europe/London, including DST transitions.
+Copy Event already uses the shared server date defaults for its new date;
+this button is only needed for later rescheduling or explicitly resetting a schedule.
+
+Verification: `node scripts/tests/event_quarter_hour_times.cjs` now also exercises
+the actual editor reset script with saved overrides, all posted schedule values,
+selector synchronisation and a UK daylight-saving reopening. Existing PHP
+late-entry reopening checks pass. No real event records were changed.

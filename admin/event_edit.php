@@ -517,7 +517,12 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
 
         <div class="section-card">
             <div class="section-title">Date &amp; Time</div>
-            <div class="section-sub">Schedule for the event</div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <div class="section-sub mb-0">Schedule for the event</div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="applyDateDefaults">Apply date defaults</button>
+            </div>
+            <div class="form-text mb-3">Uses the start date and current Settings defaults to replace all other schedule dates and times, including start time. Review, then Save.</div>
+            <div class="small text-success mb-2" id="dateDefaultsStatus" role="status"></div>
             <div class="row g-3 align-items-start">
                 <div class="col-sm-6 col-xxl-3">
                     <label class="form-label">Start date</label>
@@ -864,45 +869,45 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         // Native date pickers can report input before change (including on iPad).
         // Keep generated dates in step while leaving manual overrides alone.
         const generatedDates = new Map();
-        const setDefaultDate = (field, value) => {
-            if (field && (!field.value || field.value === generatedDates.get(field))) {
+        const setDefaultDate = (field, value, force = false) => {
+            if (field && (force || !field.value || field.value === generatedDates.get(field))) {
                 field.value = value;
                 generatedDates.set(field, value);
             }
         };
-        const applyNewEventDefaults = () => {
-            if (!isNewEvent || !startDate || !startDate.value) {
+        const applyNewEventDefaults = (force = false) => {
+            if ((!isNewEvent && !force) || !startDate || !startDate.value) {
                 return;
             }
             const start = new Date(startDate.value + 'T12:00:00');
             if (Number.isNaN(start.getTime())) {
                 return;
             }
-            setDefaultDate(endDate, plusDays(startDate.value, eventDefaults.endDays));
-            if (startTime && !startTime.value) {
+            setDefaultDate(endDate, plusDays(startDate.value, eventDefaults.endDays), force);
+            if (startTime && (force || !startTime.value)) {
                 startTime.value = eventDefaults.startTime;
             }
-            if (endTime && !endTime.value) {
+            if (endTime && (force || !endTime.value)) {
                 endTime.value = eventDefaults.endTime;
             }
-            setDefaultDate(openDate, previousWeekday(startDate.value, eventDefaults.memberOpenWeekday, eventDefaults.memberOpenWeeks));
-            if (openTime && (!openTime.value || openTime.value === '00:00')) {
+            setDefaultDate(openDate, previousWeekday(startDate.value, eventDefaults.memberOpenWeekday, eventDefaults.memberOpenWeeks), force);
+            if (openTime && (force || !openTime.value || openTime.value === '00:00')) {
                 openTime.value = eventDefaults.memberOpenTime;
             }
-            setDefaultDate(nonMemberOpenDate, previousWeekday(startDate.value, eventDefaults.nonMemberOpenWeekday, eventDefaults.nonMemberOpenWeeks));
-            if (nonMemberOpenTime && (!nonMemberOpenTime.value || nonMemberOpenTime.value === '00:00')) {
+            setDefaultDate(nonMemberOpenDate, previousWeekday(startDate.value, eventDefaults.nonMemberOpenWeekday, eventDefaults.nonMemberOpenWeeks), force);
+            if (nonMemberOpenTime && (force || !nonMemberOpenTime.value || nonMemberOpenTime.value === '00:00')) {
                 nonMemberOpenTime.value = eventDefaults.nonMemberOpenTime;
             }
-            setDefaultDate(lateCloseDate, plusDays(startDate.value, -eventDefaults.lateCloseDays));
-            if (lateCloseTime && !lateCloseTime.value) lateCloseTime.value = eventDefaults.lateCloseTime;
-            setDefaultDate(closeDate, previousWeekday(startDate.value, eventDefaults.closeWeekday, eventDefaults.closeWeeks));
-            if (closeTime && !closeTime.value) {
+            setDefaultDate(lateCloseDate, plusDays(startDate.value, -eventDefaults.lateCloseDays), force);
+            if (lateCloseTime && (force || !lateCloseTime.value)) lateCloseTime.value = eventDefaults.lateCloseTime;
+            setDefaultDate(closeDate, previousWeekday(startDate.value, eventDefaults.closeWeekday, eventDefaults.closeWeeks), force);
+            if (closeTime && (force || !closeTime.value)) {
                 closeTime.value = eventDefaults.closeTime;
             }
         };
         if (startDate) {
-            startDate.addEventListener('input', applyNewEventDefaults);
-            startDate.addEventListener('change', applyNewEventDefaults);
+            startDate.addEventListener('input', () => applyNewEventDefaults());
+            startDate.addEventListener('change', () => applyNewEventDefaults());
             startDate.addEventListener('blur', () => {
                 applyNewEventDefaults();
                 updateHints();
@@ -951,6 +956,16 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         [startDate, openDate, nonMemberOpenDate, closeDate].forEach((el) => {
             el?.addEventListener('input', updateHints);
             el?.addEventListener('change', updateHints);
+        });
+        document.getElementById('applyDateDefaults').addEventListener('click', () => {
+            if (!startDate.value || !startDate.checkValidity()) {
+                startDate.reportValidity();
+                return;
+            }
+            applyNewEventDefaults(true);
+            document.dispatchEvent(new Event('event:reset-date-defaults'));
+            updateHints();
+            document.getElementById('dateDefaultsStatus').textContent = 'Date and time defaults applied. Review the schedule, then Save.';
         });
         applyNewEventDefaults();
         updateHints();

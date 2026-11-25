@@ -32,6 +32,10 @@
         for(const el of [closeDate,closeTime,field('event_date')]) {
             el?.addEventListener('input',update);el?.addEventListener('change',update);
         }
+        document.addEventListener('event:reset-date-defaults', () => {
+            generated = [date.value, time.value];
+            update();
+        });
         update();
     });
 })();
