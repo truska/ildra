@@ -4,7 +4,7 @@ Read this index and [WORKFLOW.md](WORKFLOW.md) at the start of each session, as 
 
 Current session handover: [private security review notes](../../private/handover/2026-11-12-security-review.md) (local file outside the repository and public web root).
 
-- [WORKFLOW.md](WORKFLOW.md): server, workspace, permissions and development setup standards.
+- [WORKFLOW.md](WORKFLOW.md): server, workspace, permissions and development setup standards; includes People/Horses archive restoration and guarded permanent deletion.
 - [DEPLOYMENT.md](DEPLOYMENT.md): required deployment and migration checks; read before deploying.
 - [Onboarding live rollout](ONBOARDING_LIVE_ROLLOUT.md): populate via ildra.witecanvas.com, change DNS, then explicitly enable final-domain invitations.
 - [Live setup checklist](LIVE_SETUP_CHECKLIST.md): manual setup, database/content transfer and rollout limits for the recent onboarding and membership work.

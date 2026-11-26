@@ -6,7 +6,7 @@ require_once __DIR__ . '/table_sort.php';
 if (!canManageArchives((string)($currentUser['role'] ?? ''))) { http_response_code(403); exit('Access denied.'); }
 if (!$pdo) { http_response_code(503); exit('Database unavailable.'); }
 $requestedTab = (string)($_POST['tab'] ?? $_GET['tab'] ?? 'pages');
-$activeTab = in_array($requestedTab, ['pages','announcements','events','venues'], true) ? $requestedTab : 'pages';
+$activeTab = in_array($requestedTab, ['pages','announcements','events','venues','people','horses'], true) ? $requestedTab : 'pages';
 // Perform additive setup before any transactional archive action.
 if ($activeTab === 'pages') {
 fetchPages($pdo);
@@ -15,9 +15,18 @@ ensurePageContentElementsTable($pdo);
 ensureMediaBatchTables($pdo);
 } elseif ($activeTab === 'announcements') ensure_announcements_table($pdo, getSiteSettings($pdo));
 elseif ($activeTab === 'events') ensureEventArchiveColumn($pdo);
-else ensureVenueArchiveColumns($pdo);
+elseif ($activeTab === 'venues') ensureVenueArchiveColumns($pdo);
+elseif ($activeTab === 'people') ensureMembershipTables($pdo);
+elseif ($activeTab === 'horses') ensureHorsesTables($pdo);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
+    if (in_array($activeTab,['people','horses'],true)) {
+        if (manageArchivedSubject($pdo,$activeTab,(int)($_POST['id']??0),$action,$currentUser,(string)($_POST['delete_confirmation']??''),$alerts)) {
+            $label=$activeTab==='people'?'Person':'Horse';
+            $_SESSION['flash_success']=$label.($action==='restore'?' restored.':' permanently deleted.');
+        } else $_SESSION['flash_alerts']=$alerts;
+        header('Location: archives.php?tab='.$activeTab);exit;
+    }
     if ($activeTab === 'venues') {
         $canManageVenues = (($currentUser['role'] ?? '') === 'admin') || ((int)($currentUser['level'] ?? 0) >= 4);
         if (!$canManageVenues) $alerts[] = ['type'=>'danger', 'message'=>'You do not have permission to restore venues.'];
@@ -66,7 +75,8 @@ unset($column);
 $table = $activeTab === 'pages' ? admin_table_prepare(fetchArchivedPages($pdo), $columns, 'updated_at') : null;
 admin_layout_start('Archives', 'archives');
 ?>
-<ul class="nav nav-tabs mb-4"><?php foreach (['pages'=>'Pages','announcements'=>'Announcements','events'=>'Events','venues'=>'Venues'] as $tab=>$label): ?><li class="nav-item"><a class="nav-link <?php echo $activeTab === $tab ? 'active' : ''; ?>" href="archives.php?tab=<?php echo $tab; ?>" <?php echo $activeTab === $tab ? 'aria-current="page"' : ''; ?>><?php echo $label; ?></a></li><?php endforeach; ?></ul>
+<ul class="nav nav-tabs mb-4"><?php foreach (['pages'=>'Pages','announcements'=>'Announcements','events'=>'Events','venues'=>'Venues','people'=>'People','horses'=>'Horses'] as $tab=>$label): ?><li class="nav-item"><a class="nav-link <?php echo $activeTab === $tab ? 'active' : ''; ?>" href="archives.php?tab=<?php echo $tab; ?>" <?php echo $activeTab === $tab ? 'aria-current="page"' : ''; ?>><?php echo $label; ?></a></li><?php endforeach; ?></ul>
+<?php if (in_array($activeTab,['people','horses'],true)) { require __DIR__.'/archive_subjects.php'; admin_layout_end(); return; } ?>
 <?php if ($activeTab === 'venues') { require __DIR__ . '/archive_venues.php'; admin_layout_end(); return; } ?>
 <?php if ($activeTab === 'events') { require __DIR__ . '/archive_events.php'; admin_layout_end(); return; } ?>
 <?php if ($activeTab === 'announcements') { require __DIR__ . '/archive_announcements.php'; admin_layout_end(); return; } ?>

@@ -7,6 +7,115 @@ function canManageArchives(string $role): bool
     return in_array(strtolower($role), ['developer', 'superadmin', 'admin'], true);
 }
 
+/** Fixed record types only; owning logins are never deleted with a rider/horse. */
+function archivedSubjectTable(string $type): string
+{
+    return match ($type) { 'people'=>'people', 'horses'=>'horses', default=>throw new RuntimeException('Invalid archive type.') };
+}
+
+function fetchArchivedSubjects(PDO $pdo, string $type): array
+{
+    $table=archivedSubjectTable($type);
+    $name=$type==='people' ? "TRIM(CONCAT(COALESCE(r.first_name,''),' ',COALESCE(r.last_name,'')))" : 'r.name';
+    return $pdo->query("SELECT r.*, $name AS archive_name,u.email AS owner_email FROM `$table` r LEFT JOIN users u ON u.id=r.owner_user_id WHERE r.is_archived=1 ORDER BY r.updated_at DESC,r.id DESC")->fetchAll();
+}
+
+/** Find references even in nested basket/booking JSON, including withdrawn entries. */
+function archivedSubjectJsonReferences(mixed $value, array $keys, int $id): bool
+{
+    if (!is_array($value)) return false;
+    foreach ($value as $key=>$item) {
+        if (in_array((string)$key,$keys,true) && (is_int($item) || is_string($item)) && ctype_digit((string)$item) && (int)$item===$id) return true;
+        if (is_array($item) && archivedSubjectJsonReferences($item,$keys,$id)) return true;
+    }
+    return false;
+}
+
+/** Schema metadata supplies identifiers; request values never select tables/columns. */
+function archivedSubjectPurgeBlockers(PDO $pdo, string $type, int $id): array
+{
+    $table=archivedSubjectTable($type);
+    $entity=$type==='people'?'person':'horse';
+    $keys=$type==='people'?['person_id','member_id','rider_id','_person_id']:['horse_id'];
+    $blockers=[];$lock=$pdo->inTransaction()?' FOR UPDATE':'';
+    if ($type==='horses' && $id===1) $blockers[]='The system horse cannot be permanently deleted.';
+    if ($type==='people') {
+        $s=$pdo->prepare('SELECT p.id FROM people p JOIN users u ON u.id=p.owner_user_id WHERE p.id=? AND u.is_protected=1 AND LOWER(TRIM(p.email))=LOWER(TRIM(u.email))'.$lock);
+        $s->execute([$id]);
+        if ($s->fetchColumn()!==false) $blockers[]='The protected account holder’s Person record cannot be permanently deleted.';
+    }
+    $columns=$pdo->query("SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME,ORDINAL_POSITION")->fetchAll(PDO::FETCH_ASSOC);
+    $catalog=[];
+    foreach ($columns as $column) $catalog[$column['TABLE_NAME']][]=$column['COLUMN_NAME'];
+    // Column-name conventions cover operational tables and retained legacy backups.
+    // Explicit foreign keys also cover references with a different naming convention.
+    $references=[];
+    foreach ($catalog as $related=>$names) foreach ($names as $column) {
+        $pattern=$type==='people'? '/(?:^|_)(?:person|member|rider)_id$/' : '/(?:^|_)horse_id$/';
+        if (preg_match($pattern,$column)) $references[$related][$column]=true;
+    }
+    $s=$pdo->prepare('SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_NAME=? AND REFERENCED_COLUMN_NAME=\'id\'');
+    $s->execute([$table]);
+    foreach ($s as $reference) $references[$reference['TABLE_NAME']][$reference['COLUMN_NAME']]=true;
+    foreach ($references as $related=>$names) {
+        foreach (array_keys($names) as $column) {
+            $quotedTable=str_replace('`','``',$related);$quotedColumn=str_replace('`','``',$column);
+            $s=$pdo->prepare("SELECT `$quotedColumn` FROM `$quotedTable` WHERE `$quotedColumn`=? LIMIT 1".$lock);$s->execute([$id]);
+            if ($s->fetchColumn()!==false) { $blockers[]='Linked records remain in '.str_replace('_',' ',$related).'.'; break; }
+        }
+    }
+    if (isset($catalog['share_requests'])) {
+        $s=$pdo->prepare('SELECT id FROM share_requests WHERE entity_type=? AND entity_id=? LIMIT 1'.$lock);$s->execute([$entity,$id]);
+        if ($s->fetchColumn()!==false) $blockers[]='Sharing requests still reference this record.';
+    }
+    if (isset($catalog['media_batches'])) {
+        $s=$pdo->prepare('SELECT id FROM media_batches WHERE owner_type=? AND owner_id=? LIMIT 1'.$lock);$s->execute([$entity,$id]);
+        if ($s->fetchColumn()!==false) $blockers[]='Media containers still reference this record.';
+    }
+    foreach (['baskets'=>'basket_json','booking_items'=>'metadata','finance_transactions'=>'metadata','coupon_audit'=>'metadata','email_campaign_recipients'=>'merge_json'] as $related=>$column) {
+        if (!in_array($column,$catalog[$related]??[],true)) continue;
+        $s=$pdo->query("SELECT `$column` FROM `$related` WHERE `$column` IS NOT NULL".$lock);
+        foreach ($s as $row) {
+            $json=(string)$row[$column];
+            if (trim($json)==='') continue;
+            try { $value=json_decode($json,true,512,JSON_THROW_ON_ERROR); }
+            catch (JsonException $e) { $blockers[]='A record in '.str_replace('_',' ',$related).' needs review before references can be checked.'; break; }
+            if (archivedSubjectJsonReferences($value,$keys,$id)) { $blockers[]='Linked records remain in '.str_replace('_',' ',$related).'.'; break; }
+        }
+    }
+    return array_values(array_unique($blockers));
+}
+
+function manageArchivedSubject(PDO $pdo, string $type, int $id, string $action, array $actor, string $confirmation, array &$alerts): bool
+{
+    try {
+        $table=archivedSubjectTable($type);
+        if (!canManageArchives((string)($actor['role']??'')) || (int)($actor['id']??0)<=0) throw new RuntimeException('You do not have permission to manage these archives.');
+        if ($id<=0 || !in_array($action,['restore','purge'],true)) throw new RuntimeException('Invalid archive action.');
+        if ($type==='horses' && $id===1) throw new RuntimeException('The system horse cannot be changed through Archives.');
+        if ($action==='purge' && $confirmation!=='DELETE') throw new RuntimeException('Type DELETE in capital letters to confirm permanent deletion.');
+        $pdo->beginTransaction();
+        $s=$pdo->prepare("SELECT * FROM `$table` WHERE id=? FOR UPDATE");$s->execute([$id]);$row=$s->fetch();
+        if (!$row || empty($row['is_archived'])) throw new RuntimeException('This record is no longer archived. Refresh the list.');
+        if ($action==='restore') {
+            $s=$pdo->prepare('SELECT id FROM users WHERE id=? AND is_archived=0 FOR UPDATE');$s->execute([(int)$row['owner_user_id']]);
+            if (!$s->fetchColumn()) throw new RuntimeException('Restore the owning login account before restoring this record.');
+            $pdo->prepare("UPDATE `$table` SET is_archived=0,updated_at=NOW() WHERE id=? AND is_archived=1")->execute([$id]);
+        } else {
+            $blockers=archivedSubjectPurgeBlockers($pdo,$type,$id);
+            if ($blockers) throw new RuntimeException(implode(' ',$blockers));
+            $pdo->prepare("DELETE FROM `$table` WHERE id=? AND is_archived=1")->execute([$id]);
+        }
+        $pdo->commit();
+        if (function_exists('adminAuditLog')) adminAuditLog($pdo,'archives.'.$action,$actor,$type==='people'?'person':'horse',$id,['owner_user_id'=>(int)$row['owner_user_id']]);
+        return true;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $alerts[]=['type'=>'danger','message'=>$e instanceof PDOException?'This record could not be changed. It may still have linked records. Nothing was changed.':$e->getMessage()];
+        return false;
+    }
+}
+
 function archivedPagePurgeBlockers(PDO $pdo, int $pageId): array
 {
     $lock = $pdo->inTransaction() ? ' FOR UPDATE' : '';

@@ -530,3 +530,35 @@ add no entry; credentials are redacted. Earlier settings history is unavailable.
 See [the audit plan](plans/AUDIT_LOGGING_PLAN.md) for current coverage and limits.
 Verification: `php scripts/tests/admin_settings_audit.php` uses synthetic data
 in temporary tables only; no real settings, emails or accounts are changed.
+
+
+## 30. People and Horses archives
+
+Admin → Archives appends People and Horses after Venues. Existing
+`is_archived` flags supply the lists; records also remain visible through the
+existing People/Horses status filters. No data/schema migration is required.
+Admin, Superadmin and Developer can restore or permanently delete archived
+records. Manager retains existing operational editors but has no archive-purge
+access. Restore requires an active managing login. Purge requires typing exactly
+`DELETE`, rechecks the archived state and dependencies inside its transaction,
+and removes only the selected Person/Horse. It never removes a login account.
+System horse 1 and the protected account holder's matching Person are protected.
+
+Purge is blocked by relational references (including migration enrolments,
+retained backups, memberships/logbooks, results, sharing and email recipients),
+sharing requests, media containers, and nested ID references in persisted
+baskets, booking metadata, finance/coupon metadata and campaign merge data.
+Withdrawn bookings and revoked shares still count. Malformed JSON in those
+sources blocks deletion until it can be checked. Blocking reasons appear beside
+the disabled delete button and are rechecked server-side. Linked history is not
+silently cascaded or detached. Historical notes and audit snapshots are retained;
+successful actions write the shared audit log after the record transaction.
+
+People records and login users are separate. An incorrectly registered login
+email must be handled through Admin → Users; deleting a Person does not free up
+that login email. No real people, horses or logins were deleted during development.
+
+Verification: `php scripts/tests/subject_archives.php <private-/tmp-directory>`
+uses all-table temporary copies and synthetic records. Run
+`node scripts/tests/subject_archives.cjs <directory>` for actual archive form
+controls, Cancel, exact typed confirmation, CSRF/record targets and restore.
