@@ -100,12 +100,16 @@ $userId = (int)($currentUser['id'] ?? 0);
 $authAppStatus = $isLoggedIn ? currentUserAuthAppStatus($pdo, $userId) : ['enabled' => false, 'confirmed_at' => null];
 $authAppSetup = $isLoggedIn ? pendingAuthAppSetup($currentUser ?: [], $siteSettings) : null;
 $accountView = (string)($_GET['view'] ?? '');
+$accountFocusHorses = $accountView === 'horses';
+// People and Horses links/bookmarks now open the same account dashboard.
+if ($accountView === '' || $accountView === 'horses') $accountView = 'people';
 // Keep old Security links/bookmarks working now that security lives in My Account.
 if ($accountView === 'security') {
     $accountView = 'my-account';
 }
+if (!in_array($accountView,['people','shares','recognition','my-account'],true)) $accountView='people';
 $accountSectionLabels = [
-    'people' => 'People Management',
+    'people' => 'Your account',
     'horses' => 'Horse Management',
     'shares' => 'Share Management',
     'recognition' => 'External Recognition',
@@ -479,7 +483,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 }
 
 $isLoggedIn = !empty($currentUser) && !in_array($authView, ['forgot', 'reset-sent', 'reset'], true);
+$showOnboardingWelcome = $isLoggedIn && migrationConsumeAccountWelcome($pdo,$currentUser);
 $accountIntroModal = $isLoggedIn && $isAccountManagementView ? fetchAccountIntroModal($pdo, $accountView) : null;
+$horseAccountIntroModal = $isLoggedIn && $accountView === 'people' ? fetchAccountIntroModal($pdo, 'horses') : null;
 $personConsentModals = $isLoggedIn ? [
     'general_email' => fetchAccountIntroModal($pdo, 'person_general_email'),
     'ride_notice' => fetchAccountIntroModal($pdo, 'person_ride_notice'),
@@ -892,7 +898,7 @@ $accountIntroAutoOpen = false;
                     if (!$isLoggedIn) {
                         echo 'Sign in to manage your account';
                     } elseif ($accountView === 'people') {
-                        echo 'Your people';
+                        echo 'Your account';
                     } elseif ($accountView === 'horses') {
                         echo 'Your horses';
                     } elseif ($accountView === 'shares') {
@@ -959,14 +965,6 @@ $accountIntroAutoOpen = false;
 	                                    </div>
 	                                </div>
 	                                <div class="d-flex flex-wrap gap-2 align-items-center account-summary-actions">
-	                                    <a class="btn <?php echo $accountView === 'people' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=people">People</a>
-	                                    <a class="btn <?php echo $accountView === 'horses' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=horses">Horses</a>
-	                                    <a class="btn <?php echo $accountView === 'shares' ? 'btn-success' : 'btn-outline-success'; ?>" href="<?php echo h($basePath); ?>/account?view=shares">
-                                            Shares
-                                            <?php if ($incomingShareRequests): ?>
-                                                <span class="badge rounded-pill text-bg-danger ms-1"><?php echo count($incomingShareRequests); ?><span class="visually-hidden"> pending share requests</span></span>
-                                            <?php endif; ?>
-                                        </a>
 	                                    <?php if ($canViewAdmin): ?>
 	                                        <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a>
 	                                    <?php endif; ?>
@@ -1226,13 +1224,13 @@ $accountIntroAutoOpen = false;
                                 $riderQualifications = fetchHorseQualifications($pdo);
                                 ?>
 
-	                                <div class="card-soft p-4 mt-4">
+	                                <div class="card-soft p-4 mt-4" id="people">
                                     <?php if (($_GET['email_preferences'] ?? '') === 'ride_notice'): ?>
                                         <div class="alert alert-info">To receive Ride Reminders and Updates, edit your person record, tick Ride Reminders and Updates and save your changes.</div>
                                     <?php endif; ?>
 	                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
 	                                        <div>
-	                                            <div class="fw-bold">Your people</div>
+	                                            <div class="fw-bold">People</div>
 	                                            <div class="text-muted small"><?php echo count($activePeople); ?> active<?php echo $archivedPeople ? ' · ' . count($archivedPeople) . ' archived' : ''; ?></div>
 	                                        </div>
 	                                        <div class="d-flex gap-2">
@@ -1451,7 +1449,161 @@ $accountIntroAutoOpen = false;
 	                                        </div>
 	                                    </div>
 	                                </div>
-                            <?php elseif ($accountView === 'shares'): ?>
+                                <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#accountMembershipHistory" aria-expanded="false" aria-controls="accountMembershipHistory" data-account-history-toggle data-show-label="Show Memberships" data-hide-label="Hide Memberships">Show Memberships</button>
+                                <div class="collapse" id="accountMembershipHistory">
+
+                                <div class="card-soft p-4 mt-2" id="my-memberships">
+	                            <div class="d-flex justify-content-between align-items-center mb-3">
+	                                <div class="fw-bold">Memberships</div>
+	                                <a title="Join Now - Membership Open" class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships">Buy / Renew</a>
+	                            </div>
+
+	                            <?php
+                            $renderMembershipRows = static function (array $purchases, bool $isPrevious = false) use ($userMembershipPurchases, $renewalMembershipTypes, $basePath, $siteSettings): void {
+	                                foreach ($purchases as $purchase) {
+	                                    $memberLabel = trim((string)($purchase['member_name'] ?? ''));
+	                                    $memberNumber = trim((string)($purchase['member_number'] ?? ''));
+	                                    $membershipStatus = trim((string)($purchase['status'] ?? 'active')) ?: 'active';
+	                                    $purchaseYear = (int)($purchase['membership_year'] ?? 0);
+	                                    $memberId = (int)($purchase['member_id'] ?? 0);
+	                                    $hasRenewed = $isPrevious && array_filter($userMembershipPurchases, static fn(array $candidate): bool =>
+	                                        (int)($candidate['member_id'] ?? 0) === $memberId
+	                                        && (int)($candidate['membership_year'] ?? 0) > $purchaseYear
+	                                    );
+	                                    $displayStatus = $hasRenewed ? 'Renewed' : ucfirst($membershipStatus);
+	                                    $membershipIsActive = !$isPrevious && strtolower($membershipStatus) === 'active';
+	                                    $statusClass = $hasRenewed ? 'membership-status-renewed' : ($membershipIsActive ? 'membership-status-active' : 'membership-status-inactive');
+	                                    $statusIcon = $hasRenewed ? 'fa-arrows-rotate' : ($membershipIsActive ? 'fa-circle-check' : 'fa-circle-xmark');
+                                    $renewalState = membership_renewal_state($purchaseYear, $siteSettings);
+	                                    $renewalActionEnabled = $isPrevious ? !$hasRenewed : !empty($renewalState['action_enabled']);
+	                                    $renewalType = null;
+	                                    $isAdminAllocated = membershipIsAdminAllocated(['name' => $purchase['membership_name'] ?? '', 'admin_allocation_only' => $purchase['admin_allocation_only'] ?? 0]);
+                                    $renewalActionEnabled = $renewalActionEnabled && !$isAdminAllocated;
+	                                    if ($renewalActionEnabled) {
+	                                        $sourceNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($purchase['membership_name'] ?? ''))));
+	                                        $sourceTypeKey = strtolower(trim((string)($purchase['membership_type_key'] ?? '')));
+	                                        $fallbackTypes = [];
+	                                        foreach ($renewalMembershipTypes as $candidateType) {
+	                                            $candidateNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($candidateType['name'] ?? ''))));
+	                                            if ($sourceNameKey !== '' && $candidateNameKey === $sourceNameKey) {
+	                                                $renewalType = $candidateType;
+	                                                break;
+	                                            }
+	                                            if ($sourceTypeKey !== '' && strtolower((string)($candidateType['type'] ?? '')) === $sourceTypeKey) $fallbackTypes[] = $candidateType;
+	                                        }
+	                                        if (!$renewalType && count($fallbackTypes) === 1) $renewalType = $fallbackTypes[0];
+	                                    }
+	                                    $renewUrl = $renewalType
+	                                        ? $basePath . '/memberships?member_id=' . $memberId . '&membership_type_id=' . (int)$renewalType['id'] . '#membership-type-' . (int)$renewalType['id']
+	                                        : ($isPrevious && !$hasRenewed && !$isAdminAllocated ? $basePath . '/memberships?member_id=' . $memberId : '');
+	                                    $renewDisabled = !$renewalActionEnabled || (!$isPrevious && $renewUrl === '');
+	                                    $renewTitle = $hasRenewed
+	                                        ? 'This membership has been renewed'
+	                                        : ($renewDisabled ? (string)($renewalState['action_title'] ?? 'Renewal is not available yet') : 'Renew membership');
+	                                    $membershipDetails = [
+	                                        ['label' => 'Member', 'value' => $memberLabel !== '' ? $memberLabel : 'Not assigned'],
+	                                        ['label' => 'Membership number', 'value' => $memberNumber !== '' ? $memberNumber : '—'],
+	                                        ['label' => 'Membership', 'value' => (string)($purchase['membership_name'] ?? 'Membership')],
+	                                        ['label' => 'Membership year', 'value' => (string)(int)($purchase['membership_year'] ?? 0)],
+                                        ['label' => 'Status', 'value' => $displayStatus],
+                                        ['label' => 'Purchase date', 'value' => format_display_date($purchase['purchased_at'] ?? null, '—')],
+	                                        ['label' => 'Amount', 'value' => '£' . number_format((float)($purchase['amount'] ?? 0), 2)],
+	                                        ['label' => 'Reference', 'value' => '#' . (int)($purchase['id'] ?? 0)],
+	                                    ];
+	                                    $membershipDetailsJson = json_encode($membershipDetails, JSON_HEX_APOS | JSON_HEX_QUOT);
+	                                    ?>
+	                                    <tr class="js-account-detail-row" data-account-detail-title="Membership details" data-account-detail-items="<?php echo h((string)$membershipDetailsJson); ?>" data-account-detail-action-label="Renew" data-account-detail-action-url="<?php echo h($renewUrl); ?>" data-account-detail-action-disabled="<?php echo $renewDisabled ? '1' : '0'; ?>">
+	                                        <td class="small"><?php echo h($memberLabel !== '' ? $memberLabel : 'Not assigned'); ?></td>
+	                                        <td class="small"><?php echo h($memberNumber !== '' ? $memberNumber : '—'); ?></td>
+	                                        <td class="small fw-semibold"><?php echo h($purchase['membership_name'] ?? 'Membership'); ?></td>
+	                                        <td class="small"><?php echo (int)($purchase['membership_year'] ?? 0); ?></td>
+	                                        <td class="membership-status-cell small text-capitalize">
+	                                            <span class="membership-status <?php echo h($statusClass); ?>">
+	                                                <i class="fa-solid <?php echo h($statusIcon); ?>" aria-hidden="true"></i>
+	                                                <span class="membership-status-label"><?php echo h($displayStatus); ?></span>
+	                                            </span>
+	                                        </td>
+	                                        <td class="membership-purchased-column text-muted small"><?php echo h(format_display_date($purchase['purchased_at'] ?? null, '—')); ?></td>
+	                                        <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($purchase['amount'] ?? 0), 2); ?></td>
+	                                        <td class="membership-actions-column text-end text-nowrap">
+	                                            <?php if (!$isAdminAllocated): ?>
+	                                            <?php if ($renewDisabled): ?><button class="btn btn-sm btn-secondary" type="button" disabled title="<?php echo h($renewTitle); ?>">Renew</button>
+	                                            <?php else: ?><a class="btn btn-sm btn-success" href="<?php echo h($renewUrl); ?>" title="<?php echo h($renewTitle); ?>">Renew</a><?php endif; ?>
+                                            <?php endif; ?>
+	                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-account-detail-open>View</button>
+	                                        </td>
+	                                    </tr>
+	                                    <?php
+	                                }
+	                            };
+	                            ?>
+
+	                            <?php if (!$userMembershipPurchases): ?>
+	                                <div class="text-muted small">No memberships yet.</div>
+	                            <?php else: ?>
+	                                <div class="mb-3">
+	                                    <div class="fw-bold mb-2">Active</div>
+	                                    <?php if (!$activeMembershipPurchases): ?>
+	                                        <div class="text-muted small">No active memberships.</div>
+	                                    <?php else: ?>
+	                                        <div class="table-responsive">
+	                                            <table class="table table-sm align-middle mb-0">
+	                                                <thead class="table-light">
+	                                                    <tr>
+                                                        <th>Member</th>
+                                                        <th>#</th>
+                                                        <th>Membership</th>
+                                                        <th>Year</th>
+	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
+	                                                        <th class="membership-purchased-column">Purchased</th>
+	                                                        <th class="text-end">Amount</th>
+	                                                        <th class="membership-actions-column text-end">Actions</th>
+	                                                    </tr>
+	                                                </thead>
+	                                                <tbody>
+	                                                    <?php $renderMembershipRows($activeMembershipPurchases); ?>
+	                                                </tbody>
+	                                            </table>
+	                                        </div>
+	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
+	                                    <?php endif; ?>
+	                                </div>
+
+	                                <div class="divider"></div>
+
+	                                <div>
+	                                    <div class="fw-bold mb-2">Previous</div>
+	                                    <?php if (!$previousMembershipPurchases): ?>
+	                                        <div class="text-muted small">No previous memberships.</div>
+	                                    <?php else: ?>
+	                                        <div class="table-responsive">
+	                                            <table class="table table-sm align-middle mb-0">
+	                                                <thead class="table-light">
+	                                                    <tr>
+                                                        <th>Member</th>
+                                                        <th>#</th>
+                                                        <th>Membership</th>
+                                                        <th>Year</th>
+	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
+	                                                        <th class="membership-purchased-column">Purchased</th>
+	                                                        <th class="text-end">Amount</th>
+	                                                        <th class="membership-actions-column text-end">Actions</th>
+	                                                    </tr>
+	                                                </thead>
+	                                                <tbody>
+	                                                    <?php $renderMembershipRows($previousMembershipPurchases, true); ?>
+	                                                </tbody>
+	                                            </table>
+	                                        </div>
+	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
+	                                    <?php endif; ?>
+	                                </div>
+	                            <?php endif; ?>
+	                        </div>
+
+	                                                        </div>
+                            <?php endif; ?>
+                            <?php if ($accountView === 'shares'): ?>
                                 <?php
                                 $userId = (int)($currentUser['id'] ?? 0);
                                 $sharePeople = array_values(array_filter(
@@ -1619,7 +1771,8 @@ $accountIntroAutoOpen = false;
                                         </div>
                                     <?php endif; ?>
                                 </div>
-                            <?php elseif ($accountView === 'horses'): ?>
+                            <?php endif; ?>
+                            <?php if ($accountView === 'people'): ?>
                                 <?php
                                 $userId = (int)($currentUser['id'] ?? 0);
                                 $horsesAll = fetchHorsesForUser($pdo, $userId, true);
@@ -1630,7 +1783,7 @@ $accountIntroAutoOpen = false;
                                 if ($editHorse && !empty($editHorse['is_linked'])) {
                                     $editHorse = null;
                                 }
-                                $accountIntroAutoOpen = !$activeHorses && !$editHorse && !(($action ?? '') === 'save_horse' && !empty($alerts));
+                                // The dashboard's People introduction owns automatic opening.
                                 $horseQualifications = fetchHorseQualifications($pdo);
                                 $horseQualificationLookup = [];
                                 foreach ($horseQualifications as $hq) {
@@ -1645,14 +1798,14 @@ $accountIntroAutoOpen = false;
                                 }
                                 ?>
 
-	                                <div class="card-soft p-4 mt-4">
+	                                <div class="card-soft p-4 mt-4" id="horses">
 	                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
 	                                        <div>
-	                                            <div class="fw-bold">Your horses</div>
+	                                            <div class="fw-bold">Horses</div>
 	                                            <div class="text-muted small"><?php echo count($activeHorses); ?> active<?php echo $archivedHorses ? ' · ' . count($archivedHorses) . ' archived' : ''; ?></div>
 	                                        </div>
 	                                        <div class="d-flex gap-2">
-                                                <?php if ($accountIntroModal): ?><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#accountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
+                                                <?php if ($horseAccountIntroModal): ?><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#horseAccountIntroModal"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Information</button><?php endif; ?>
 	                                            <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#horseEditorModal">Add Horse</button>
                                             </div>
 	                                    </div>
@@ -1832,9 +1985,11 @@ $accountIntroAutoOpen = false;
                                 $activeLogbooks = array_filter($logbooks, static fn(array $lb): bool => ($lb['status'] ?? '') === 'active' || ($lb['status'] ?? '') === 'pending');
                                 $previousLogbooks = array_filter($logbooks, static fn(array $lb): bool => ($lb['status'] ?? '') === 'expired');
                                 ?>
-                                <div class="card-soft p-4 mt-4" id="horse-logbooks">
+                                <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#accountLogbookHistory" aria-expanded="false" aria-controls="accountLogbookHistory" data-account-history-toggle data-show-label="Show Logbooks" data-hide-label="Hide Logbooks">Show Logbooks</button>
+                                <div class="collapse" id="accountLogbookHistory">
+                                <div class="card-soft p-4 mt-2" id="horse-logbooks">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <div class="fw-bold">Horse Logbooks</div>
+                                        <div class="fw-bold">Logbooks</div>
                                     </div>
                                     <?php if (!$logbooks): ?>
                                         <div class="text-muted small">No logbooks yet.</div>
@@ -1908,157 +2063,10 @@ $accountIntroAutoOpen = false;
                                         </div>
                                     <?php endif; ?>
                                 </div>
-	                            <?php else: ?>
-                                <div class="card-soft p-4 mt-4" id="my-memberships">
-	                            <div class="d-flex justify-content-between align-items-center mb-3">
-	                                <div class="fw-bold">Memberships</div>
-	                                <a title="Join Now - Membership Open" class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/memberships">Buy / Renew</a>
-	                            </div>
-
-	                            <?php
-                            $renderMembershipRows = static function (array $purchases, bool $isPrevious = false) use ($userMembershipPurchases, $renewalMembershipTypes, $basePath, $siteSettings): void {
-	                                foreach ($purchases as $purchase) {
-	                                    $memberLabel = trim((string)($purchase['member_name'] ?? ''));
-	                                    $memberNumber = trim((string)($purchase['member_number'] ?? ''));
-	                                    $membershipStatus = trim((string)($purchase['status'] ?? 'active')) ?: 'active';
-	                                    $purchaseYear = (int)($purchase['membership_year'] ?? 0);
-	                                    $memberId = (int)($purchase['member_id'] ?? 0);
-	                                    $hasRenewed = $isPrevious && array_filter($userMembershipPurchases, static fn(array $candidate): bool =>
-	                                        (int)($candidate['member_id'] ?? 0) === $memberId
-	                                        && (int)($candidate['membership_year'] ?? 0) > $purchaseYear
-	                                    );
-	                                    $displayStatus = $hasRenewed ? 'Renewed' : ucfirst($membershipStatus);
-	                                    $membershipIsActive = !$isPrevious && strtolower($membershipStatus) === 'active';
-	                                    $statusClass = $hasRenewed ? 'membership-status-renewed' : ($membershipIsActive ? 'membership-status-active' : 'membership-status-inactive');
-	                                    $statusIcon = $hasRenewed ? 'fa-arrows-rotate' : ($membershipIsActive ? 'fa-circle-check' : 'fa-circle-xmark');
-                                    $renewalState = membership_renewal_state($purchaseYear, $siteSettings);
-	                                    $renewalActionEnabled = $isPrevious ? !$hasRenewed : !empty($renewalState['action_enabled']);
-	                                    $renewalType = null;
-	                                    $isAdminAllocated = membershipIsAdminAllocated(['name' => $purchase['membership_name'] ?? '', 'admin_allocation_only' => $purchase['admin_allocation_only'] ?? 0]);
-                                    $renewalActionEnabled = $renewalActionEnabled && !$isAdminAllocated;
-	                                    if ($renewalActionEnabled) {
-	                                        $sourceNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($purchase['membership_name'] ?? ''))));
-	                                        $sourceTypeKey = strtolower(trim((string)($purchase['membership_type_key'] ?? '')));
-	                                        $fallbackTypes = [];
-	                                        foreach ($renewalMembershipTypes as $candidateType) {
-	                                            $candidateNameKey = strtolower(trim((string)preg_replace('/\\b(?:19|20)\\d{2}\\b/', '', (string)($candidateType['name'] ?? ''))));
-	                                            if ($sourceNameKey !== '' && $candidateNameKey === $sourceNameKey) {
-	                                                $renewalType = $candidateType;
-	                                                break;
-	                                            }
-	                                            if ($sourceTypeKey !== '' && strtolower((string)($candidateType['type'] ?? '')) === $sourceTypeKey) $fallbackTypes[] = $candidateType;
-	                                        }
-	                                        if (!$renewalType && count($fallbackTypes) === 1) $renewalType = $fallbackTypes[0];
-	                                    }
-	                                    $renewUrl = $renewalType
-	                                        ? $basePath . '/memberships?member_id=' . $memberId . '&membership_type_id=' . (int)$renewalType['id'] . '#membership-type-' . (int)$renewalType['id']
-	                                        : ($isPrevious && !$hasRenewed && !$isAdminAllocated ? $basePath . '/memberships?member_id=' . $memberId : '');
-	                                    $renewDisabled = !$renewalActionEnabled || (!$isPrevious && $renewUrl === '');
-	                                    $renewTitle = $hasRenewed
-	                                        ? 'This membership has been renewed'
-	                                        : ($renewDisabled ? (string)($renewalState['action_title'] ?? 'Renewal is not available yet') : 'Renew membership');
-	                                    $membershipDetails = [
-	                                        ['label' => 'Member', 'value' => $memberLabel !== '' ? $memberLabel : 'Not assigned'],
-	                                        ['label' => 'Membership number', 'value' => $memberNumber !== '' ? $memberNumber : '—'],
-	                                        ['label' => 'Membership', 'value' => (string)($purchase['membership_name'] ?? 'Membership')],
-	                                        ['label' => 'Membership year', 'value' => (string)(int)($purchase['membership_year'] ?? 0)],
-                                        ['label' => 'Status', 'value' => $displayStatus],
-                                        ['label' => 'Purchase date', 'value' => format_display_date($purchase['purchased_at'] ?? null, '—')],
-	                                        ['label' => 'Amount', 'value' => '£' . number_format((float)($purchase['amount'] ?? 0), 2)],
-	                                        ['label' => 'Reference', 'value' => '#' . (int)($purchase['id'] ?? 0)],
-	                                    ];
-	                                    $membershipDetailsJson = json_encode($membershipDetails, JSON_HEX_APOS | JSON_HEX_QUOT);
-	                                    ?>
-	                                    <tr class="js-account-detail-row" data-account-detail-title="Membership details" data-account-detail-items="<?php echo h((string)$membershipDetailsJson); ?>" data-account-detail-action-label="Renew" data-account-detail-action-url="<?php echo h($renewUrl); ?>" data-account-detail-action-disabled="<?php echo $renewDisabled ? '1' : '0'; ?>">
-	                                        <td class="small"><?php echo h($memberLabel !== '' ? $memberLabel : 'Not assigned'); ?></td>
-	                                        <td class="small"><?php echo h($memberNumber !== '' ? $memberNumber : '—'); ?></td>
-	                                        <td class="small fw-semibold"><?php echo h($purchase['membership_name'] ?? 'Membership'); ?></td>
-	                                        <td class="small"><?php echo (int)($purchase['membership_year'] ?? 0); ?></td>
-	                                        <td class="membership-status-cell small text-capitalize">
-	                                            <span class="membership-status <?php echo h($statusClass); ?>">
-	                                                <i class="fa-solid <?php echo h($statusIcon); ?>" aria-hidden="true"></i>
-	                                                <span class="membership-status-label"><?php echo h($displayStatus); ?></span>
-	                                            </span>
-	                                        </td>
-	                                        <td class="membership-purchased-column text-muted small"><?php echo h(format_display_date($purchase['purchased_at'] ?? null, '—')); ?></td>
-	                                        <td class="text-end small fw-semibold"><?php echo '£' . number_format((float)($purchase['amount'] ?? 0), 2); ?></td>
-	                                        <td class="membership-actions-column text-end text-nowrap">
-	                                            <?php if (!$isAdminAllocated): ?>
-	                                            <?php if ($renewDisabled): ?><button class="btn btn-sm btn-secondary" type="button" disabled title="<?php echo h($renewTitle); ?>">Renew</button>
-	                                            <?php else: ?><a class="btn btn-sm btn-success" href="<?php echo h($renewUrl); ?>" title="<?php echo h($renewTitle); ?>">Renew</a><?php endif; ?>
-                                            <?php endif; ?>
-	                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-account-detail-open>View</button>
-	                                        </td>
-	                                    </tr>
-	                                    <?php
-	                                }
-	                            };
-	                            ?>
-
-	                            <?php if (!$userMembershipPurchases): ?>
-	                                <div class="text-muted small">No memberships yet.</div>
-	                            <?php else: ?>
-	                                <div class="mb-3">
-	                                    <div class="fw-bold mb-2">Active</div>
-	                                    <?php if (!$activeMembershipPurchases): ?>
-	                                        <div class="text-muted small">No active memberships.</div>
-	                                    <?php else: ?>
-	                                        <div class="table-responsive">
-	                                            <table class="table table-sm align-middle mb-0">
-	                                                <thead class="table-light">
-	                                                    <tr>
-                                                        <th>Member</th>
-                                                        <th>#</th>
-                                                        <th>Membership</th>
-                                                        <th>Year</th>
-	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
-	                                                        <th class="membership-purchased-column">Purchased</th>
-	                                                        <th class="text-end">Amount</th>
-	                                                        <th class="membership-actions-column text-end">Actions</th>
-	                                                    </tr>
-	                                                </thead>
-	                                                <tbody>
-	                                                    <?php $renderMembershipRows($activeMembershipPurchases); ?>
-	                                                </tbody>
-	                                            </table>
-	                                        </div>
-	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
-	                                    <?php endif; ?>
-	                                </div>
-
-	                                <div class="divider"></div>
-
-	                                <div>
-	                                    <div class="fw-bold mb-2">Previous</div>
-	                                    <?php if (!$previousMembershipPurchases): ?>
-	                                        <div class="text-muted small">No previous memberships.</div>
-	                                    <?php else: ?>
-	                                        <div class="table-responsive">
-	                                            <table class="table table-sm align-middle mb-0">
-	                                                <thead class="table-light">
-	                                                    <tr>
-                                                        <th>Member</th>
-                                                        <th>#</th>
-                                                        <th>Membership</th>
-                                                        <th>Year</th>
-	                                                        <th class="membership-status-heading"><span class="membership-status-heading-label">Status</span></th>
-	                                                        <th class="membership-purchased-column">Purchased</th>
-	                                                        <th class="text-end">Amount</th>
-	                                                        <th class="membership-actions-column text-end">Actions</th>
-	                                                    </tr>
-	                                                </thead>
-	                                                <tbody>
-	                                                    <?php $renderMembershipRows($previousMembershipPurchases, true); ?>
-	                                                </tbody>
-	                                            </table>
-	                                        </div>
-	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
-	                                    <?php endif; ?>
-	                                </div>
+                                </div>
 	                            <?php endif; ?>
-	                        </div>
-
-	                        <div class="card-soft p-4 mt-4">
+                            <?php if ($accountView === 'people'): ?>
+                            <div class="card-soft p-4 mt-4">
 	                            <div class="d-flex justify-content-between align-items-center mb-3">
 	                                <div class="fw-bold">Recent Purchases</div>
 	                                <a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/bookings">View all Purchases</a>
@@ -2269,6 +2277,31 @@ $accountIntroAutoOpen = false;
         </div>
     <?php endif; ?>
 
+    <?php if ($showOnboardingWelcome): ?>
+        <div class="modal fade" id="onboardingAccountWelcomeModal" tabindex="-1" aria-labelledby="onboardingAccountWelcomeTitle" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+                <div class="modal-header"><h2 class="modal-title h5" id="onboardingAccountWelcomeTitle">Account setup complete</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <div class="modal-body"><?php echo onboardingCopyHtml('thanks',$siteSettings); ?></div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+            </div></div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($horseAccountIntroModal): ?>
+        <div class="modal fade" id="horseAccountIntroModal" tabindex="-1" aria-labelledby="horseAccountIntroModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h4 class="modal-title fw-bold" id="horseAccountIntroModalLabel"><?php echo h((string)$horseAccountIntroModal['heading']); ?></h4>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body account-intro-content"><?php echo (string)$horseAccountIntroModal['body_html']; ?></div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <?php include __DIR__ . '/views/footer.php'; ?>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2303,6 +2336,12 @@ $accountIntroAutoOpen = false;
                     el.setAttribute('placeholder', el.dataset.placeholder);
                 }
             });
+        });
+        document.querySelectorAll('[data-account-history-toggle]').forEach(button => {
+            const panel = document.getElementById(button.getAttribute('aria-controls'));
+            if (!panel) return;
+            panel.addEventListener('shown.bs.collapse', () => { button.textContent = button.dataset.hideLabel; });
+            panel.addEventListener('hidden.bs.collapse', () => { button.textContent = button.dataset.showLabel; });
         });
         const cutoff = new Date(new Date().getFullYear(), 0, 1);
         const calculateAgeAtCutoff = (dobStr) => {
@@ -2424,23 +2463,30 @@ $accountIntroAutoOpen = false;
                 if (openedFromInfoButton && personEditorForConsent) bootstrap.Modal.getOrCreateInstance(personEditorForConsent).show();
             });
         });
-        <?php if ($accountView === 'horses' && (!empty($editHorse) || (($action ?? '') === 'save_horse' && !empty($alerts)))): ?>
+        <?php if ($accountFocusHorses && $accountView === 'people' && empty($editHorse)): ?>
+        document.getElementById('horses')?.scrollIntoView({block: 'start'});
+        <?php endif; ?>
+        <?php if ($accountView === 'people' && (!empty($editHorse) || (($action ?? '') === 'save_horse' && !empty($alerts)))): ?>
         const horseEditorModalEl = document.getElementById('horseEditorModal');
         if (horseEditorModalEl) {
             new bootstrap.Modal(horseEditorModalEl).show();
         }
         <?php endif; ?>
-        <?php if ($legacyBalanceNotifications): ?>
+        <?php if ($showOnboardingWelcome): ?>
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('onboardingAccountWelcomeModal')).show();
+        <?php if ($promptPerson) $_SESSION['prompt_person_completion'] = (int)$promptPerson['id']; ?>
+        <?php endif; ?>
+        <?php if (!$showOnboardingWelcome && $legacyBalanceNotifications): ?>
         new bootstrap.Modal(document.getElementById('legacyBalanceModal')).show();
         <?php if ($promptPerson) $_SESSION['prompt_person_completion'] = (int)$promptPerson['id']; ?>
         <?php endif; ?>
-        <?php if (!$legacyBalanceNotifications && $accountIntroModal && $accountIntroAutoOpen): ?>
+        <?php if (!$showOnboardingWelcome && !$legacyBalanceNotifications && $accountIntroModal && $accountIntroAutoOpen): ?>
         const accountIntroModalEl = document.getElementById('accountIntroModal');
         if (accountIntroModalEl) {
             new bootstrap.Modal(accountIntroModalEl).show();
         }
         <?php endif; ?>
-        <?php if (!$legacyBalanceNotifications && $promptPerson): ?>
+        <?php if (!$showOnboardingWelcome && !$legacyBalanceNotifications && $promptPerson): ?>
         const personModalEl = document.getElementById('personCompletionModal');
         if (personModalEl) {
             const personModal = new bootstrap.Modal(personModalEl);

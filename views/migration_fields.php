@@ -20,7 +20,7 @@ function migrationField(string $name, string $label, array $values, array $error
         <?php else: ?>
             <?php if($type==='password'): ?><div class="input-group"><?php endif; ?>
             <input class="form-control <?= $error?'is-invalid':'' ?>" type="<?= h($type) ?>" id="<?= h($id) ?>" name="<?= h($name) ?>" value="<?= $type==='password'?'':h($values[$name]??'') ?>" <?= $required?'required':'' ?> <?= $readonly?'readonly':'' ?> <?= str_starts_with($name,'horses[')?'autocomplete="off"':'' ?> <?= $type==='password'?'autocomplete="'.($name==='current_password'?'current-password':'new-password').'"':'' ?> <?= $type==='date'?'max="'.date('Y-m-d').'"':'' ?> <?= $error?'aria-invalid="true" aria-describedby="'.h($id).'_error"':'' ?>>
-            <?php if($type==='password'): ?><button class="btn btn-outline-secondary" type="button" data-migration-password-toggle data-password-label="<?= h(strtolower($label)) ?>" aria-controls="<?= h($id) ?>" aria-pressed="false" aria-label="Show <?= h(strtolower($label)) ?>"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></div><?php endif; ?>
+            <?php if($type==='password'): ?><button class="btn btn-outline-secondary" type="button" <?= $name==='new_password'?'tabindex="-1"':'' ?> data-migration-password-toggle data-password-label="<?= h(strtolower($label)) ?>" aria-controls="<?= h($id) ?>" aria-pressed="false" aria-label="Show <?= h(strtolower($label)) ?>"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></div><?php endif; ?>
         <?php endif; ?>
     </div>
     <?php

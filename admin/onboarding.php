@@ -8,7 +8,8 @@ if (!in_array($currentRole, ['developer', 'superadmin', 'admin', 'manager'], tru
 }
 $definitions=onboardingCopyDefinitions();
 $definitions['password'][0]='Password & user settings';
-$tabs=array_diff_key($definitions,['user'=>true,'welcome'=>true]);
+$definitions['thanks'][0]='Account welcome';
+$tabs=array_diff_key($definitions,['user'=>true,'welcome'=>true,'person'=>true,'horses'=>true,'shares'=>true,'finish'=>true]);
 $tabs['settings']=['Settings',''];
 $tabs=['welcome'=>$definitions['welcome']]+$tabs;
 $tab=is_string($_POST['tab']??$_GET['tab']??null)?($_POST['tab']??$_GET['tab']):'password';
@@ -16,7 +17,7 @@ if($tab==='user')$tab='password';
 if(!isset($tabs[$tab]))$tab='password';
 $settings=getSiteSettings($pdo);
 $flowOptions=onboardingFlowSettings($pdo);
-$flowLabels=['onboarding_horses_enabled'=>'Enable Horses page','onboarding_shares_enabled'=>'Enable Shares page','onboarding_show_blank_pages'=>'Show Blank Pages'];
+$flowLabels=[]; // Retired review-stage settings no longer control the simplified journey.
 $flowErrors=[];
 $body=(string)($settings['onboarding_copy_'.$tab]??$tabs[$tab][1]);
 $userBody=(string)($settings['onboarding_copy_user']??$definitions['user'][1]);
@@ -97,7 +98,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST' && !in_array($resetAction,['prev
 admin_layout_start('Onboarding','onboarding');
 ?>
 <h1 class="h4">Onboarding</h1>
-<p class="text-muted">Edit the message displayed on each account setup page. Save each tab before moving to another. Leave an editor empty to show no message. Thank you wording also appears in the completion popup.</p>
+<p class="text-muted">Edit the message displayed on each account setup page. Save each tab before moving to another. Leave an editor empty to show no message. Account welcome wording appears in the popup shown on the account page immediately after onboarding.</p>
 <ul class="nav nav-tabs admin-tabs mb-3" aria-label="Onboarding pages">
 <?php foreach($tabs as $key=>[$label]): ?>
 <li class="nav-item"><a class="nav-link <?= $tab===$key?'active':'' ?>" <?= $tab===$key?'aria-current="page"':'' ?> href="onboarding.php?tab=<?= h($key) ?>"><?= h($label) ?></a></li>
@@ -106,18 +107,7 @@ admin_layout_start('Onboarding','onboarding');
 <form method="post" class="card-soft p-4">
 <?= csrf_input() ?><input type="hidden" name="tab" value="<?= h($tab) ?>">
 <?php if($tab==='settings'): ?>
-<p>These settings apply to unfinished onboarding journeys. Disabling a page skips it even when records exist. Completed accounts are not reopened.</p>
-<?php foreach($flowLabels as $key=>$label): ?>
-<div class="mb-3">
-    <label class="form-label fw-semibold" for="<?= h($key) ?>"><?= h($label) ?></label>
-    <?php if(isset($flowErrors[$key])): ?><div class="text-danger small mb-1" id="<?= h($key) ?>-error"><?= h($flowErrors[$key]) ?></div><?php endif; ?>
-    <select id="<?= h($key) ?>" name="<?= h($key) ?>" class="form-select <?= isset($flowErrors[$key])?'is-invalid':'' ?>" <?= isset($flowErrors[$key])?'aria-invalid="true" aria-describedby="'.h($key).'-error"':'' ?>>
-        <?php foreach(['1'=>'Yes','0'=>'No'] as $value=>$text): ?><option value="<?= $value ?>" <?= $flowOptions[$key]===(string)$value?'selected':'' ?>><?= $text ?></option><?php endforeach; ?>
-    </select>
-    <?php if($key==='onboarding_show_blank_pages'): ?><div class="form-text">One setting for all optional pages. Yes shows enabled Horses/Shares pages with a “none found” message when empty. No skips empty pages.</div><?php endif; ?>
-</div>
-<?php endforeach; ?>
-<button type="submit" class="btn btn-success">Save Onboarding Settings</button>
+<p>Account setup now has one Password &amp; user settings page. Continue opens the account dashboard. People, Horses and Shares are skipped for new and unfinished journeys. Existing records are retained, and completed accounts are not reopened.</p>
 <?php else: ?>
 <?php if($tab==='welcome'): ?>
 <label class="form-label fw-semibold" for="onboarding-heading">Account setup heading</label>

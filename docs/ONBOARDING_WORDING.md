@@ -1,5 +1,17 @@
 # Onboarding wording editor — 20 November 2026
 
+Update — 26 November 2026: active onboarding is now a single Password & user
+settings page. Continue saves identity/password and completion atomically, then
+opens the account dashboard with its one-time welcome modal. There are no
+progress pills or separate Finish page. Admin tabs now expose Welcome, Password
+& user settings, Account welcome and Settings/reset controls. Stored text for
+retired Finish/People/Horses/Shares pages is retained but not displayed. The old
+Thank you key `onboarding_copy_thanks` supplies Account welcome. See
+[the current journey and verification](ACCOUNT_MIGRATION_PILOT.md#simplified-journey--26-november-2026).
+The conditional-stage and horse/membership onboarding checks below describe the
+previous journey; the updated account_migration PHP/Chromium suite verifies the
+active single-page flow.
+
 Admin → Onboarding provides separate tabs for Password, User settings, Person
 settings, Horses, Shares, Finish and Thank you. Each saves its introductory
 HTML message independently using the shared TinyMCE editor. Empty content hides
@@ -124,6 +136,25 @@ No real reset was run while implementing these controls. Running one requires
 the administrator to use its explicit preview and final confirmation.
 
 ## Per-account restart for training and testing
+
+Account matching uses the unique active owned Person whose email matches the
+login email (case-insensitive, trimmed). Additional managed riders with different
+emails do not disable invitation/reset controls. Missing or duplicate matches
+remain blocked; existing enrolment Person mappings are still rechecked.
+
+
+26 November 2026: completed accounts remain excluded from invitations until their
+per-account Reset Onboarding is used. After reset, the campaign preselects that
+account and Allow resends for the next preview. Preview and explicit Send are
+still required; reset never sends an email. The protected Developer's own row
+also offers Restart my onboarding now: after the existing RESET ONBOARDING
+confirmation, it schedules/activates only their own reset and redirects straight
+to `/migrate.php`. No logout or invitation is required for that self-rehearsal.
+Requests to immediately restart another account in the current browser are
+rejected before any reset. Operational data is retained. This remains restricted
+to the explicitly opted-in development workspace; a whole-system reset is not
+needed to repeat setup.
+
 
 Admin → Emails → Account Migration has Reset Onboarding beside each eligible
 account with a reviewed Person match, including completed accounts. It is not

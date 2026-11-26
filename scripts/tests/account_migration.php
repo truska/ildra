@@ -52,6 +52,25 @@ $pdo->exec("INSERT INTO migration_campaigns (id,subject,body_html) VALUES (1,'Fi
 $_SERVER['HTTP_HOST']='dev-ildra.witecanvas.com';$_SERVER['REMOTE_ADDR']='192.0.2.245';
 $_SESSION['user']=['id'=>2,'role'=>'developer'];authBindCredentialSession(2,$hash);
 $original=migrationPilotUser($pdo);$token='';$sends=0;
+// Button placement uses the same renderer for previews and actual invitations.
+$buttonUser=['first_name'=>'A < B','last_name'=>'Test & Co','email'=>'test@example.invalid'];
+$buttonUrl='https://example.invalid/migrate.php?invite=synthetic-token';
+foreach(['{{setup_button}}','{{ SETUP_BUTTON }}'] as $buttonTag) {
+    $payload=migrationEmailPayload(['subject'=>'Fixture','body_html'=>'<p>Hello {{first_name}}</p><p>'.$buttonTag.'</p><p>After the button, {{last_name}}.</p>'],$buttonUser,$buttonUrl);
+    migrationCheck(substr_count($payload['html'],'href="'.$buttonUrl.'"')===1,'Positioned button missing or duplicated');
+    migrationCheck(strpos($payload['html'],'Hello')<strpos($payload['html'],'<table') && strpos($payload['html'],'</table>')<strpos($payload['html'],'After the button'),'HTML button position lost');
+    migrationCheck(strpos($payload['text'],'Hello')<strpos($payload['text'],$buttonUrl) && strpos($payload['text'],$buttonUrl)<strpos($payload['text'],'After the button'),'Plain-text button position lost');
+    migrationCheck(str_contains($payload['html'],'A &lt; B') && str_contains($payload['html'],'Test &amp; Co'),'Personalisation not escaped');
+    migrationCheck(!str_contains($payload['html'],'<p><table'),'Button nested inside paragraph');
+    migrationCheck(str_contains($payload['text'],'expires in seven days'),'Expiry notice missing');
+    migrationCheck(!str_contains($payload['text'],'Shares'),'Retired flow advertised in invitation');
+}
+$legacyPayload=migrationEmailPayload(['subject'=>'Fixture','body_html'=>'<p>Old template</p>'],$buttonUser,$buttonUrl);
+migrationCheck(substr_count($legacyPayload['html'],'href="'.$buttonUrl.'"')===1 && str_contains($legacyPayload['text'],$buttonUrl),'Legacy appended button lost');
+$literalUser=$buttonUser;$literalUser['first_name']='{{setup_button}}';
+$literalPayload=migrationEmailPayload(['subject'=>'Fixture','body_html'=>'<p>{{first_name}}</p><p>{{setup_button}}</p>'],$literalUser,$buttonUrl);
+migrationCheck(substr_count($literalPayload['html'],'href="'.$buttonUrl.'"')===1,'Personalisation recursively expanded button');
+
 $transport=static function(array $u,array $payload,int $id)use(&$token,&$sends):bool{
     migrationCheck($u['email']==='david@truska.com','Unexpected recipient');
     migrationCheck(str_contains($payload['text'],'https://dev-ildra.witecanvas.com:28086/migrate.php?invite='),'Development port missing');
@@ -101,41 +120,55 @@ migrationCheck(isset(migrationSaveDetails($pdo,2,'user',array_merge($user,['emai
 migrationCheck(migrationSaveDetails($pdo,2,'user',$user)===[],'User save failed');
 migrationCheck((int)$pdo->query('SELECT general_email_opt_in FROM users WHERE id=2')->fetchColumn()===0,'User step changed unasked preference');
 migrationCheck(empty(migrationState($pdo,2)['user_preferences_json']),'User step invented preference evidence');
-$incomplete=migrationSaveDetails($pdo,2,'person',$user);
-foreach(['phone','address','postcode','junior_or_senior','emergency_contact_name','emergency_contact_phone'] as $f)migrationCheck(isset($incomplete[$f]),'Missing field not rejected: '.$f);
-migrationCheck(migrationState($pdo,2)['current_step']==='person','Invalid details advanced progress');
-$person=$user+['phone'=>'0123456789','address'=>'Fixture address','postcode'=>'AB1 2CD','junior_or_senior'=>'Junior','dob'=>'','emergency_contact_name'=>'Fixture Contact','emergency_contact_phone'=>'0123456790'];
-migrationCheck(isset(migrationSaveDetails($pdo,2,'person',$person)['dob']),'Junior missing DOB accepted');
-$person['dob']='2026-02-30';migrationCheck(isset(migrationSaveDetails($pdo,2,'person',$person)['dob']),'Impossible date accepted');
-$person['dob']=(date('Y')-15).'-01-01';$person['junior_or_senior']='Senior';
-$person['person_id']=999;$person['owner_user_id']=999;
-$offPerson=$person;$offPerson['ride_notice_opt_in']=0;$offPerson['general_email_opt_in']=1;$offPerson['renewal_reminder_opt_in']=1;
-migrationCheck(migrationSaveDetails($pdo,2,'person',$offPerson)===[],'Single preference off save failed');
-foreach(['users'=>2,'people'=>123] as $table=>$id) migrationCheck((int)$pdo->query("SELECT general_email_opt_in+ride_notice_opt_in+renewal_reminder_opt_in FROM `$table` WHERE id=$id")->fetchColumn()===0,'Single preference did not disable all flags');
-migrationBack($pdo,2);
-migrationCheck(migrationSaveDetails($pdo,2,'person',$person)===[],'Person save failed');
-foreach(['general_email_opt_in','ride_notice_opt_in','renewal_reminder_opt_in'] as $field) {
-    migrationCheck((int)$pdo->query("SELECT `$field` FROM users WHERE id=2")->fetchColumn()===1,'Single preference not enabled on user');
-    migrationCheck((int)$pdo->query("SELECT `$field` FROM people WHERE id=123")->fetchColumn()===1,'Single preference not enabled on person');
+$person=$user+['phone'=>'0123456789','address'=>'Fixture address','postcode'=>'AB1 2CD','junior_or_senior'=>'Senior','dob'=>'','emergency_contact_name'=>'Fixture Contact','emergency_contact_phone'=>'0123456790'];
+migrationCheck(migrationState($pdo,2)['current_step']==='finish','User confirmation did not go directly to Finish');
+migrationCheck(array_keys(migrationVisibleSteps($pdo,2))===['password'],'Retired stages still visible');
+$peopleBefore=$pdo->query('SELECT * FROM people ORDER BY id')->fetchAll();
+$horsesBefore=$pdo->query('SELECT * FROM horses ORDER BY id')->fetchAll();
+$preferencesBefore=$pdo->query('SELECT general_email_opt_in,ride_notice_opt_in,renewal_reminder_opt_in FROM users WHERE id=2')->fetch();
+// Already-confirmed legacy journeys complete without showing a second page.
+foreach(['person','horses','shares','finish'] as $oldStep) {
+    $pdo->prepare("UPDATE migration_enrolments SET current_step=?,completed_at=NULL,person_confirmed_at=NULL,horses_status='pending',shares_status='deferred' WHERE user_id=2")->execute([$oldStep]);
+    $resumed=migrationRefreshStages($pdo,2);
+    migrationCheck($resumed['current_step']==='complete' && $resumed['horses_status']==='skipped' && $resumed['shares_status']==='skipped','Legacy journey did not skip retired stages');
+    migrationCheck(empty($resumed['person_confirmed_at']) && empty($resumed['person_preferences_json']),'Routing invented review evidence');
+    migrationCheck(migrationConsumeAccountWelcome($pdo,['id'=>2]),'Legacy completion did not queue account welcome');
 }
-migrationCheck(migrationPreferences(['general_email_opt_in'=>1,'renewal_reminder_opt_in'=>1])===['general_email_opt_in'=>0,'ride_notice_opt_in'=>0,'renewal_reminder_opt_in'=>0],'Unchecked preference must clear all flags');
-migrationCheck($pdo->query('SELECT junior_or_senior FROM people WHERE id=123')->fetchColumn()==='Junior','Age classification incorrect');
-migrationCheck((int)$pdo->query('SELECT owner_user_id FROM people WHERE id=123')->fetchColumn()===2,'Ownership changed');
-migrationBack($pdo,2);migrationCheck(migrationState($pdo,2)['current_step']==='person','Back failed');
-migrationCheck(migrationSaveDetails($pdo,2,'person',$person)===[],'Person review after Back failed');
-$pdo->exec("UPDATE people SET phone=NULL WHERE id=123");migrationReject(fn()=>migrationFinish($pdo,2),'Incomplete saved person finished');
-$pdo->exec("UPDATE people SET phone='0123456789' WHERE id=123");
-migrationCheck(migrationState($pdo,2)['current_step']==='horses','Person did not advance to Horses');
-migrationCheck(migrationSaveHorses($pdo,2,[])===[],'No-horse Next failed');
-migrationCheck(migrationState($pdo,2)['current_step']==='shares','Horse step did not advance to Shares');
-migrationReject(fn()=>migrationFinish($pdo,2),'Shares placeholder skipped');
-migrationSaveShares($pdo,2);migrationBack($pdo,2);migrationCheck(migrationState($pdo,2)['current_step']==='shares','Finish Back did not return to Shares');
-migrationSaveShares($pdo,2);migrationFinish($pdo,2);
-$state=migrationState($pdo,2);migrationCheck(!migrationPending($state) && !empty($state['completed_at']),'Completion failed');
-migrationCheck($state['horses_status']==='none' && $state['shares_status']==='placeholder_seen','Horse/Shares progress not recorded');
-migrationCheck(json_decode($state['user_preferences_json'],true)['general_email_opt_in']===1,'Preference evidence missing');
-migrationCheck($state['user_preferences_json']===$state['person_preferences_json'],'Preference snapshots disagree');
-foreach(['general_email_opt_in','ride_notice_opt_in','renewal_reminder_opt_in'] as $field) migrationCheck($pdo->query("SELECT `$field` FROM users WHERE id=2")->fetchColumn()===$pdo->query("SELECT `$field` FROM people WHERE id=123")->fetchColumn(),'Person choice not applied to matching user');
+$pdo->exec("UPDATE migration_enrolments SET current_step='password',completed_at=NULL,password_set_at=NULL,user_confirmed_at=NULL WHERE user_id=2");
+migrationReject(fn()=>migrationFinish($pdo,2),'Finish allowed from Password');
+$account=$user+['new_password'=>'fixture combined password','confirm_password'=>'fixture combined password'];
+$invalid=$account;$invalid['first_name']='';
+migrationCheck(isset(migrationSaveAccount($pdo,2,$invalid)['first_name']),'Combined form accepted missing name');
+migrationCheck(migrationState($pdo,2)['current_step']==='password','Invalid account input advanced progress');
+$beforePassword=$pdo->query('SELECT password_hash FROM users WHERE id=2')->fetchColumn();
+$pdo->exec('UPDATE migration_enrolments SET person_id=999999 WHERE user_id=2');
+migrationReject(fn()=>migrationSaveAccount($pdo,2,$account),'Invalid Person mapping completed setup');
+migrationCheck($pdo->query('SELECT password_hash FROM users WHERE id=2')->fetchColumn()===$beforePassword && migrationState($pdo,2)['current_step']==='password','Failed completion partially changed password or progress');
+$pdo->exec('UPDATE migration_enrolments SET person_id=123 WHERE user_id=2');
+migrationCheck(migrationSaveAccount($pdo,2,$account)===[],'Combined account save failed');
+$new=migrationPilotUser($pdo);
+migrationCheck(migrationState($pdo,2)['current_step']==='complete' && !empty(migrationState($pdo,2)['completed_at']),'Continue did not complete setup in one save');
+migrationCheck(migrationConsumeAccountWelcome($pdo,['id'=>2]),'Continue did not queue account welcome');
+// A partial legacy state without password proof cannot bypass the initial page.
+$pdo->exec("UPDATE migration_enrolments SET current_step='person',completed_at=NULL,password_set_at=NULL WHERE user_id=2");
+migrationCheck(migrationRefreshStages($pdo,2)['current_step']==='password','Missing password proof bypassed initial page');
+migrationCheck(migrationSaveAccount($pdo,2,$account)===[],'Account save after incomplete legacy resume failed');
+$new=migrationPilotUser($pdo);
+migrationRefreshStages($pdo,2);
+foreach(['memberships.php','logbooks.php','checkout.php','basket.php','account.php','admin/campaigns.php'] as $script) migrationCheck(!migrationGuardAllows($script,[],'GET',[]),'Unfinished setup allowed navigation outside onboarding');
+migrationCheck(!empty(migrationState($pdo,2)['completed_at']),'Continue did not record completion');
+migrationCheck(($_SESSION['onboarding_account_welcome_user_id']??0)===2,'Finish did not queue account welcome');
+migrationCheck(migrationConsumeAccountWelcome($pdo,['id'=>2]),'Onboarding arrival did not show account welcome');
+migrationCheck(!migrationConsumeAccountWelcome($pdo,['id'=>2]),'Account refresh repeated onboarding welcome');
+$_SESSION['onboarding_account_welcome_user_id']=2;
+migrationCheck(!migrationConsumeAccountWelcome($pdo,['id'=>3]),'Account welcome leaked across users');
+migrationCheck(!isset($_SESSION['onboarding_account_welcome_user_id']),'Wrong-account marker not consumed');
+$state=migrationState($pdo,2);migrationCheck(!migrationPending($state) && !empty($state['completed_at']),'Completion failed with incomplete person details');
+migrationCheck($state['horses_status']==='skipped' && $state['shares_status']==='skipped','Retired stage status incorrect');
+migrationCheck($peopleBefore===$pdo->query('SELECT * FROM people ORDER BY id')->fetchAll(),'Simplified onboarding changed people');
+migrationCheck($horsesBefore===$pdo->query('SELECT * FROM horses ORDER BY id')->fetchAll(),'Simplified onboarding changed horses');
+migrationCheck($preferencesBefore===$pdo->query('SELECT general_email_opt_in,ride_notice_opt_in,renewal_reminder_opt_in FROM users WHERE id=2')->fetch(),'Skipped preferences were changed');
+migrationCheck(!empty(migrationRefreshStages($pdo,2)['completed_at']),'Completed journey reopened');
 migrationReject(fn()=>migrationSendPilot($pdo,1,$transport),'Completed account re-enrolled');
 foreach(['checkout.php','account.php','admin/campaigns.php','bookings.php'] as $script)migrationCheck(!migrationGuardAllows($script,[],'POST',['action'=>'save_user_details']),'Protected route allowed');
 migrationCheck(migrationGuardAllows('account.php',['logout'=>1],'GET',[]),'Logout blocked');
@@ -186,14 +219,14 @@ $oldAlerts=[];$_SESSION['user']=['id'=>3];authBindCredentialSession(3,$declineHa
 $_SESSION['user']=['id'=>2,'role'=>'developer'];authBindCredentialSession(2,$new['password_hash']);
 $reset=importWorkspacePlan($pdo,2);migrationCheck(isset($reset['delete']['record_notes']),'Import reset notes policy missing');
 echo "PASS: closure confirmation, protected account, stale wording, wrong token, impersonation, extra-person review, atomic rollback, paired private notes, archive/sign-out/token revocation, terminal decline, email snapshots and admin filters. Disposable temporary records only.\n";
-echo "PASS: pilot-only delivery, preview/revision checks, no scanner activation, expiry, resend, replay, wrong account, impersonation, password proof/revocation, atomic progress, required fields, DOB, ownership, preferences, Back, completion, guards and reset policy. Temporary tables only; no real sends or account edits.\n";
+echo "PASS: pilot-only delivery, preview/revision checks, no scanner activation, expiry, resend, replay, wrong account, impersonation, password proof/revocation, atomic progress, simplified routing, legacy resume, record preservation, Back, completion, guards and reset policy. Temporary tables only; no real sends or account edits.\n";
 
 // Render the actual shared view with synthetic state for headless browser checks.
 if (isset($argv[1]) && is_dir($argv[1]) && str_starts_with(realpath($argv[1]),'/tmp/')) {
     require dirname(__DIR__,2).'/views/migration_fields.php';
-    $siteSettings=['hero_title'=>'Fixture ILDRA'];$basePath='';$general='';$completedNow=false;$invitation=null;$token='';$currentUser=['id'=>2];$uid=2;$pageCopy=migrationPageCopy($pdo);$closureComplete=false;$closureProtected=false;
-    foreach (['password','user','person','horses','horses-none','horse-logbook','horse-keep','horse-archive','shares','finish','complete','complete-basket','welcome','protected-welcome','closed','anonymous-welcome','other-account-welcome'] as $fixtureStep) {
-        $step=in_array($fixtureStep,['complete','complete-basket','welcome','protected-welcome','closed','anonymous-welcome','other-account-welcome'],true)?null:(in_array($fixtureStep,['horses-none','horse-logbook','horse-keep','horse-archive'],true)?'horses':$fixtureStep);
+    $siteSettings=['hero_title'=>'Fixture ILDRA'];$basePath='';$general='';$invitation=null;$token='';$currentUser=['id'=>2];$uid=2;$pageCopy=migrationPageCopy($pdo);$closureComplete=false;$closureProtected=false;
+    foreach (['password','user','complete','complete-basket','welcome','protected-welcome','closed','anonymous-welcome','other-account-welcome'] as $fixtureStep) {
+        $step=in_array($fixtureStep,['complete','complete-basket','welcome','protected-welcome','closed','anonymous-welcome','other-account-welcome'],true)?null:$fixtureStep;
         $invitation=in_array($fixtureStep,['welcome','protected-welcome'],true)?['user_id'=>2,'email'=>'fixture@example.invalid']:null;
         $closureProtected=$fixtureStep==='protected-welcome';$closureComplete=$fixtureStep==='closed';
         $currentUser=['id'=>2];$uid=2;$canInvitationStart=false;
@@ -202,18 +235,7 @@ if (isset($argv[1]) && is_dir($argv[1]) && str_starts_with(realpath($argv[1]),'/
             if($fixtureStep==='anonymous-welcome'){$currentUser=null;$uid=0;}
         }
         $state=['completed_at'=>in_array($fixtureStep,['complete','complete-basket'],true)?'2026-11-17 12:00:00':null,'person_id'=>123];
-        $membershipOffers=[['id'=>900,'name'=>'Fixture Senior','description'=>'Adult membership information.','cost'=>'35.00'],['id'=>901,'name'=>'Fixture Junior','description'=>'Youth membership information.','cost'=>'20.00']];$membershipYear=2027;
-        $values=$fixtureStep==='person'?$person:$user;$errors=[];
-        if ($fixtureStep==='person') $errors=['phone'=>'Phone number is required.'];
-        $horseRows=[];$horseQualifications=[1=>'Bronze',2=>'None'];$horseAction='';$selectedHorse=null;$horseChoiceStates=[];$logbookOffer=['id'=>900,'name'=>'Fixture logbook','valid_year'=>2027,'cost'=>'7.50'];
-        if(in_array($fixtureStep,['horses','horse-logbook','horse-keep','horse-archive'],true)){
-            $horseRows=[['id'=>400,'owner_user_id'=>2,'name'=>'Fixture Horse','owner_name'=>'Fixture Owner','breed'=>'Arab','colour'=>'Bay','sex'=>'Mare','height_cm'=>150,'qualification_id'=>2,'year_of_birth'=>'2012','passport_number'=>'']];
-            $errors=['horses[400][passport_number]'=>'Passport number is required.'];
-            $horseChoiceStates=[400=>['valid'=>false,'label'=>'Please choose an option']];
-            if($fixtureStep!=='horses'){$horseAction=substr($fixtureStep,6);$selectedHorse=$horseRows[0];}
-            if($fixtureStep==='horse-archive')$errors=['archive_confirmed'=>'Confirm that you want to archive this horse.'];
-        }
-        $completedNow=in_array($fixtureStep,['complete','complete-basket'],true);
+        $values=$user;$errors=[];
         $_SESSION['basket']=$fixtureStep==='complete-basket'?[['booking_type'=>'horse_logbook','horse_id'=>400,'price'=>'7.50']]:[];
         ob_start();require dirname(__DIR__,2).'/views/migration_setup.php';$html=ob_get_clean();
         file_put_contents($argv[1].'/'.$fixtureStep.'.html',$html);chmod($argv[1].'/'.$fixtureStep.'.html',0600);

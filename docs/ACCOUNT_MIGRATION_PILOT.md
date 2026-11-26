@@ -1,5 +1,59 @@
 # Account migration email and setup pilot
 
+Wrap-up — 26 November 2026: the single-page onboarding, reset/retest controls,
+email button placement and combined account dashboard are ready for the next
+user review. Automated checks use synthetic temporary records only. The user's
+shared-screen walkthrough is still pending; no new real invitations, account
+resets or deployments were performed during this wrap-up.
+
+## Place the email setup button — 26 November 2026
+
+Campaign text supports `{{setup_button}}` alongside `{{first_name}}`,
+`{{last_name}}` and `{{email}}`. Place it on its own line between introductory
+and closing text. It renders the standard Complete your account setup button
+with that recipient's secure single-use invitation URL. Plain-text email puts
+the labelled URL at the same point. Preview uses its existing inactive example
+URL. Without the tag, existing templates still receive an appended button.
+The seven-day expiry notice is always appended; it now describes the shorter
+password/login confirmation journey. No invitation is sent by editing/previewing.
+
+## Simplified journey — 26 November 2026
+
+This supersedes the multi-stage journey described in the historical notes below.
+The public journey is now a single **Password & user settings** page. Continue
+saves the password and confirmed login names, marks onboarding complete and
+revokes unused invitations in the same transaction. The account-bound welcome
+marker is queued only after that transaction succeeds, then `/migrate.php`
+redirects to `/account`. A failed completion rolls back the password and progress.
+There are no progress pills, separate Finish page, purchase shortcuts or Back/
+sign-out controls in the setup form. People, Horses and Shares stay skipped.
+Their records and existing preferences/basket selections are retained; no review
+timestamps or consent evidence are invented. The mapped Person must still exist,
+be active and belong to the account; optional contact details are not required.
+
+Previously unfinished journeys at retired stages (including Finish) complete
+when password and user confirmation were already saved, then open the account
+welcome. Journeys without those confirmations return to the single setup form.
+Completed accounts remain terminal and are not reopened. Password/session
+security, invitation checks and explicit Continue submission remain in force.
+
+The account welcome body uses `onboarding_copy_thanks`, edited under
+Admin → Onboarding → Account welcome. Existing custom text is retained. It opens
+once on arrival using a server-side marker bound to the completed user; normal
+visits, query parameters and refreshes do not trigger it. Other automatic account
+prompts are deferred for that arrival. Memberships and logbooks are managed from
+the account dashboard after setup. The retired Finish wording is retained in
+storage but its editor tab is hidden because there is no longer a Finish page.
+
+Verification: `php scripts/tests/account_migration.php` uses temporary shadow
+tables and simulated email delivery. It covers direct completion, incomplete
+person records, legacy progress, initial password/identity requirements, atomic Continue completion,
+record/preference preservation and invitation/security regressions. Render its
+fixtures into a private `/tmp/` directory and run
+`node scripts/tests/account_migration.cjs <directory>` for the shortened progress,
+password controls, welcome/closure and the single Continue form.
+
+
 Current status — 17 November 2026: the development campaign now supports
 selected recipients and all accounts not yet successfully emailed. The initial
 six-row import has five ordinary users plus the protected Developer. A read-only

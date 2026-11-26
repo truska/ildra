@@ -59,18 +59,31 @@ function migrationCampaignErrors(array $data): array
 function migrationPilotPerson(PDO $pdo, array $user): array
 {
     $s = $pdo->prepare('SELECT * FROM people WHERE owner_user_id=? AND is_archived=0'); $s->execute([(int)$user['id']]);
-    $rows = $s->fetchAll();
-    if (count($rows) !== 1 || strcasecmp(trim((string)$rows[0]['email']), $user['email']) !== 0) throw new RuntimeException('Review the account/person match before sending.');
+    $rows = array_values(array_filter($s->fetchAll(), static fn(array $person): bool => strcasecmp(trim((string)($person['email'] ?? '')), trim((string)$user['email'])) === 0));
+    if (count($rows) !== 1) throw new RuntimeException('Review the account/person match before sending.');
     return $rows[0];
 }
 
 function migrationEmailPayload(array $campaign, array $user, string $url): array
 {
     $merge = ['first_name'=>(string)$user['first_name'],'last_name'=>(string)$user['last_name'],'email'=>(string)$user['email']];
-    $html = emailCampaignMerge((string)$campaign['body_html'], array_map('h',$merge));
-    $html .= '<p>'.email_cta_button_html($url,'Complete your account setup').'</p><p>This personal link expires in seven days. You will set a password, confirm your user and person details, and review your horses. A Shares step is included for later setup.</p>';
-    $text = trim(html_entity_decode(strip_tags(preg_replace('/<\/(?:p|div)>|<br\s*\/?>/i',"\n",$html)??$html),ENT_QUOTES|ENT_HTML5,'UTF-8'));
-    return ['subject'=>(string)$campaign['subject'],'html'=>$html,'text'=>$text."\n\nComplete your account setup: ".$url];
+    $template = (string)$campaign['body_html'];
+    $hasButton = (bool)preg_match('/\{\{\s*setup_button\s*\}\}/i', $template);
+    // TinyMCE wraps a tag on its own line in a paragraph. A button table needs a div.
+    $template = preg_replace('/<p\b[^>]*>\s*(\{\{\s*setup_button\s*\}\})\s*<\/p>/i', '<div style="margin:20px 0;">$1</div>', $template) ?? $template;
+    $button = email_cta_button_html($url,'Complete your account setup');
+    $html = emailCampaignMerge($template, array_map('h',$merge) + ['setup_button'=>$button]);
+    $textHtml = emailCampaignMerge($template, array_map('h',$merge) + ['setup_button'=>h('Complete your account setup: '.$url)]);
+    if (!$hasButton) {
+        // Existing saved templates retain their automatically appended button.
+        $html .= '<div style="margin:20px 0;">'.$button.'</div>';
+        $textHtml .= '<p>'.h('Complete your account setup: '.$url).'</p>';
+    }
+    $notice = '<p>This personal link expires in seven days. You will set a password and confirm your login details, then finish your account setup.</p>';
+    $html .= $notice;
+    $textHtml .= $notice;
+    $text = trim(html_entity_decode(strip_tags(preg_replace('/<\/(?:p|div)>|<br\s*\/?>/i',"\n",$textHtml)??$textHtml),ENT_QUOTES|ENT_HTML5,'UTF-8'));
+    return ['subject'=>(string)$campaign['subject'],'html'=>$html,'text'=>$text];
 }
 
 /** Send only after an explicit reviewed POST. Resends revoke older links, preserving progress. */
@@ -242,7 +255,7 @@ function migrationSaveDetails(PDO $pdo, int $uid, string $step, array $data): ar
             // Preferences are reviewed once, on the Person step; ignore any hidden/forged User-step choices.
             $s=$pdo->prepare('UPDATE users SET first_name=?,last_name=? WHERE id=?');
             $s->execute([trim($data['first_name']),trim($data['last_name']),$uid]);
-            $pdo->prepare("UPDATE migration_enrolments SET current_step='person',user_confirmed_at=NOW() WHERE user_id=?")->execute([$uid]);
+            $pdo->prepare("UPDATE migration_enrolments SET current_step='finish',user_confirmed_at=NOW() WHERE user_id=?")->execute([$uid]);
         } else {
             $s=$pdo->prepare('SELECT * FROM people WHERE id=? AND owner_user_id=? AND is_archived=0 FOR UPDATE');$s->execute([(int)$state['person_id'],$uid]);$person=$s->fetch();
             if (!$person) throw new RuntimeException('Your person record needs administrator review.');
@@ -298,7 +311,9 @@ function migrationSavePassword(PDO $pdo, int $uid, array $data, bool $confirmUse
         authReplacePassword($pdo,$uid,$hash,$previous);
         if ($confirmUser) {
             $pdo->prepare('UPDATE users SET first_name=?,last_name=? WHERE id=?')->execute([trim($data['first_name']),trim($data['last_name']),$uid]);
-            $pdo->prepare("UPDATE migration_enrolments SET current_step='person',password_setup_required=0,password_set_at=NOW(),user_confirmed_at=NOW() WHERE user_id=?")->execute([$uid]);
+            migrationAssertCompletionRecords($pdo,$uid,$state);
+            $pdo->prepare("UPDATE migration_enrolments SET current_step='complete',password_setup_required=0,password_set_at=NOW(),user_confirmed_at=NOW(),horses_status='skipped',shares_status='skipped',completed_at=NOW() WHERE user_id=?")->execute([$uid]);
+            $pdo->prepare('UPDATE migration_invitations SET revoked_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$uid]);
         } else {
             $pdo->prepare("UPDATE migration_enrolments SET current_step='user',password_setup_required=0,password_set_at=NOW() WHERE user_id=?")->execute([$uid]);
         }
@@ -306,6 +321,7 @@ function migrationSavePassword(PDO $pdo, int $uid, array $data, bool $confirmUse
     });
     if (!$result['allowed'] || !$result['value']) return ['new_password'=>$result['retry_after']>0?authThrottleRetryMessage($result['retry_after']):'Your sign-in has expired. Sign in again before setting your password.'];
     session_regenerate_id(true); authBindCredentialSession($uid,$hash); clear_remember_me_cookie(); unset($_COOKIE['ildra_remember']);
+    if ($confirmUser) migrationQueueAccountWelcome($uid);
     return [];
 }
 
@@ -323,18 +339,43 @@ function migrationFinish(PDO $pdo, int $uid): void
     $pdo->beginTransaction();
     try {
         $state=migrationState($pdo,$uid,true);
-        if (!migrationPending($state) || $state['current_step']!=='finish' || !$state['password_set_at'] || !$state['user_confirmed_at'] || !$state['person_confirmed_at']) throw new RuntimeException('Complete each setup step before finishing.');
-        // Revalidate current records so an intervening edit cannot bypass required details.
-        $s=$pdo->prepare('SELECT * FROM users WHERE id=? AND is_archived=0 FOR UPDATE');$s->execute([$uid]);$user=$s->fetch();
-        $s=$pdo->prepare('SELECT * FROM people WHERE id=? AND owner_user_id=? AND is_archived=0 FOR UPDATE');$s->execute([(int)$state['person_id'],$uid]);$person=$s->fetch();
-        if (!$user || !$person || migrationDetailErrors($user,false) || migrationDetailErrors($person,true)) throw new RuntimeException('Your saved details need review before finishing.');
-        $steps=migrationVisibleSteps($pdo,$uid);
-        if (isset($steps['horses']) && !migrationHorseReviewValid($pdo,$uid,$state,true)) throw new RuntimeException('Review your horses before finishing.');
-        if (isset($steps['shares']) && $state['shares_status']!=='placeholder_seen') throw new RuntimeException('Continue through Shares before finishing.');
+        if (!migrationPending($state) || $state['current_step']!=='finish' || !$state['password_set_at'] || !$state['user_confirmed_at']) throw new RuntimeException('Complete each setup step before finishing.');
+        migrationAssertCompletionRecords($pdo,$uid,$state);
         $pdo->prepare("UPDATE migration_enrolments SET current_step='complete',completed_at=NOW() WHERE user_id=?")->execute([$uid]);
         $pdo->prepare('UPDATE migration_invitations SET revoked_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$uid]);
         $pdo->commit();
     } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+}
+
+/** Validate identity/ownership without requiring optional person contact details. */
+function migrationAssertCompletionRecords(PDO $pdo, int $uid, array $state): void
+{
+    $s=$pdo->prepare('SELECT * FROM users WHERE id=? AND is_archived=0 FOR UPDATE');$s->execute([$uid]);$user=$s->fetch();
+    $s=$pdo->prepare('SELECT id FROM people WHERE id=? AND owner_user_id=? AND is_archived=0 FOR UPDATE');$s->execute([(int)$state['person_id'],$uid]);
+    if (!$user || !$s->fetchColumn() || migrationDetailErrors($user,false)) throw new RuntimeException('Your saved login details or Person mapping need review before completing setup.');
+}
+
+function migrationQueueAccountWelcome(int $uid): void
+{
+    $_SESSION['onboarding_account_welcome_user_id']=$uid;
+    unset($_SESSION['migration_completed_modal']);
+}
+
+/** Compatibility for already-confirmed journeys from the retired Finish stage. */
+function migrationFinishToAccount(PDO $pdo, int $uid): void
+{
+    migrationFinish($pdo,$uid);
+    migrationQueueAccountWelcome($uid);
+}
+
+function migrationConsumeAccountWelcome(?PDO $pdo, ?array $user): bool
+{
+    $queued=(int)($_SESSION['onboarding_account_welcome_user_id']??0);
+    unset($_SESSION['onboarding_account_welcome_user_id']);
+    $uid=(int)($user['id']??0);
+    if (!$pdo || $queued<=0 || $uid!==$queued || !empty($_SESSION['act_as_original_user'])) return false;
+    $state=migrationState($pdo,$uid);
+    return !empty($state['completed_at']);
 }
 
 function migrationGuardAllows(string $script, array $get, string $method, array $post): bool
@@ -502,33 +543,22 @@ function migrationShareCount(PDO $pdo, int $uid): int
 
 function migrationVisibleSteps(PDO $pdo, int $uid): array
 {
-    $options=onboardingFlowSettings($pdo);$blank=$options['onboarding_show_blank_pages']==='1';
-    $steps=['password'=>'Password & user settings','person'=>'Person settings'];
-    if ($options['onboarding_horses_enabled']==='1' && ($blank || migrationHorses($pdo,$uid))) $steps['horses']='Horses';
-    if ($options['onboarding_shares_enabled']==='1' && ($blank || migrationShareCount($pdo,$uid)>0)) $steps['shares']='Shares';
-    $steps['finish']='Finish';return $steps;
+    return ['password'=>'Password & user settings'];
 }
 
-/** Called with the enrolment locked; hidden stages never fake record reviews. */
+/** Skip retired review stages without claiming that records were reviewed. */
 function migrationApplyStageOptions(PDO $pdo, int $uid, ?array $state): ?array
 {
-    if (!migrationPending($state) || !in_array($state['current_step'],['horses','shares','finish'],true)) return $state;
-    $steps=migrationVisibleSteps($pdo,$uid);$horseVisible=isset($steps['horses']);$shareVisible=isset($steps['shares']);
-    $current=$state['current_step'];$horseStatus=$state['horses_status'];$shareStatus=$state['shares_status'];
-    if (!$horseVisible) {
-        $horseStatus='skipped';
-        if ($current==='horses') $current=$shareVisible?'shares':'finish';
-    } elseif ($current!=='horses' && !migrationHorseReviewValid($pdo,$uid,$state,true)) {
-        $current='horses';$horseStatus='pending';$shareStatus='deferred';
+    if (!migrationPending($state) || !in_array($state['current_step'],['person','horses','shares','finish'],true)) return $state;
+    // Older partial journeys must still have completed password and login confirmation.
+    if (!empty($state['password_set_at']) && !empty($state['user_confirmed_at'])) {
+        migrationAssertCompletionRecords($pdo,$uid,$state);
+        $pdo->prepare("UPDATE migration_enrolments SET current_step='complete',horses_status='skipped',shares_status='skipped',completed_at=NOW() WHERE user_id=?")->execute([$uid]);
+        $pdo->prepare('UPDATE migration_invitations SET revoked_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$uid]);
+        return migrationState($pdo,$uid);
     }
-    if (!$shareVisible) {
-        $shareStatus='skipped';
-        if ($current==='shares') $current='finish';
-    } elseif ($current==='finish' && $shareStatus!=='placeholder_seen') {
-        $current='shares';
-    }
-    $pdo->prepare('UPDATE migration_enrolments SET current_step=?,horses_status=?,shares_status=? WHERE user_id=?')->execute([$current,$horseStatus,$shareStatus,$uid]);
-    return array_replace($state,['current_step'=>$current,'horses_status'=>$horseStatus,'shares_status'=>$shareStatus]);
+    $pdo->prepare("UPDATE migration_enrolments SET current_step='password',horses_status='skipped',shares_status='skipped' WHERE user_id=?")->execute([$uid]);
+    return array_replace($state,['current_step'=>'password','horses_status'=>'skipped','shares_status'=>'skipped']);
 }
 
 /** Refresh active journeys only; completed accounts are never reopened. */
@@ -536,8 +566,11 @@ function migrationRefreshStages(PDO $pdo,int $uid):?array
 {
     migrationAssertOwnSession($pdo,$uid);$pdo->beginTransaction();
     try {
-        $state=migrationApplyStageOptions($pdo,$uid,migrationState($pdo,$uid,true));
-        $pdo->commit();return $state;
+        $before=migrationState($pdo,$uid,true);
+        $state=migrationApplyStageOptions($pdo,$uid,$before);
+        $pdo->commit();
+        if (migrationPending($before) && !empty($state['completed_at'])) migrationQueueAccountWelcome($uid);
+        return $state;
     } catch(Throwable $e) {if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
 

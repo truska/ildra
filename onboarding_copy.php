@@ -10,7 +10,7 @@ function onboardingCopyDefinitions(): array
         'person' => ['Person settings', ''],
         'horses' => ['Horses', '<p>You purchased a logbook for one or more of your horses last year. You can add logbooks to your basket again now as part of the onboarding process.</p><p>Please click the appropriate button below for each horse to proceed.</p>'],
         'shares' => ['Shares', '<p>To follow.</p>'],
-        'finish' => ['Finish', '<p>Your password, user, person and horse choices have been saved. You have reached the Shares placeholder. Choose Finish to complete your migration. Any memberships and logbooks in your basket can be paid for afterwards.</p>'],
+        'finish' => ['Finish', '<p>Your password and login details have been saved. Choose Finish to complete your account setup. Any memberships and logbooks in your basket can be paid for afterwards.</p>'],
         'thanks' => ['Thank you', '<p>Thank you for migrating to our new system. Your account setup is complete.</p>'],
         'welcome' => ['Welcome', ''],
     ];

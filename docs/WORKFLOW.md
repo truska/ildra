@@ -562,3 +562,45 @@ Verification: `php scripts/tests/subject_archives.php <private-/tmp-directory>`
 uses all-table temporary copies and synthetic records. Run
 `node scripts/tests/subject_archives.cjs <directory>` for actual archive form
 controls, Cancel, exact typed confirmation, CSRF/record targets and restore.
+
+
+## 31. Combined public account dashboard
+
+`/account` now defaults to three base sections: People, Horses and Recent
+Purchases. Show Memberships below People and Show Logbooks below Horses reveal
+the corresponding histories; both start collapsed and independently toggle
+between Show and Hide. Empty histories keep their existing guidance. Existing add/edit/archive, shared-record controls, membership/logbook
+purchase and renewal actions are reused. People and Horses no longer have
+separate navigation buttons. The Shares navigation button is hidden; its route,
+request handlers and stored shares are retained. Admin remains visible only to
+roles that already had admin access. Login/security settings remain under the
+header's My Account link, and external-recognition links remain available.
+
+Old `view=people` and `view=horses` URLs render the combined dashboard. Horse
+links without an editor selection scroll to Your horses. Person/horse edit
+parameters still open their respective existing modal; both add forms remain
+available on the same page. People and Horse Information buttons keep separate
+introductory content. Empty Horses does not replace or trigger the People intro.
+No accounts, memberships, logbooks, purchases or share permissions are changed by
+this layout update.
+
+Verification: `php scripts/tests/account_dashboard.php <private-/tmp-directory>`
+renders the actual account body using all-table temporary copies, with paid and
+unpaid synthetic accounts, legacy links, editors, role checks and empty histories.
+`node scripts/tests/account_dashboard.cjs <directory>` checks the resulting pages
+at 1440px and 390px and exercises both add/edit modals and independent history
+collapse/expand controls with real Bootstrap.
+The browser check expects the site's pinned Bootstrap 5.3.2 files at
+`/tmp/ildra-bootstrap-5.3.2.bundle.min.js` and
+`/tmp/ildra-bootstrap-5.3.2.min.css`, downloaded from the same jsDelivr URLs used
+by the site; other browser network requests are blocked.
+
+
+After onboarding Continue, `/account` opens a one-time account welcome modal using
+Admin → Onboarding → Account welcome wording (the existing
+`onboarding_copy_thanks` key). A server-side marker binds it to the completed
+account and is consumed once; normal visits, refreshes and query parameters do
+not trigger it. Other automatic account prompts are deferred for that arrival.
+The single Password & user settings form has only Continue, which saves the
+password, identity and completion atomically. There are no progress pills or
+second Finish page. Purchase actions happen from the dashboard.

@@ -1,5 +1,13 @@
 # Account migration and first login plan
 
+Decision — 26 November 2026: simplify active onboarding to one Password & user
+settings page. Continue completes setup and opens the account dashboard with a
+one-time welcome modal. People, Horses and
+Shares are no longer onboarding requirements; their existing records remain.
+This supersedes the multi-stage setup proposals below. Current implementation
+and verification are documented in [the migration pilot](../ACCOUNT_MIGRATION_PILOT.md#simplified-journey--26-november-2026).
+
+
 Status: staged implementation. The six-row development CSV trial completed on
 17 November 2026 (five new ordinary Users and six people, protected existing
 user unchanged). The [development account migration pilot](../ACCOUNT_MIGRATION_PILOT.md)

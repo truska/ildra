@@ -3,6 +3,13 @@ declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 ob_start();require __DIR__.'/account_migration.php';
 $actor=['id'=>2,'role'=>'developer'];$_SESSION['user']=$actor;$_SERVER['HTTP_HOST']='dev-ildra.witecanvas.com:28086';unset($_SESSION['auth_fresh_login_user_id']);
+// Managing another rider must not hide the account holder's reset control.
+$pdo->exec("INSERT INTO people(id,owner_user_id,email,first_name,last_name) VALUES (925,2,'additional-rider@example.invalid','Extra','Rider')");
+migrationCheck((int)migrationPilotPerson($pdo,migrationRecipient($pdo,2))['id']===123,'Additional rider blocked unique account-holder match');
+$pdo->exec("UPDATE people SET email='DAVID@TRUSKA.COM' WHERE id=925");
+migrationReject(fn()=>migrationResetOnboarding($pdo,$actor,2,123),'Ambiguous matching riders allowed a reset');
+migrationCheck(migrationState($pdo,2)['current_step']==='complete','Rejected ambiguous reset changed progress');
+$pdo->exec("UPDATE people SET email='additional-rider@example.invalid' WHERE id=925");
 $preserved=[];foreach(['users','people','horses','share_requests','user_person_links','user_horse_links','finance_transactions','user_credits','membership_purchases','horse_logbook_purchases','booking_items','bookings','baskets'] as $table)$preserved[$table]=$pdo->query("SELECT * FROM `$table` ORDER BY 1")->fetchAll();
 $oldState=migrationState($pdo,2);migrationCheck(!empty($oldState['completed_at']),'Fixture account not complete');
 $otherState=migrationState($pdo,3);
@@ -34,7 +41,7 @@ migrationCheck(migrationState($pdo,2)['current_step']==='password' && migrationP
 $bootstrap=file_get_contents(dirname(__DIR__,2).'/bootstrap.php');migrationCheck(str_contains($bootstrap,"migrationActivateScheduledRestart(\$pdo,(int)\$currentUser['id'])"),'Bootstrap activation hook missing');
 if(!empty($argv[1])&&is_dir($argv[1])&&str_starts_with(realpath($argv[1]),'/tmp/')){
     $source=file_get_contents(dirname(__DIR__,2).'/admin/migration_campaign.php');
-    $canResetOnboarding=true;
+    $canResetOnboarding=true;$currentUser=$actor;$resetSelectedUid=2;
     $row=['id'=>2,'email'=>'fixture@example.invalid','person_id'=>123,'name'=>'Fixture User','reason'=>'','status'=>'Complete','sent'=>1];
     $a=strpos($source,'<tr><td><input class="form-check-input" type="checkbox" name="user_ids[]"');$b=strpos($source,'<?php endforeach;', $a);
     ob_start();eval('?>'.substr($source,$a,$b-$a));$rowHtml=ob_get_clean();

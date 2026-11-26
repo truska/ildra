@@ -19,9 +19,15 @@ if (($_SERVER['REQUEST_METHOD']??'GET')==='POST') {
         if ($action==='reset_onboarding') {
             if(!$canResetOnboarding)throw new RuntimeException('Testing resets are available only on development.');
             if (($_POST['delete_confirmation']??'')!=='RESET ONBOARDING') throw new RuntimeException('Type RESET ONBOARDING to confirm.');
+            if (($_POST['restart_now']??'')==='1' && (int)($_POST['user_id']??0)!==(int)$currentUser['id']) throw new RuntimeException('Only your own onboarding can be restarted in this browser.');
             migrationResetOnboarding($pdo,$currentUser,(int)($_POST['user_id']??0),(int)($_POST['person_id']??0));
             unset($_SESSION['migration_campaign_preview']);
-            $_SESSION['flash_success']='Onboarding reset. This account will restart at its next login, or through a fresh invitation. Data has been retained. For an account already emailed, select Allow resends when sending its new invitation.';
+            if (($_POST['restart_now']??'')==='1') {
+                migrationActivateScheduledRestart($pdo,(int)$currentUser['id']);
+                header('Location: /migrate.php',true,303);exit;
+            }
+            $_SESSION['migration_reset_selected_user_id']=(int)$_POST['user_id'];
+            $_SESSION['flash_success']='Onboarding reset. This account will restart at its next login, or through a fresh invitation. Data has been retained. The account is selected below with Allow resends enabled; preview the invitation before sending.';
             header('Location: migration_campaign.php',true,303);exit;
         } elseif ($action==='save_page_copy') {
             $pdo->prepare('UPDATE migration_page_copy SET introduction=?,closure_explanation=?,revision=revision+1 WHERE id=1')->execute([trim((string)($_POST['introduction']??'')),trim((string)($_POST['closure_explanation']??''))]);
@@ -72,6 +78,7 @@ if (($_SERVER['REQUEST_METHOD']??'GET')==='POST') {
 $preview=$_SESSION['migration_campaign_preview']??null;
 if ($preview && (!isset($preview['recipients']) || time()-(int)$preview['time']>900 || (int)$preview['revision']!==(int)$campaign['revision'])) $preview=null;
 $values=$errors && ($_POST['action']??'')==='save'?$_POST:$campaign;
+$resetSelectedUid=(int)($_SESSION['migration_reset_selected_user_id']??0);unset($_SESSION['migration_reset_selected_user_id']);
 $recipientRows=migrationRecipients($pdo);$redirectTo='';$redirectError='';
 try{$redirectTo=migrationRequiredRedirect($pdo);}catch(RuntimeException $e){$redirectError=$e->getMessage();}
 $report=$_SESSION['migration_send_report']??[];unset($_SESSION['migration_send_report']);
@@ -79,7 +86,7 @@ $history=$pdo->query('SELECT email,user_id,delivery_status,sent_at,expires_at,us
 admin_layout_start('Account migration','email_campaigns');
 render_campaign_navigation('migration',$currentRole);
 ?>
-<div class="card-soft p-4 mb-4"><h1 class="h4">Account migration campaign</h1><p>Choose the accounts to invite below, then review the recipients and send the batch. Each email has a personal link for its intended account.</p><p>Password &amp; user settings → Person settings → enabled Horses/Shares pages → Finish.</p><p class="small text-muted">Ordinary users open their personal link and choose Continue to set a password. Protected accounts sign in normally first. Preparing or sending an invitation does not change the password, role, protection or authenticator. Progress becomes mandatory after Continue is selected.</p>
+<div class="card-soft p-4 mb-4"><h1 class="h4">Account migration campaign</h1><p>Choose the accounts to invite below, then review the recipients and send the batch. Each email has a personal link for its intended account.</p><p>Password &amp; user settings → Account dashboard.</p><p class="small text-muted">Ordinary users open their personal link and choose Continue to set a password. Protected accounts sign in normally first. Preparing or sending an invitation does not change the password, role, protection or authenticator. Progress becomes mandatory after Continue is selected.</p>
 <form method="post" novalidate><?= csrf_input() ?><input type="hidden" name="action" value="save"><div class="row">
 <?php migrationField('subject','Email subject',$values,$errors); ?>
 <div class="col-12 mb-3">
@@ -87,7 +94,7 @@ render_campaign_navigation('migration',$currentRole);
     <?php if(isset($errors['body_html'])): ?><div class="text-danger small mb-1" id="migration_body_html_error"><?= h($errors['body_html']) ?></div><?php endif; ?>
     <textarea class="form-control wysiwyg-field <?= isset($errors['body_html'])?'is-invalid':'' ?>" id="migration_body_html" name="body_html" rows="12" required <?= isset($errors['body_html'])?'aria-invalid="true" aria-describedby="migration_body_html_error"':'' ?>><?= h($values['body_html']??'') ?></textarea>
 </div>
-</div><p class="small text-muted">This is the email body. Personalisation tags: {{first_name}}, {{last_name}}, {{email}}. The personal setup button and seven-day expiry notice are added automatically.</p><button class="btn btn-success">Save draft</button></form>
+</div><p class="small text-muted">This is the email body. Personalisation tags: {{first_name}}, {{last_name}}, {{email}}. Put {{setup_button}} on its own line wherever you want the personal setup button, with your text before and after it. Each recipient gets their own secure link. If you omit the tag, the button is added at the end as before. The seven-day expiry notice is always added at the end.</p><button class="btn btn-success">Save draft</button></form>
 </div>
 <div class="card-soft p-4 mb-4"><h2 class="h5">Welcome and closure wording</h2><p>These optional text blocks appear above the first-page choices and in the closure confirmation. The system always explains that closure archives the records and stops migration.</p><form method="post"><?= csrf_input() ?><input type="hidden" name="action" value="save_page_copy"><div class="row"><?php migrationField('introduction','Welcome explanation',$pageCopy,[],'textarea',false);migrationField('closure_explanation','Account closure explanation',$pageCopy,[],'textarea',false); ?></div><button class="btn btn-success">Save page wording</button></form><a class="btn btn-link mt-2" href="record_notes.php?return=migration_campaign.php">View internal record notes</a></div>
 <div class="card-soft p-4 mb-4"><h2 class="h5">Choose recipients</h2>
@@ -95,11 +102,12 @@ render_campaign_navigation('migration',$currentRole);
 <form method="post"><?= csrf_input() ?><input type="hidden" name="action" value="preview">
 <div class="form-check"><input class="form-check-input" type="radio" id="migration-selected" name="recipient_mode" value="selected" checked><label class="form-check-label" for="migration-selected">Selected accounts</label></div>
 <div class="form-check mb-3"><input class="form-check-input" type="radio" id="migration-unsent" name="recipient_mode" value="not_sent"><label class="form-check-label" for="migration-unsent">All who have not yet been emailed</label></div>
+<?php if($canResetOnboarding): ?><p class="small text-muted">To repeat setup, use Reset Onboarding beside the account first. It retains existing data and makes the account available for a new invitation. For your own account, Restart my onboarding now opens setup immediately without an email.</p><?php endif; ?>
 <p class="small text-muted">Completed or closed accounts and uncertain deliveries are excluded. Failed deliveries with no successful send can be retried. Up to 100 recipients per reviewed batch.</p>
 <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Select</th><th>Account</th><th>Person ID</th><th>Setup status</th><th>Previous sends</th><th>Onboarding</th></tr></thead><tbody>
-<?php foreach($recipientRows as $row): ?><tr><td><input class="form-check-input" type="checkbox" name="user_ids[]" value="<?= (int)$row['id'] ?>" aria-label="Select <?= h($row['email']) ?>" <?= $row['reason']!==''?'disabled':'' ?>></td><td><?= h($row['name']) ?><div class="small text-muted"><?= h($row['email']) ?></div></td><td><?= (int)$row['person_id'] ?></td><td><?= h($row['status']) ?><?php if($row['reason']!==''): ?><div class="small text-muted"><?= h($row['reason']) ?></div><?php endif; ?></td><td><?= (int)$row['sent'] ?></td><td><?php if($canResetOnboarding): ?><button class="btn btn-sm btn-outline-warning" type="submit" form="reset-onboarding-<?= (int)$row['id'] ?>" <?= empty($row['person_id'])?'disabled title="Review the Person match first"':'' ?>>Reset Onboarding</button><?php else: ?>—<?php endif; ?></td></tr><?php endforeach; ?>
+<?php foreach($recipientRows as $row): ?><tr><td><input class="form-check-input" type="checkbox" name="user_ids[]" value="<?= (int)$row['id'] ?>" aria-label="Select <?= h($row['email']) ?>" <?= $row['reason']!==''?'disabled':((int)$row['id']===$resetSelectedUid?'checked':'') ?>></td><td><?= h($row['name']) ?><div class="small text-muted"><?= h($row['email']) ?></div></td><td><?= (int)$row['person_id'] ?></td><td><?= h($row['status']) ?><?php if($row['reason']!==''): ?><div class="small text-muted"><?= h($row['reason']) ?></div><?php endif; ?></td><td><?= (int)$row['sent'] ?></td><td><?php if($canResetOnboarding): ?><button class="btn btn-sm btn-outline-warning" type="submit" form="reset-onboarding-<?= (int)$row['id'] ?>" <?= empty($row['person_id'])?'disabled title="Review the Person match first"':'' ?>>Reset Onboarding</button><?php if((int)$row['id']===(int)$currentUser['id'] && !empty($row['person_id'])): ?> <button class="btn btn-sm btn-outline-success mt-1" type="submit" form="reset-onboarding-<?= (int)$row['id'] ?>" name="restart_now" value="1" data-confirm-title="Restart my onboarding now?" data-confirm-message="Your onboarding progress will be reset and setup will open immediately. Your existing account data is retained. No email is sent." data-confirm-button="Restart now" data-confirm-require-text="RESET ONBOARDING">Restart my onboarding now</button><?php endif; ?><?php else: ?>—<?php endif; ?></td></tr><?php endforeach; ?>
 </tbody></table></div>
-<label class="d-block mb-3"><input type="checkbox" name="allow_resend" value="1"> Allow resends for selected accounts already emailed (older unused links will stop working).</label>
+<label class="d-block mb-3"><input type="checkbox" name="allow_resend" value="1" <?= $resetSelectedUid>0?'checked':'' ?>> Allow resends for selected accounts already emailed (older unused links will stop working).</label>
 <button class="btn btn-outline-success" <?= $redirectError?'disabled':'' ?>>Preview recipients and saved campaign</button></form>
 <?php foreach($recipientRows as $resetRow): if(!$canResetOnboarding || empty($resetRow['person_id']))continue; ?>
 <form method="post" id="reset-onboarding-<?= (int)$resetRow['id'] ?>" data-confirm-title="Reset Onboarding?" data-confirm-message="<?= h('Restart onboarding for '.$resetRow['email'].' at their next login or via a fresh invitation? People, horses, shares and financial history are retained. Old onboarding links and progress are reset. No email is sent now.') ?>" data-confirm-style="danger" data-confirm-button="Reset Onboarding" data-confirm-require-text="RESET ONBOARDING">
