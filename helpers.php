@@ -21,7 +21,7 @@ function rider_birth_date_error(string $value, ?DateTimeImmutable $today = null)
     if (!$date || $date->format('Y-m-d') !== $value || $date > $today) {
         return 'Date of birth must be a valid date and cannot be in the future.';
     }
-    if ($date->diff($today)->y < 5) return 'All Riders need to be 5 years old or over.';
+    if ($date->diff($today)->y < 5) return 'All riders must be at least 5 years old.';
     return null;
 }
 

@@ -4022,7 +4022,7 @@ function saveHorseForUser(?PDO $pdo, int $ownerUserId, array $data, array &$aler
     if ($fluVacDate !== '') {
         $dt = DateTimeImmutable::createFromFormat('Y-m-d', $fluVacDate);
         if (!$dt) {
-            $alerts[] = ['type' => 'danger', 'message' => 'Flu vac date must be in YYYY-MM-DD format.'];
+            $alerts[] = ['type' => 'danger', 'message' => 'Flu vaccination date must be in YYYY-MM-DD format.'];
             return null;
         }
         $fluVacValue = $dt->format('Y-m-d');

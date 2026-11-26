@@ -232,7 +232,7 @@ admin_layout_start('Memberships', 'memberships');
     <section class="card-soft p-3 catalog-card <?php echo $panelOpen ? 'hidden' : ''; ?>" id="catalog-card">
         <div class="panel-head">
             <div>
-                <div class="eyebrow">Catalog</div>
+                <div class="eyebrow">Catalogue</div>
                 <h6 class="mb-1 fw-bold">Types at a glance</h6>
                 <div class="notes">Hover rows for quick actions. Consistent spacing keeps scanning easy.</div>
             </div>

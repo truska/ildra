@@ -1370,7 +1370,7 @@ $accountIntroAutoOpen = false;
 	                                            <div class="modal-header">
 	                                                <div>
 	                                                    <h4 class="modal-title fw-bold mb-1" id="personEditorModalLabel"><?php echo !empty($editPerson['id']) ? 'Edit person' : 'Add person'; ?></h4>
-	                                                    <div class="text-muted small">People can be selected on event entry forms to prefill details.</div>
+	                                                    <div class="text-muted small">People can be selected on event entry forms to pre-fill details.</div>
 	                                                </div>
 	                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 	                                            </div>
@@ -1565,7 +1565,7 @@ $accountIntroAutoOpen = false;
 	                                                </tbody>
 	                                            </table>
 	                                        </div>
-	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
+	                                        <div class="d-md-none small text-muted text-start mt-1">Click a row for more details</div>
 	                                    <?php endif; ?>
 	                                </div>
 
@@ -1595,7 +1595,7 @@ $accountIntroAutoOpen = false;
 	                                                </tbody>
 	                                            </table>
 	                                        </div>
-	                                        <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
+	                                        <div class="d-md-none small text-muted text-start mt-1">Click a row for more details</div>
 	                                    <?php endif; ?>
 	                                </div>
 	                            <?php endif; ?>
@@ -2141,7 +2141,7 @@ $accountIntroAutoOpen = false;
 	                                        </tbody>
 	                                    </table>
 	                                </div>
-	                                <div class="d-md-none small text-muted text-start mt-1">Click row for more details</div>
+	                                <div class="d-md-none small text-muted text-start mt-1">Click a row for more details</div>
 	                            <?php endif; ?>
 	                        </div>
                             <?php endif; ?>

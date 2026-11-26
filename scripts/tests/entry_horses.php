@@ -43,10 +43,10 @@ if (isset($render)) {
 }
 // Exercise the real POST controller as well as the selection endpoint helper.
 $postSource=str_replace("header('Location: ' . \$basePath . '/basket');\n                exit;",'$redirected=true;return;',$source);
-$postEntry=static function(int $person,int $horse,string $mode='registered',string $class='PR') use ($pdo,$postSource,$currentUser):array {
+$postEntry=static function(int $person,int $horse,string $mode='registered',string $class='PR',array $existingBasket=[]) use ($pdo,$postSource,$currentUser):array {
     $_GET=['id'=>790001];$_SERVER['REQUEST_METHOD']='POST';$_SERVER['SCRIPT_NAME']='/event.php';
     $_POST=['horse_selection_mode'=>$mode,'action'=>'add_booking','person_id'=>$person,'horse_id'=>$horse,'horse_name'=>'Forged name','class_code'=>$class,'contact_email'=>'fixture@example.invalid','emergency_contact_name'=>'Fixture Contact','emergency_contact_phone'=>'0123456789'];
-    $_SESSION['basket']=[];$config=[];$alerts=[];$successMessage=null;$redirected=false;
+    $_SESSION['basket']=$existingBasket;$config=[];$alerts=[];$successMessage=null;$redirected=false;
     ob_start();try { eval(substr($postSource,5)); } finally { ob_end_clean(); }
     return ['redirected'=>$redirected,'basket'=>$basket,'alerts'=>$alerts];
 };

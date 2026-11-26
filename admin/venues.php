@@ -173,17 +173,17 @@ admin_layout_start('Venues', 'venues');
                 <div class="col-12">
                     <label class="form-label">Directions</label>
                     <textarea name="directions" rows="5" class="form-control wysiwyg-field"><?php echo h((string)($v['directions'] ?? '')); ?></textarea>
-                    <div class="form-text">Add Directions and any access instructions here. They will appear only on the Rider Notes.</div>
+                    <div class="form-text">Add directions and access instructions here. They will appear only in Rider Notes.</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Venue Detail</label>
                     <textarea name="notes" rows="5" class="form-control wysiwyg-field"><?php echo h((string)($v['notes'] ?? '')); ?></textarea>
-                    <div class="form-text">Add specific Venue information that will be constant for all rides at this venue. It will appear under the Event description on the Calendar page and on the Rider Notes.</div>
+                    <div class="form-text">Add venue information that applies to all rides at this venue. It will appear below the event description on the calendar page and in Rider Notes.</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label">Private Venue Information</label>
                     <textarea name="internal_notes_html" rows="6" class="form-control wysiwyg-field"><?php echo h((string)($v['internal_notes_html'] ?? '')); ?></textarea>
-                    <div class="small text-muted mt-1">Internal Contact and other Venue information for Ride Organisers ONLY</div>
+                    <div class="small text-muted mt-1">Internal contact and venue information for ride organisers only</div>
                 </div>
             </div>
             <div class="d-flex gap-2 mt-4">

@@ -128,7 +128,7 @@ function archivedPagePurgeBlockers(PDO $pdo, int $pageId): array
         WHERE (b.owner_type='page' AND b.owner_id=?) OR
         (b.owner_type='page_content_element' AND b.owner_id IN (SELECT id FROM page_content_elements WHERE page_id=?))");
     $stmt->execute([$pageId, $pageId]);
-    if ((int)$stmt->fetchColumn() > 0) $blockers[] = 'This page or its content sections still has uploaded images or banners. Restore as draft, review and remove those images, then archive again before purging.';
+    if ((int)$stmt->fetchColumn() > 0) $blockers[] = 'This page or one of its content sections still has uploaded images or banners. Restore it as a draft, review and remove those images, then archive again before purging.';
     return $blockers;
 }
 

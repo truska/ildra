@@ -21,7 +21,7 @@ const assert=require('node:assert/strict');
      let result;
      if(scenario==='existing')result={status:'ready',person_id:790001};
      else if(body.includes('name="stage"\r\n\r\ndetails')) {
-      detailsPosts++;result=detailsPosts===1?{status:'error',errors:{phone:'Phone number is required.',dob:'All Riders need to be 5 years old or over.'}}:{status:'ready',person_id:790001};
+      detailsPosts++;result=detailsPosts===1?{status:'error',errors:{phone:'Phone number is required.',dob:'All riders must be at least 5 years old.'}}:{status:'ready',person_id:790001};
      }else result={status:'details',email:'new@example.invalid'};
      return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});
     }
@@ -60,7 +60,7 @@ const assert=require('node:assert/strict');
     assert.ok(await page.locator('#entryPersonForm .modal-body').evaluate(el=>el.scrollHeight>el.clientHeight),'Small screen form body does not scroll');
     await page.locator('#entryPersonDob').scrollIntoViewIfNeeded();
     const afterScroll=await footer.boundingBox();assert.ok(afterScroll.y+afterScroll.height<=height,'Footer moved off screen while scrolling');
-    assert.equal(await page.locator('#entryPersonDob_error').textContent(),'All Riders need to be 5 years old or over.');
+    assert.equal(await page.locator('#entryPersonDob_error').textContent(),'All riders must be at least 5 years old.');
    }
 
    await page.locator('#entryPerson_phone').fill('0123456789');await page.locator('#entryPersonSubmit').click();

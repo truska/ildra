@@ -5,7 +5,7 @@ require dirname(__DIR__, 2) . '/db.php';
 require dirname(__DIR__, 2) . '/cms.php';
 function ageCheck(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
 $today = new DateTimeImmutable('2026-11-25', new DateTimeZone('Europe/London'));
-$message = 'All Riders need to be 5 years old or over.';
+$message = 'All riders must be at least 5 years old.';
 foreach (['' => null, '2021-11-25' => null, '2021-11-24' => null, '1980-01-01' => null, '2021-11-26' => $message, '2022-11-25' => $message, '2026-11-25' => $message] as $dob => $expected) {
     ageCheck(rider_birth_date_error($dob, $today) === $expected, 'Age boundary failed for ' . $dob);
 }

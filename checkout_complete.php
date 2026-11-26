@@ -110,7 +110,7 @@ if (!$order && $sessionId !== '' && $pendingCheckout && ($pendingCheckout['sessi
                             }
                             $memberId = (int)($basketItem['member_id'] ?? 0);
                             if ($memberId <= 0) {
-                                $alerts[] = ['type' => 'danger', 'message' => 'Membership is missing a member. Please remove it from your basket and add again.'];
+                                $alerts[] = ['type' => 'danger', 'message' => 'Membership is missing a member. Please remove it from your basket and add it again.'];
                                 break;
                             }
                             $membershipType = fetchMembershipTypeById($pdo, $typeId);

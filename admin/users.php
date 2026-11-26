@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $alerts[] = ['type' => 'danger', 'message' => 'Invalid user.'];
             }
             if ($firstName === '' || $lastName === '') {
-                $alerts[] = ['type' => 'danger', 'message' => 'Enter the user\'s first and last name.'];
+                $alerts[] = ['type' => 'danger', 'message' => 'Enter the user\'s first and last names.'];
             }
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];

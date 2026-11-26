@@ -451,12 +451,12 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
                             <option value="<?php echo $vid; ?>" <?php echo $selected; ?> data-name="<?php echo h($vName); ?>"><?php echo h($label); ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="small text-muted mt-1">Choose the venue first. New events will use this to prefill the title.</div>
+                    <div class="small text-muted mt-1">Choose the venue first. New events will use this to pre-fill the title.</div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Event title</label>
                     <input type="text" name="title" id="event_title_input" class="form-control" required value="<?php echo h($event['title']); ?>">
-                    <div class="small text-muted mt-1">Prefilled from the venue on new events, but you can edit it.</div>
+                    <div class="small text-muted mt-1">Pre-filled from the venue for new events, but you can edit it.</div>
                 </div>
             </div>
             <div class="row g-3 mt-1">
@@ -722,8 +722,8 @@ admin_layout_start($eventId ? 'Edit Event' : 'Add Event', 'events');
         <div class="section-card">
             <div class="section-title">Description</div>
             <textarea name="description" class="form-control wysiwyg-field" rows="4"><?php echo h($event['description'] ?? ''); ?></textarea>
-            <div class="form-text">This content is about the actual Ride and appears first in the description area on the Calendar.<br>
-                Content that will be common to ALL rides at this venue is input against the Venue and will appear below this description on the Calendar.</div>
+            <div class="form-text">This content describes this ride and appears first in the calendar description.<br>
+                Information shared by all rides at this venue should be entered under Venue. It appears below this description on the calendar.</div>
         </div>
 
         <div class="section-card">

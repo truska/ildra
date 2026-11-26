@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Duplicate entries are advisory only; the shared placeholder is never a duplicate horse. */
+/** Collect entered riders for blocking and horses for advisory warnings; exclude the placeholder. */
 function entryExistingParticipants(PDO $pdo,int $eventId,array $basket): array
 {
     $riders=[];$horses=[];

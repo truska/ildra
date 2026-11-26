@@ -9,17 +9,26 @@ const {chromium}=require('playwright'),fs=require('fs'),assert=require('assert/s
    if(u.includes('/event.php'))return r.fulfill({contentType:'text/html',body:fs.readFileSync(dir+'/entry-duplicates.html')});return r.abort();
   });
   await p.goto('http://entry.test/event.php?id=790001');const notice=p.locator('#entryDuplicateNotice');
-  await p.locator('#prefillPerson').selectOption('123');
-  assert.equal(await notice.innerText(),'This rider is already entered in this event.');
-  await p.locator('#prefillHorse').selectOption('810001');
-  assert.equal(await notice.innerText(),'This rider is already entered in this event. This horse is already entered in this event.');
-  await p.locator('#rideTypeSelect').selectOption('PR');
-  assert.equal(await p.locator('#classSelect option[value="810100"]').isDisabled(),false);
-  await p.locator('#classSelect').selectOption('810100');assert.equal(await p.locator('#submitEntry').isEnabled(),true);
-  assert.equal((await p.locator('#classPriceHint').innerText()).includes('Member rates unlocked'),true);
-  await p.locator('#horseSelectionToggle').uncheck();assert.equal(await notice.innerText(),'This rider is already entered in this event.');
-  await p.locator('#prefillPerson').selectOption('810001');assert.equal(await notice.isVisible(),false);
+  const rider=p.locator('#prefillPerson');
+  assert.equal(await rider.locator('option[value="123"]').isDisabled(),true);
+  assert.match(await rider.locator('option[value="123"]').textContent(),/\(already entered\)$/);
+  assert.equal(await rider.locator('option[value="700002"]').isDisabled(),true);
+  assert.equal(await rider.locator('option[value="810001"]').isDisabled(),false);
+  // A stale/tampered selected value still shows the exact message and cannot submit.
+  await rider.evaluate(el=>{el.value='123';el.dispatchEvent(new Event('change',{bubbles:true}));});
+  assert.equal(await notice.innerText(),'This rider is already entered for this event.');
+  assert.equal(await p.locator('#entryForm').evaluate(el=>el.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))),false);
+  assert.equal(await notice.innerText(),'This rider is already entered for this event.');
+  await rider.selectOption('810002');await p.locator('#prefillHorse').selectOption('810001');
+  assert.equal(await notice.isVisible(),false);
+  assert.equal(await p.locator('#entryHorseDuplicateNotice').innerText(),'This horse is already entered in this event.');
+  await p.locator('#rideTypeSelect').selectOption('PR');await p.locator('#classSelect').selectOption('810101');
+  assert.equal(await p.locator('#submitEntry').isEnabled(),true);
+  // Email-first reuse must not select a rider who has already entered.
+  await p.evaluate(()=>{const data=JSON.parse(document.getElementById('entryRiderData').textContent);const select=document.getElementById('prefillPerson').cloneNode(true);document.dispatchEvent(new CustomEvent('entry-riders-refreshed',{detail:{data,select,personId:123}}));});
+  assert.equal(await rider.inputValue(),'');assert.equal(await notice.innerText(),'This rider is already entered for this event.');
+  await rider.selectOption('810001');assert.equal(await notice.isVisible(),false);
   assert.deepEqual(errors,[]);await p.close();
  }
- console.log('PASS: desktop/mobile rider and horse warnings, member price remains selectable, Enter Event enabled, placeholder excluded and stale warnings cleared.');
+ console.log('PASS: desktop/mobile disabled and labelled entered riders, exact warning, submit guard, email-first duplicate rejection, separate advisory horse warning and eligible rider selection.');
 }finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

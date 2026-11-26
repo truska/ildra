@@ -1139,7 +1139,7 @@ function fetchAllUsersForAdmin(?PDO $pdo, array &$alerts): array
         ");
         return $stmt->fetchAll();
     } catch (PDOException $e) {
-        $alerts[] = ['type' => 'danger', 'message' => 'Could not load users list.'];
+        $alerts[] = ['type' => 'danger', 'message' => 'Could not load the user list.'];
         return [];
     }
 }
@@ -1211,7 +1211,7 @@ function updateOwnUserDetails(?PDO $pdo, int $userId, array $data, array &$alert
     $email = strtolower(trim((string)($data['email'] ?? '')));
     $currentPassword = (string)($data['current_password'] ?? '');
     if ($firstName === '' || $lastName === '') {
-        $alerts[] = ['type' => 'danger', 'message' => 'Enter your first and last name.'];
+        $alerts[] = ['type' => 'danger', 'message' => 'Enter your first and last names.'];
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $alerts[] = ['type' => 'danger', 'message' => 'Enter a valid email address.'];

@@ -32,7 +32,7 @@ $preselectedMembershipTypeId = max(0, (int)($_GET['membership_type_id'] ?? 0));
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_membership') {
     if (!$isLoggedIn) {
-        $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please login to buy a membership.']];
+        $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please log in to buy a membership.']];
         header('Location: ' . $basePath . '/account');
         exit;
     }

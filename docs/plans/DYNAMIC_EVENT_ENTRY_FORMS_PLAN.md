@@ -15,6 +15,11 @@ Not Registered horse; members and verified externally recognised riders select
 a horse with a valid logbook or equivalent approved recognition. See
 [horse selection and linking](../WORKFLOW.md#34-event-horse-selection-and-automatic-links).
 
+A rider can enter an event only once: existing saved/current-basket entries
+make that rider disabled and labelled `(already entered)`. Server submissions
+also enforce this rule, with the message “This rider is already entered for this
+event.” Horse reuse remains advisory. See [the revised duplicate rule](../WORKFLOW.md#41-restore-one-rider-entry-per-event--26-november-2026).
+
 ## Purpose
 
 Extend the current ride-oriented event entry form into a reusable, data-driven

@@ -333,6 +333,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $selectedPersonCanChooseHorse=$selectedPersonHasActiveMembership || $selectedPersonHasExternalRecognition;
             }
         }
+        if ($personId>0 && !empty($existingEntryParticipants['riders'][$personId])) {
+            $alerts[]=['type'=>'danger','message'=>'This rider is already entered for this event.'];
+        }
         if (!$canViewAdmin && $personId > 0 && !$selectedPersonHasActiveMembership && !$nonMemberEntriesOpenNow) {
             $alerts[] = ['type' => 'danger', 'message' => 'Non-member entries open on ' . $nonMemberEntryOpenDt->format('jS M Y \\a\\t H:i') . '. Choose a rider with active membership or return after that date.'];
         }
@@ -995,15 +998,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                        if ($pLabel === '') {
 	                                                            $pLabel = 'Person #' . $pId;
 	                                                        }
+                                                        $riderAlreadyEntered=!empty($existingEntryParticipants['riders'][$pId]);
                                                         if (!empty($activeMembershipMarkerByPerson[$pId])) $pLabel .= ' [' . $activeMembershipMarkerByPerson[$pId] . ']';
+                                                        if ($riderAlreadyEntered) $pLabel .= ' (already entered)';
                                                             $isJuniorPerson = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
 	                                                        $disableNonMemberRider = !$canViewAdmin && empty($peopleWithActiveMembership[$pId]) && !$nonMemberEntriesOpenNow;
 	                                                        ?>
-                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-member-competitive="<?php echo !empty($peopleWithCompetitiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>" <?php echo $disableNonMemberRider ? 'disabled' : ''; ?>><?php echo h($pLabel); ?></option>
+                                                        <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-member-competitive="<?php echo !empty($peopleWithCompetitiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>" <?php echo ($disableNonMemberRider || $riderAlreadyEntered) ? 'disabled' : ''; ?>><?php echo h($pLabel); ?></option>
 	                                                    <?php endforeach; ?>
                                                         <option value="another">Another Person</option>
 	                                                </select>
 	                                                <div class="validation-message small d-none" data-validation-for="prefill_person">Please choose a rider.</div>
+                                                <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="entryDuplicateNotice" role="status"></div>
 	                                                <div class="small text-muted mt-1">
 	                                                    <?php if ($people): ?>
 	                                                        Select a saved person to pre-fill matching fields.
@@ -1031,6 +1037,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                 <div class="validation-message small d-none" data-validation-for="prefill_horse">Please choose a horse.</div>
                                                 <div class="small text-muted mt-1" id="entryHorseHint">Choose a rider first.</div>
                                                 <div class="text-danger small d-none mt-1" id="entryHorseError" role="alert"></div>
+                                                <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="entryHorseDuplicateNotice" role="status"></div>
 	                                            </div>
 	                                        </div>
 	                                        <div class="rounded-3 bg-light border p-3 mt-3" id="entrySelectionSummary" aria-live="polite">
@@ -1096,7 +1103,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                         <?php endforeach; ?>
                                                     </select>
                                                     <div class="small helper-text" id="classPriceHint">Price will show when you pick a class. To unlock member rates, choose a member above.</div>
-                                                    <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="entryDuplicateNotice" role="status"></div>
                                                     <div class="validation-message small d-none" data-validation-for="class_code">Please choose a class.</div>
                                                 </div>
                                             </div>
@@ -1286,6 +1292,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const rideTypeSelect = document.getElementById('rideTypeSelect');
         const priceHint = document.getElementById('classPriceHint');
         const entryDuplicateNotice = document.getElementById('entryDuplicateNotice');
+        const entryHorseDuplicateNotice = document.getElementById('entryHorseDuplicateNotice');
         const priceSummary = document.getElementById('classPriceSummary');
         const form = document.getElementById('entryForm');
         const submitEntry = document.getElementById('submitEntry');
@@ -1394,8 +1401,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 Object.assign(target, source);
             }
             prefillPerson.replaceChildren(...Array.from(select.options, option => option.cloneNode(true)));
-            prefillPerson.value = String(personId);
+            const refreshedRider=prefillPerson.querySelector(`option[value="${Number(personId)}"]`);
+            prefillPerson.value = refreshedRider?.disabled ? '' : String(personId);
             prefillPerson.dispatchEvent(new Event('change', {bubbles:true}));
+            if (enteredRiders?.[personId] && entryDuplicateNotice) {
+                entryDuplicateNotice.textContent='This rider is already entered for this event.';
+                entryDuplicateNotice.classList.remove('d-none');
+            }
             if (rideValue && Array.from(rideTypeSelect?.options || []).some(option => option.value === rideValue && !option.disabled)) {
                 rideTypeSelect.value = rideValue;rideTypeSelect.dispatchEvent(new Event('change',{bubbles:true}));
             }
@@ -1434,12 +1446,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
         const updateEntryDuplicateNotice = () => {
             if (!entryDuplicateNotice) return;
-            const messages=[];
-            if (enteredRiders?.[selectedPersonId()]) messages.push('This rider is already entered in this event.');
+            const riderDuplicate=!!enteredRiders?.[selectedPersonId()];
+            entryDuplicateNotice.textContent='This rider is already entered for this event.';
+            entryDuplicateNotice.classList.toggle('d-none',!riderDuplicate);
             const horseId=Number(prefillHorse?.value || 0);
-            if (horseId>1 && enteredHorses?.[horseId]) messages.push('This horse is already entered in this event.');
-            entryDuplicateNotice.textContent=messages.join(' ');
-            entryDuplicateNotice.classList.toggle('d-none',messages.length===0);
+            if (entryHorseDuplicateNotice) {
+                entryHorseDuplicateNotice.textContent='This horse is already entered in this event.';
+                entryHorseDuplicateNotice.classList.toggle('d-none',!(horseId>1 && enteredHorses?.[horseId]));
+            }
         };
 
         const updateMemberPriceAvailability = () => {
@@ -1715,6 +1729,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 }
             });
             form.addEventListener('submit', (e) => {
+                if (enteredRiders?.[selectedPersonId()]) {
+                    e.preventDefault();updateEntryDuplicateNotice();prefillPerson?.focus();return;
+                }
                 syncJuniorRideFields();
                 if (!validateForm()) {
                     e.preventDefault();

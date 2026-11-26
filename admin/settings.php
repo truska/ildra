@@ -473,7 +473,7 @@ admin_layout_start('Settings', 'settings');
                                 <?php endforeach; ?>
                             </select>
                             <span class="text-muted small">PDFs are managed in Document &amp; Image Library.<br>
-                            This is now not used as the Help System creates a dynamic manual.</span>
+                            This is no longer used because the Help System creates a dynamic manual.</span>
                         </div>
                     </div>
                     <div class="col-12">

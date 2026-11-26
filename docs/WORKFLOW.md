@@ -812,6 +812,9 @@ disabled off state, no stale warning, restored selection and rider switching.
 
 ## 39. Duplicate event entries warn rather than block
 
+Historical behaviour, superseded for riders by section 41 below. Horse reuse
+remains advisory.
+
 Repeat entries no longer consume a rider's member-rate eligibility for that
 event. Active membership/class eligibility, competitive horse rules and capacity
 checks still apply. `entry_warnings.php` collects canonical rider/horse IDs from
@@ -848,3 +851,49 @@ account dashboard, plus desktop/mobile browser suites for entry and account
 behaviour. Policy and test-logbook database adjustments are documented separately
 in this file and IMPORT_WORKSPACE.md; private backups are outside Git. This
 wrap-up does not deploy or send invitations.
+
+
+## 41. Restore one rider entry per event — 26 November 2026
+
+At the user's revised instruction, an existing non-withdrawn saved entry or an
+entry in the current basket prevents the same canonical Person entering that
+event again, irrespective of class/member rate or operator role. Their Rider
+option is disabled and ends with `(already entered)`. Submitted duplicates are
+rejected server-side; the exact message is **This rider is already entered for
+this event.** The rider notice sits below Rider selection. Client submission
+also checks the duplicate flag, and Another Person refresh cannot select an
+already-entered rider. Withdrawn entries and other events do not block re-entry.
+
+Horse duplication remains an advisory notice below Horse selection; different
+riders can select the same eligible horse. The system Not Registered horse does
+not produce a horse warning. Membership/rate eligibility and capacity checks
+remain separate from the rider duplicate rule.
+
+Updated temporary-table/browser duplicate suites verify saved and basket blocks,
+unchanged basket on rejection, exact text, disabled/labelled options, stale-form
+submission rejection, email-first reuse, withdrawn rider re-entry and another
+rider using the same horse at desktop/mobile widths. No actual entries changed.
+
+## 42. UK source-copy review — 26 November 2026
+
+Reviewed hard-coded application copy across 228 PHP, JavaScript and HTML files,
+including public/admin labels, help text, placeholders, buttons, validation and
+email messages, inline scripts and HTTP error pages. A local Aspell en_GB scan
+supplied spelling candidates, followed by contextual grammar review. Third-party
+editor/node dependencies, generated statistics, documentation and test fixtures
+were excluded from the copy scan; technical identifiers, API/status values and
+proper names were not respelled.
+
+Corrected 30 source-text occurrences across 18 application/error-page files,
+with three corresponding test-expectation updates. Examples include Catalogue,
+Unauthorised, fulfil, log in/check out as verbs, missing articles and pronouns,
+subject/verb agreement, clearer event/venue help text and the minimum-age
+validation message. Business rules, field names, routes and saved wording are
+unchanged. The exact duplicate-rider notice and intentionally provisional
+horse-toggle wording were retained.
+
+Validation: all 290 project PHP/JavaScript files passed syntax checks; offline
+five-year age boundaries and the existing desktop/mobile Another Person modal
+checks passed with the revised message. The dictionary scan was repeated after
+corrections. No database content was read or changed during this copy review,
+and no deployment or email send was performed.

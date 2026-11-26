@@ -21,7 +21,7 @@ $basketCount = count($basket);
 
 // Option A policy: checkout requires login.
 if (!$isLoggedIn) {
-    $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please sign in to checkout.']];
+    $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please sign in to check out.']];
     header('Location: ' . $basePath . '/account');
     exit;
 }
@@ -385,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                     }
                     $memberId = (int)($basketItem['member_id'] ?? 0);
                     if ($memberId <= 0) {
-                        $alerts[] = ['type' => 'danger', 'message' => 'Membership is missing a member. Please remove it from your basket and add again.'];
+                        $alerts[] = ['type' => 'danger', 'message' => 'Membership is missing a member. Please remove it from your basket and add it again.'];
                         break;
                     }
                     $membershipType = fetchMembershipTypeById($pdo, $typeId);

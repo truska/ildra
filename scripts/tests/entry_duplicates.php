@@ -14,11 +14,15 @@ migrationCheck(!isset($seen['horses'][1]) && !isset($seen['riders'][810001]) && 
 $pdo->exec("INSERT INTO event_pricing_rows(id,event_id,class_name,class_code,class_group,price,is_member_price,rider_eligibility) VALUES (810100,790001,'Fixture Member PR','PR','PR',20,1,'all'),(810101,790001,'Fixture Nonmember PR','PR-NON','PR',25,0,'all')");
 foreach([1,2] as $attempt){
  $result=$postEntry(123,810001,'registered','810100');
- migrationCheck($result['redirected'],'Repeat member entry blocked: '.json_encode($result['alerts']));
- $entry=end($result['basket']);migrationCheck(!empty($entry['metadata']['is_member_price']) && (int)$entry['metadata']['person_id']===123,'Repeat member pricing lost');
+ migrationCheck(!$result['redirected'] && !$result['basket'],'Already-entered rider accepted');
+ migrationCheck(in_array('This rider is already entered for this event.',array_column($result['alerts'],'message'),true),'Exact duplicate rider message missing');
 }
+$result=$postEntry(700002,1,'registered','810101',$basket);
+migrationCheck(!$result['redirected'] && count($result['basket'])===1,'Basket duplicate accepted or original basket changed');
+$result=$postEntry(810001,1,'registered','810101');migrationCheck($result['redirected'],'Withdrawn rider could not re-enter');
+$result=$postEntry(810002,810001,'registered','810101');migrationCheck($result['redirected'],'Different rider sharing an entered horse was blocked');
 $_SESSION['basket']=$basket;$html=$render();
 preg_match('~<script type="application/json" id="entryRiderData">(.*?)</script>~s',$html,$match);$data=json_decode($match[1],true);
 migrationCheck(!empty($data['eligibility'][123]) && !empty($data['entered_riders'][123]) && !empty($data['entered_horses'][810001]),'Duplicate flags or member eligibility wrong');
 file_put_contents($argv[1].'/entry-duplicates.html',$html);chmod($argv[1].'/entry-duplicates.html',0600);
-echo "PASS: saved/basket duplicate flags, withdrawn/other event/placeholder exclusions, repeat member-price POST accepted, eligible member rate retained. Temporary tables only.\n";
+echo "PASS: saved/basket duplicate flags, withdrawn/other event/placeholder exclusions, saved/basket duplicate rider POST blocked, withdrawn rider re-entry and same horse with different rider allowed. Temporary tables only.\n";

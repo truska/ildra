@@ -54,7 +54,7 @@ $isChoiceStep = isset($_GET['choose']) && $preselectedHorse !== null;
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'register_only') {
     if (!$isLoggedIn) {
-        $_SESSION['flash_alerts'] = [['type'=>'warning','message'=>'Please login to register a horse.']];
+        $_SESSION['flash_alerts'] = [['type'=>'warning','message'=>'Please log in to register a horse.']];
         header('Location: ' . $basePath . '/account');
         exit;
     }
@@ -70,7 +70,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'add_logbook') {
     if (!$isLoggedIn) {
-        $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please login to buy a logbook.']];
+        $_SESSION['flash_alerts'] = [['type' => 'warning', 'message' => 'Please log in to buy a logbook.']];
         header('Location: ' . $basePath . '/account');
         exit;
     }
