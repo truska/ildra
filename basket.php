@@ -301,7 +301,20 @@ $userBalance = fetch_user_credit_balance($pdo, (int)($currentUser['id'] ?? 0));
                         </div>
                         <?php $summaryCoupon = $savedCoupon; $couponInputError = $result['message'] ?? ''; include __DIR__ . '/views/purchase_coupon.php'; ?>
                         <a class="btn btn-success w-100<?php echo !$basket ? ' disabled' : ''; ?>" href="<?php echo h($basePath); ?>/checkout">CHECKOUT</a>
-                        <a class="btn btn-secondary text-white fw-light w-100 mt-2" href="<?php echo h($navItemEventsUrl); ?>">Add more Entries</a>
+                        <?php
+                        $basketHasMembership = (bool)array_filter($basket, static fn(array $item): bool => ($item['booking_type'] ?? '') === 'membership');
+                        $basketHasEntry = (bool)array_filter($basket, static fn(array $item): bool => !in_array($item['booking_type'] ?? 'ride', ['membership', 'horse_logbook'], true));
+                        ?>
+                        <div class="row g-2 mt-0">
+                            <div class="<?php echo $basketHasMembership ? 'col-6' : 'col-12'; ?>">
+                                <a class="btn btn-secondary text-white fw-light w-100 h-100 d-flex align-items-center justify-content-center" href="<?php echo h($navItemEventsUrl); ?>"><?php echo $basketHasEntry ? 'Add more Entries' : 'Add entry'; ?></a>
+                            </div>
+                            <?php if ($basketHasMembership): ?>
+                                <div class="col-6">
+                                    <a class="btn btn-secondary text-white fw-light w-100 h-100 d-flex align-items-center justify-content-center" href="<?php echo h($basePath); ?>/logbooks">Purchase logbook</a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <?php if($savedCoupon): ?><div class="modal fade" id="savedCouponDetails" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Saved coupon</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><dl class="row mb-0"><dt class="col-sm-4">Code</dt><dd class="col-sm-8"><?php echo h($savedCoupon['code']); ?></dd><dt class="col-sm-4">Value</dt><dd class="col-sm-8"><?php echo h(format_price($savedCoupon['amount'])); ?></dd><dt class="col-sm-4">Details</dt><dd class="col-sm-8"><?php echo h((string)$savedCoupon['title']); ?></dd><dt class="col-sm-4">Valid until</dt><dd class="col-sm-8"><?php echo h(format_display_datetime($savedCoupon['valid_until'])); ?></dd></dl></div></div></div></div><?php endif; ?>
                 </div>
