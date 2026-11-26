@@ -955,7 +955,7 @@ $accountIntroAutoOpen = false;
 	                                    <?php else: ?>
 	                                        <a href="<?php echo h($basePath); ?>/memberships" class="d-block border border-warning rounded-3 px-3 py-2 bg-warning-subtle text-center text-body text-decoration-none" style="min-width:135px;">
 	                                            <div class="text-uppercase text-muted" style="font-size:.68rem;line-height:1.1;">Membership</div>
-	                                            <div class="fw-bold lh-sm mt-1">NOT A MEMBER</div>
+	                                            <div class="fw-bold lh-sm mt-1">Join Now</div>
 	                                        </a>
 	                                    <?php endif; ?>
 	                                        <div class="account-mobile-stats">
