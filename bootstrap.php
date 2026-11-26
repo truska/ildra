@@ -147,7 +147,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && !$csrfExemptScript && !c
     exit;
 }
 
-ob_start('csrf_protect_forms');
+$_POST = normalise_postcode_fields($_POST);
+ob_start('shared_form_response');
 
 $pdo = createPdo($config, $alerts);
 if ($pdo) {

@@ -39,10 +39,38 @@ $after=$state;migrationActivateScheduledRestart($pdo,2);migrationCheck(migration
 migrationResetOnboarding($pdo,$actor,2,123);migrationSendRecipient($pdo,1,2,$transport,true);migrationAcceptInvitation($pdo,$freshToken,2);
 migrationCheck(migrationState($pdo,2)['current_step']==='password' && migrationPending(migrationState($pdo,2)),'Fresh invitation did not start reset journey');
 $bootstrap=file_get_contents(dirname(__DIR__,2).'/bootstrap.php');migrationCheck(str_contains($bootstrap,"migrationActivateScheduledRestart(\$pdo,(int)\$currentUser['id'])"),'Bootstrap activation hook missing');
+// Every Developer/Superadmin can use migration controls; import/reset workspace stays restricted.
+foreach ([930=>'developer',931=>'superadmin',932=>'admin'] as $id=>$roleName) {
+    $roleId=(int)$pdo->query("SELECT id FROM roles WHERE name='".$roleName."'")->fetchColumn();
+    $pdo->prepare('INSERT INTO users(id,email,password_hash,role_id,first_name,last_name) VALUES (?,?,?,?,?,?)')->execute([$id,$roleName.'-reset@example.invalid',password_hash('fixture only',PASSWORD_DEFAULT),$roleId,'Reset',$roleName]);
+    $pdo->prepare('INSERT INTO people(id,owner_user_id,email,first_name,last_name) VALUES (?,?,?,?,?)')->execute([$id,$id,$roleName.'-reset@example.invalid','Reset',$roleName]);
+}
+foreach ([930=>'developer',931=>'superadmin'] as $id=>$roleName) {
+    $testActor=['id'=>$id,'role'=>$roleName];
+    migrationCheck(migrationAuthorizeAdmin($pdo,$testActor)['mode']==='development','Role cannot access development migration');
+    migrationResetOnboarding($pdo,$testActor,$id,$id);
+    migrationCheck(migrationState($pdo,$id)['current_step']==='restart','Own role restart not scheduled');
+    migrationResetOnboarding($pdo,$testActor,$id===930?931:930,$id===930?931:930);
+    migrationCheck(migrationState($pdo,$id===930?931:930)['current_step']==='restart','Other privileged account restart not scheduled');
+    migrationReject(fn()=>importWorkspaceAuthorize($pdo,$testActor,importWorkspaceConfig(),$_SERVER['HTTP_HOST']),'Migration access broadened destructive import workspace');
+}
+migrationReject(fn()=>migrationAuthorizeAdmin($pdo,['id'=>932,'role'=>'admin']),'Ordinary admin migration access allowed');
+migrationReject(fn()=>migrationAuthorizeAdmin($pdo,['id'=>932,'role'=>'developer']),'Forged developer role allowed');
+$_SESSION['act_as_original_user']=['id'=>2];migrationReject(fn()=>migrationAuthorizeAdmin($pdo,['id'=>930,'role'=>'developer']),'Impersonation allowed');unset($_SESSION['act_as_original_user']);
+$source=file_get_contents(dirname(__DIR__,2).'/admin/migration_campaign.php');
+$a=strpos($source,'<tr><td><input class="form-check-input" type="checkbox" name="user_ids[]"');$b=strpos($source,'<?php endforeach;',$a);$rowSource=substr($source,$a,$b-$a);
+$canResetOnboarding=true;$resetSelectedUid=0;$currentUser=['id'=>930,'role'=>'developer'];
+foreach ([930=>'developer',931=>'superadmin',932=>'admin'] as $id=>$roleName) {
+    $row=['id'=>$id,'role'=>$roleName,'email'=>'fixture@example.invalid','person_id'=>$id,'name'=>'Fixture','reason'=>'','status'=>'Complete','sent'=>0];
+    ob_start();eval('?>'.$rowSource);$html=ob_get_clean();
+    if($id===930)migrationCheck(str_contains($html,'Restart my onboarding now')&&str_contains($html,'name="restart_now" value="1"'),'Own restart button missing');
+    elseif($id===931)migrationCheck(str_contains($html,'Restart onboarding at next login')&&str_contains($html,'name="restart_now" value="0"'),'Other Superadmin restart button missing');
+    else migrationCheck(!str_contains($html,'name="restart_now"'),'Ordinary admin received privileged restart button');
+}
 if(!empty($argv[1])&&is_dir($argv[1])&&str_starts_with(realpath($argv[1]),'/tmp/')){
     $source=file_get_contents(dirname(__DIR__,2).'/admin/migration_campaign.php');
     $canResetOnboarding=true;$currentUser=$actor;$resetSelectedUid=2;
-    $row=['id'=>2,'email'=>'fixture@example.invalid','person_id'=>123,'name'=>'Fixture User','reason'=>'','status'=>'Complete','sent'=>1];
+    $row=['id'=>2,'role'=>'developer','email'=>'fixture@example.invalid','person_id'=>123,'name'=>'Fixture User','reason'=>'','status'=>'Complete','sent'=>1];
     $a=strpos($source,'<tr><td><input class="form-check-input" type="checkbox" name="user_ids[]"');$b=strpos($source,'<?php endforeach;', $a);
     ob_start();eval('?>'.substr($source,$a,$b-$a));$rowHtml=ob_get_clean();
     $a=strpos($source,'<form method="post" id="reset-onboarding-');$b=strpos($source,'</form>',$a)+7;$resetRow=$row;

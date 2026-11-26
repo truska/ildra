@@ -168,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $seconds = max(0, (int)($_POST['basket_timeout_seconds'] ?? 0));
         $totalSeconds = max(1, ($minutes * 60) + $seconds);
         $payload = [
+            'cancellation_policy_html' => sanitize_rich_html((string)($_POST['cancellation_policy_html'] ?? '')),
             'basket_timeout_seconds' => $totalSeconds,
             'event_default_start_time' => trim((string)($_POST['event_default_start_time'] ?? '')),
             'event_default_end_days' => max(0, (int)($_POST['event_default_end_days'] ?? 0)),
@@ -385,6 +386,11 @@ admin_layout_start('Settings', 'settings');
                     <label class="form-label fw-semibold" for="event_stripe_refund_fee">Stripe refund fee (£)</label>
                     <input type="number" min="0" step="0.01" class="form-control" id="event_stripe_refund_fee" name="event_stripe_refund_fee" required value="<?php echo h((string)$siteSettings['event_stripe_refund_fee']); ?>">
                 </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold" for="cancellation_policy_html">Cancellation Policy</label>
+                    <textarea class="form-control wysiwyg-field" id="cancellation_policy_html" name="cancellation_policy_html" rows="8"><?php echo h((string)($siteSettings['cancellation_policy_html'] ?? '')); ?></textarea>
+                    <div class="form-text">Shared wording used in Rider Notes and Cancellation Policy popups throughout the site.</div>
+                </div>
                 <div class="col-12 d-flex gap-2">
                     <button class="btn btn-success">Save Event Settings</button>
                     <a class="btn btn-outline-secondary" href="index.php">Back To Dashboard</a>
@@ -399,7 +405,7 @@ admin_layout_start('Settings', 'settings');
             <div class="col-12"><label class="form-label fw-semibold">Default email intro text</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_intro_html"><?php echo h((string)($siteSettings['ride_notes_email_intro_html'] ?? '<p>Important information for your upcoming ride is now available.</p>')); ?></textarea></div>
             <div class="col-12"><label class="form-label fw-semibold">Header image URL</label><input class="form-control" type="url" name="ride_notes_email_header_image_url" value="<?php echo h((string)($siteSettings['ride_notes_email_header_image_url'] ?? '')); ?>" placeholder="https://…"><div class="form-text">Leave blank to use the site email logo.</div></div>
             <div class="col-12"><label class="form-label fw-semibold">Signature block</label><textarea class="form-control wysiwyg-field" rows="6" name="ride_notes_email_signature_html"><?php echo h((string)($siteSettings['ride_notes_email_signature_html'] ?? '')); ?></textarea><div class="form-text">The normal site email signature and logo are also added automatically.</div></div>
-            <div class="col-12"><label class="form-label fw-semibold" for="ride_notes_footer_html">Rider Notes Footer Text</label><textarea id="ride_notes_footer_html" class="form-control wysiwyg-field" rows="12" name="ride_notes_footer_html"><?php echo h((string)($siteSettings['ride_notes_footer_html'] ?? '')); ?></textarea><div class="form-text">Shared text displayed below Venue notes on every Rider Notes page.</div></div>
+            <div class="col-12"><label class="form-label fw-semibold" for="ride_notes_footer_html">Rider Notes Footer Text</label><textarea id="ride_notes_footer_html" class="form-control wysiwyg-field" rows="12" name="ride_notes_footer_html"><?php echo h((string)($siteSettings['ride_notes_footer_html'] ?? '')); ?></textarea><div class="form-text">General text displayed below Venue notes on Rider Notes. The shared Cancellation Policy is managed in the Events tab and included automatically.</div></div>
             <div class="col-12"><button class="btn btn-success">Save Rider Notes Settings</button></div>
         </form></div>
     </div>

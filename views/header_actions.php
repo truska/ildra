@@ -40,7 +40,7 @@ $headerAccountLabel = 'User account: ' . $headerUserName;
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/bookings">My Purchases</a></li>
                         <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account">My Profile</a></li>
-                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account?view=my-account">My Account</a></li>
+                        <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/account">My Account</a></li>
                         <?php if (!empty($canViewAdmin)): ?>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="<?php echo h($basePath); ?>/admin/index.php">Admin</a></li>

@@ -249,3 +249,24 @@ pre-launch destination guard for `ildra.witecanvas.com`; see
 `importWorkspaceEnvironmentAllowed()` or enable any Import workspace/Onboarding
 reset/restart tools on that destination. The new opt-in defaults to disabled
 and must be permanently retired before real memberships/payments.
+
+## Development logbook entitlement corrections — 26 November 2026
+
+At the user's request, seven imported horses with no logbook purchase record
+(IDs 18–24) received active 2026 entitlements at zero amount. The existing Breeze
+2027 record was preserved, as was the Not Registered system horse. No payment,
+receipt, email or ownership change was created. A private before-state backup is
+`logbook-2026-backfill-20261126-153421-d09a8ca2.json` in
+`private/import-workspace-backups/` (mode 600); inserted entitlement IDs 10–16.
+
+For development testing only, the user then requested three random 2027
+entitlements. Puzzle Piece (24), Yasser Arafat (19), and In Our Blood aka Bertie
+(22) received additional zero-amount active 2027 rows (purchase IDs 17–19),
+preserving their 2026 history. Before-state backup:
+`logbook-2027-testing-20261126-153444-f384bbf1.json` in the same private directory.
+These synthetic 2027 entitlements must not be treated as evidence of payment or
+copied into production as actual purchases.
+
+Event entry continues to check the event year, as confirmed by the user.
+The existing 1 November rollover allows next year's logbooks to cover current
+year events early; current-year logbooks do not cover next-year events.

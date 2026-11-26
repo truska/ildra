@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
+require_once __DIR__.'/entry_horses.php';
+require_once __DIR__.'/entry_people.php';
+require_once __DIR__.'/entry_warnings.php';
 
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
 $basePath = $basePath === '' ? '' : $basePath;
@@ -35,7 +38,9 @@ if ($event && isThirdPartyEvent($event)) {
     exit;
 }
 $people = $isLoggedIn ? fetchMembersForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];
-$horses = $isLoggedIn ? fetchHorsesForUser($pdo, (int)($currentUser['id'] ?? 0)) : [];
+if ($pdo && $people) $people=entryPeopleWithContactGaps($pdo,$people);
+$horses=[];$horseCatalogue=['horses'=>[],'own_by_person'=>[],'linked_by_person'=>[],'remembered'=>[]];
+$notRegisteredHorse=null;
 $notRegisteredHorseId = 1;
 if ($isLoggedIn && $pdo) {
     $stmt = $pdo->prepare("SELECT id, owner_user_id, name, is_archived, 0 AS is_linked, 'global' AS link_permission FROM horses WHERE id = :id AND is_archived = 0 LIMIT 1");
@@ -50,7 +55,7 @@ $peopleWithActiveMembership = [];
 $peopleWithCompetitiveMembership = [];
 $activeMembershipMarkerByPerson = [];
 $memberPriceEligibleByPerson = [];
-$memberPriceUsedByPerson = [];
+$existingEntryParticipants=['riders'=>[],'horses'=>[]];
 $externallyRecognisedPeople = [];
 $recognisedHorses = [];
 $horsesWithActiveLogbook = [];
@@ -78,55 +83,17 @@ if ($isLoggedIn && $pdo && $people) {
             }
         }
     }
-    if ($eventId > 0 && ensure_bookings_tables($pdo)) {
-        try {
-            $stmt = $pdo->prepare("
-                SELECT metadata
-                FROM booking_items
-                WHERE event_id = :eid
-                  AND COALESCE(is_withdrawn, 0) = 0
-                  AND booking_type <> 'membership'
-            ");
-            $stmt->execute([':eid' => $eventId]);
-            foreach ($stmt->fetchAll() as $row) {
-                $meta = json_decode((string)($row['metadata'] ?? ''), true);
-                if (!is_array($meta)) {
-                    continue;
-                }
-                $personId = (int)($meta['person_id'] ?? 0);
-                if ($personId <= 0 || empty($memberIdSet[$personId])) {
-                    continue;
-                }
-                if (!empty($meta['is_member_price'])) {
-                    $memberPriceUsedByPerson[$personId] = true;
-                }
-            }
-        } catch (PDOException $e) {
-            // Ignore DB errors; fall back to basket-only checks.
-        }
-    }
-    foreach ($basket as $item) {
-        if ((int)($item['event_id'] ?? 0) !== $eventId) {
-            continue;
-        }
-        $meta = $item['metadata'] ?? [];
-        if (!is_array($meta)) {
-            continue;
-        }
-        $personId = (int)($meta['person_id'] ?? 0);
-        if ($personId <= 0 || empty($memberIdSet[$personId])) {
-            continue;
-        }
-        if (!empty($meta['is_member_price'])) {
-            $memberPriceUsedByPerson[$personId] = true;
-        }
-    }
+    $existingEntryParticipants=entryExistingParticipants($pdo,$eventId,$basket);
     foreach ($memberIdSet as $personId => $_) {
-        $memberPriceEligibleByPerson[$personId] = !empty($peopleWithActiveMembership[$personId])
-            && empty($memberPriceUsedByPerson[$personId]);
+        $memberPriceEligibleByPerson[$personId] = !empty($peopleWithActiveMembership[$personId]);
     }
 }
 $recognitionDate = !empty($event['event_date']) ? (string)$event['event_date'] : date('Y-m-d');
+if ($isLoggedIn && $pdo) {
+    $horseCatalogue=entryHorseCatalogue($pdo,(int)$currentUser['id'],$people,$recognitionDate,$siteSettings);
+    $horses=$horseCatalogue['horses'];
+    if ($notRegisteredHorse) $horses[]=['id'=>1,'name'=>'Not Registered','is_global_placeholder'=>1];
+}
 if ($isLoggedIn && $pdo) {
     $externallyRecognisedPeople = externalRecognitionIds($pdo, 'rider', array_column($people, 'id'), $recognitionDate);
     $recognisedHorses = externalRecognitionIds($pdo, 'horse', array_column($horses, 'id'), $recognitionDate);
@@ -351,8 +318,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $selectedPersonHasActiveMembership = false;
         $selectedPersonHasExternalRecognition = false;
         $selectedHorseIsRecognised = false;
+        $selectedPersonCanChooseHorse = false;
 
-        // Optional: link this entry to a saved person/horse owned by the current account.
+        // Resolve the accessible rider and canonical horse; never accept submitted names.
         if ($personId > 0) {
             $p = fetchPersonForUserById($pdo, (int)($currentUser['id'] ?? 0), $personId);
             if (!$p || !empty($p['is_archived'])) {
@@ -362,30 +330,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 $selectedPersonIsJunior = strcasecmp((string)($p['junior_or_senior'] ?? ''), 'Junior') === 0;
                 $selectedPersonHasActiveMembership = !empty($peopleWithActiveMembership[$personId]);
                 $selectedPersonHasExternalRecognition = !empty($externallyRecognisedPeople[$personId]);
+                $selectedPersonCanChooseHorse=$selectedPersonHasActiveMembership || $selectedPersonHasExternalRecognition;
             }
         }
         if (!$canViewAdmin && $personId > 0 && !$selectedPersonHasActiveMembership && !$nonMemberEntriesOpenNow) {
             $alerts[] = ['type' => 'danger', 'message' => 'Non-member entries open on ' . $nonMemberEntryOpenDt->format('jS M Y \\a\\t H:i') . '. Choose a rider with active membership or return after that date.'];
         }
-        if ($horseId > 0) {
-            if ($horseId === $notRegisteredHorseId) {
-                $stmt = $pdo->prepare("SELECT id FROM horses WHERE id = :id AND is_archived = 0 LIMIT 1");
-                $stmt->execute([':id' => $notRegisteredHorseId]);
-                if (!$stmt->fetchColumn()) {
-                    $horseId = 0;
-                } else {
-                    $horseName = 'Not Registered';
-                }
-            } else {
-                $h = fetchHorseForUserById($pdo, (int)($currentUser['id'] ?? 0), $horseId);
-                if (!$h || !empty($h['is_archived'])) {
-                    $horseId = 0;
-                } else {
-                    $horseName = trim((string)($h['name'] ?? ''));
-                    $selectedHorseIsRecognised = !empty($recognisedHorses[$horseId]);
-                }
-            }
-        }
+        $memberHorseSelectionOff=$selectedPersonHasActiveMembership && ($_POST['horse_selection_mode']??'registered')==='not_registered';
+        if ($personId>0 && (!$selectedPersonCanChooseHorse || $memberHorseSelectionOff)) {
+            $horseId=$notRegisteredHorse ? $notRegisteredHorseId : 0;
+            $horseName=$horseId ? 'Not Registered' : '';
+        } elseif ($selectedPersonCanChooseHorse) {
+            $availableHorses=array_column($horseCatalogue['horses'],null,'id');
+            $h=$availableHorses[$horseId]??null;
+            if ($horseId===$notRegisteredHorseId && $notRegisteredHorse && !$selectedPersonHasActiveMembership) $horseName='Not Registered';
+            elseif (!$h) $horseId=0;
+            else { $horseName=(string)$h['name'];$selectedHorseIsRecognised=true; }
+        } else $horseId=0;
 
         $selectedClass = null;
         foreach ($classOptions as $cls) {
@@ -443,6 +404,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }
         }
 
+        if (!$alerts && $selectedPersonCanChooseHorse && $horseId>1) {
+            try {
+                if (entryRememberHorse($pdo,(int)$currentUser['id'],$personId,$horseId,$recognitionDate,$siteSettings)) adminAuditLog($pdo,'entries.horse_linked',$currentUser,'horse',$horseId);
+            }
+            catch (Throwable $e) { $alerts[]=['type'=>'danger','message'=>$e instanceof PDOException?'This horse could not be linked. Please try again.':$e->getMessage()]; }
+        }
         if (!$alerts) {
             $componentsSelected = [];
             $componentsTotal = 0.0;
@@ -542,10 +509,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     'booking_type_label' => $bookingTypeLabel,
                     'metadata' => $metadata,
                 ];
-                if (!empty($_POST['save_emergency_contact']) && $personId > 0 && $p
-                    && (trim((string)($p['emergency_contact_name'] ?? '')) === '' || trim((string)($p['emergency_contact_phone'] ?? '')) === '')) {
-                    $saveEmergency = $pdo->prepare("UPDATE people SET emergency_contact_name=:name, emergency_contact_phone=:phone, updated_at=NOW() WHERE id=:id AND owner_user_id=:owner");
-                    $saveEmergency->execute([':name'=>$emergencyContactName, ':phone'=>$emergencyContactPhone, ':id'=>$personId, ':owner'=>(int)$currentUser['id']]);
+                if (entryUpdateRiderContact($pdo,(int)$currentUser['id'],$personId,[
+                    'phone'=>$contactPhone,'emergency_contact_name'=>$emergencyContactName,'emergency_contact_phone'=>$emergencyContactPhone,
+                ],($_POST['save_rider_contact']??'0')==='1')) {
+                    adminAuditLog($pdo,'entries.rider_contact_updated',$currentUser,'person',$personId);
                 }
                 $basket[] = $entry;
                 $_SESSION['basket'] = $basket;
@@ -746,6 +713,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             box-shadow: 0 0 0 1px rgba(220,53,69,0.4);
         }
 
+        .event-overview-bar { border-bottom:1px solid #ccc; padding-bottom:1rem; margin-bottom:1.5rem; }
+        .event-overview-label { font-size:.76rem; color:#6c757d; text-transform:uppercase; font-weight:700; }
+        .event-overview-bar strong { display:block; overflow-wrap:anywhere; }
         .event-summary-copy { overflow-wrap:anywhere; }
         .event-summary-copy img { max-width:100%; height:auto; }
         .event-gallery-main { display:flex; width:100%; margin:0 0 1rem; justify-content:center; border:0; padding:0; background:none; cursor:zoom-in; }
@@ -844,9 +814,41 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <?php if ($showRideNotesLink): ?><a class="btn btn-success rider-notes-cta" href="<?php echo h($siteBase); ?>/ride_notes.php?event_id=<?php echo (int)$eventId; ?>">Rider Notes</a><?php endif; ?>
                         </div>
                     </div>
+                    <?php
+                    $isRideEvent = strtolower(trim((string)($event['event_type_name'] ?? $event['event_type'] ?? 'Ride'))) === 'ride';
+                    $overviewDate = !empty($event['event_date']) ? (new DateTimeImmutable((string)$event['event_date']))->format('jS M Y') : 'Date TBC';
+                    if (!empty($event['end_date']) && $event['end_date'] !== $event['event_date']) {
+                        $overviewDate .= ' to ' . (new DateTimeImmutable((string)$event['end_date']))->format('jS M Y');
+                    }
+                    $overviewVenue = trim((string)($event['venue_name'] ?? '')) ?: (trim((string)($event['venue'] ?? '')) ?: 'Venue TBC');
+                    $overviewPostcode = trim((string)($event['venue_postcode'] ?? ''));
+                    ?>
+                    <div class="event-overview-bar" aria-label="Event summary">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-3">
+                                <div class="event-overview-label"><?php echo $isRideEvent ? 'Ride Name' : 'Event Name'; ?></div>
+                                <strong><?php echo h($event['title']); ?></strong>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <div class="event-overview-label">Venue</div>
+                                <strong><?php echo h($overviewVenue); ?><?php echo $overviewPostcode !== '' ? ' · ' . h($overviewPostcode) : ''; ?></strong>
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <div class="event-overview-label">Date</div>
+                                <strong><?php echo h($overviewDate); ?></strong>
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <div class="event-overview-label">Start Time</div>
+                                <strong><?php echo $startTime !== '' ? h(substr((string)$startTime,0,5)) : 'TBC'; ?></strong>
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <div class="event-overview-label"><?php echo $isRideEvent ? 'Last Ride Out' : 'End Time'; ?></div>
+                                <strong><?php echo $endTime !== '' ? h(substr((string)$endTime,0,5)) : 'TBC'; ?></strong>
+                            </div>
+                        </div>
+                    </div>
                     <div class="row g-4 align-items-start event-summary-row">
                         <div class="col-12 col-lg-8 event-summary-copy">
-                            <?php $isRideEvent = strtolower(trim((string)($event['event_type_name'] ?? $event['event_type'] ?? 'Ride'))) === 'ride'; ?>
                             <?php if (trim((string)($event['details_html'] ?? '')) !== ''): ?>
                                 <div class="event-extra-details mb-4"><?php echo render_wysiwyg((string)$event['details_html']); ?></div>
                             <?php endif; ?>
@@ -970,10 +972,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <div class="text-muted small mb-0">No classes available to book.</div>
                         <?php else: ?>
                                 <form method="POST" class="row g-2 px-2 px-md-3" id="entryForm" novalidate>
+                                    <?= csrf_input() ?>
                                 <input type="hidden" name="action" value="add_booking">
                                 <input type="hidden" name="person_id" id="personId" value="">
                                 <input type="hidden" name="horse_id" id="horseId" value="">
-                                <input type="hidden" name="save_emergency_contact" id="saveEmergencyContact" value="0">
+                                <input type="hidden" name="save_rider_contact" id="saveEmergencyContact" value="0">
                                 <input type="hidden" name="rider_name" id="riderName" value="" data-prefill="person.full_name">
                                 <input type="hidden" name="horse_name" id="horseName" value="" data-prefill="horse.name">
 
@@ -983,7 +986,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                        <div class="row g-3">
 	                                            <div class="col-12 col-md-6">
 	                                                <label class="form-label" for="prefillPerson">Rider <span class="text-danger">*</span></label>
-                                                <select class="form-select person-type-select" id="prefillPerson" name="prefill_person" data-required="true" <?php echo $people ? '' : 'disabled'; ?>>
+                                                <select class="form-select person-type-select" id="prefillPerson" name="prefill_person" data-required="true">
 	                                                    <option value="">Choose...</option>
 	                                                    <?php foreach ($people as $p): ?>
 	                                                        <?php
@@ -998,40 +1001,36 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
 	                                                        ?>
                                                         <option value="<?php echo $pId; ?>" data-member-eligible="<?php echo !empty($memberPriceEligibleByPerson[$pId]) ? '1' : '0'; ?>" data-member-active="<?php echo !empty($peopleWithActiveMembership[$pId]) ? '1' : '0'; ?>" data-member-competitive="<?php echo !empty($peopleWithCompetitiveMembership[$pId]) ? '1' : '0'; ?>" data-external-recognition="<?php echo !empty($externallyRecognisedPeople[$pId]) ? '1' : '0'; ?>" data-person-junior="<?php echo $isJuniorPerson ? '1' : '0'; ?>" <?php echo $disableNonMemberRider ? 'disabled' : ''; ?>><?php echo h($pLabel); ?></option>
 	                                                    <?php endforeach; ?>
+                                                        <option value="another">Another Person</option>
 	                                                </select>
 	                                                <div class="validation-message small d-none" data-validation-for="prefill_person">Please choose a rider.</div>
 	                                                <div class="small text-muted mt-1">
 	                                                    <?php if ($people): ?>
-	                                                        Select a saved person to prefill matching fields.
+	                                                        Select a saved person to pre-fill matching fields.
 	                                                    <?php else: ?>
 	                                                        No saved people yet.
 	                                                    <?php endif; ?>
-	                                                    <a href="<?php echo h($basePath); ?>/account?view=people">Manage People</a>
 	                                                </div>
 	                                            </div>
 	                                            <div class="col-12 col-md-6">
-	                                                <label class="form-label" for="prefillHorse">Horse <span class="text-danger">*</span></label>
-                                                <select class="form-select" id="prefillHorse" name="prefill_horse" data-required="true">
-	                                                    <option value="">Choose...</option>
-	                                                    <?php foreach ($horses as $h): ?>
-	                                                        <?php
-                                                            $horseLabel = (string)($h['name'] ?? 'Horse #' . (int)($h['id'] ?? 0));
-                                                            if (!empty($horsesWithActiveLogbook[(int)($h['id'] ?? 0)])) {
-                                                                $horseLabel .= ' [LB]';
-                                                            }
-                                                            ?>
-                                                        <option value="<?php echo (int)($h['id'] ?? 0); ?>" data-recognised="<?php echo !empty($recognisedHorses[(int)($h['id'] ?? 0)]) ? '1' : '0'; ?>" <?php echo count($horses) === 1 && !empty($h['is_global_placeholder']) ? 'selected' : ''; ?>><?php echo h($horseLabel); ?></option>
-	                                                    <?php endforeach; ?>
-	                                                </select>
-	                                                <div class="validation-message small d-none" data-validation-for="prefill_horse">Please choose a horse.</div>
-	                                                <div class="small text-muted mt-1">
-	                                                    <?php if ($horses): ?>
-	                                                        Select a saved horse, or choose Not Registered if the horse is not on the system.
-	                                                    <?php else: ?>
-	                                                        No saved horses yet.
-	                                                    <?php endif; ?>
-	                                                    <a href="<?php echo h($basePath); ?>/account?view=horses">Manage Horses</a>
-	                                                </div>
+	                                                <div class="d-flex align-items-center gap-2 mb-2">
+                                                    <label class="form-label mb-0" for="prefillHorse">Horse <span class="text-danger" id="horseRequiredMark" hidden>*</span></label>
+                                                    <span id="horseSelectionToggleWrap" hidden>
+                                                        <span class="d-inline-flex align-items-center gap-2">
+                                                            <span class="form-check form-switch mb-0">
+                                                                <input class="form-check-input" type="checkbox" role="switch" id="horseSelectionToggle" checked aria-label="Select a registered horse" aria-controls="prefillHorse">
+                                                            </span>
+                                                            <em class="small text-muted">(Placeholder words go here)</em>
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                                <input type="hidden" name="horse_selection_mode" id="horseSelectionMode" value="registered">
+                                                <select class="form-select" id="prefillHorse" name="prefill_horse" data-required="false" disabled>
+                                                    <option value="">Choose a rider first...</option>
+                                                </select>
+                                                <div class="validation-message small d-none" data-validation-for="prefill_horse">Please choose a horse.</div>
+                                                <div class="small text-muted mt-1" id="entryHorseHint">Choose a rider first.</div>
+                                                <div class="text-danger small d-none mt-1" id="entryHorseError" role="alert"></div>
 	                                            </div>
 	                                        </div>
 	                                        <div class="rounded-3 bg-light border p-3 mt-3" id="entrySelectionSummary" aria-live="polite">
@@ -1097,7 +1096,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                                         <?php endforeach; ?>
                                                     </select>
                                                     <div class="small helper-text" id="classPriceHint">Price will show when you pick a class. To unlock member rates, choose a member above.</div>
-                                                    <div class="alert alert-danger fw-bold py-2 px-3 mt-2 mb-0 d-none" id="memberRateUsedNotice"></div>
+                                                    <div class="alert alert-warning py-2 px-3 mt-2 mb-0 d-none" id="entryDuplicateNotice" role="status"></div>
                                                     <div class="validation-message small d-none" data-validation-for="class_code">Please choose a class.</div>
                                                 </div>
                                             </div>
@@ -1236,9 +1235,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                 <div class="col-12 mt-2">
                                     <div class="row g-2 align-items-center cta-row">
                                         <div class="col-12 text-danger fw-semibold d-none" id="formErrorSummary" role="alert"></div>
-                                        <div class="col-12 col-md-6 text-md-start entry-fee-total" id="classPriceSummary">Total Entry Fee £0.00</div>
+                                        <div class="col-12 col-md-7 d-flex align-items-center gap-3">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm py-2 flex-shrink-0 d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#cancellationPolicyModal"><span>Cancellation<br>Policy</span><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>
+                                            <div class="entry-fee-total" id="classPriceSummary">Total Entry Fee £0.00</div>
+                                        </div>
                                         <?php if ($isLateEntry): ?><div class="col-12 text-danger fw-semibold">Late entry fee: <?php echo h(format_price($lateEntryFee)); ?></div><?php endif; ?>
-                                        <div class="col-12 col-md-6 text-md-end">
+                                        <div class="col-12 col-md-5 text-md-end">
                                             <button class="btn btn-success btn-enter w-100 w-md-auto" id="submitEntry" type="submit" <?php echo $isFull ? 'disabled' : ''; ?>>
                                                 <?php echo $isFull ? 'Event full' : 'Enter Event'; ?>
                                             </button>
@@ -1246,11 +1248,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     </div>
                                 </div>
                             </form>
+                            <?php require __DIR__.'/views/cancellation_policy_modal.php'; ?>
                             <div class="modal fade" id="saveEmergencyContactModal" tabindex="-1" aria-labelledby="saveEmergencyContactModalLabel" aria-hidden="true">
                                 <div class="modal-dialog modal-dialog-centered">
                                     <div class="modal-content">
-                                        <div class="modal-header"><h5 class="modal-title" id="saveEmergencyContactModalLabel">Save emergency contact?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-                                        <div class="modal-body">This rider does not have a complete emergency contact saved. Would you like to save these details to their profile for future entries?</div>
+                                        <div class="modal-header"><h5 class="modal-title" id="saveEmergencyContactModalLabel">Update rider information?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                                        <div class="modal-body">Can we update your rider information to include this latest information? Only the following missing details will be saved: <span id="riderContactUpdateFields"></span>. Existing details will stay unchanged.</div>
                                         <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="saveEmergencyContactNo" data-bs-dismiss="modal">No, just use for this entry</button><button type="button" class="btn btn-success" id="saveEmergencyContactYes">Yes, save to profile</button></div>
                                     </div>
                                 </div>
@@ -1276,11 +1279,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <script>(function(){const main=document.querySelector('[data-event-gallery]'),box=document.getElementById('event-lightbox');if(!main||!box)return;const image=box.querySelector('img'),caption=box.querySelector('.event-lightbox-caption'),close=()=>{box.classList.remove('open');image.src='';caption.textContent='';document.body.style.overflow='';};main.addEventListener('click',()=>{image.src=main.dataset.lightboxSrc;image.alt=main.querySelector('img').alt;caption.textContent=document.querySelector('.event-gallery-caption')?.textContent||'';box.classList.add('open');document.body.style.overflow='hidden';});box.querySelector('.event-lightbox-close').addEventListener('click',close);box.addEventListener('click',e=>{if(e.target===box)close();});document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});})();</script>
     <?php render_tinymce_bootstrap(); ?>
+    <?php include __DIR__.'/views/entry_person_modal.php'; ?>
+    <script type="application/json" id="entryRiderData"><?php echo json_encode(['people'=>array_values($people),'eligibility'=>$memberPriceEligibleByPerson,'active'=>$peopleWithActiveMembership,'competitive'=>$peopleWithCompetitiveMembership,'entered_riders'=>array_intersect_key($existingEntryParticipants['riders'],array_flip(array_column($people,'id'))),'entered_horses'=>array_intersect_key($existingEntryParticipants['horses'],array_flip(array_column($horseCatalogue['horses'],'id'))),'horse_catalogue'=>$horseCatalogue,'event_id'=>$eventId,'horse_endpoint'=>$basePath.'/entry_horse.php'],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?></script>
     <script>
         const classSelect = document.getElementById('classSelect');
         const rideTypeSelect = document.getElementById('rideTypeSelect');
         const priceHint = document.getElementById('classPriceHint');
-        const memberRateUsedNotice = document.getElementById('memberRateUsedNotice');
+        const entryDuplicateNotice = document.getElementById('entryDuplicateNotice');
         const priceSummary = document.getElementById('classPriceSummary');
         const form = document.getElementById('entryForm');
         const submitEntry = document.getElementById('submitEntry');
@@ -1288,20 +1293,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const juniorRideSection = document.getElementById('juniorRideSection');
         const accompanyingAdult = document.getElementById('accompanyingAdult');
         const saveEmergencyContactInput = document.getElementById('saveEmergencyContact');
+        const riderPhoneInput = document.getElementById('contactPhone');
         const emergencyNameInput = document.getElementById('emergencyContactName');
         const emergencyPhoneInput = document.getElementById('emergencyContactPhone');
         const saveEmergencyContactModalEl = document.getElementById('saveEmergencyContactModal');
         const saveEmergencyContactYes = document.getElementById('saveEmergencyContactYes');
         const saveEmergencyContactNo = document.getElementById('saveEmergencyContactNo');
         let emergencyContactPromptResolved = false;
+        const resetRiderContactConsent = () => {
+            emergencyContactPromptResolved = false;
+            if (saveEmergencyContactInput) saveEmergencyContactInput.value = '0';
+        };
+        [riderPhoneInput,emergencyNameInput,emergencyPhoneInput].forEach(input => input?.addEventListener('input',resetRiderContactConsent));
 
-        // Optional person/horse prefills (data is baked into the page; no API calls).
-        const peopleData = <?php echo json_encode(array_values($people), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const memberEligibilityByPerson = <?php echo json_encode($memberPriceEligibleByPerson, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const memberActiveByPerson = <?php echo json_encode($peopleWithActiveMembership, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const memberCompetitiveByPerson = <?php echo json_encode($peopleWithCompetitiveMembership, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const memberPriceUsedByPerson = <?php echo json_encode($memberPriceUsedByPerson, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const horsesData = <?php echo json_encode(array_values($horses), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        // Initial prefills are embedded; Another Person refreshes rider data after saving.
+        const initialRiderData = JSON.parse(document.getElementById('entryRiderData').textContent);
+        const peopleData = initialRiderData.people;
+        const memberEligibilityByPerson = initialRiderData.eligibility;
+        const memberActiveByPerson = initialRiderData.active;
+        const memberCompetitiveByPerson = initialRiderData.competitive;
+        const enteredRiders = initialRiderData.entered_riders;
+        const enteredHorses = initialRiderData.entered_horses;
         const prefillPerson = document.getElementById('prefillPerson');
         const prefillHorse = document.getElementById('prefillHorse');
         const personIdInput = document.getElementById('personId');
@@ -1339,7 +1351,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         };
 
         if (prefillPerson) {
+            let previousRider = prefillPerson.value;
             prefillPerson.addEventListener('change', () => {
+                if (prefillPerson.value === 'another') {
+                    prefillPerson.value = previousRider;
+                    document.dispatchEvent(new CustomEvent('entry-add-person'));
+                    return;
+                }
+                resetRiderContactConsent();
+                previousRider = prefillPerson.value;
                 const id = parseInt(prefillPerson.value || '0', 10) || 0;
                 if (personIdInput) personIdInput.value = id ? String(id) : '';
                 const person = peopleData.find((p) => parseInt(p.id, 10) === id);
@@ -1363,11 +1383,32 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 updateTotal();
             });
         }
+        document.addEventListener('entry-riders-refreshed', event => {
+            const {data, select, personId} = event.detail;
+            document.getElementById('entryRiderData').textContent=JSON.stringify(data);
+            const rideValue = rideTypeSelect?.value;
+            const classValue = classSelect?.value;
+            peopleData.splice(0, peopleData.length, ...data.people);
+            for (const [target, source] of [[memberEligibilityByPerson,data.eligibility],[memberActiveByPerson,data.active],[memberCompetitiveByPerson,data.competitive],[enteredRiders,data.entered_riders],[enteredHorses,data.entered_horses]]) {
+                Object.keys(target).forEach(key => delete target[key]);
+                Object.assign(target, source);
+            }
+            prefillPerson.replaceChildren(...Array.from(select.options, option => option.cloneNode(true)));
+            prefillPerson.value = String(personId);
+            prefillPerson.dispatchEvent(new Event('change', {bubbles:true}));
+            if (rideValue && Array.from(rideTypeSelect?.options || []).some(option => option.value === rideValue && !option.disabled)) {
+                rideTypeSelect.value = rideValue;rideTypeSelect.dispatchEvent(new Event('change',{bubbles:true}));
+            }
+            if (classValue && Array.from(classSelect?.options || []).some(option => option.value === classValue && !option.disabled)) {
+                classSelect.value = classValue;classSelect.dispatchEvent(new Event('change',{bubbles:true}));
+            }
+        });
         if (prefillHorse) {
             prefillHorse.addEventListener('change', () => {
                 const id = parseInt(prefillHorse.value || '0', 10) || 0;
                 if (horseIdInput) horseIdInput.value = id ? String(id) : '';
-                const horse = horsesData.find((h) => parseInt(h.id, 10) === id);
+                const selectedName=prefillHorse.selectedOptions[0]?.dataset.horseName || '';
+                const horse=selectedName ? {name:selectedName} : null;
                 if (horse) {
                     applyPrefill('horse', horse);
                 } else {
@@ -1391,17 +1432,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         const selectedPersonExternalRecognition = () => prefillPerson?.selectedOptions?.[0]?.dataset?.externalRecognition === '1';
         const selectedHorseRecognised = () => prefillHorse?.selectedOptions?.[0]?.dataset?.recognised === '1';
 
+        const updateEntryDuplicateNotice = () => {
+            if (!entryDuplicateNotice) return;
+            const messages=[];
+            if (enteredRiders?.[selectedPersonId()]) messages.push('This rider is already entered in this event.');
+            const horseId=Number(prefillHorse?.value || 0);
+            if (horseId>1 && enteredHorses?.[horseId]) messages.push('This horse is already entered in this event.');
+            entryDuplicateNotice.textContent=messages.join(' ');
+            entryDuplicateNotice.classList.toggle('d-none',messages.length===0);
+        };
+
         const updateMemberPriceAvailability = () => {
             if (!classSelect) return;
             const eligible = selectedPersonEligible();
-            const personId = selectedPersonId();
-            const memberRateAlreadyUsed = !!(personId && memberPriceUsedByPerson?.[personId]);
-            if (memberRateUsedNotice) {
-                memberRateUsedNotice.classList.toggle('d-none', !memberRateAlreadyUsed);
-                memberRateUsedNotice.textContent = memberRateAlreadyUsed
-                    ? 'This rider has already used their member-rate entry for this event, so another member-rate class cannot be selected.'
-                    : '';
-            }
+            updateEntryDuplicateNotice();
             const memberOptions = Array.from(classSelect.options || []).filter((opt) => opt.dataset.memberPrice === '1');
             memberOptions.forEach((opt) => {
                 const competitiveRecognition = ['CTR', 'ER'].includes(opt.dataset.classGroup || '') && (selectedPersonCompetitiveMember() || selectedPersonExternalRecognition());
@@ -1473,8 +1517,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     memberNote = 'Non-ILDRA Member rate applied where one has been set.';
                 } else if (!memberActiveByPerson?.[personId]) {
                     memberNote = 'Selected person does not have an active membership.';
-                } else if (memberPriceUsedByPerson?.[personId]) {
-                    memberNote = 'Member rate already used for this event.';
                 } else {
                     memberNote = 'Member rates unlocked for the selected person.';
                 }
@@ -1680,9 +1722,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                     return;
                 }
                 const person = peopleData.find((p) => parseInt(p.id, 10) === selectedPersonId());
-                const profileEmergencyMissing = person && !person.is_linked && (!(person.emergency_contact_name || '').trim() || !(person.emergency_contact_phone || '').trim());
-                const enteredEmergency = (emergencyNameInput?.value || '').trim() !== '' && (emergencyPhoneInput?.value || '').trim() !== '';
-                if (!emergencyContactPromptResolved && profileEmergencyMissing && enteredEmergency && saveEmergencyContactModalEl && window.bootstrap?.Modal) {
+                const updates = [
+                    ['phone',riderPhoneInput,'phone number'],
+                    ['emergency_contact_name',emergencyNameInput,'emergency contact name'],
+                    ['emergency_contact_phone',emergencyPhoneInput,'emergency contact phone'],
+                ];
+                const missingUpdates = person ? updates.filter(([field,input]) =>
+                    person.contact_missing?.[field] === true && (input?.value || '').trim() !== ''
+                ) : [];
+                if (!emergencyContactPromptResolved && missingUpdates.length && saveEmergencyContactModalEl && window.bootstrap?.Modal) {
+                    document.getElementById('riderContactUpdateFields').textContent = missingUpdates.map(update=>update[2]).join(', ');
                     e.preventDefault();
                     new bootstrap.Modal(saveEmergencyContactModalEl).show();
                 }
@@ -1725,6 +1774,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
             }));
         }
     </script>
+<script src="<?php echo h($basePath); ?>/assets/entry_person.js"></script>
+<script src="<?php echo h($basePath); ?>/assets/entry_horses.js"></script>
 </body>
 
 </html>

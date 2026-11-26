@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/postcodes.php';
 
 /**
  * Minimal Stripe helpers using cURL (no composer dependency).
@@ -111,7 +112,7 @@ function stripe_buyer_address_params(array $user, array $people): array
         $params['address[line1]'] = array_shift($lines);
         if ($lines) $params['address[line2]'] = implode(', ', $lines);
     }
-    $postcode = trim((string)($buyer['postcode'] ?? ''));
+    $postcode = normalise_postcode((string)($buyer['postcode'] ?? ''));
     if ($postcode !== '') $params['address[postal_code]'] = $postcode;
     return $params;
 }

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/postcodes.php';
 
 /** Birth dates must be real calendar dates, no later than today in the UK. */
 function birth_date_is_valid(string $value): bool

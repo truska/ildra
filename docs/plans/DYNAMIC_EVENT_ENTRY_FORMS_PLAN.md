@@ -1,5 +1,20 @@
 # Dynamic Event Entry Forms
 
+## Rider selection update — 26 November 2026
+
+The ride form now supports Another Person at the bottom of Rider selection.
+It starts with email, reuses/automatically links existing riders (without owner
+approval) or collects all required details for a new owned Person. The entry
+form stays loaded and selects the resulting rider. Existing minimal shared-data
+visibility and server price/eligibility checks are retained. See
+[the implementation and checks](../WORKFLOW.md#32-email-first-riders-added-from-event-entry).
+Horse selection now lists eligible own horses, linked horses, a divider,
+Not Registered, another divider, and other eligible horses. Selecting another horse automatically remembers its
+canonical record on the signed-in account. Ordinary non-members use the system
+Not Registered horse; members and verified externally recognised riders select
+a horse with a valid logbook or equivalent approved recognition. See
+[horse selection and linking](../WORKFLOW.md#34-event-horse-selection-and-automatic-links).
+
 ## Purpose
 
 Extend the current ride-oriented event entry form into a reusable, data-driven
@@ -23,7 +38,8 @@ event types, without making routine event setup difficult for administrators.
 - The public entry page is still fundamentally ride-shaped: rider, horse and
   class selection are currently built into the page outside the configurable
   component list. Removing a Horse-related component does **not** remove the
-  mandatory horse selection.
+  horse selection for members and externally recognised riders; ordinary
+  non-members now use Not Registered automatically.
 - There is an existing event-copy flow. This should remain the fastest way to
   create repeat events once an event has been configured correctly.
 

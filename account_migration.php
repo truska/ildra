@@ -125,7 +125,7 @@ function migrationRecipients(PDO $pdo): array
         if($state && $person && (int)$state['person_id']!==(int)$person['id'])$reason='Person mapping needs review';
         if(!empty($state['completed_at']) || ($state['current_step']??'')==='declined')$reason=$status;
         if((int)$counts['uncertain']>0)$reason='Delivery pending or uncertain; review before retrying';
-        $rows[]=['id'=>(int)$id,'email'=>$u['email'],'name'=>trim($u['first_name'].' '.$u['last_name']),'person_id'=>$person?(int)$person['id']:null,'status'=>$status,'sent'=>(int)$counts['sent'],'failed'=>(int)$counts['failed'],'reason'=>$reason];
+        $rows[]=['id'=>(int)$id,'role'=>$u['role'],'email'=>$u['email'],'name'=>trim($u['first_name'].' '.$u['last_name']),'person_id'=>$person?(int)$person['id']:null,'status'=>$status,'sent'=>(int)$counts['sent'],'failed'=>(int)$counts['failed'],'reason'=>$reason];
     }
     return $rows;
 }
@@ -238,6 +238,7 @@ function migrationDetailErrors(array $data, bool $person): array
 /** Fields and progress are committed together; client-supplied step and person IDs are never trusted. */
 function migrationSaveDetails(PDO $pdo, int $uid, string $step, array $data): array
 {
+    $data=normalise_postcode_fields($data);
     migrationAssertOwnSession($pdo,$uid);
     if (!in_array($step,['user','person'],true)) throw new RuntimeException('Invalid setup step.');
     $errors=migrationDetailErrors($data,$step==='person');
@@ -587,7 +588,7 @@ function migrationResetOnboarding(PDO $pdo, array $actor, int $uid, int $expecte
 {
     require_once __DIR__.'/import_workspace.php';
     if (!empty($_SESSION['act_as_original_user'])) throw new RuntimeException('Exit impersonation before resetting onboarding.');
-    importWorkspaceAuthorize($pdo,$actor,importWorkspaceConfig(),strtolower((string)($_SERVER['HTTP_HOST']??'')));
+    if (migrationAuthorizeAdmin($pdo,$actor)['mode']!=='development') throw new RuntimeException('Testing resets are available only on development.');
     ensureMigrationTables($pdo);
     $pdo->beginTransaction();
     try {

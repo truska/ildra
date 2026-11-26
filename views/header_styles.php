@@ -571,7 +571,10 @@ a:visited {
 
 .screen-guidance > :last-child { margin-bottom:0; }
 
-/* Purchase shortcuts in existing desktop page heading rows. */
+/* Calendar and purchase shortcuts in existing desktop page heading rows. */
+@media (min-width:992px) {
+    .row:has(> .page-heading-shortcuts) > .col-lg-9 { flex:1 1 0; width:auto; min-width:0; }
+}
 .page-heading-actions { display:flex; align-items:center; justify-content:flex-end; gap:.5rem; }
 .page-heading-actions .btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; min-height:44px; padding:.7rem .5rem; white-space:nowrap; }
 

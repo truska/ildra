@@ -31,7 +31,7 @@ function migrationAuthorizeAdmin(PDO $pdo,array $actor):array
 {
     $environment=migrationEnvironment($pdo);
     if($environment['mode']==='development'){
-        importWorkspaceAuthorize($pdo,$actor,importWorkspaceConfig(),(string)($_SERVER['HTTP_HOST']??''));
+        migrationRequireProductionOperator($pdo,$actor);
     }else{
         migrationRequireProductionOperator($pdo,$actor);
     }

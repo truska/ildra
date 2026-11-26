@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/postcodes.php';
 require_once __DIR__ . '/event_archives.php';
 require_once __DIR__ . '/venue_archives.php';
 require_once __DIR__ . '/entry_hub_access.php';
@@ -78,6 +79,21 @@ function defaultMemberships(): array
     ];
 }
 
+/** Read older settings without losing customised policy text or later footer sections. */
+function separateCancellationPolicySettings(array $stored): array
+{
+    if (array_key_exists('cancellation_policy_html',$stored) || !array_key_exists('ride_notes_footer_html',$stored)) return $stored;
+    $footer=(string)$stored['ride_notes_footer_html'];
+    $stored['cancellation_policy_html']='';
+    if (preg_match('~<h[1-6]\b[^>]*>\s*Cancellation Policy\s*</h[1-6]>\s*~i',$footer,$match,PREG_OFFSET_CAPTURE)) {
+        $offset=$match[0][1];$bodyStart=$offset+strlen($match[0][0]);$rest=substr($footer,$bodyStart);
+        $end=preg_match('~<h[1-6]\b~i',$rest,$next,PREG_OFFSET_CAPTURE)?$next[0][1]:strlen($rest);
+        $stored['cancellation_policy_html']=trim(substr($rest,0,$end));
+        $stored['ride_notes_footer_html']=trim(substr($footer,0,$offset).substr($rest,$end));
+    }
+    return $stored;
+}
+
 function defaultSiteSettings(): array
 {
     return [
@@ -90,15 +106,16 @@ function defaultSiteSettings(): array
         'ride_notes_email_intro_html' => '<p>Important information for your upcoming ride is now available.</p>',
         'ride_notes_email_signature_html' => '',
         'ride_notes_email_header_image_url' => '',
-        'ride_notes_footer_html' => <<<'HTML'
-<h2>Cancellations, Questions and Amendments</h2>
-<p>If you wish to cancel your entry please email us on <a href="mailto:webmaster@enduranceridingireland.com">webmaster@enduranceridingireland.com</a></p>
-<p>For any questions or other information relating to the ride please also email on the above address.</p>
-<h4>Cancellation Policy</h4>
+        'cancellation_policy_html' => <<<'HTML'
 <p>All entries, Pleasure and Competitive, must be pre-paid, using the on-line system.</p>
 <p>Ride entries withdrawn prior to ride closing date (usually 5 days before ride unless otherwise stated) will be refunded less administrative charge or can be credited to a future ride.</p>
 <p>Notice of withdrawal must be made to <a href="mailto:webmaster@enduranceridingireland.com">webmaster@enduranceridingireland.com</a>. No refunds/credits after this time.</p>
 <p>Memberships and entries are non-transferable.</p>
+HTML,
+        'ride_notes_footer_html' => <<<'HTML'
+<h2>Cancellations, Questions and Amendments</h2>
+<p>If you wish to cancel your entry please email us on <a href="mailto:webmaster@enduranceridingireland.com">webmaster@enduranceridingireland.com</a></p>
+<p>For any questions or other information relating to the ride please also email on the above address.</p>
 HTML,
         'hero_title' => 'Endurance Riding Ireland LTD',
         'hero_subtitle' => 'Recognised by Horse Sport Ireland',
@@ -257,14 +274,9 @@ function getSiteSettings(?PDO $pdo): array
         ensureSiteSettingsTable($pdo);
         $stmt = $pdo->query("SELECT setting_key, setting_value FROM site_settings");
         $rows = $stmt ? $stmt->fetchAll() : [];
-        $settings = defaultSiteSettings();
-        foreach ($rows as $row) {
-            $key = $row['setting_key'] ?? '';
-            if ($key === '') {
-                continue;
-            }
-            $settings[$key] = $row['setting_value'];
-        }
+        $storedSettings=[];
+        foreach ($rows as $row) if (!empty($row['setting_key'])) $storedSettings[$row['setting_key']]=$row['setting_value'];
+        $settings = array_merge(defaultSiteSettings(),separateCancellationPolicySettings($storedSettings));
         $settings['basket_timeout_seconds'] = max(300, (int)($settings['basket_timeout_seconds'] ?? 900));
         $settings['remember_me_ttl_seconds'] = (int)($settings['remember_me_ttl_seconds'] ?? (30 * 86400));
         $settings['auth_app_login_enabled'] = !empty($settings['auth_app_login_enabled']) && (string)$settings['auth_app_login_enabled'] !== '0' ? '1' : '0';
@@ -277,6 +289,7 @@ function getSiteSettings(?PDO $pdo): array
 
 function saveSiteSettings(?PDO $pdo, array $data, array &$alerts): bool
 {
+    $data=normalise_postcode_fields($data);
     if (!$pdo) {
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return false;
@@ -2383,6 +2396,7 @@ function fetchVenueById(?PDO $pdo, int $id): ?array
  */
 function saveVenue(?PDO $pdo, array $data, array &$alerts)
 {
+    $data=normalise_postcode_fields($data);
     if (!$pdo) {
         $alerts[] = ['type' => 'danger', 'message' => 'Database unavailable.'];
         return false;
@@ -3766,6 +3780,7 @@ function fetchHorseForUserById(?PDO $pdo, int $ownerUserId, int $horseId): ?arra
 
 function savePersonForUser(?PDO $pdo, int $ownerUserId, array $data, array &$alerts, ?int $personId = null): ?int
 {
+    $data=normalise_postcode_fields($data);
     if (!$pdo || $ownerUserId <= 0) {
         $alerts[] = ['type' => 'danger', 'message' => 'Login required.'];
         return null;

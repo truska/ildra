@@ -604,3 +604,247 @@ not trigger it. Other automatic account prompts are deferred for that arrival.
 The single Password & user settings form has only Continue, which saves the
 password, identity and completion atomically. There are no progress pills or
 second Finish page. Purchase actions happen from the dashboard.
+
+
+## 32. Email-first riders added from event entry
+
+The ride-entry Rider dropdown ends with Another Person, including for accounts
+with no saved People. It opens an email-first modal in place of the old Manage
+People link. Existing active People are reused. An existing login is matched to
+its canonical owned rider by email or unique account-holder name, or gets a
+minimal Person owned by that login if none exists. Existing riders managed by
+another account are automatically linked with the existing select-only sharing
+permission, without approval, verification or an email. Ownership is retained.
+This automatic entry-linking rule was explicitly requested on 26 November 2026.
+Shared DOB, phone, address, postcode and emergency-contact fields remain masked
+by the established shared-person fetch helpers. The broader People presentation
+and horse-selection changes are separate follow-up work.
+
+Unmatched emails open the complete new-rider form. First/surname, email, phone,
+address, postcode, Junior/Senior and emergency name/phone are required; juniors
+also require DOB. The shared minimum age of five and classification rules apply.
+New riders belong to the signed-in account and are not opted into marketing.
+Both submission steps recheck matches under an email-scoped database lock;
+repeated or stale submissions reuse the canonical rider rather than duplicating
+it. Multiple matches, archived/unavailable records and previously revoked access
+require review instead of guessing or silently overriding a revocation.
+
+`entry_person.php` requires an authenticated active account, shared CSRF checks,
+POST and a session rate limit. It returns status/field errors and the Person ID,
+not another account's private details. Successful selection is audited. No schema
+migration or outgoing email is introduced. `entry_people.php` prepares schema
+before the transaction and performs no transactional DDL.
+
+After save/link, the browser refreshes only the event's rider choices and current
+membership/recognition eligibility data. The rider is selected in place, horse
+and other form fields remain intact, and compatible class choices are retained.
+Server entry eligibility and price checks remain authoritative. The compact
+rider modal uses a viewport-bounded flex layout with an independently scrolling
+body and fixed header/footer, keeping action buttons visible on phone and
+landscape screens even when field warnings expand the form. Field warnings
+appear above the controls with accessible red borders; Cancel preserves the
+previous rider and does not submit anything.
+
+Verification: `php scripts/tests/entry_people.php <private-/tmp-directory>` uses
+synthetic records in all-table temporary copies and renders actual event pages.
+`node scripts/tests/entry_people.cjs <directory>` checks the modal and actual
+entry scripts at 1440px/390px with mocked network responses. It uses the same
+private pinned Bootstrap files described for the account dashboard browser test.
+No real riders were created/linked, bookings made or emails sent during testing.
+
+
+## 33. Shared postcode character formatting
+
+Postcode inputs use uppercase ASCII letters, digits and spaces only. Lowercase
+is converted and punctuation/special characters are removed on typing, paste,
+blur and submit; leading zeros and internal spaces are retained. This is a
+character rule rather than country-specific postcode validation. Existing stored
+records are not bulk-edited; an edited record is normalized when saved.
+
+`postcodes.php` supplies the shared normalization and recursive postcode-field
+handling. Bootstrap applies it to POST data after CSRF validation, covering
+public/admin forms and nested/prefixed postcode fields. Person, venue, Settings,
+legacy migration detail and email-first rider helpers also normalize programmatic
+saves, and Stripe Customer address mapping uses the same postcode format.
+
+The shared HTML-response callback preserves existing CSRF form protection and
+loads `assets/postcodes.js` once for full HTML pages, including administrative
+pages. It leaves non-HTML/API responses alone. The formatter recognizes postcode,
+postal_code and prefixed/nested names, handles newly inserted controls, and also
+recognizes person postcode prefills. Other fields are unchanged.
+
+Verification: `php scripts/tests/postcodes.php` checks shared PHP formatting,
+nested fields, unrelated values, asset/CSRF injection and subdirectory/non-HTML
+handling without database writes. `node scripts/tests/postcodes.cjs` checks
+actual typing/pasting, dynamic inputs, spaces/zeros and submit formatting in
+Chromium. The email-first rider temporary-table suite also checks canonical
+postcode storage. No real address records were changed by these tests.
+
+## 34. Event horse selection and automatic links
+
+Event entry uses canonical horses with a logbook covering the event year (the
+existing annual-product rules), or approved external horse recognition valid on
+the event date. Archived horses and horses belonging to archived accounts are
+excluded. Ordinary non-members automatically use the system Not Registered
+horse (ID 1), with no horse-name input. Members with ride-entry benefits and
+verified externally recognised riders choose an eligible horse; existing
+class, pricing and competitive eligibility checks still apply.
+
+The selector lists horses owned by the selected Person's managing account,
+then its linked horses and horses already remembered by the signed-in account,
+then a horizontal divider and all other eligible horses. Members now have an
+on-by-default switch beside Horse: on excludes Not Registered; off forces the
+system Not Registered horse and disables the dropdown. Verified externally
+recognised non-members retain the separate Not Registered option between
+dividers. CTR/ER still require a recognised horse. Only IDs, names and
+eligibility reach the public catalogue; passport and owner contact information
+are not exposed. There is no free-text registration or horse duplication here.
+
+`entry_horses.php` provides the catalogue, qualification and linking helpers.
+`assets/entry_horses.js` posts a selected other horse to the authenticated,
+CSRF-protected `entry_horse.php` endpoint. It creates an approved select-only
+link to the signed-in account, without owner approval or ownership transfer,
+then moves that horse above the divider. Existing own/linked horses need no new
+link. A real event POST also revalidates and creates a missing link before adding
+the entry, so ignoring JavaScript cannot bypass eligibility or canonical names.
+Revoked links are not silently reinstated. New links are audited.
+
+Verification: `php scripts/tests/entry_horses.php <private-/tmp-directory>`
+uses the existing all-table temporary-copy harness to test grouping, event-year
+logbooks, member/nonmember/external eligibility, idempotent linking, ownership,
+minimal exported fields and archived/expired/revoked guards. It also exercises
+the actual event POST controller with forged names, an ordinary nonmember and
+an expired logbook. No actual customer records or emails are changed.
+`node scripts/tests/entry_horses.cjs <directory>` uses the resulting event-page
+fixture at desktop/mobile widths to check ordering, divider, CSRF link request,
+remembered selection and rider switching. The Another Person browser suite
+also passes with the new horse selector enabled.
+
+## 35. Missing rider contact information at event entry
+
+On Enter Event, the existing confirmation modal now covers rider phone,
+emergency contact name and emergency contact phone. It appears only when a
+canonical Person record is missing one of those fields and the entrant has
+supplied a nonblank value for it. The modal lists precisely those missing fields;
+a complete linked Person does not trigger a prompt just because shared prefills
+mask their contact details.
+
+`entryPeopleWithContactGaps()` adds boolean missing-field flags to accessible
+riders, without revealing linked contact values. With explicit
+`save_rider_contact=1` consent, `entryUpdateRiderContact()` fills only currently
+blank fields on that same canonical Person record, owned or approved-linked.
+Existing values are never overwritten, even if they changed since page load;
+blank input does not erase data. No leaves the profile untouched and uses the
+entry details only. Changing rider/contact inputs resets the previous consent.
+The SQL update rechecks active Person and ownership/approved nonrevoked link;
+successful updates are audited as `entries.rider_contact_updated`. Email and
+ownership are unchanged.
+
+Verification: `php scripts/tests/entry_contact.php <private-/tmp-directory>`
+checks canonical flags, masked linked data, consent, gap-only updates and
+revoked/unrelated/archived guards against temporary table copies. The matching
+`node scripts/tests/entry_contact.cjs <directory>` checks exact missing-field
+wording, Yes/No single submission and complete-linked-record skip at desktop
+and mobile widths, with network writes blocked. No real contact records changed.
+
+## 36. Shared cancellation policy in Settings
+
+Cancellation Policy is edited at Settings → Events → Cancellation Policy,
+using `cancellation_policy_html`. Rider Notes includes this setting below its
+general footer, and the two-line Cancellation Policy button to the left of
+Total Entry Fee opens `views/cancellation_policy_modal.php` with the same text.
+The button does not submit the entry form; the popup scrolls for long content.
+The general Rider Notes footer remains separately editable in the Rider Notes
+tab. Preview shortcuts link to the relevant editor for each section.
+
+The existing saved policy wording was moved unchanged out of
+`ride_notes_footer_html` on development, preserving its other text. Before-state
+backup: `private/import-workspace-backups/cancellation-policy-20261126-155556-da997d82.json`
+(mode 600). `getSiteSettings()` also separates an older combined footer on read
+if the dedicated key has not yet been saved, preserving custom wording and any
+later heading sections without writing to the database. Subsequent Settings saves
+persist the central values. Explicitly blank policy text remains blank.
+
+Verification: `php scripts/tests/cancellation_policy.php <private-/tmp-directory>`
+uses temporary tables to check legacy/custom splitting, text preservation,
+idempotence, explicit blanks, audited Settings saves, actual event/Rider Notes
+rendering and an edit reflected in both locations exactly once. Desktop/mobile
+fixture checks verified the popup button placement and open/close behaviour.
+
+
+## 37. Developer/Superadmin onboarding restart controls
+
+Development migration controls accept active Developer and Superadmin operators,
+with database-backed role verification and impersonation denial. Migration rows
+include the recipient role so both roles receive the extra restart button. Own
+restart opens `/migrate.php`; another privileged account's restart is scheduled
+for its next verified login. Cross-account immediate restart remains rejected.
+Existing data, confirmation, unique Person matching, auditing and environment
+checks are retained. Destructive import-workspace authorization is unchanged.
+
+`php scripts/tests/per_user_onboarding_reset.php <private-/tmp-directory>` now
+also checks unprotected Developers, Superadmins, self/other scheduling, rendered
+button behaviour, forged/ordinary roles, impersonation and the separate protected
+import-workspace restriction, using temporary tables only. The offline migration
+rollout suite also passes. No actual account onboarding was reset.
+
+
+## 38. Member horse-selection switch
+
+Members with active ride-entry benefits have an accessible, on-by-default switch
+beside Horse. On lists own/linked horses, a divider when needed, and other eligible
+horses, without Not Registered. Off disables the dropdown and forces canonical
+Not Registered (ID 1), clearing the horse-required warning. Turning on again
+restores the prior eligible horse if available. A newly selected rider resets
+the switch to on. Ordinary non-members retain automatic Not Registered;
+externally recognised non-members retain their previous dropdown behaviour.
+
+The hidden `horse_selection_mode` carries the member switch choice. Event POST
+forces ID 1 for a member's off selection and rejects ID 1 in registered mode;
+posted free-text names are still ignored. CTR/ER continue to require a recognised
+horse. Existing horse-link creation does not run for Not Registered.
+
+The temporary-table horse suite checks canonical off-mode handling, registered
+mode rejection and competitive eligibility. Desktop/mobile browser checks cover
+switch visibility/default, no Not Registered in the member list, divider/order,
+disabled off state, no stale warning, restored selection and rider switching.
+
+
+## 39. Duplicate event entries warn rather than block
+
+Repeat entries no longer consume a rider's member-rate eligibility for that
+event. Active membership/class eligibility, competitive horse rules and capacity
+checks still apply. `entry_warnings.php` collects canonical rider/horse IDs from
+non-withdrawn saved entries and this session's basket for the same event.
+Event-page data exports only matching accessible rider and catalogue horse IDs.
+
+The existing notification area now shows amber advisory warnings for an already
+entered rider and/or horse, without disabling member pricing or Enter Event.
+The warnings update with rider/horse selection and after Another Person refresh.
+The shared Not Registered horse (ID 1), withdrawn entries and other events do
+not produce horse duplicate warnings. No new schema or booking writes occur
+merely from viewing/checking the form.
+
+`php scripts/tests/entry_duplicates.php <private-/tmp-directory>` checks saved
+and basket matches, exclusions and successful repeat member-price event POSTs
+using temporary tables. The matching `.cjs` browser test checks both warnings,
+selectable member pricing, enabled submission, placeholder exclusion and stale
+warning clearing at desktop/mobile widths. No actual entries or emails created.
+
+
+## 40. Entry and account changes wrap-up — 26 November 2026
+
+The user reviewed the entry changes with a second tester and approved this batch
+for commit. It includes email-first rider creation/linking, canonical eligible
+horse selection and remembering, the member horse switch, missing-contact-only
+consent updates, nonblocking duplicate warnings, postcode formatting, the event
+summary bar and shared cancellation policy, Developer/Superadmin migration
+restart controls, account toggle labels and shared header navigation shortcuts.
+The temporary italic horse-switch wording remains intentionally provisional.
+
+Final regression checks cover PHP/JavaScript syntax, temporary-table suites for
+riders, horses, contact consent, duplicates, policy, onboarding resets and the
+account dashboard, plus desktop/mobile browser suites for entry and account
+behaviour. Policy and test-logbook database adjustments are documented separately
+in this file and IMPORT_WORKSPACE.md; private backups are outside Git. This
+wrap-up does not deploy or send invitations.

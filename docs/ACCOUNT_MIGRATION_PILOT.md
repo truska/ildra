@@ -6,6 +6,22 @@ user review. Automated checks use synthetic temporary records only. The user's
 shared-screen walkthrough is still pending; no new real invitations, account
 resets or deployments were performed during this wrap-up.
 
+## Developer and Superadmin rehearsal restarts — 26 November 2026
+
+On development, all active Developer and Superadmin accounts may access the
+migration controls. Their rows have an additional restart button: the signed-in
+account shows **Restart my onboarding now** and opens setup immediately after
+confirmation; other Developer/Superadmin rows show **Restart onboarding at next
+login**, scheduling their journey without changing the current browser identity.
+Ordinary recipient rows retain Reset Onboarding. A unique active account-holder
+Person mapping is still required; no reset runs merely from viewing the page.
+
+The migration-only role check validates the current database role and blocks
+impersonation; environment pinning and development-only resets remain enforced.
+This does not broaden the separate destructive import/reset workspace, which
+still requires the configured protected Developer. Testing uses temporary tables
+and no real invitations or account resets.
+
 ## Place the email setup button — 26 November 2026
 
 Campaign text supports `{{setup_button}}` alongside `{{first_name}}`,

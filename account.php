@@ -1449,7 +1449,7 @@ $accountIntroAutoOpen = false;
 	                                        </div>
 	                                    </div>
 	                                </div>
-                                <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#accountMembershipHistory" aria-expanded="false" aria-controls="accountMembershipHistory" data-account-history-toggle data-show-label="Show Memberships" data-hide-label="Hide Memberships">Show Memberships</button>
+                                <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#accountMembershipHistory" aria-expanded="false" aria-controls="accountMembershipHistory" data-account-history-toggle data-show-label="Show membership details" data-hide-label="Hide membership details">Show membership details</button>
                                 <div class="collapse" id="accountMembershipHistory">
 
                                 <div class="card-soft p-4 mt-2" id="my-memberships">
@@ -1985,7 +1985,7 @@ $accountIntroAutoOpen = false;
                                 $activeLogbooks = array_filter($logbooks, static fn(array $lb): bool => ($lb['status'] ?? '') === 'active' || ($lb['status'] ?? '') === 'pending');
                                 $previousLogbooks = array_filter($logbooks, static fn(array $lb): bool => ($lb['status'] ?? '') === 'expired');
                                 ?>
-                                <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#accountLogbookHistory" aria-expanded="false" aria-controls="accountLogbookHistory" data-account-history-toggle data-show-label="Show Logbooks" data-hide-label="Hide Logbooks">Show Logbooks</button>
+                                <button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#accountLogbookHistory" aria-expanded="false" aria-controls="accountLogbookHistory" data-account-history-toggle data-show-label="Show logbook details" data-hide-label="Hide logbook details">Show logbook details</button>
                                 <div class="collapse" id="accountLogbookHistory">
                                 <div class="card-soft p-4 mt-2" id="horse-logbooks">
                                     <div class="d-flex justify-content-between align-items-center mb-3">

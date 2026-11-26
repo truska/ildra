@@ -46,20 +46,20 @@ const assert=require('node:assert/strict');
     if(view==='default' || view==='unpaid') {
      const membershipToggle=page.locator('[aria-controls=accountMembershipHistory]');
      const logbookToggle=page.locator('[aria-controls=accountLogbookHistory]');
-     assert.equal(await membershipToggle.textContent(),'Show Memberships');assert.equal(await membershipToggle.getAttribute('aria-expanded'),'false');
+     assert.equal(await membershipToggle.textContent(),'Show membership details');assert.equal(await membershipToggle.getAttribute('aria-expanded'),'false');
      await membershipToggle.click();await page.waitForSelector('#accountMembershipHistory.show');
-     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountMembershipHistory]').textContent==='Hide Memberships');
+     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountMembershipHistory]').textContent==='Hide membership details');
      assert.equal(await page.locator('#my-memberships').isVisible(),true);
      assert.equal(await page.locator('#horse-logbooks').isVisible(),false);
      await logbookToggle.click();await page.waitForSelector('#accountLogbookHistory.show');
      assert.equal(await page.locator('#my-memberships').isVisible(),true);
      assert.equal(await page.locator('#horse-logbooks').isVisible(),true);
      await membershipToggle.click();await page.waitForSelector('#accountMembershipHistory.show',{state:'hidden'});
-     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountMembershipHistory]').textContent==='Show Memberships');
+     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountMembershipHistory]').textContent==='Show membership details');
      assert.equal(await page.locator('#horse-logbooks').isVisible(),true);
-     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountLogbookHistory]').textContent==='Hide Logbooks');
+     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountLogbookHistory]').textContent==='Hide logbook details');
      await logbookToggle.click();await page.waitForSelector('#accountLogbookHistory.show',{state:'hidden'});
-     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountLogbookHistory]').textContent==='Show Logbooks');
+     await page.waitForFunction(()=>document.querySelector('[aria-controls=accountLogbookHistory]').textContent==='Show logbook details');
      assert.equal(await membershipToggle.getAttribute('aria-expanded'),'false');assert.equal(await logbookToggle.getAttribute('aria-expanded'),'false');
     }
     if(view==='person-edit') {
