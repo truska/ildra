@@ -27,6 +27,21 @@ Cadence: review this inventory once per quarter and before any production releas
 4. Run the relevant smoke tests, payment test-mode checks, and browser tests after upgrades.
 5. Record the reviewer, date, upgrades, exceptions, and next review date.
 
+## Stripe billing address collection — 26 November 2026
+
+Reviewed Stripe's Checkout Session API documentation. Basket checkout now uses
+`billing_address_collection=auto` instead of `required`, allowing Stripe to
+collect billing addresses only when necessary. Existing Customer contact and
+buyer-address submission, payment amounts and credit/coupon calculations remain
+unchanged. Customer address submission alone does not guarantee hosted billing
+field prefilling; Stripe documents saved-card requirements for that behaviour.
+
+Validation: PHP syntax and diff checks passed. No Stripe session or real payment
+was created for this configuration change; hosted form behaviour remains to be
+checked in Stripe test mode.
+
+Reference: https://docs.stripe.com/api/checkout/sessions/create
+
 ## Self-hosted TinyMCE — 24 November 2026
 
 All existing editors use the shared loader in `helpers.php`, now pointing to

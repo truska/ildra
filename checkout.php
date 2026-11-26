@@ -286,9 +286,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             $params = [
                 'mode' => 'payment',
                 'payment_method_types' => ['card'],
-                // Confirm the billing address in Stripe rather than handling
-                // payment details or address collection on this site.
-                'billing_address_collection' => 'required',
+                // Let Stripe collect only the billing details needed for payment.
+                'billing_address_collection' => 'auto',
                 'success_url' => $successUrl,
                 'cancel_url' => $cancelUrl,
                 'customer_email' => $contactEmail,
