@@ -947,10 +947,10 @@ $accountIntroAutoOpen = false;
 	                                            <div class="fw-bold fs-4 lh-sm mt-1"><?php echo h($loggedInMembershipNumber); ?></div>
 	                                        </div>
 	                                    <?php else: ?>
-	                                        <div class="border border-warning rounded-3 px-3 py-2 bg-warning-subtle text-center" style="min-width:135px;">
+	                                        <a href="<?php echo h($basePath); ?>/memberships" class="border border-warning rounded-3 px-3 py-2 bg-warning-subtle text-center text-body text-decoration-none" style="min-width:135px;">
 	                                            <div class="text-uppercase text-muted" style="font-size:.68rem;line-height:1.1;">Membership</div>
 	                                            <div class="fw-bold lh-sm mt-1">NOT A MEMBER</div>
-	                                        </div>
+	                                        </a>
 	                                    <?php endif; ?>
 	                                        <div class="account-mobile-stats">
 	                                            <div class="stat-pill"><div class="fw-bold"><?php echo $basketCount; ?></div><div class="small text-uppercase">Basket</div></div>

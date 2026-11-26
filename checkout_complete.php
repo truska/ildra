@@ -279,6 +279,21 @@ if ($order) {
                 box-shadow: 0 18px 48px rgba(0, 0, 0, 0.08);
                 background: #fff;
             }
+            .section-title {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-weight: 800;
+                letter-spacing: 0.02em;
+            }
+            .section-title::before {
+                content: '';
+                width: 40px;
+                height: 4px;
+                border-radius: 999px;
+                background: var(--green);
+                display: inline-block;
+            }
             #confettiCanvas {
                 position: fixed;
                 inset: 0;
@@ -319,7 +334,8 @@ if ($order) {
                 <div class="card-soft p-4 mb-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="fw-bold">Booking reference</div>
+                            <h1 class="section-title h5 mb-3">Receipt</h1>
+                            <div class="fw-bold">Reference</div>
                             <div class="text-muted small"><?php echo h($order['booking_ref'] ?? $order['id']); ?></div>
                         </div>
                         <a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/bookings">View all Bookings</a>

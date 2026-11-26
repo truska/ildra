@@ -594,7 +594,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
             <div class="row g-4">
                 <div class="col-lg-7">
                     <div class="card-soft p-4">
-                        <div class="section-title mb-3">Entries</div>
+                        <h1 class="section-title h5 mb-3">Checkout</h1>
                         <ul class="list-group list-group-flush mb-0">
                             <?php foreach ($basket as $item): ?>
                                 <li class="list-group-item">
