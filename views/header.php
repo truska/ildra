@@ -179,6 +179,12 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
                         $heroButtonLabel = trim((string)($siteSettings[$heroButtonKey . '_label'] ?? ''));
                         $heroButtonUrl = trim((string)($siteSettings[$heroButtonKey . '_url'] ?? ''));
                         if ($heroButtonLabel === '' || $heroButtonUrl === '') continue;
+                        // Purchase buttons go directly to their forms, including older saved CTA settings.
+                        if (preg_match('~^/?pages/membership/?$~', $heroButtonUrl)) {
+                            $heroButtonUrl = '/memberships';
+                        } elseif (preg_match('~^/?pages/horse-logbooks/?$~', $heroButtonUrl)) {
+                            $heroButtonUrl = '/logbooks';
+                        }
                         // Resolve CMS destinations consistently from any homepage URL.
                         if (!preg_match('~^(?:[a-z][a-z0-9+.-]*:|//|#|\?)~i', $heroButtonUrl)) {
                             $heroButtonUrl = rtrim($basePath, '/') . '/' . ltrim($heroButtonUrl, '/');
@@ -198,11 +204,11 @@ $exitActAsUrl = ($basePath ?? '') . '/?exit_act_as=1&return=' . rawurlencode(($b
         <div class="container nav-shell">
         <?php if (!$headerIsHome): ?>
             <div class="inside-mobile-purchases">
-                <a class="inside-mobile-action" href="<?php echo h($basePath); ?>/pages/membership" aria-label="Membership"><i class="fa-solid fa-id-card" aria-hidden="true"></i></a>
-                <a class="inside-mobile-action" href="<?php echo h($basePath); ?>/pages/horse-logbooks" aria-label="Logbooks"><i class="fa-solid fa-book" aria-hidden="true"></i></a>
+                <a class="inside-mobile-action" href="<?php echo h($basePath); ?>/memberships" aria-label="Membership" title="Membership"><i class="fa-solid fa-id-card" aria-hidden="true"></i></a>
+                <a class="inside-mobile-action" href="<?php echo h($basePath); ?>/logbooks" aria-label="Horse Log Book" title="Horse Log Book"><i class="fa-solid fa-book" aria-hidden="true"></i></a>
             </div>
             <div class="mobile-nav-short-name"><?php echo h($headerShortName); ?></div>
-            <a class="inside-mobile-calendar" href="<?php echo h($basePath); ?>/events" aria-label="Calendar"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></a>
+            <a class="inside-mobile-calendar" href="<?php echo h($basePath); ?>/events" aria-label="Calendar" title="Calendar"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></a>
         <?php endif; ?>
         <button class="navbar-toggler main-navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>

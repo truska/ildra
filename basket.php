@@ -294,20 +294,14 @@ $userBalance = fetch_user_credit_balance($pdo, (int)($currentUser['id'] ?? 0));
                     <div class="card-soft p-3">
                         <div class="fw-bold mb-1">Basket summary</div>
                         <div class="text-muted small mb-3">Items: <?php echo $basketCount; ?></div>
-                        <div class="small mb-2 <?php echo $userBalance < 0 ? 'text-danger' : 'text-muted'; ?>"><?php echo $userBalance < 0 ? 'Debit balance: ' : 'Account credit available: '; ?><strong><?php echo h(format_price(abs($userBalance))); ?></strong></div>
                         <?php if($savedCoupon): ?><div class="small text-success mb-3">Saved coupon: <strong><?php echo h(format_price($savedCoupon['amount'])); ?></strong><?php if($appliedCoupon): ?> <span class="text-muted">(−<?php echo h(format_price($couponDiscount)); ?> on this basket)</span><?php endif; ?> <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-bs-toggle="modal" data-bs-target="#savedCouponDetails">Details</button></div><?php endif; ?>
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div class="fw-semibold">Total (approx)</div>
+                            <div class="fw-semibold">Total</div>
                             <div class="fs-5"><?php echo $totalAmount > 0 ? '£' . number_format($totalAmount, 2) : '—'; ?></div>
                         </div>
-                        <?php if($savedCoupon): ?>
-                            <form method="post" class="mb-3"><input type="hidden" name="action" value="apply_coupon"><label class="form-label small fw-semibold">Use a different coupon</label><div class="input-group"><input class="form-control" name="coupon_code" placeholder="AB12-CD34"><button class="btn btn-outline-success">Replace</button></div><div class="form-text">One coupon may be used per purchase.</div></form>
-                            <form method="post" class="mb-3"><input type="hidden" name="action" value="remove_coupon"><button class="btn btn-sm btn-outline-secondary">Remove saved coupon</button></form>
-                        <?php else: ?>
-                            <form method="post" class="mb-3"><input type="hidden" name="action" value="apply_coupon"><label class="form-label small fw-semibold">Coupon code</label><div class="input-group"><input class="form-control" name="coupon_code" placeholder="AB12-CD34"><button class="btn btn-outline-success">Apply</button></div><div class="form-text">One coupon may be used per purchase.</div></form>
-                        <?php endif; ?>
-                        <a class="btn btn-success w-100<?php echo !$basket ? ' disabled' : ''; ?>" href="<?php echo h($basePath); ?>/checkout">Go to Checkout</a>
-                        <a class="btn btn-outline-success w-100 mt-2" href="<?php echo h($navItemEventsUrl); ?>">Add more Entries</a>
+                        <?php $summaryCoupon = $savedCoupon; $couponInputError = $result['message'] ?? ''; include __DIR__ . '/views/purchase_coupon.php'; ?>
+                        <a class="btn btn-success w-100<?php echo !$basket ? ' disabled' : ''; ?>" href="<?php echo h($basePath); ?>/checkout">CHECKOUT</a>
+                        <a class="btn btn-secondary text-white fw-light w-100 mt-2" href="<?php echo h($navItemEventsUrl); ?>">Add more Entries</a>
                     </div>
                     <?php if($savedCoupon): ?><div class="modal fade" id="savedCouponDetails" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Saved coupon</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><dl class="row mb-0"><dt class="col-sm-4">Code</dt><dd class="col-sm-8"><?php echo h($savedCoupon['code']); ?></dd><dt class="col-sm-4">Value</dt><dd class="col-sm-8"><?php echo h(format_price($savedCoupon['amount'])); ?></dd><dt class="col-sm-4">Details</dt><dd class="col-sm-8"><?php echo h((string)$savedCoupon['title']); ?></dd><dt class="col-sm-4">Valid until</dt><dd class="col-sm-8"><?php echo h(format_display_datetime($savedCoupon['valid_until'])); ?></dd></dl></div></div></div></div><?php endif; ?>
                 </div>

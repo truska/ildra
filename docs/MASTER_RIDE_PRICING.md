@@ -4,7 +4,7 @@ Ride classes and prices are managed under **Pricing Schemes → Master Ride Clas
 
 Ride pricing schemes select master classes and their order. Names, prices and eligibility cannot be edited independently in a scheme. Creating a special price means adding a separate master class, optionally hiding it from the public price list, then selecting it in a scheme. An inactive master class is unavailable for new event templates and public pricing. Existing events keep their snapshots. Inactive scheme selections are retained for later reactivation, even when a scheme is renamed or edited. Non-ride schemes retain their independent editable rows.
 
-The public **Ride prices (live data)** content element reads the active, publicly visible master list once. It does not render every scheme, so classes are not repeated or assigned conflicting prices. Rider eligibility displays All, Junior or Senior from the actual eligibility field.
+The public **Ride prices (live data)** content element reads the active, publicly visible master list once. It does not render every scheme, so classes are not repeated or assigned conflicting prices. The table displays Class name and Price only; entry type and rider eligibility remain in the underlying pricing data.
 
 ## Calendar ride descriptions
 

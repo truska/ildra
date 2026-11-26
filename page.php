@@ -439,13 +439,11 @@ foreach ($pageElements as &$pageElement) {
                         <div class="fw-bold mb-2">Standard Ride Prices</div>
                         <div class="table-responsive">
                             <table class="table table-sm table-striped align-middle mb-0">
-                                <thead class="table-light"><tr><th>Class name</th><th>Entry type</th><th>Rider</th><th class="text-end">Price</th></tr></thead>
+                                <thead class="table-light"><tr><th>Class name</th><th class="text-end">Price</th></tr></thead>
                                 <tbody>
                                     <?php foreach ($rideRows as $rideRow): ?>
                                         <tr>
                                             <td><?php echo h((string)($rideRow['class_name'] ?? '')); ?></td>
-                                            <td><?php echo !empty($rideRow['is_member_price']) ? 'Member' : 'Non-member'; ?></td>
-                                            <td><?php echo h(ucfirst((string)$rideRow['rider_eligibility'])); ?></td>
                                             <td class="text-end fw-semibold"><?php echo h(format_price($rideRow['price'] ?? 0)); ?></td>
                                         </tr>
                                     <?php endforeach; ?>

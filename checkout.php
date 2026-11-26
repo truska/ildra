@@ -711,16 +711,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                         </div>
                     <?php else: ?>
                         <div class="card-soft p-4">
-                            <?php if($appliedCoupon): ?><div class="border rounded p-2 mb-3 small"><div class="d-flex justify-content-between text-success"><strong>Coupon <?php echo h($appliedCoupon['code']); ?></strong><strong>−<?php echo h(format_price($couponDiscount)); ?></strong></div><div class="text-muted"><?php echo h((string)$appliedCoupon['title']); ?> · value <?php echo h(format_price($appliedCoupon['amount'])); ?></div></div><?php else: ?><form method="post" class="mb-3"><input type="hidden" name="action" value="apply_coupon"><label class="form-label fw-semibold">Coupon code</label><div class="input-group"><input class="form-control" name="coupon_code" placeholder="AB12-CD34"><button class="btn btn-outline-success">Apply</button></div><div class="form-text">One coupon may be used per purchase. It is applied before account credit.</div></form><?php endif; ?>
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <div class="fw-bold mb-1">Contact details</div>
-                                    <div class="text-muted small">We’ll use this for your booking confirmation.</div>
-                                </div>
-                                <div class="pill-muted">
-                                    Credit: £<?php echo number_format($userBalance, 2); ?>
-                                </div>
-                            </div>
+                            <?php if($appliedCoupon): ?><div class="border rounded p-2 mb-3 small"><div class="d-flex justify-content-between text-success"><strong>Coupon <?php echo h($appliedCoupon['code']); ?></strong><strong>−<?php echo h(format_price($couponDiscount)); ?></strong></div><div class="text-muted"><?php echo h((string)$appliedCoupon['title']); ?> · value <?php echo h(format_price($appliedCoupon['amount'])); ?></div></div><?php endif; ?>
+                            <?php $summaryCoupon = $appliedCoupon; $couponInputError = $couponResult['message'] ?? ''; include __DIR__ . '/views/purchase_coupon.php'; ?>
                             <form method="POST" class="row g-3">
                                 <input type="hidden" name="action" value="confirm_checkout">
                                 <div class="col-12">
@@ -737,12 +729,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                 </div>
                                 <div class="col-12 d-flex justify-content-between align-items-center">
                                     <div>
-                                    <div class="fw-semibold mb-1">Basket total: £<?php echo number_format($basketTotalBeforeCoupon, 2); ?></div>
+                                    <div class="fw-semibold mb-1">Total: £<?php echo number_format($basketTotalBeforeCoupon, 2); ?></div>
                                     <?php if($appliedCoupon): ?><div class="text-success small">Coupon discount: −<?php echo h(format_price($couponDiscount)); ?></div><div class="fw-semibold mb-1">Total after coupon: £<?php echo number_format($totalAmount, 2); ?></div><?php endif; ?>
                                     <?php if ($userBalance < 0): ?>
                                         <div class="text-muted small">Debit balance: <?php echo format_price(abs($userBalance)); ?></div>
-                                    <?php else: ?>
-                                        <div class="text-muted small">Credit available: <?php echo format_price($userBalance); ?></div>
                                     <?php endif; ?>
                                 </div>
                                 <button class="btn btn-success"><span class="d-block">Pay <?php echo format_price($paymentDue); ?></span><span class="d-block">by Card</span></button>

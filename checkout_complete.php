@@ -337,7 +337,7 @@ if ($order) {
                             <?php endif; ?>
                         </div>
                         <div class="col-md-4">
-                            <div class="fw-semibold">Total (approx)</div>
+                            <div class="fw-semibold">Total</div>
                             <div class="text-muted"><?php echo isset($order['total']) ? '£' . number_format((float)$order['total'], 2) : '—'; ?></div>
                         </div>
                     </div>
