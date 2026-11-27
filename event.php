@@ -868,11 +868,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <?php if (!$isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
                                 <div class="mb-3"><?php echo render_wysiwyg((string)$event['description']); ?></div>
                             <?php endif; ?>
-                            <?php if ($hasLimit): ?>
-                                <div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?><?php if ($isFull): ?> · <span class="text-danger fw-semibold">Event full</span><?php endif; ?></div>
-                            <?php endif; ?>
                             <?php if ($isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
-                                <div class="event-description mt-4"><?php echo render_wysiwyg((string)$event['description']); ?></div>
+                                <div class="event-description"><?php echo render_wysiwyg((string)$event['description']); ?></div>
                             <?php endif; ?>
                         </div>
                         <div class="col-12 col-lg-4 event-summary-image">
