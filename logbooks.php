@@ -260,7 +260,7 @@ $navItemEventsUrl = $basePath . '/events';
             <?php include __DIR__ . '/views/alerts.php'; ?>
             <div class="card-soft p-4" id="available-logbooks">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="section-title mb-0">Available logbooks</div>
+                    <div class="section-title mb-0">Available Logbooks</div>
                 </div>
                 <?php if (!$logbookTypes): ?>
                     <div class="text-muted small">No logbooks available right now. Your saved horses can still be selected on entry forms.</div>
@@ -302,12 +302,12 @@ $navItemEventsUrl = $basePath . '/events';
                                                 </form>
                                             <?php endif; ?>
                                         <?php else: ?>
-                                        <form method="POST" class="row g-2 align-items-end mb-2">
+                                        <form method="POST" class="row g-2 align-items-start mb-2">
                                             <input type="hidden" name="action" value="add_logbook">
                                             <input type="hidden" name="logbook_type_id" value="<?php echo (int)$type['id']; ?>">
+                                            <div class="col-12"><label class="form-label small mb-0" for="logbook-horse-<?php echo (int)$type['id']; ?>">Horse</label></div>
                                             <div class="col-12 col-md-6">
-                                                <label class="form-label small mb-1">Horse</label>
-                                                <select class="form-select form-select-sm" name="horse_id" required>
+                                                <select class="form-select form-select-sm" id="logbook-horse-<?php echo (int)$type['id']; ?>" name="horse_id" required>
                                                     <option value="" <?php echo $preselectedHorseId <= 0 ? 'selected' : ''; ?> disabled>Select a horse…</option>
                                                     <?php foreach ($horses as $horse): ?>
                                                         <option value="<?php echo (int)($horse['id'] ?? 0); ?>" <?php echo $preselectedHorseId === (int)($horse['id'] ?? 0) ? 'selected' : ''; ?>>

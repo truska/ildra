@@ -1224,7 +1224,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                                     </div>
                                 </div>
                             </form>
-                            <?php require __DIR__.'/views/cancellation_policy_modal.php'; ?>
                             <div class="modal fade" id="saveEmergencyContactModal" tabindex="-1" aria-labelledby="saveEmergencyContactModalLabel" aria-hidden="true">
                                 <div class="modal-dialog modal-dialog-centered">
                                     <div class="modal-content">

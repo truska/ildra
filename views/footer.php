@@ -191,6 +191,7 @@ $footerSocialIcons = [
                         <?php $footerLinkUrl = (string)$footerLink['url']; if (str_starts_with($footerLinkUrl, '/')) $footerLinkUrl = $footerBasePath . $footerLinkUrl; ?>
                         <li><a href="<?php echo h($footerLinkUrl); ?>" target="<?php echo ($footerLink['target'] ?? '') === '_blank' ? '_blank' : '_self'; ?>"<?php if (($footerLink['target'] ?? '') === '_blank'): ?> rel="noopener noreferrer"<?php endif; ?>><?php if (!empty($footerLink['icon'])): ?><i class="<?php echo h((string)$footerLink['icon']); ?> me-2" aria-hidden="true"></i><?php endif; ?><?php echo h((string)$footerLink['title']); ?></a></li>
                     <?php endforeach; ?>
+                    <li><a href="#cancellationPolicyModal" role="button" data-bs-toggle="modal" data-bs-target="#cancellationPolicyModal">Cancellation Policy</a></li>
                 </ul>
             </div>
 
@@ -259,4 +260,5 @@ $footerSocialIcons = [
     </div>
 </footer>
 
+<?php require __DIR__ . '/cancellation_policy_modal.php'; ?>
 <?php include __DIR__ . '/super_announcement.php'; ?>

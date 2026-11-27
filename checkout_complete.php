@@ -332,13 +332,16 @@ if ($order) {
         <div class="container">
             <?php if ($order): ?>
                 <div class="card-soft p-4 mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                         <div>
                             <h1 class="section-title h5 mb-3">Receipt</h1>
                             <div class="fw-bold">Reference</div>
                             <div class="text-muted small"><?php echo h($order['booking_ref'] ?? $order['id']); ?></div>
                         </div>
-                        <a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/bookings">View all Bookings</a>
+                        <div class="d-flex align-items-stretch justify-content-end flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#cancellationPolicyModal"><span>Cancellation Policy</span><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>
+                            <a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/bookings">View all Bookings</a>
+                        </div>
                     </div>
                     <div class="row mt-3">
                         <div class="col-md-4">

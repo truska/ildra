@@ -632,7 +632,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'confi
                                 </li>
                             <?php endforeach; ?>
                         </ul>
-                        <a class="btn btn-outline-success mt-3" href="<?php echo h($basePath); ?>/basket">Edit Basket</a>
+                        <div class="d-flex justify-content-between align-items-stretch flex-wrap gap-2 mt-3">
+                            <a class="btn btn-outline-success" href="<?php echo h($basePath); ?>/basket">Edit Basket</a>
+                            <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 ms-auto" data-bs-toggle="modal" data-bs-target="#cancellationPolicyModal"><span>Cancellation Policy</span><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>
+                        </div>
                         <?php if ($stripeTestMode): ?>
                             <div class="stripe-test-note rounded p-3 mt-3 small">
                                 <div class="fw-semibold mb-1">Stripe test payment reminder</div>

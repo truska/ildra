@@ -278,6 +278,11 @@ $userBalance = fetch_user_credit_balance($pdo, (int)($currentUser['id'] ?? 0));
                                                 <div class="text-muted small">Price: <?php echo h(format_price($item['price'] ?? 0)); ?></div>
                                                 <div class="text-muted small">Type: <?php echo h($bookingTypeLabel); ?></div>
                                             </div>
+                                        </div>
+                                        <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mt-3">
+                                            <?php if (!in_array($bookingType, ['membership', 'horse_logbook'], true)): ?>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#cancellationPolicyModal"><span>Cancellation Policy</span><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button>
+                                            <?php endif; ?>
                                             <form method="POST" class="d-flex align-items-center">
                                                 <input type="hidden" name="action" value="remove_item">
                                                 <input type="hidden" name="entry_id" value="<?php echo h($item['id']); ?>">
