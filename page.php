@@ -327,10 +327,13 @@ foreach ($pageElements as &$pageElement) {
             $dateLabel = date('jS M Y', strtotime($eventDate));
             $endDate = (string)($event['end_date'] ?? '');
             if ($endDate && $endDate !== $eventDate) $dateLabel .= ' to ' . date('jS M Y', strtotime($endDate));
+            $venueLabel = trim((string)($event['venue'] ?? ''));
+            $venuePostcode = trim((string)($event['venue_postcode'] ?? ''));
+            if ($venuePostcode !== '') $venueLabel .= ($venueLabel !== '' ? ' | ' : '') . $venuePostcode;
             if (isThirdPartyEvent($event)) {
                 $thirdPartyUrl = $basePath . '/events/' . (int)$event['id'] . '-' . rawurlencode(slugify((string)$event['title']));
                 ?>
-                <div class="border rounded-3 p-3 mb-2 shadow-sm"><div class="row g-3 align-items-start"><div class="col-12 col-lg-9"><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h($event['title']); ?></div><div class="text-muted small"><?php echo h($event['venue']); ?></div></div><div class="col-12 col-lg-3 text-lg-end"><span class="badge text-bg-secondary mb-2">3rd Party Event</span><br><a class="btn btn-sm btn-outline-success" href="<?php echo h($thirdPartyUrl); ?>">View Event</a></div></div></div>
+                <div class="border rounded-3 p-3 mb-2 shadow-sm"><div class="row g-3 align-items-start"><div class="col-12 col-lg-9"><div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div><div class="fs-5 fw-bold"><?php echo h($event['title']); ?></div><div class="text-muted small"><?php echo h($venueLabel); ?></div></div><div class="col-12 col-lg-3 text-lg-end"><span class="badge text-bg-secondary mb-2">3rd Party Event</span><br><a class="btn btn-sm btn-outline-success" href="<?php echo h($thirdPartyUrl); ?>">View Event</a></div></div></div>
                 <?php
                 continue;
             }
@@ -351,7 +354,7 @@ foreach ($pageElements as &$pageElement) {
                     <div class="col-12 col-lg-9">
                         <div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div>
                         <div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div>
-                        <?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?>
+                        <?php if ($venueLabel !== ''): ?><div class="text-muted small"><?php echo h($venueLabel); ?></div><?php endif; ?>
                         <?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?>
                         <?php if ($rideExcerpt !== ''): ?><div class="text-muted small mt-1 fst-italic"><?php echo h($rideExcerpt); ?></div><?php endif; ?>
                     </div>
