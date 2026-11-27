@@ -335,6 +335,12 @@ foreach ($pageElements as &$pageElement) {
                 continue;
             }
             $rideReport = $publishedRideReportsByEvent[(int)$event['id']] ?? null;
+            $excerptHtml = (string)($rideReport['body_html'] ?? '');
+            if (!$rideReport) {
+                $rideNotes = fetchRideNotes($pdo, (int)$event['id']);
+                $excerptHtml = ($rideNotes['status'] ?? '') === 'published' ? (string)($rideNotes['ride_notes_html'] ?? '') : '';
+            }
+            $rideExcerpt = rich_html_first_paragraph_excerpt($excerptHtml);
             $reportUrl = $rideReport ? $basePath . '/ride-reports/' . (int)$event['id'] . '-' . rawurlencode((string)$rideReport['slug']) : '';
             $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
             if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');
@@ -347,7 +353,7 @@ foreach ($pageElements as &$pageElement) {
                         <div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div>
                         <?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?>
                         <?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?>
-                        <?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h(rich_html_plain_text((string)$event['description'])); ?></div><?php endif; ?>
+                        <?php if ($rideExcerpt !== ''): ?><div class="text-muted small mt-1 fst-italic"><?php echo h($rideExcerpt); ?></div><?php endif; ?>
                     </div>
                     <div class="col-12 col-lg-3 d-flex justify-content-lg-end">
                         <?php if ($rideReport): ?><a class="btn btn-sm btn-outline-success" href="<?php echo h($reportUrl); ?>">Ride Report and Results</a><?php endif; ?>

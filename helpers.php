@@ -183,6 +183,32 @@ function rich_html_plain_text(string $value): string
     return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 }
 
+/** First non-empty paragraph, measured as visible UTF-8 text including spaces. */
+function rich_html_first_paragraph_excerpt(string $value, int $limit = 400): string
+{
+    $html = sanitize_rich_html($value);
+    $paragraphs = [];
+    preg_match_all('/<p\b[^>]*>(.*?)<\/p>/is', $html, $matches);
+    $paragraphs = $matches[1];
+    if (!$paragraphs) {
+        // Legacy text may use divs, line breaks or plain newlines instead of p tags.
+        $paragraphs = preg_split('/<br\b[^>]*>|<\/(?:div|li|h[1-6]|blockquote)>|\R\s*\R/i', $html) ?: [];
+    }
+    $text = '';
+    foreach ($paragraphs as $paragraph) {
+        $text = trim(preg_replace('/[\s\x{00a0}]+/u', ' ', rich_html_plain_text($paragraph)) ?? '');
+        if ($text !== '') break;
+    }
+    if ($limit <= 0) return '';
+    if (mb_strlen($text, 'UTF-8') <= $limit) return $text;
+    $cut = mb_substr($text, 0, $limit - 1, 'UTF-8');
+    if (mb_substr($text, $limit - 1, 1, 'UTF-8') !== ' ') {
+        $lastSpace = mb_strrpos($cut, ' ', 0, 'UTF-8');
+        if ($lastSpace !== false) $cut = mb_substr($cut, 0, $lastSpace, 'UTF-8');
+    }
+    return rtrim($cut) . '…';
+}
+
 function render_wysiwyg(string $value): string
 {
     $html = sanitize_rich_html($value);
