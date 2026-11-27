@@ -735,6 +735,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                 padding: 1.75rem 0;
             }
         }
+        .event-contact-button{font-size:.8rem;overflow-wrap:anywhere}
+        .meta-chip.ride-class-pill{font-size:.8rem;padding:3px 8px;font-weight:600}
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -850,6 +852,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             </div>
                         </div>
                     </div>
+                    <?php if ($classesList || $eventContactEmail !== ''): ?>
+            <div class="row mb-3">
+                <div class="col-12 d-flex flex-wrap align-items-center gap-2" aria-label="Classes offered and email contact">
+                    <?php foreach ($classesList as $className): ?><span class="meta-chip ride-class-pill"><?php echo h($className); ?></span><?php endforeach; ?>
+                    <?php if ($eventContactEmail !== ''): ?><a class="btn btn-sm btn-outline-success rounded-pill event-contact-button ms-auto" href="mailto:<?php echo h($eventContactEmail); ?>?subject=<?php echo h(rawurlencode('Inquiry Reference ' . (string)$event['title'])); ?>" aria-label="Contact us about <?php echo h((string)$event['title']); ?>"><i class="fa-solid fa-envelope me-1" aria-hidden="true"></i>Contact Us</a><?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
                     <div class="row g-4 align-items-start event-summary-row">
                         <div class="col-12 col-lg-8 event-summary-copy">
                             <?php if (trim((string)($event['details_html'] ?? '')) !== ''): ?>
@@ -858,46 +868,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
                             <?php if (!$isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
                                 <div class="mb-3"><?php echo render_wysiwyg((string)$event['description']); ?></div>
                             <?php endif; ?>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <div class="fw-semibold mb-2">Event details</div>
-                                    <ul class="list-unstyled mb-0 text-muted small">
-                                        <?php
-                                            $eventDateText = 'TBC';
-                                            if (!empty($event['event_date'])) {
-                                                $eventDateText = (new DateTimeImmutable((string)$event['event_date']))->format('jS M Y');
-                                            }
-                                            $endDateText = '';
-                                            if (!empty($event['end_date']) && ($event['end_date'] !== $event['event_date'])) {
-                                                $endDateText = (new DateTimeImmutable((string)$event['end_date']))->format('jS M Y');
-                                            }
-                                        ?>
-                                        <li><strong class="text-dark">Dates:</strong> <?php echo h($eventDateText); ?><?php echo $endDateText !== '' ? ' to ' . h($endDateText) : ''; ?></li>
-                                        <li><strong class="text-dark">Venue:</strong> <?php echo h($event['venue'] ?: 'Venue TBC'); ?></li>
-                                        <?php if ($isRideEvent && !empty($startTime) && !empty($endTime)): ?>
-                                            <li>Ride Out between <?php echo h(substr((string)$startTime, 0, 5)); ?> and <?php echo h(substr((string)$endTime, 0, 5)); ?></li>
-                                        <?php endif; ?>
-                                        <?php if ($eventContactEmail !== ''): ?>
-                                            <li><strong class="text-dark">Contact:</strong> <a href="mailto:<?php echo h($eventContactEmail); ?>"><?php echo h($eventContactEmail); ?></a></li>
-                                        <?php endif; ?>
-                                    </ul>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="fw-semibold mb-2">Classes offered</div>
-                                    <?php if ($classesList): ?>
-                                        <ul class="list-unstyled mb-0 text-muted small">
-                                            <?php foreach ($classesList as $cls): ?>
-                                                <li><?php echo h($cls); ?></li>
-                                            <?php endforeach; ?>
-                                        </ul>
-                                    <?php else: ?>
-                                        <div class="text-muted small">No classes available to book.</div>
-                                    <?php endif; ?>
-                                    <?php if ($hasLimit): ?>
-                                        <div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?><?php if ($isFull): ?> · <span class="text-danger fw-semibold">Event full</span><?php endif; ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
+                            <?php if ($hasLimit): ?>
+                                <div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?><?php if ($isFull): ?> · <span class="text-danger fw-semibold">Event full</span><?php endif; ?></div>
+                            <?php endif; ?>
                             <?php if ($isRideEvent && trim((string)($event['description'] ?? '')) !== ''): ?>
                                 <div class="event-description mt-4"><?php echo render_wysiwyg((string)$event['description']); ?></div>
                             <?php endif; ?>

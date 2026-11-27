@@ -339,11 +339,7 @@ foreach ($pageElements as &$pageElement) {
             }
             $rideReport = $publishedRideReportsByEvent[(int)$event['id']] ?? null;
             $excerptHtml = (string)($rideReport['body_html'] ?? '');
-            if (!$rideReport) {
-                $rideNotes = fetchRideNotes($pdo, (int)$event['id']);
-                $excerptHtml = ($rideNotes['status'] ?? '') === 'published' ? (string)($rideNotes['ride_notes_html'] ?? '') : '';
-            }
-            $rideExcerpt = rich_html_first_paragraph_excerpt($excerptHtml);
+            $rideExcerpt = rich_html_first_paragraph_excerpt($excerptHtml) ?: 'Ride report to follow';
             $reportUrl = $rideReport ? $basePath . '/ride-reports/' . (int)$event['id'] . '-' . rawurlencode((string)$rideReport['slug']) : '';
             $classes = class_names_from_pricing_rows(fetchEventPricingRows($pdo, (int)$event['id']));
             if (!$classes) $classes = class_names_from_classes_offered($event['classes_offered'] ?? '');

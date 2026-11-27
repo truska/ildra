@@ -20,7 +20,16 @@ if (!$event || !$report || (strtolower((string)($event['status'] ?? '')) !== 'pu
     http_response_code(404);
 }
 
+$reportHtml = (string)($report['body_html'] ?? '');
+$resultsHtml = (string)($report['results_html'] ?? '');
+$reportExcerpt = rich_html_first_paragraph_excerpt($reportHtml) ?: 'Ride report to follow';
+$hasReportText = trim(preg_replace('/[\s\x{00a0}]+/u', ' ', rich_html_plain_text($reportHtml)) ?? '') !== '';
+$hasResultsText = trim(preg_replace('/[\s\x{00a0}]+/u', ' ', rich_html_plain_text($resultsHtml)) ?? '') !== '';
+
 $eventPricingRows = $event ? fetchEventPricingRows($pdo, $eventId) : [];
+$eventImageBatch = $event ? mediaBatchFind($pdo, 'event_images', 'event', $eventId) : null;
+$eventImages = $eventImageBatch ? mediaBatchImages($pdo, (int)$eventImageBatch['id']) : [];
+$eventImage = $eventImages[0] ?? null;
 $galleryBatch = $report ? mediaBatchFind($pdo, 'news_images', 'news_article', (int)$report['id']) : null;
 $galleryImages = $galleryBatch ? mediaBatchImages($pdo, (int)$galleryBatch['id']) : [];
 $facebookGalleryUrl = $report ? trim((string)($report['facebook_gallery_url'] ?? '')) : '';
@@ -58,6 +67,13 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
         .card-soft{border-radius:18px;border:1px solid rgba(0,0,0,.04);box-shadow:0 18px 48px rgba(0,0,0,.08);background:#fff}
         .page-editor-tool{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border:1px solid rgba(20,97,24,.35);border-radius:999px;background:rgba(255,255,255,.94);color:var(--green);box-shadow:0 3px 10px rgba(0,0,0,.16);text-decoration:none}
         .page-editor-tool:hover,.page-editor-tool:focus-visible{background:var(--green);border-color:var(--green);color:#fff}
+        .report-event-image{display:block;width:100%;margin:0 0 1rem}
+        .report-event-image img{display:block;width:100%;max-width:100%;height:auto;max-height:600px;object-fit:contain;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+        .report-event-caption{margin:0 0 1rem;color:var(--muted);font-size:.9rem;text-align:center}
+        .event-summary-copy{overflow-wrap:anywhere}.event-summary-copy img{max-width:100%;height:auto}
+        .event-overview-bar{border-bottom:1px solid #ccc;padding-bottom:1rem;margin-bottom:1.5rem}
+        .event-overview-label{font-size:.76rem;color:#6c757d;text-transform:uppercase;font-weight:700}
+        .event-overview-bar strong{display:block;overflow-wrap:anywhere}
         .meta-chip{background:rgba(20,97,24,.1);color:var(--green);padding:6px 10px;border-radius:999px;display:inline-flex;font-weight:700}
         .report-gallery-shell{background:#0d3d2d;color:#fff;border-radius:18px;box-shadow:0 18px 48px rgba(0,0,0,.14);padding:2rem}
         .report-gallery-shell .gallery-intro{color:rgba(255,255,255,.62);letter-spacing:.04em}.report-gallery-stage{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:repeat(2,180px);gap:.65rem}
@@ -73,6 +89,7 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
         .facebook-gallery-frame{display:block;width:100%;max-width:750px;height:720px;margin:0 auto;border:0;border-radius:12px;background:#f0f2f5}.facebook-gallery-link{background:#1877f2;border-color:#1877f2}.facebook-gallery-link:hover{background:#1264cf;border-color:#1264cf}
         @media(max-width:991.98px){.report-gallery-stage{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:220px repeat(2,120px)}.report-gallery-stage .report-gallery-thumb:first-child{grid-column:1/-1;grid-row:auto}}
         @media(max-width:767.98px){.report-gallery-shell{padding:1.25rem}.report-gallery-stage{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:210px repeat(3,105px)}.report-gallery-stage .report-gallery-thumb:first-child{grid-column:1/-1}.report-lightbox{padding:4rem .75rem 1rem}.report-lightbox-nav{top:auto;bottom:1rem}.report-lightbox-prev{left:calc(50% - 4rem)}.report-lightbox-next{right:calc(50% - 4rem)}}
+        .meta-chip.ride-class-pill{font-size:.8rem;padding:3px 8px;font-weight:600}
     </style>
     <?php include __DIR__ . '/views/header_styles.php'; ?>
 </head>
@@ -94,14 +111,50 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
     <?php if ($event && $report): ?>
     <section class="card-soft p-4 mb-4">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3"><div class="meta-chip"><span class="fw-bold"><?php echo h($event['title']); ?></span></div><a class="btn btn-outline-success btn-sm" href="<?php echo h($basePath); ?>/pages/ildra-reports-results">Back to Reports</a></div>
-        <?php if (!empty($event['description'])): ?><div class="mb-3"><?php echo render_wysiwyg((string)$event['description']); ?></div><?php endif; ?>
-        <div class="row g-3">
-            <div class="col-md-6"><div class="fw-semibold mb-2">Event details</div><ul class="list-unstyled mb-0 text-muted small"><li><strong class="text-dark">Dates:</strong> <?php echo h($eventDateText); ?><?php echo $endDateText ? ' to ' . h($endDateText) : ''; ?></li><li><strong class="text-dark">Venue:</strong> <?php echo h($event['venue'] ?: 'Venue TBC'); ?></li><?php if (!empty($event['organiser'])): ?><li><strong class="text-dark">Organiser:</strong> <?php echo h($event['organiser']); ?></li><?php endif; ?></ul></div>
-            <div class="col-md-6"><div class="fw-semibold mb-2">Classes offered</div><?php if ($classesList): ?><ul class="list-unstyled mb-0 text-muted small"><?php foreach ($classesList as $className): ?><li><?php echo h($className); ?></li><?php endforeach; ?></ul><?php else: ?><div class="text-muted small">No classes listed.</div><?php endif; ?><?php if ($hasLimit): ?><div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?></div><?php endif; ?></div>
+        <?php
+        $overviewVenue = trim((string)($event['venue_name'] ?? '')) ?: (trim((string)($event['venue'] ?? '')) ?: 'Venue TBC');
+        $overviewPostcode = trim((string)($event['venue_postcode'] ?? ''));
+        ?>
+        <div class="event-overview-bar" aria-label="Ride summary">
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <div class="event-overview-label">Ride Name</div>
+                    <strong><?php echo h($event['title']); ?></strong>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="event-overview-label">Venue</div>
+                    <strong><?php echo h($overviewVenue); ?><?php echo $overviewPostcode !== '' ? ' · ' . h($overviewPostcode) : ''; ?></strong>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="event-overview-label">Date</div>
+                    <strong><?php echo h($eventDateText); ?><?php echo $endDateText !== '' ? ' to ' . h($endDateText) : ''; ?></strong>
+                </div>
+            </div>
+        </div>
+        <?php if ($classesList): ?>
+            <div class="row mb-3">
+                <div class="col-12 d-flex flex-wrap gap-2" aria-label="Classes offered">
+                    <?php foreach ($classesList as $className): ?><span class="meta-chip ride-class-pill"><?php echo h($className); ?></span><?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+        <div class="row g-4 align-items-start event-summary-row">
+            <div class="col-12 col-lg-8 event-summary-copy">
+        <div class="mb-3"><?php echo h($reportExcerpt); ?></div>
+        <?php if ($hasLimit): ?><div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?></div><?php endif; ?>
+            </div>
+            <div class="col-12 col-lg-4 event-summary-image">
+                <?php if ($eventImage && $eventImageBatch): ?>
+                    <a class="report-event-image" href="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" target="_blank" rel="noopener" aria-label="Enlarge event image"><img src="<?php echo h(mediaBatchImageUrl($eventImageBatch, $eventImage, 'lg')); ?>" alt="<?php echo h((string)($eventImage['alt_text'] ?: $eventImage['title'] ?: $event['title'])); ?>"></a>
+                    <?php if (!empty($eventImage['caption'])): ?><div class="report-event-caption"><?php echo h((string)$eventImage['caption']); ?></div><?php endif; ?>
+                <?php else: ?>
+                    <?php echo mediaPlaceholderHtml($basePath); ?>
+                <?php endif; ?>
+            </div>
         </div>
     </section>
-    <section class="card-soft p-4 mb-4"><div class="d-flex justify-content-between align-items-center gap-2 mb-3"><h2 class="h3 mb-0">Ride Report</h2><?php if ($canViewAdmin && empty($_SESSION['act_as_original_user'])): ?><a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/news_edit.php?id=<?php echo (int)$report['id']; ?>" target="_blank" rel="noopener" title="Edit this ride report" aria-label="Edit this ride report"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a><?php endif; ?></div><div class="page-body"><?php echo render_wysiwyg((string)($report['body_html'] ?? '')); ?></div></section>
-    <section class="card-soft p-4"><h2 class="h3 mb-3">Ride Results</h2><div class="page-body"><?php echo render_wysiwyg((string)($report['results_html'] ?? '')); ?></div></section>
+    <section class="card-soft p-4 mb-4"><div class="d-flex justify-content-between align-items-center gap-2 mb-3"><h2 class="h3 mb-0">Ride Report</h2><?php if ($canViewAdmin && empty($_SESSION['act_as_original_user'])): ?><a class="page-editor-tool" href="<?php echo h($basePath); ?>/admin/news_edit.php?id=<?php echo (int)$report['id']; ?>" target="_blank" rel="noopener" title="Edit this ride report" aria-label="Edit this ride report"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></a><?php endif; ?></div><div class="page-body"><?php echo $hasReportText ? render_wysiwyg($reportHtml) : '<p>Ride report to follow</p>'; ?></div></section>
+    <section class="card-soft p-4"><h2 class="h3 mb-3">Ride Results</h2><div class="page-body"><?php echo $hasResultsText ? render_wysiwyg($resultsHtml) : '<p>Ride results to follow</p>'; ?></div></section>
     <?php if ($galleryImages && $galleryBatch): ?>
     <section class="report-gallery-shell mt-4" aria-labelledby="ride-gallery-heading">
         <div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-3"><div><h2 class="h3 mb-1" id="ride-gallery-heading">Gallery Snapshot</h2><div class="gallery-intro small">Scenes from <?php echo h((string)$event['title']); ?>. Select any photograph to expand it.</div></div><button type="button" class="btn btn-sm btn-outline-light" data-open-full-gallery>View Full Gallery</button></div>
