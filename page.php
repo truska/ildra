@@ -345,7 +345,7 @@ foreach ($pageElements as &$pageElement) {
                     <div class="col-12 col-lg-9">
                         <div class="fw-semibold text-success"><?php echo h($dateLabel); ?></div>
                         <div class="fs-5 fw-bold"><?php echo h((string)$event['title']); ?></div>
-                        <?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?><?php if (strtolower(trim((string)($event['event_type_name'] ?? $event['event_type'] ?? 'Ride'))) === 'ride' && !empty($event['start_time']) && !empty($event['end_time'])): ?><div class="text-muted small">Ride Out between <?php echo h(substr((string)$event['start_time'], 0, 5)); ?> and <?php echo h(substr((string)$event['end_time'], 0, 5)); ?></div><?php endif; ?>
+                        <?php if (!empty($event['venue'])): ?><div class="text-muted small"><?php echo h((string)$event['venue']); ?></div><?php endif; ?>
                         <?php if ($classes): ?><div class="text-muted small mt-1">Classes: <?php echo h(implode(', ', $classes)); ?></div><?php endif; ?>
                         <?php if (!empty($event['description'])): ?><div class="text-muted small mt-1 fst-italic"><?php echo h(rich_html_plain_text((string)$event['description'])); ?></div><?php endif; ?>
                     </div>
