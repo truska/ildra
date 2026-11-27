@@ -98,7 +98,7 @@ if ($event && !empty($event['end_date']) && $event['end_date'] !== $event['event
             <div class="col-md-6"><div class="fw-semibold mb-2">Classes offered</div><?php if ($classesList): ?><ul class="list-unstyled mb-0 text-muted small"><?php foreach ($classesList as $className): ?><li><?php echo h($className); ?></li><?php endforeach; ?></ul><?php else: ?><div class="text-muted small">No classes listed.</div><?php endif; ?><?php if ($hasLimit): ?><div class="text-muted small mt-2">Entries: <?php echo h($totalEntryCount); ?> / <?php echo h($capacityLimit); ?></div><?php endif; ?></div>
         </div>
     </section>
-    <section class="card-soft p-4 mb-4"><h2 class="h3 mb-3">Ride Report</h2><div class="page-body"><?php echo render_wysiwyg((string)($report['body_html'] ?? '')); ?></div></section>
+    <section class="card-soft p-4 mb-4"><div class="d-flex justify-content-between align-items-center gap-2 mb-3"><h2 class="h3 mb-0">Ride Report</h2><?php if ($canViewAdmin && empty($_SESSION['act_as_original_user'])): ?><a class="btn btn-sm btn-outline-success" href="<?php echo h($basePath); ?>/admin/news_edit.php?id=<?php echo (int)$report['id']; ?>" target="_blank" rel="noopener" title="Edit this ride report"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Edit</a><?php endif; ?></div><div class="page-body"><?php echo render_wysiwyg((string)($report['body_html'] ?? '')); ?></div></section>
     <section class="card-soft p-4"><h2 class="h3 mb-3">Ride Results</h2><div class="page-body"><?php echo render_wysiwyg((string)($report['results_html'] ?? '')); ?></div></section>
     <?php if ($galleryImages && $galleryBatch): ?>
     <section class="report-gallery-shell mt-4" aria-labelledby="ride-gallery-heading">
